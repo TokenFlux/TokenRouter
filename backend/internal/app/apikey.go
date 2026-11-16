@@ -41,10 +41,12 @@ func provideKeyRepository(keys *keypostgres.KeyStore) apikey.APIKeyRepository {
 // provideKeys constructs the key service with process cache settings and the
 // application calendar. It connects billing invalidation, live concurrency, and
 // team reads before the service starts its authentication cache lifecycle.
+// Protected credentials read current shared-price peak settings during admission.
 func provideKeys(
 	keys *keypostgres.KeyStore,
 	users *identitypostgres.UserStore,
 	groups *routingpostgres.GroupStore,
+	prices *routingpostgres.PricingConfigStore,
 	subs billing.UserSubscriptionRepository,
 	rates billing.UserGroupRateRepository,
 	cache apikey.APIKeyCache,
@@ -55,6 +57,24 @@ func provideKeys(
 	calendar timezone.Calendar,
 ) *apikey.APIKeyService {
 	options := &apikey.Options{
+		TokenRateScale: func(ctx context.Context, groupID int64, at time.Time) (float64, error) {
+			// Resolve current price settings before each protected admission so a
+			// newly configured peak window participates in the credential ceiling.
+			configID, err := prices.GetPricingConfigIDByGroupID(ctx, groupID)
+			if err != nil || configID == 0 {
+				return 1, err
+			}
+			config, err := prices.GetByID(ctx, configID)
+			if err != nil {
+				return 0, err
+			}
+			// Unavailable shared configurations use the unit peak factor selected
+			// by ordinary settlement when it applies the default billing settings.
+			if config == nil || config.Status != apikey.StatusActive {
+				return 1, nil
+			}
+			return config.PeakMultiplierAt(at), nil
+		},
 		Now:      time.Now,
 		Calendar: calendar,
 		APIKeyAuth: apikey.APIKeyAuthCacheConfig{

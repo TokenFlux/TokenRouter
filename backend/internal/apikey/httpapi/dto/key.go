@@ -56,6 +56,9 @@ type APIKey[G any] struct {
 	UpdatedAt                    time.Time         `json:"updated_at"`                      // latest persisted Key mutation
 	FallbackWhenGroupUnavailable bool              `json:"fallback_when_group_unavailable"` // configured unavailable-target selection flag
 	CurrentConcurrency           int               `json:"current_concurrency"`             // observed active request count
+	// MaxTokenRateMultiplier caps the effective group Token multiplier. Zero
+	// disables protection; positive values reject requests above the saved ceiling.
+	MaxTokenRateMultiplier float64 `json:"max_token_rate_multiplier"` // maximum effective Token multiplier
 	// ConcurrencyLimit and RPMLimit use zero for unbounded request allowances.
 	// RateLimit5h, RateLimit1d and RateLimit7d describe separate USD allowances;
 	// Usage5h, Usage1d and Usage7d display zero for ended or absent windows.
@@ -124,6 +127,7 @@ func APIKeyFromKey[G any](k *apikey.APIKey, group func(*routing.Group) *G) *APIK
 		ExpiresAt:                    k.ExpiresAt,
 		CreatedAt:                    k.CreatedAt,
 		UpdatedAt:                    k.UpdatedAt,
+		MaxTokenRateMultiplier:       k.MaxTokenRateMultiplier,
 		ConcurrencyLimit:             k.ConcurrencyLimit,
 		RPMLimit:                     k.RPMLimit,
 		RateLimit5h:                  k.RateLimit5h,

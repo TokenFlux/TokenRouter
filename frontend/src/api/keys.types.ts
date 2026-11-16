@@ -40,6 +40,8 @@ export interface ApiKey {
   // the lock remains in effect.
   team_owner_disabled?: boolean // Team owner suspension flag.
   key: string // API access credential.
+  // A positive ceiling rejects higher effective group Token rates; zero disables protection.
+  max_token_rate_multiplier?: number // Group Token multiplier ceiling.
   name: string // Record display name.
   group_id: number | null // Routing group identifier.
   is_composite?: boolean // Composite routing enabled.
@@ -84,6 +86,9 @@ export interface ApiKey {
 // CreateApiKeyRequest supplies credential ownership, routing, and spending settings for
 // creation.
 export interface CreateApiKeyRequest {
+  // An omitted or zero ceiling disables protection; positive values reject higher
+  // effective group Token rates before upstream dispatch.
+  max_token_rate_multiplier?: number // Group Token multiplier ceiling.
   name: string // Record display name.
   scope?: 'personal' | 'team' // Credential ownership scope.
   group_id?: number | null // Routing group identifier.
@@ -116,6 +121,9 @@ export interface CreateApiKeyRequest {
 // UpdateApiKeyRequest supplies optional credential settings and requested usage counter
 // resets.
 export interface UpdateApiKeyRequest {
+  // Omission keeps the saved ceiling; zero clears it, and a positive value
+  // replaces the limit applied before upstream dispatch.
+  max_token_rate_multiplier?: number // Group Token multiplier ceiling.
   name?: string // Record display name.
   group_id?: number | null // Routing group identifier.
   is_composite?: boolean // Composite routing enabled.

@@ -85,6 +85,9 @@ type CreateAPIKeyRequest struct {
 	// calendar days.
 	ExpiresInDays *int `json:"expires_in_days"` // supplied relative expiry days
 
+	// MaxTokenRateMultiplier caps the effective group Token multiplier. Zero
+	// disables protection; positive values reject requests above the saved ceiling.
+	MaxTokenRateMultiplier float64 `json:"max_token_rate_multiplier"` // maximum effective Token multiplier
 	// ConcurrencyLimit and RPMLimit apply across the created Key's groups.
 	// Their zero defaults leave request allowances unbounded, while positive values
 	// are validated and reserved by service and gateway admission.
@@ -131,6 +134,9 @@ type UpdateAPIKeyRequest struct {
 	ExpiresAt  *string `json:"expires_at"`  // supplied RFC3339 expiry text
 	ResetQuota *bool   `json:"reset_quota"` // requested total-spending usage reset
 
+	// MaxTokenRateMultiplier retains the saved ceiling when nil. Supplied zero
+	// disables protection; positive values reject higher effective group Token rates.
+	MaxTokenRateMultiplier *float64 `json:"max_token_rate_multiplier"` // optional Token multiplier ceiling
 	// ConcurrencyLimit and RPMLimit retain omitted pointer values during update.
 	// Each supplied zero clears its saved request allowance independently, while
 	// positive values become the replacement admission settings after service validation.
@@ -378,6 +384,7 @@ func (h *APIKeyHandler[G]) Create(c *gin.Context) {
 		FastModePolicy:               req.FastModePolicy,
 		BillingMode:                  req.BillingMode,
 		PreferredSubscriptionID:      req.PreferredSubscriptionID,
+		MaxTokenRateMultiplier:       req.MaxTokenRateMultiplier,
 		ConcurrencyLimit:             req.ConcurrencyLimit,
 		RPMLimit:                     req.RPMLimit,
 		ModelMapping:                 req.ModelMapping,
@@ -446,6 +453,7 @@ func (h *APIKeyHandler[G]) Update(c *gin.Context) {
 		FastModePolicy:               req.FastModePolicy,
 		BillingMode:                  req.BillingMode,
 		PreferredSubscriptionID:      req.PreferredSubscriptionID,
+		MaxTokenRateMultiplier:       req.MaxTokenRateMultiplier,
 		ConcurrencyLimit:             req.ConcurrencyLimit,
 		RPMLimit:                     req.RPMLimit,
 		ModelMapping:                 req.ModelMapping,
@@ -658,7 +666,8 @@ func (h *APIKeyHandler[G]) getAvailableGroupCapacityMap(ctx context.Context, gro
 // GetUserGroupRates returns payer-specific group charge multipliers for the
 // authenticated subject's requested scope. Team scope resolves the current
 // owner, missing rate storage can produce nil data, and service errors use the
-// shared application response.
+// shared application response. With token_rates=true, the response instead
+// previews current group Token ceilings under the requested funding selection.
 func (h *APIKeyHandler[G]) GetUserGroupRates(c *gin.Context) {
 	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -666,6 +675,30 @@ func (h *APIKeyHandler[G]) GetUserGroupRates(c *gin.Context) {
 		return
 	}
 
+	tokenRates, err := strconv.ParseBool(c.DefaultQuery("token_rates", "false"))
+	if err != nil {
+		response.BadRequest(c, "Invalid token_rates")
+		return
+	}
+	if tokenRates {
+		var subscriptionID *int64
+		if raw := c.Query("subscription_id"); raw != "" {
+			id, parseErr := strconv.ParseInt(raw, 10, 64)
+			if parseErr != nil || id <= 0 {
+				response.BadRequest(c, "Invalid subscription ID")
+				return
+			}
+			subscriptionID = &id
+		}
+		rates, readErr := h.apiKeyService.TokenRatesForScope(c.Request.Context(), subject.UserID,
+			c.DefaultQuery("scope", "personal"), c.DefaultQuery("billing_mode", "auto"), subscriptionID)
+		if readErr != nil {
+			response.ErrorFrom(c, readErr)
+			return
+		}
+		response.Success(c, rates)
+		return
+	}
 	rates, err := h.apiKeyService.GetUserGroupRatesForScope(c.Request.Context(), subject.UserID, c.DefaultQuery("scope", "personal"))
 	if err != nil {
 		response.ErrorFrom(c, err)

@@ -63,6 +63,8 @@ type APIKey struct {
 	QuotaUsed float64 `json:"quota_used,omitempty"`
 	// Expiration time for this API key (null = never expires)
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	// MaxTokenRateMultiplier holds the value of the "max_token_rate_multiplier" field.
+	MaxTokenRateMultiplier float64 `json:"max_token_rate_multiplier,omitempty"`
 	// ConcurrencyLimit holds the value of the "concurrency_limit" field.
 	ConcurrencyLimit int `json:"concurrency_limit,omitempty"`
 	// RpmLimit holds the value of the "rpm_limit" field.
@@ -172,7 +174,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case apikey.FieldTeamOwnerDisabled, apikey.FieldIsComposite, apikey.FieldFallbackWhenGroupUnavailable:
 			values[i] = new(sql.NullBool)
-		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
+		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldMaxTokenRateMultiplier, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
 		case apikey.FieldID, apikey.FieldUserID, apikey.FieldTeamID, apikey.FieldGroupID, apikey.FieldPreferredSubscriptionID, apikey.FieldConcurrencyLimit, apikey.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -338,6 +340,12 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ExpiresAt = new(time.Time)
 				*_m.ExpiresAt = value.Time
+			}
+		case apikey.FieldMaxTokenRateMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_token_rate_multiplier", values[i])
+			} else if value.Valid {
+				_m.MaxTokenRateMultiplier = value.Float64
 			}
 		case apikey.FieldConcurrencyLimit:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -556,6 +564,9 @@ func (_m *APIKey) String() string {
 		builder.WriteString("expires_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("max_token_rate_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxTokenRateMultiplier))
 	builder.WriteString(", ")
 	builder.WriteString("concurrency_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ConcurrencyLimit))

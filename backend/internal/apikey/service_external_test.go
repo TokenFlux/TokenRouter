@@ -1602,16 +1602,20 @@ func TestValidateCreateAPIKeyRequestNumericLimits(t *testing.T) {
 	// The predecessor of the exclusive bound tests that creation accepts the
 	// closest representable allowance still inside its stored interval.
 	require.NoError(t, apikey.KeyValidateCreateAPIKeyRequest(apikey.CreateAPIKeyRequest{
-		Quota:         math.Nextafter(apiKeyLimitUpperBound, 0),
-		RateLimit5h:   10,
-		RateLimit1d:   20,
-		RateLimit7d:   30,
-		ExpiresInDays: &positiveExpiry,
+		MaxTokenRateMultiplier: .08,
+		Quota:                  math.Nextafter(apiKeyLimitUpperBound, 0),
+		RateLimit5h:            10,
+		RateLimit1d:            20,
+		RateLimit7d:            30,
+		ExpiresInDays:          &positiveExpiry,
 	}))
 	require.NoError(t, apikey.KeyValidateCreateAPIKeyRequest(apikey.CreateAPIKeyRequest{}))
 
 	zeroExpiry, negativeExpiry := 0, -1
 	invalid := []apikey.CreateAPIKeyRequest{
+		{MaxTokenRateMultiplier: -1},
+		{MaxTokenRateMultiplier: math.NaN()},
+		{MaxTokenRateMultiplier: math.Inf(1)},
 		{Quota: -1},
 		{Quota: math.NaN()},
 		{Quota: apiKeyLimitUpperBound},

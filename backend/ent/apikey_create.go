@@ -273,6 +273,20 @@ func (_c *APIKeyCreate) SetNillableExpiresAt(v *time.Time) *APIKeyCreate {
 	return _c
 }
 
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (_c *APIKeyCreate) SetMaxTokenRateMultiplier(v float64) *APIKeyCreate {
+	_c.mutation.SetMaxTokenRateMultiplier(v)
+	return _c
+}
+
+// SetNillableMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableMaxTokenRateMultiplier(v *float64) *APIKeyCreate {
+	if v != nil {
+		_c.SetMaxTokenRateMultiplier(*v)
+	}
+	return _c
+}
+
 // SetConcurrencyLimit sets the "concurrency_limit" field.
 func (_c *APIKeyCreate) SetConcurrencyLimit(v int) *APIKeyCreate {
 	_c.mutation.SetConcurrencyLimit(v)
@@ -586,6 +600,10 @@ func (_c *APIKeyCreate) defaults() error {
 		v := apikey.DefaultQuotaUsed
 		_c.mutation.SetQuotaUsed(v)
 	}
+	if _, ok := _c.mutation.MaxTokenRateMultiplier(); !ok {
+		v := apikey.DefaultMaxTokenRateMultiplier
+		_c.mutation.SetMaxTokenRateMultiplier(v)
+	}
 	if _, ok := _c.mutation.ConcurrencyLimit(); !ok {
 		v := apikey.DefaultConcurrencyLimit
 		_c.mutation.SetConcurrencyLimit(v)
@@ -690,6 +708,14 @@ func (_c *APIKeyCreate) check() error {
 	}
 	if _, ok := _c.mutation.QuotaUsed(); !ok {
 		return &ValidationError{Name: "quota_used", err: errors.New(`ent: missing required field "APIKey.quota_used"`)}
+	}
+	if _, ok := _c.mutation.MaxTokenRateMultiplier(); !ok {
+		return &ValidationError{Name: "max_token_rate_multiplier", err: errors.New(`ent: missing required field "APIKey.max_token_rate_multiplier"`)}
+	}
+	if v, ok := _c.mutation.MaxTokenRateMultiplier(); ok {
+		if err := apikey.MaxTokenRateMultiplierValidator(v); err != nil {
+			return &ValidationError{Name: "max_token_rate_multiplier", err: fmt.Errorf(`ent: validator failed for field "APIKey.max_token_rate_multiplier": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.ConcurrencyLimit(); !ok {
 		return &ValidationError{Name: "concurrency_limit", err: errors.New(`ent: missing required field "APIKey.concurrency_limit"`)}
@@ -834,6 +860,10 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ExpiresAt(); ok {
 		_spec.SetField(apikey.FieldExpiresAt, field.TypeTime, value)
 		_node.ExpiresAt = &value
+	}
+	if value, ok := _c.mutation.MaxTokenRateMultiplier(); ok {
+		_spec.SetField(apikey.FieldMaxTokenRateMultiplier, field.TypeFloat64, value)
+		_node.MaxTokenRateMultiplier = value
 	}
 	if value, ok := _c.mutation.ConcurrencyLimit(); ok {
 		_spec.SetField(apikey.FieldConcurrencyLimit, field.TypeInt, value)
@@ -1325,6 +1355,24 @@ func (u *APIKeyUpsert) UpdateExpiresAt() *APIKeyUpsert {
 // ClearExpiresAt clears the value of the "expires_at" field.
 func (u *APIKeyUpsert) ClearExpiresAt() *APIKeyUpsert {
 	u.SetNull(apikey.FieldExpiresAt)
+	return u
+}
+
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsert) SetMaxTokenRateMultiplier(v float64) *APIKeyUpsert {
+	u.Set(apikey.FieldMaxTokenRateMultiplier, v)
+	return u
+}
+
+// UpdateMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateMaxTokenRateMultiplier() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldMaxTokenRateMultiplier)
+	return u
+}
+
+// AddMaxTokenRateMultiplier adds v to the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsert) AddMaxTokenRateMultiplier(v float64) *APIKeyUpsert {
+	u.Add(apikey.FieldMaxTokenRateMultiplier, v)
 	return u
 }
 
@@ -1955,6 +2003,27 @@ func (u *APIKeyUpsertOne) UpdateExpiresAt() *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) ClearExpiresAt() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearExpiresAt()
+	})
+}
+
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsertOne) SetMaxTokenRateMultiplier(v float64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetMaxTokenRateMultiplier(v)
+	})
+}
+
+// AddMaxTokenRateMultiplier adds v to the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsertOne) AddMaxTokenRateMultiplier(v float64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddMaxTokenRateMultiplier(v)
+	})
+}
+
+// UpdateMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateMaxTokenRateMultiplier() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateMaxTokenRateMultiplier()
 	})
 }
 
@@ -2789,6 +2858,27 @@ func (u *APIKeyUpsertBulk) UpdateExpiresAt() *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) ClearExpiresAt() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearExpiresAt()
+	})
+}
+
+// SetMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsertBulk) SetMaxTokenRateMultiplier(v float64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetMaxTokenRateMultiplier(v)
+	})
+}
+
+// AddMaxTokenRateMultiplier adds v to the "max_token_rate_multiplier" field.
+func (u *APIKeyUpsertBulk) AddMaxTokenRateMultiplier(v float64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddMaxTokenRateMultiplier(v)
+	})
+}
+
+// UpdateMaxTokenRateMultiplier sets the "max_token_rate_multiplier" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateMaxTokenRateMultiplier() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateMaxTokenRateMultiplier()
 	})
 }
 

@@ -107,6 +107,9 @@ type APIKey struct {
 	// FallbackWhenGroupUnavailable enables selection of the bound group's saved
 	// unavailable target. The target still requires scope and payer permission.
 	FallbackWhenGroupUnavailable bool
+	// MaxTokenRateMultiplier caps the effective group Token multiplier. Zero
+	// disables protection; positive values reject requests above the saved ceiling.
+	MaxTokenRateMultiplier float64 // maximum effective Token multiplier
 	// ConcurrencyLimit and RPMLimit apply across the Key's groups and instances.
 	// Zero disables each independent request check, and consuming entry points
 	// reserve configured capacity before forwarding to an upstream provider.

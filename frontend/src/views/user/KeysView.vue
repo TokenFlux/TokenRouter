@@ -843,6 +843,38 @@
           </div>
         </div>
 
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label for="key-token-rate-protection" class="input-label mb-0">
+              {{ t('keys.tokenRateLimit') }}
+            </label>
+            <Toggle
+              id="key-token-rate-protection"
+              :model-value="formData.enable_token_rate_limit"
+              size="sm"
+              off-tone="soft"
+              data-testid="key-token-rate-protection"
+              @update:model-value="onTokenRateProtectionChange"
+            />
+          </div>
+          <input
+            v-if="formData.enable_token_rate_limit"
+            id="key-token-rate-limit"
+            v-model.number="formData.max_token_rate_multiplier"
+            type="number"
+            min="0"
+            step="any"
+            class="input"
+            :aria-label="t('keys.tokenRateLimit')"
+            data-testid="key-token-rate-limit"
+            @input="onTokenRateLimitInput"
+          />
+          <p v-if="currentTokenRate !== null" class="input-hint">
+            {{ t('keys.tokenRateLimitCurrentHint', { rate: currentTokenRate.toFixed(3) }) }}
+          </p>
+          <p class="input-hint">{{ t('keys.tokenRateLimitHint') }}</p>
+        </div>
+
         <!-- Quota Limit Section -->
         <div class="space-y-3">
           <label class="input-label">{{ t('keys.quotaLimit') }}</label>
@@ -1938,6 +1970,11 @@ const formData = ref({
   // each uses zero for an unlimited request count in its corresponding limit.
   concurrency_limit: 0, // Concurrent request count cap.
   rpm_limit: 0, // Requests per minute cap.
+  // enable_token_rate_limit controls submission of max_token_rate_multiplier.
+  // Disabled protection submits zero; enabled protection requires a positive
+  // ceiling initialized from the selected groups and editable by the user.
+  enable_token_rate_limit: false, // Group Token protection switch.
+  max_token_rate_multiplier: null as number | null, // Editable group Token ceiling.
   rate_limit_5h: null as number | null, // Five-hour spending amount cap.
   rate_limit_1d: null as number | null, // One-day spending amount cap.
   rate_limit_7d: null as number | null, // Seven-day spending amount cap.
@@ -1950,6 +1987,92 @@ const formData = ref({
   expiration_date: '', // Browser-local expiration datetime text.
   fallback_when_group_unavailable: true, // Group-unavailable routing fallback flag.
 })
+
+// tokenRates holds the latest server preview for the form's payer and funding selection.
+// tokenRatesRequestID invalidates pending previews when selection changes or the dialog closes.
+const tokenRates = ref<Record<number, number>>({})
+let tokenRatesRequestID = 0
+
+// currentTokenRate reports the highest preview among selected ordinary or composite groups.
+// Missing previews remain unknown so a failed lookup cannot imply a free group rate.
+const currentTokenRate = computed(() => {
+  const ids = formData.value.is_composite
+    ? formData.value.composite_groups.map((binding) => binding.group_id)
+    : [formData.value.group_id]
+  const selected = ids.filter((id): id is number => id !== null)
+  if (!selected.length || selected.some((id) => tokenRates.value[id] === undefined)) return null
+  return Math.max(...selected.map((id) => tokenRates.value[id]))
+})
+
+// tokenRateLimitFollowsGroup lets untouched defaults follow group and funding
+// selections. Manual input and loaded saved ceilings keep their chosen values.
+const tokenRateLimitFollowsGroup = ref(true)
+
+// onTokenRateProtectionChange enables or disables the draft's Token protection.
+// Enabling starts a fresh default from the selected group's current rate; an
+// unavailable preview remains empty until its asynchronous lookup completes.
+const onTokenRateProtectionChange = (enabled: boolean) => {
+  formData.value.enable_token_rate_limit = enabled
+  if (enabled) {
+    tokenRateLimitFollowsGroup.value = true
+    formData.value.max_token_rate_multiplier = currentTokenRate.value
+  }
+}
+
+// onTokenRateLimitInput keeps the user's ceiling across subsequent preview updates.
+const onTokenRateLimitInput = () => {
+  tokenRateLimitFollowsGroup.value = false
+}
+
+// Update automatically filled ceilings when selected groups or their funding
+// previews change. Saved and manually edited values remain stable until the
+// user enables protection again to request a fresh group-based default.
+watch(currentTokenRate, (rate) => {
+  if (formData.value.enable_token_rate_limit && tokenRateLimitFollowsGroup.value) {
+    formData.value.max_token_rate_multiplier = rate
+  }
+})
+
+// loadTokenRates retrieves effective group rates for the visible Key editor's
+// payer, billing mode, and selected subscription. Each call increments a sequence
+// and clears previous rates before sending its request. Closed editors and
+// incomplete subscription selections leave the preview empty.
+//
+// Only a response matching the latest sequence publishes its rates. Closing
+// the dialog or changing its payer or funding selection invalidates earlier
+// responses through the watcher, preventing a delayed quote from appearing in
+// another draft. Lookup failure leaves rates unknown while server admission
+// remains responsible for checking the configured ceiling.
+const loadTokenRates = async () => {
+  const requestID = ++tokenRatesRequestID
+  tokenRates.value = {}
+  if (!showCreateModal.value && !showEditModal.value) return
+  if (formData.value.billing_mode === 'subscription' && !formData.value.preferred_subscription_id)
+    return
+  try {
+    const rates = await keysAPI.getTokenRateMultipliers(
+      scope.value,
+      formData.value.billing_mode,
+      formData.value.preferred_subscription_id,
+    )
+    // A later billing selection owns the preview, so discard this older result
+    // before it can replace rates belonging to that newer editor state.
+    if (requestID === tokenRatesRequestID) tokenRates.value = rates
+  } catch {
+    // Price lookup failure leaves the hint unknown; admission still resolves
+    // current prices and rejects protected requests when verification fails.
+  }
+}
+
+watch(
+  [
+    () => showCreateModal.value || showEditModal.value,
+    () => formData.value.billing_mode,
+    () => formData.value.preferred_subscription_id,
+    () => scope.value,
+  ],
+  loadTokenRates,
+)
 
 // MODEL_REDIRECT_MAX_RULES bounds the redirect editor before submission so the page rejects
 // oversized mapping lists alongside per-row validation errors.
@@ -2581,8 +2704,9 @@ watch(() => route?.query?.create, openCreateFromRoute)
 // uses browser-local datetime text. Server terminal statuses display as inactive, with
 // shouldSubmitEditStatus later deciding whether a status write is permitted. Missing
 // billing, Fast, and restriction values receive the defaults expected by the form controls
-// before it opens.
+// before it opens. Saved Token ceilings retain their configured values across previews.
 const editKey = (key: ApiKey) => {
+  tokenRateLimitFollowsGroup.value = false
   selectedKey.value = key
   const hasIPRestriction = key.ip_whitelist?.length > 0 || key.ip_blacklist?.length > 0
   const hasExpiration = !!key.expires_at
@@ -2611,6 +2735,8 @@ const editKey = (key: ApiKey) => {
     enable_rate_limit: key.rate_limit_5h > 0 || key.rate_limit_1d > 0 || key.rate_limit_7d > 0,
     concurrency_limit: key.concurrency_limit ?? 0,
     rpm_limit: key.rpm_limit ?? 0,
+    enable_token_rate_limit: (key.max_token_rate_multiplier ?? 0) > 0,
+    max_token_rate_multiplier: key.max_token_rate_multiplier || null,
     rate_limit_5h: key.rate_limit_5h || null,
     rate_limit_1d: key.rate_limit_1d || null,
     rate_limit_7d: key.rate_limit_7d || null,
@@ -2839,6 +2965,9 @@ const submitKeyForm = async () => {
         expires_at: expiresAt,
         concurrency_limit: Number(formData.value.concurrency_limit || 0),
         rpm_limit: Number(formData.value.rpm_limit || 0),
+        max_token_rate_multiplier: formData.value.enable_token_rate_limit
+          ? Number(formData.value.max_token_rate_multiplier)
+          : 0,
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
@@ -2888,6 +3017,9 @@ const submitKeyForm = async () => {
         expires_in_days: expiresInDays,
         concurrency_limit: Number(formData.value.concurrency_limit || 0),
         rpm_limit: Number(formData.value.rpm_limit || 0),
+        max_token_rate_multiplier: formData.value.enable_token_rate_limit
+          ? Number(formData.value.max_token_rate_multiplier)
+          : 0,
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
@@ -2932,12 +3064,23 @@ const onScopeChange = () => {
   ])
 }
 
-// handleSubmit validates integer request limits, model redirects, composite mappings,
+// handleSubmit validates Token ceilings, integer request limits, model redirects, composite mappings,
 // billing selection, and required group identity before submission. Custom-secret checks
 // apply only to creation; accepted drafts delegate payload conversion and persistence to
 // submitKeyForm.
 const handleSubmit = async () => {
-  // Empty numeric controls submit zero; other request caps must fit the nonnegative signed 32-bit integer range accepted by persistence.
+  // Enabled protection needs a positive ceiling because the API interprets zero
+  // as disabled; an unavailable default must not silently remove the guard.
+  const tokenRateLimit = Number(formData.value.max_token_rate_multiplier)
+  if (
+    formData.value.enable_token_rate_limit &&
+    (!Number.isFinite(tokenRateLimit) || tokenRateLimit <= 0 || tokenRateLimit >= 1e12)
+  ) {
+    appStore.showError(t('keys.tokenRateLimitInvalid'))
+    return
+  }
+  // Empty request-count inputs submit zero; configured counts fit PostgreSQL
+  // int32 storage so the form rejects larger values before persistence.
   const requestLimits = [formData.value.concurrency_limit, formData.value.rpm_limit]
   if (
     requestLimits.some(
@@ -3012,6 +3155,7 @@ const handleDelete = async () => {
 // against the reset draft. The request itself keeps running, but its completion
 // checks the captured sequence before updating choices or releasing loading.
 const closeModals = () => {
+  tokenRateLimitFollowsGroup.value = true
   showCreateModal.value = false
   showEditModal.value = false
   selectedKey.value = null
@@ -3039,6 +3183,8 @@ const closeModals = () => {
     enable_rate_limit: false,
     concurrency_limit: 0,
     rpm_limit: 0,
+    enable_token_rate_limit: false,
+    max_token_rate_multiplier: null,
     rate_limit_5h: null,
     rate_limit_1d: null,
     rate_limit_7d: null,

@@ -79,8 +79,12 @@ func ValidateRequestLimits(concurrency, rpm *int) error {
 // carried by the returned context. Release is idempotent, joins renewal before
 // independent cleanup, and completes operation-gate accounting even when Redis
 // removal fails. RPM-only requests need no renewal callback work.
+// Protected keys also check their current Token rate before reserving capacity.
 // @project-doc docs/domains/routing_and_billing.md#api_key_request_limits
 func (s *APIKeyService) AcquireRequest(ctx context.Context, key *APIKey) (context.Context, func(), time.Duration, error) {
+	if err := s.CheckTokenRateLimit(ctx, key); err != nil {
+		return ctx, nil, 0, err
+	}
 	if key.ConcurrencyLimit <= 0 && key.RPMLimit <= 0 {
 		return ctx, func() {}, 0, nil
 	}

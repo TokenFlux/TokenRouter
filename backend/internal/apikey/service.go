@@ -140,8 +140,9 @@ type APIKeyUpdateFields struct {
 	// QuotaUsed selects an explicit total-usage replacement. Ordinary
 	// configuration edits leave this false so the loaded view cannot overwrite
 	// concurrent billing increments.
-	QuotaUsed  bool // select explicit total-usage replacement
-	RateLimits bool // select all USD window allowances
+	QuotaUsed              bool // select explicit total-usage replacement
+	RateLimits             bool // select all USD window allowances
+	MaxTokenRateMultiplier bool // select saved Token multiplier ceiling
 	// ConcurrencyLimit and RPMLimit select their columns independently so changing
 	// or clearing one request allowance retains the other saved value until it is
 	// also selected.
@@ -390,12 +391,15 @@ type CreateAPIKeyRequest struct {
 	// ExpiresInDays omission keeps expiration absent. Positive input adds calendar
 	// days to the configured service time; zero and negative values reject before
 	// repository access.
-	ExpiresInDays    *int    `json:"expires_in_days"`   // optional validity in calendar days
-	ConcurrencyLimit int     `json:"concurrency_limit"` // maximum admitted active requests
-	RPMLimit         int     `json:"rpm_limit"`         // maximum admitted requests per minute
-	RateLimit5h      float64 `json:"rate_limit_5h"`     // five-hour USD spending allowance
-	RateLimit1d      float64 `json:"rate_limit_1d"`     // one-day USD spending allowance
-	RateLimit7d      float64 `json:"rate_limit_7d"`     // seven-day USD spending allowance
+	ExpiresInDays *int `json:"expires_in_days"` // optional validity in calendar days
+	// MaxTokenRateMultiplier caps the effective group Token multiplier. Zero
+	// disables protection; positive values reject requests above the saved ceiling.
+	MaxTokenRateMultiplier float64 `json:"max_token_rate_multiplier"` // maximum effective Token multiplier
+	ConcurrencyLimit       int     `json:"concurrency_limit"`         // maximum admitted active requests
+	RPMLimit               int     `json:"rpm_limit"`                 // maximum admitted requests per minute
+	RateLimit5h            float64 `json:"rate_limit_5h"`             // five-hour USD spending allowance
+	RateLimit1d            float64 `json:"rate_limit_1d"`             // one-day USD spending allowance
+	RateLimit7d            float64 `json:"rate_limit_7d"`             // seven-day USD spending allowance
 	// FallbackWhenGroupUnavailable defaults true when absent. A supplied value is
 	// saved for later request target selection, whose eligibility and payer checks
 	// remain independent of this preference.
@@ -455,6 +459,9 @@ type UpdateAPIKeyRequest struct {
 	// dedicated write mask distinguishes an intentional reset from ordinary
 	// quota-allowance changes.
 	ResetQuota *bool `json:"reset_quota"` // optional total-usage reset request
+	// MaxTokenRateMultiplier retains the saved ceiling when nil. Supplied zero
+	// disables protection; positive values reject higher effective group Token rates.
+	MaxTokenRateMultiplier *float64 `json:"max_token_rate_multiplier"` // optional Token multiplier ceiling
 	// ConcurrencyLimit and RPMLimit retain the saved request settings when nil.
 	// Supplied zero clears the selected allowance, while positive replacements are
 	// validated before any repository lookup.
@@ -595,8 +602,8 @@ func NotifyAuthCacheSubscriptionReady(ctx context.Context) {
 	}
 }
 
-// ValidateAPIKeyLimit checks a finite nonnegative USD allowance below the
-// exclusive DECIMAL integer bound. Rejection returns the field name and maximum
+// ValidateAPIKeyLimit checks a finite nonnegative allowance or multiplier below
+// the exclusive DECIMAL integer bound. Rejection returns the field name and maximum
 // in error metadata; zero remains valid for callers selecting an unbounded
 // allowance.
 func ValidateAPIKeyLimit(field string, value float64) error {
@@ -620,9 +627,9 @@ func ValidateAPIKeyExpiresInDays(days int) error {
 	return nil
 }
 
-// KeyValidateCreateAPIKeyRequest checks request-count bounds and all monetary
-// allowance fields before relative expiry. Zero amounts are valid defaults,
-// omitted expiry remains unbounded, and each invalid amount reports its
+// KeyValidateCreateAPIKeyRequest checks request-count bounds, the Token rate
+// ceiling, and monetary allowance fields before relative expiry. Zero amounts
+// are valid defaults, omitted expiry remains unbounded, and invalid amounts report their
 // specific field through the shared validator.
 func KeyValidateCreateAPIKeyRequest(req CreateAPIKeyRequest) error {
 	if err := ValidateRequestLimits(&req.ConcurrencyLimit, &req.RPMLimit); err != nil {
@@ -630,8 +637,9 @@ func KeyValidateCreateAPIKeyRequest(req CreateAPIKeyRequest) error {
 	}
 	limits := []struct {
 		field string  // allowance validation field name
-		value float64 // supplied USD allowance input
+		value float64 // supplied numeric allowance input
 	}{
+		{field: "max_token_rate_multiplier", value: req.MaxTokenRateMultiplier},
 		{field: "quota", value: req.Quota},
 		{field: "rate_limit_5h", value: req.RateLimit5h},
 		{field: "rate_limit_1d", value: req.RateLimit1d},
@@ -649,17 +657,18 @@ func KeyValidateCreateAPIKeyRequest(req CreateAPIKeyRequest) error {
 }
 
 // KeyValidateUpdateAPIKeyRequest checks request-count replacements and supplied
-// monetary allowances in update input. Nil pointers are omitted, zero clears an
-// allowance, and validation returns before repository access on invalid numeric
-// input.
+// Token rate and monetary allowances in update input. Nil pointers are omitted,
+// zero clears an allowance, and invalid numeric input rejects before repository
+// access.
 func KeyValidateUpdateAPIKeyRequest(req UpdateAPIKeyRequest) error {
 	if err := ValidateRequestLimits(req.ConcurrencyLimit, req.RPMLimit); err != nil {
 		return err
 	}
 	limits := []struct {
 		field string   // allowance validation field name
-		value *float64 // supplied USD allowance input
+		value *float64 // supplied numeric allowance input
 	}{
+		{field: "max_token_rate_multiplier", value: req.MaxTokenRateMultiplier},
 		{field: "quota", value: req.Quota},
 		{field: "rate_limit_5h", value: req.RateLimit5h},
 		{field: "rate_limit_1d", value: req.RateLimit1d},
@@ -1213,6 +1222,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		IPBlacklist:                  req.IPBlacklist,
 		Quota:                        req.Quota,
 		QuotaUsed:                    0,
+		MaxTokenRateMultiplier:       req.MaxTokenRateMultiplier,
 		ConcurrencyLimit:             req.ConcurrencyLimit,
 		RPMLimit:                     req.RPMLimit,
 		RateLimit5h:                  req.RateLimit5h,
@@ -1807,6 +1817,10 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		fields.IPRules = true
 	}
 
+	if req.MaxTokenRateMultiplier != nil {
+		apiKey.MaxTokenRateMultiplier = *req.MaxTokenRateMultiplier
+		fields.MaxTokenRateMultiplier = true
+	}
 	if req.ConcurrencyLimit != nil {
 		apiKey.ConcurrencyLimit = *req.ConcurrencyLimit
 		fields.ConcurrencyLimit = true

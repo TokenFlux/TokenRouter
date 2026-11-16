@@ -57,6 +57,8 @@ const (
 	FieldQuotaUsed = "quota_used"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
+	// FieldMaxTokenRateMultiplier holds the string denoting the max_token_rate_multiplier field in the database.
+	FieldMaxTokenRateMultiplier = "max_token_rate_multiplier"
 	// FieldConcurrencyLimit holds the string denoting the concurrency_limit field in the database.
 	FieldConcurrencyLimit = "concurrency_limit"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
@@ -156,6 +158,7 @@ var Columns = []string{
 	FieldQuota,
 	FieldQuotaUsed,
 	FieldExpiresAt,
+	FieldMaxTokenRateMultiplier,
 	FieldConcurrencyLimit,
 	FieldRpmLimit,
 	FieldRateLimit5h,
@@ -221,6 +224,10 @@ var (
 	DefaultQuota float64
 	// DefaultQuotaUsed holds the default value on creation for the "quota_used" field.
 	DefaultQuotaUsed float64
+	// DefaultMaxTokenRateMultiplier holds the default value on creation for the "max_token_rate_multiplier" field.
+	DefaultMaxTokenRateMultiplier float64
+	// MaxTokenRateMultiplierValidator is a validator for the "max_token_rate_multiplier" field. It is called by the builders before save.
+	MaxTokenRateMultiplierValidator func(float64) error
 	// DefaultConcurrencyLimit holds the default value on creation for the "concurrency_limit" field.
 	DefaultConcurrencyLimit int
 	// ConcurrencyLimitValidator is a validator for the "concurrency_limit" field. It is called by the builders before save.
@@ -343,6 +350,11 @@ func ByQuotaUsed(opts ...sql.OrderTermOption) OrderOption {
 // ByExpiresAt orders the results by the expires_at field.
 func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
+// ByMaxTokenRateMultiplier orders the results by the max_token_rate_multiplier field.
+func ByMaxTokenRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxTokenRateMultiplier, opts...).ToFunc()
 }
 
 // ByConcurrencyLimit orders the results by the concurrency_limit field.

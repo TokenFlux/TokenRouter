@@ -81,6 +81,10 @@ type InvalidAuthAbuseConfig struct {
 // Options supplies authentication startup values and retained callbacks for Key
 // operations.
 type Options struct {
+	// TokenRateScale reads the current group Token peak factor for admission.
+	// Nil uses one; read failures reject protected requests before forwarding.
+	TokenRateScale func(context.Context, int64, time.Time) (float64, error)
+
 	// Now is read at each expiry or outbox scheduling decision when supplied.
 	// Install a concurrency-safe callback before concurrent use of the retained Options.
 	Now func() time.Time

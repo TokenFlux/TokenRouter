@@ -29,6 +29,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
@@ -369,10 +370,10 @@ func (p *openAIWSEntryAdapter) FeatureDenied() {
 
 // AcquireKey reserves the turn's Key allowance and returns its admitted
 // context and release callback. It prefers the last successfully authorized
-// requestKey, otherwise the initial key. Missing Keys produces an
-// internal-error close; concurrency and RPM failures use try-again-later,
-// while other limiter errors use internal-error. Entry owns release after this
-// result and retains it across provider retries.
+// requestKey, otherwise the initial key. Entry owns release after this result
+// and retains it across provider retries. A Token rate ceiling violation closes
+// with policy status 1008; missing dependencies or unavailable verification use
+// 1011, and exhausted concurrency or RPM capacity uses retry status 1013.
 func (p *openAIWSEntryAdapter) AcquireKey(ctx context.Context) (context.Context, func(), error) {
 	if p.bindings.Keys == nil {
 		return ctx, nil, p.CloseError(1011, "API key request limiter unavailable", apikey.ErrKeyLimiterUnavailable)
@@ -384,10 +385,18 @@ func (p *openAIWSEntryAdapter) AcquireKey(ctx context.Context) (context.Context,
 	admitted, release, _, err := p.bindings.Keys.AcquireRequest(ctx, key)
 	if err != nil {
 		status := 1011
+		message := err.Error()
+		if errors.Is(err, apikey.ErrTokenRateLimitExceeded) {
+			status = 1008
+			message = apperror.Message(err)
+		}
+		if errors.Is(err, apikey.ErrTokenRateUnavailable) {
+			message = apikey.ErrTokenRateUnavailable.Message
+		}
 		if errors.Is(err, apikey.ErrKeyConcurrencyExceeded) || errors.Is(err, apikey.ErrKeyRPMExceeded) {
 			status = 1013
 		}
-		return ctx, nil, p.CloseError(status, err.Error(), err)
+		return ctx, nil, p.CloseError(status, message, err)
 	}
 	return admitted, release, nil
 }

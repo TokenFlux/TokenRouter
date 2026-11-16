@@ -95,21 +95,22 @@ func TestRequestLimitsUnavailable(t *testing.T) {
 }
 
 // TestRequestLimitSnapshotRoundTrip supplies a preceding snapshot version and a
-// current version containing both request limits. It checks stale rejection and
-// reconstruction of the current concurrency and RPM values.
+// current version containing request and Token rate limits. It checks stale rejection and
+// reconstruction of the configured limits without dropping a fractional ceiling.
 func TestRequestLimitSnapshotRoundTrip(t *testing.T) {
 	service := &APIKeyService{}
-	_, used, err := service.KeyApplyAuthCacheEntry("old", &APIKeyAuthCacheEntry{Snapshot: &APIKeyAuthSnapshot{Version: 46}})
+	_, used, err := service.KeyApplyAuthCacheEntry("old", &APIKeyAuthCacheEntry{Snapshot: &APIKeyAuthSnapshot{Version: 47}})
 	require.NoError(t, err)
 	require.False(t, used)
 	snapshot := service.KeySnapshotFromAPIKey(context.Background(), &APIKey{
-		ID: 1, UserID: 2, ConcurrencyLimit: 3, RPMLimit: 20, User: &User{ID: 2},
+		ID: 1, UserID: 2, ConcurrencyLimit: 3, RPMLimit: 20, MaxTokenRateMultiplier: .08, User: &User{ID: 2},
 	})
 	key, used, err := service.KeyApplyAuthCacheEntry("current", &APIKeyAuthCacheEntry{Snapshot: snapshot})
 	require.NoError(t, err)
 	require.True(t, used)
 	require.Equal(t, 3, key.ConcurrencyLimit)
 	require.Equal(t, 20, key.RPMLimit)
+	require.Equal(t, .08, key.MaxTokenRateMultiplier)
 }
 
 // TestRequestLeaseRenewalFailure advances simulated time past the first renewal
