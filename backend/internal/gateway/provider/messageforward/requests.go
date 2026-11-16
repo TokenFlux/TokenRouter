@@ -45,7 +45,7 @@ func (r *Runtime) buildRequest(ctx context.Context, output HTTPBoundary, state *
 		return nil, nil, err
 	}
 	// Apply one-hour ephemeral cache lifetimes after model attribute rules so
-	// converted Responses and Chat payloads share the same TTL policy as Messages.
+	// existing markers, including those added by OAuth conversion mimicry, use 1h.
 	if r.injectTTL(ctx, target, model) {
 		body = anthropic.InjectAnthropicCacheControlTTL1h(body)
 	}

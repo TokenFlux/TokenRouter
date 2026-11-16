@@ -218,11 +218,11 @@ func ForwardNativeResponses(ctx context.Context, body []byte, defaultMappedModel
 	}
 
 	// Remove empty text and incompatible search history, then enforce cache
-	// breakpoint limits and per-Key Claude TTL overrides before native construction.
+	// breakpoint limits before native construction receives the converted
+	// Anthropic body.
 	anthropicBody = p.StripEmpty(anthropicBody)
 	anthropicBody = p.FilterSearch(anthropicBody, upstreamModel)
 	anthropicBody = p.CacheLimit(anthropicBody)
-	anthropicBody = p.CacheTTL(ctx, anthropicBody, upstreamModel)
 
 	apiKey := strings.TrimSpace(p.ProtocolAPIKey())
 	if apiKey == "" {
@@ -332,11 +332,11 @@ func ForwardNativeChat(ctx context.Context, body []byte, defaultMappedModel stri
 	}
 
 	// Remove empty text and incompatible search history, then enforce cache
-	// breakpoint limits and per-Key Claude TTL overrides before native construction.
+	// breakpoint limits before native construction receives the converted
+	// Anthropic body.
 	anthropicBody = p.StripEmpty(anthropicBody)
 	anthropicBody = p.FilterSearch(anthropicBody, upstreamModel)
 	anthropicBody = p.CacheLimit(anthropicBody)
-	anthropicBody = p.CacheTTL(ctx, anthropicBody, upstreamModel)
 
 	apiKey := strings.TrimSpace(p.ProtocolAPIKey())
 	if apiKey == "" {

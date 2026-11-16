@@ -1699,3 +1699,107 @@ func TestAnthropicConversionPreservesResponseModel(t *testing.T) {
 		}
 	}
 }
+
+// TestGatewayService_ForceClaude1hCache_ConversionRewritesOAuthMimicOnly
+// forwards converted Responses and Chat requests through production runtime
+// helpers with global 1h cache injection disabled. OAuth conversions rewrite
+// mimic-injected ephemeral breakpoints to 1h when Key caching is forced, while
+// non-OAuth API key conversions emit no synthesized cache_control fields.
+func TestGatewayService_ForceClaude1hCache_ConversionRewritesOAuthMimicOnly(t *testing.T) {
+	upstreamSSE := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-sonnet-4-6\",\"usage\":{\"input_tokens\":25}}}\n\n" +
+		"event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":2}}\n\n" +
+		"event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+
+	protocols := []struct {
+		name string // converted OpenAI protocol name
+		path string // inbound gateway route path
+		body []byte // OpenAI request payload with instructions and one tool
+	}{
+		{
+			name: "responses",
+			path: "/v1/responses",
+			body: []byte(`{"model":"claude-sonnet-4-6","instructions":"be helpful","input":"hello","tools":[{"type":"function","name":"lookup","description":"lookup item","parameters":{"type":"object","properties":{}}}]}`),
+		},
+		{
+			name: "chat",
+			path: "/v1/chat/completions",
+			body: []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"system","content":"be helpful"},{"role":"user","content":"hello"}],"tools":[{"type":"function","function":{"name":"lookup","description":"lookup item","parameters":{"type":"object","properties":{}}}}]}`),
+		},
+	}
+
+	for _, proto := range protocols {
+		t.Run(proto.name, func(t *testing.T) {
+			runConversion := func(target *gatewayprovider.ExecutionProvider, force1h bool) []byte {
+				transport := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": {"text/event-stream"}},
+					Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
+				}}
+				settingService := newRuntimeSettingsFixture(&gatewayTTLSettingRepo{data: map[string]string{
+					gateway.SettingKeyEnableAnthropicCacheTTL1hInjection: "false",
+				}})
+				executor := newHTTPRuntimeFixture(&messageforward.Options{
+					Configured: true, PreserveContentType: true, ResponseReadLimit: 134217728, MaxLineSize: defaultMaxLineSize,
+				}, messageforward.Dependencies{
+					Transport: transport,
+					Settings:  settingService,
+					Deferred:  &providercore.DeferredService{},
+				}, nil)
+
+				ctx := gatewayprovider.WithAPIKeyForceClaude1hCache(context.Background(), force1h)
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, proto.path, nil)
+				c.Request.Header.Set("User-Agent", "openai-node/4.0.0")
+
+				var err error
+				if proto.name == "responses" {
+					_, err = executor.ForwardAsResponses(ctx, c, target, proto.body, nil)
+				} else {
+					_, err = executor.ForwardAsChatCompletions(ctx, c, target, proto.body, nil)
+				}
+				require.NoError(t, err)
+				return transport.lastBody
+			}
+
+			oauthTarget := &gatewayprovider.ExecutionProvider{Record: providercore.Record{
+				LoadLocation: time.LoadLocation,
+				ID:           601,
+				Name:         "anthropic-oauth-conversion",
+				Platform:     capability.PlatformAnthropic,
+				Type:         capability.ProviderTypeOAuth,
+				Concurrency:  1,
+				Credentials:  map[string]any{"access_token": "oauth-token"},
+				Status:       billing.StatusActive,
+				Schedulable:  true,
+			}}
+
+			oauthDefaultBody := runConversion(oauthTarget, false)
+			require.Equal(t, "ephemeral", gjson.GetBytes(oauthDefaultBody, "system.2.cache_control.type").String())
+			require.Equal(t, "5m", gjson.GetBytes(oauthDefaultBody, "system.2.cache_control.ttl").String())
+			require.Equal(t, "ephemeral", gjson.GetBytes(oauthDefaultBody, "tools.0.cache_control.type").String())
+			require.Equal(t, "5m", gjson.GetBytes(oauthDefaultBody, "tools.0.cache_control.ttl").String())
+
+			oauthForcedBody := runConversion(oauthTarget, true)
+			require.Equal(t, "ephemeral", gjson.GetBytes(oauthForcedBody, "system.2.cache_control.type").String())
+			require.Equal(t, "1h", gjson.GetBytes(oauthForcedBody, "system.2.cache_control.ttl").String())
+			require.Equal(t, "ephemeral", gjson.GetBytes(oauthForcedBody, "tools.0.cache_control.type").String())
+			require.Equal(t, "1h", gjson.GetBytes(oauthForcedBody, "tools.0.cache_control.ttl").String())
+
+			apiKeyTarget := &gatewayprovider.ExecutionProvider{Record: providercore.Record{
+				LoadLocation: time.LoadLocation,
+				ID:           602,
+				Name:         "anthropic-apikey-conversion",
+				Platform:     capability.PlatformAnthropic,
+				Type:         capability.ProviderTypeAPIKey,
+				Concurrency:  1,
+				Credentials:  map[string]any{"api_key": "sk-ant-test", "base_url": "https://api.anthropic.com"},
+				Status:       billing.StatusActive,
+				Schedulable:  true,
+			}}
+
+			apiKeyForcedBody := runConversion(apiKeyTarget, true)
+			require.NotContains(t, string(apiKeyForcedBody), "cache_control")
+		})
+	}
+}

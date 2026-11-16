@@ -11,9 +11,9 @@ import (
 
 // claude_cache_policy.go resolves per-Key forced one-hour Claude prompt-cache
 // policy for gateway forwarding. An API Key can request a one-hour lifetime on
-// ephemeral cache markers across native Messages, passthrough, Bedrock, Vertex,
-// and converted OpenAI-to-Anthropic requests without changing the global OAuth
-// billing override.
+// existing ephemeral cache markers across native Messages, passthrough,
+// Bedrock, Vertex, and OAuth-mimicked OpenAI conversions without changing the
+// global OAuth billing override.
 //
 // Anthropic-compatible endpoints can also host passback model families such as
 // GLM, Kimi, DeepSeek, MiniMax, and Qwen thinking models. Eligibility therefore

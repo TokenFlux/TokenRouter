@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// access_context_test.go verifies request-context storage and copy-on-write
+// updates for per-Key Claude one-hour cache overrides on AccessSnapshot.
+// Derived contexts keep earlier snapshots unchanged while runtime credential
+// replacement preserves existing Key-level policy flags on matching Key IDs.
+
 // TestAccessSnapshotForceClaude1hCacheContextRoundTrip writes and replaces the
 // Claude one-hour cache override across absent, populated, and runtime-replaced
 // request contexts. It checks derived contexts isolate mutations from earlier

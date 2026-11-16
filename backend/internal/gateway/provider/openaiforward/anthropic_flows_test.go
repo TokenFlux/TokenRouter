@@ -11,27 +11,36 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
-// nativeFlowTestPorts captures native Anthropic request construction inputs and
-// supplies in-memory SSE or JSON responses for flow tests.
+// anthropic_flows_test.go verifies native Anthropic Messages and OpenAI
+// conversion request preparation using production cache-control helpers. Direct
+// Messages rewrites existing ephemeral cache markers for Claude targets while
+// leaving mapped passback models and uncached OpenAI conversions untouched.
+
+// nativeFlowTestPorts binds production Anthropic cache helpers and in-memory
+// exchange responses to native Anthropic flow tests.
 type nativeFlowTestPorts struct {
-	sink           *cacheOutputSink // captured client output writer
-	upstreamModel  string           // mapped vendor model returned by UpstreamModel
-	forceCache1h   bool             // simulated per-Key Claude 1h cache decision
-	streamResponse bool             // whether SendNative returns SSE instead of JSON
-	builtBodies    [][]byte         // captured request payloads passed to BuildNative
-	cacheModels    []string         // captured model arguments passed to CacheTTL
+	sink           *cacheOutputSink                   // captured client output writer
+	provider       *gatewayprovider.ExecutionProvider // selected execution provider target
+	upstreamModel  string                             // mapped vendor model returned by UpstreamModel
+	streamResponse bool                               // whether SendNative returns SSE instead of JSON
+	builtBodies    [][]byte                           // captured request payloads passed to BuildNative
+	cacheModels    []string                           // captured model arguments passed to CacheTTL
 }
 
-// BillingModel selects fallback when present or retains the supplied model.
+// BillingModel selects fallback when non-empty and otherwise retains model.
+// Native flow tests use it to verify charge-model separation before upstream resolution.
 func (p *nativeFlowTestPorts) BillingModel(model, fallback string) string {
 	if fallback != "" {
 		return fallback
@@ -39,7 +48,7 @@ func (p *nativeFlowTestPorts) BillingModel(model, fallback string) string {
 	return model
 }
 
-// Debug ignores structured flow diagnostics in unit tests.
+// Debug ignores structured flow diagnostics during in-memory unit tests.
 func (*nativeFlowTestPorts) Debug(string, ...zap.Field) {}
 
 // ErrorResponse panics when unexpected HTTP error presentation runs in success scenarios.
@@ -47,12 +56,12 @@ func (*nativeFlowTestPorts) ErrorResponse(*http.Response, string) (*Result, erro
 	panic("unexpected ErrorResponse call")
 }
 
-// FailoverHTTP returns nil because test exchanges use HTTP 200 responses.
+// FailoverHTTP returns nil because test exchanges return HTTP 200 responses.
 func (*nativeFlowTestPorts) FailoverHTTP(context.Context, *http.Response, []byte, string, string) error {
 	return nil
 }
 
-// PrepareTransport accepts proxy preparation before request construction.
+// PrepareTransport satisfies the proxy-preparation hook before outbound request construction.
 func (*nativeFlowTestPorts) PrepareTransport() {}
 
 // ReadUpstreamError panics when unexpected error-body capture runs in success scenarios.
@@ -60,10 +69,11 @@ func (*nativeFlowTestPorts) ReadUpstreamError(*http.Response) ([]byte, string) {
 	panic("unexpected ReadUpstreamError call")
 }
 
-// Sink returns the test buffer collecting client output.
+// Sink returns the in-memory test buffer collecting client output.
 func (p *nativeFlowTestPorts) Sink() upstream.OutputSink { return p.sink }
 
-// UpstreamModel returns the configured vendor model when set or retains model.
+// UpstreamModel returns the configured test vendor model when present.
+// When upstreamModel is empty, it retains the supplied billing model unchanged.
 func (p *nativeFlowTestPorts) UpstreamModel(model string) string {
 	if p.upstreamModel != "" {
 		return p.upstreamModel
@@ -71,92 +81,74 @@ func (p *nativeFlowTestPorts) UpstreamModel(model string) string {
 	return model
 }
 
-// Profile returns a minimal native Anthropic provider profile for logging.
+// Profile returns a fixed OpenCode provider profile for flow diagnostics.
 func (*nativeFlowTestPorts) Profile() MessagesProfile {
 	return MessagesProfile{ID: 7, Profile: Profile{Name: "opencode-claude", Platform: "opencode"}}
 }
 
-// Error panics on unexpected local validation errors in valid flow scenarios.
+// Error panics on unexpected local validation failures in valid flow scenarios.
 func (*nativeFlowTestPorts) Error(_ int, _, message string) {
 	panic("unexpected Error: " + message)
 }
 
-// PrepareModel returns the supplied Messages body without attribute rewrites.
+// PrepareModel returns the supplied Messages body without model-attribute rewrites.
 func (*nativeFlowTestPorts) PrepareModel(_ context.Context, body []byte, _ string) ([]byte, error) {
 	return body, nil
 }
 
-// ThinkingFallback preserves the supplied effort pointer unchanged.
+// ThinkingFallback returns the supplied reasoning effort pointer without modification.
 func (*nativeFlowTestPorts) ThinkingFallback(effort *string, _ []byte, _ string) *string {
 	return effort
 }
 
-// StripEmpty preserves the supplied request bytes in these focused cache tests.
-func (*nativeFlowTestPorts) StripEmpty(body []byte) []byte { return body }
+// StripEmpty delegates production empty-text removal on Anthropic Messages request bytes.
+func (*nativeFlowTestPorts) StripEmpty(body []byte) []byte {
+	return protocolanthropic.StripEmptyTextBlocks(body)
+}
 
-// FilterSearch preserves the supplied request bytes in these focused cache tests.
+// FilterSearch returns the supplied request bytes unchanged in cache-policy tests.
 func (*nativeFlowTestPorts) FilterSearch(body []byte, _ string) []byte { return body }
 
-// CacheLimit seeds an ephemeral five-minute system breakpoint when absent so
-// converted Responses and Chat bodies carry a concrete cache marker into CacheTTL.
+// CacheLimit delegates production Anthropic cache-control validation and breakpoint limiting.
 func (*nativeFlowTestPorts) CacheLimit(body []byte) []byte {
-	if !gjson.GetBytes(body, "system.0.cache_control").Exists() {
-		updated, err := sjson.SetBytes(body, "system.0.cache_control", map[string]any{
-			"type": "ephemeral",
-			"ttl":  "5m",
-		})
-		if err == nil {
-			return updated
-		}
-	}
-	return body
+	return anthropic.EnforceCacheControlLimit(body)
 }
 
-// CacheTTL records model and rewrites system.0.cache_control.ttl to 1h when
-// forceCache1h is enabled and model names a Claude target.
-func (p *nativeFlowTestPorts) CacheTTL(_ context.Context, body []byte, model string) []byte {
+// CacheTTL records model and delegates production per-Key Claude 1h cache
+// eligibility and TTL rewriting. Ineligible platforms or passback models keep body unchanged.
+func (p *nativeFlowTestPorts) CacheTTL(ctx context.Context, body []byte, model string) []byte {
 	p.cacheModels = append(p.cacheModels, model)
-	if !p.forceCache1h || !strings.Contains(model, "claude") {
+	if !gatewayprovider.ShouldForceClaude1hCache(ctx, p.provider, model) {
 		return body
 	}
-	if gjson.GetBytes(body, "system.0.cache_control.type").String() == "ephemeral" {
-		updated, err := sjson.SetBytes(body, "system.0.cache_control.ttl", "1h")
-		if err == nil {
-			body = updated
-		}
-	}
-	if gjson.GetBytes(body, "messages.0.content.0.cache_control.type").String() == "ephemeral" {
-		updated, err := sjson.SetBytes(body, "messages.0.content.0.cache_control.ttl", "1h")
-		if err == nil {
-			body = updated
-		}
-	}
-	return body
+	return anthropic.InjectAnthropicCacheControlTTL1h(body)
 }
 
-// Log ignores formatted diagnostic messages in unit tests.
+// Log discards formatted diagnostic messages during native flow unit tests.
 func (*nativeFlowTestPorts) Log(string, ...any) {}
 
-// ProtocolAPIKey supplies a nonblank test credential for native exchange.
+// ProtocolAPIKey returns a nonblank test credential for native Anthropic exchange.
 func (*nativeFlowTestPorts) ProtocolAPIKey() string { return "sk-opencode-test" }
 
-// TargetURL returns a deterministic Messages endpoint URL.
+// TargetURL returns a deterministic OpenCode Messages endpoint URL for tests.
 func (*nativeFlowTestPorts) TargetURL() (string, error) {
 	return "https://opencode.ai/zen/v1/messages", nil
 }
 
-// StreamContext returns ctx with a no-op release callback.
+// StreamContext returns ctx unchanged alongside a no-op release callback.
 func (*nativeFlowTestPorts) StreamContext(ctx context.Context, _ bool) (context.Context, context.CancelFunc) {
 	return ctx, func() {}
 }
 
-// BuildNative captures a copy of body and constructs an outbound HTTP request.
+// BuildNative records a copy of body in builtBodies and constructs an outbound
+// POST request bound to ctx. Callers inspect builtBodies for wire-level assertions.
 func (p *nativeFlowTestPorts) BuildNative(ctx context.Context, body []byte, _, url string) (*http.Request, error) {
 	p.builtBodies = append(p.builtBodies, append([]byte(nil), body...))
 	return http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(body)))
 }
 
-// SendNative returns an in-memory SSE or JSON Anthropic response matching the flow mode.
+// SendNative returns an in-memory SSE stream when streamResponse is set or a
+// buffered Messages JSON response otherwise. Callers close the response body after reading.
 func (p *nativeFlowTestPorts) SendNative(*http.Request) (*http.Response, error) {
 	if p.streamResponse {
 		sse := "event: message_start\ndata: " + `{"type":"message_start","message":{"id":"msg_1","model":"claude-sonnet-4-6","role":"assistant","content":[],"usage":{"input_tokens":10,"output_tokens":0}}}` + "\n\n" +
@@ -179,10 +171,10 @@ func (p *nativeFlowTestPorts) SendNative(*http.Request) (*http.Response, error) 
 	}, nil
 }
 
-// TransportErrorNative returns err unchanged for test diagnostics.
+// TransportErrorNative returns err unchanged so tests observe raw exchange errors.
 func (*nativeFlowTestPorts) TransportErrorNative(_ context.Context, err error) error { return err }
 
-// DirectOptions returns buffered native Messages reader callbacks for unit tests.
+// DirectOptions builds buffered native Messages reader callbacks for unit tests.
 func (*nativeFlowTestPorts) DirectOptions() NativeAnthropicOptions {
 	return NativeAnthropicOptions{
 		ProviderID:     7,
@@ -199,31 +191,31 @@ func (*nativeFlowTestPorts) DirectOptions() NativeAnthropicOptions {
 	}
 }
 
-// AdaptResponsesTools passes body through with an empty client-tool mapping.
+// AdaptResponsesTools returns body unchanged with an empty client-tool restoration map.
 func (*nativeFlowTestPorts) AdaptResponsesTools(body []byte) ([]byte, bridge.ResponsesClientToolMapping, error) {
 	return body, bridge.ResponsesClientToolMapping{}, nil
 }
 
-// ResponsesToAnthropic converts r using the production protocol bridge.
+// ResponsesToAnthropic converts r into an Anthropic request via the production bridge.
 func (*nativeFlowTestPorts) ResponsesToAnthropic(r *protocolopenai.ResponsesRequest) (*protocolanthropic.AnthropicRequest, error) {
 	return bridge.ResponsesToAnthropicRequest(r)
 }
 
-// ChatToResponses converts r using default options in the production protocol bridge.
+// ChatToResponses converts r into a Responses request via the production bridge.
 func (*nativeFlowTestPorts) ChatToResponses(r *protocolopenai.ChatCompletionsRequest) (*protocolopenai.ResponsesRequest, error) {
 	return bridge.ChatCompletionsToResponses(r, bridge.RequestOptions{})
 }
 
-// ResponsesEffort returns no explicit effort override in cache-policy flow tests.
+// ResponsesEffort returns nil because cache-policy tests omit explicit effort overrides.
 func (*nativeFlowTestPorts) ResponsesEffort([]byte, ...string) *string { return nil }
 
-// ChatEffort returns no explicit effort override in cache-policy flow tests.
+// ChatEffort returns nil because cache-policy tests omit explicit effort overrides.
 func (*nativeFlowTestPorts) ChatEffort([]byte, ...string) *string { return nil }
 
-// MapStatus returns status unchanged.
+// MapStatus returns the upstream HTTP status code unchanged for test assertions.
 func (*nativeFlowTestPorts) MapStatus(status int) int { return status }
 
-// OutputOptions supplies conversion reader callbacks for Responses and Chat tests.
+// OutputOptions builds conversion reader callbacks for Responses and Chat flow tests.
 func (*nativeFlowTestPorts) OutputOptions() AnthropicOutputOptions {
 	return AnthropicOutputOptions{
 		Runtime:        bridge.Runtime{Now: time.Now, ReadRandom: rand.Read},
@@ -236,63 +228,74 @@ func (*nativeFlowTestPorts) OutputOptions() AnthropicOutputOptions {
 	}
 }
 
-// TestForwardNativeAnthropicFlows_ApplyCacheTTLByMappedModel runs native
-// Messages, Responses, and Chat flows across Claude and mapped non-Claude
-// upstream models. It checks CacheTTL receives the final upstream model and
-// BuildNative receives 1h cache lifetimes only for Claude targets.
-func TestForwardNativeAnthropicFlows_ApplyCacheTTLByMappedModel(t *testing.T) {
-	t.Run("messages_claude_versus_glm", func(t *testing.T) {
+// TestForwardNativeAnthropicFlows_RewritesExistingMessagesCacheControlWithoutSynthesizingConversions
+// runs native Messages, Responses, and Chat flows with the real production
+// cache-control helpers. Direct Messages rewrites existing ephemeral markers to
+// 1h only for Claude models when enabled, while converted OpenAI requests carry
+// no synthesized cache_control markers.
+func TestForwardNativeAnthropicFlows_RewritesExistingMessagesCacheControlWithoutSynthesizingConversions(t *testing.T) {
+	target := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           7,
+			Platform:     capability.PlatformOpenCode,
+			Type:         capability.ProviderTypeAPIKey,
+		},
+	}
+	enabledCtx := gatewayprovider.WithAPIKeyForceClaude1hCache(context.Background(), true)
+
+	t.Run("messages_claude_versus_glm_and_disabled", func(t *testing.T) {
 		msgBody := []byte(`{
 			"model":"claude-sonnet-4-6",
 			"max_tokens":64,
-			"system":[{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"5m"}}],
+			"cache_control":{"type":"ephemeral","ttl":"5m"},
+			"system":[
+				{"type":"text","text":"cached","cache_control":{"type":"ephemeral","ttl":"5m"}},
+				{"type":"text","text":"uncached"}
+			],
+			"tools":[{"name":"bash","cache_control":{"type":"ephemeral"},"input_schema":{"type":"object"}}],
 			"messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","ttl":"5m"}}]}]
 		}`)
 
-		claudePorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "claude-sonnet-4-6", forceCache1h: true}
-		_, err := ForwardNativeMessages(context.Background(), msgBody, "", claudePorts)
+		claudePorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, provider: target, upstreamModel: "claude-sonnet-4-6"}
+		_, err := ForwardNativeMessages(enabledCtx, msgBody, "", claudePorts)
 		require.NoError(t, err)
 		require.Equal(t, []string{"claude-sonnet-4-6"}, claudePorts.cacheModels)
+		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "cache_control.ttl").String())
 		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "system.0.cache_control.ttl").String())
+		require.False(t, gjson.GetBytes(claudePorts.builtBodies[0], "system.1.cache_control").Exists())
+		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "tools.0.cache_control.ttl").String())
 		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "messages.0.content.0.cache_control.ttl").String())
 
-		glmPorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "glm-5", forceCache1h: true}
-		_, err = ForwardNativeMessages(context.Background(), msgBody, "", glmPorts)
+		glmPorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, provider: target, upstreamModel: "glm-5"}
+		_, err = ForwardNativeMessages(enabledCtx, msgBody, "", glmPorts)
 		require.NoError(t, err)
 		require.Equal(t, []string{"glm-5"}, glmPorts.cacheModels)
+		require.Equal(t, "5m", gjson.GetBytes(glmPorts.builtBodies[0], "cache_control.ttl").String())
 		require.Equal(t, "5m", gjson.GetBytes(glmPorts.builtBodies[0], "system.0.cache_control.ttl").String())
 		require.Equal(t, "5m", gjson.GetBytes(glmPorts.builtBodies[0], "messages.0.content.0.cache_control.ttl").String())
+
+		disabledPorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, provider: target, upstreamModel: "claude-sonnet-4-6"}
+		_, err = ForwardNativeMessages(context.Background(), msgBody, "", disabledPorts)
+		require.NoError(t, err)
+		require.Equal(t, "5m", gjson.GetBytes(disabledPorts.builtBodies[0], "system.0.cache_control.ttl").String())
 	})
 
-	t.Run("responses_claude_versus_glm", func(t *testing.T) {
+	t.Run("responses_conversion_leaves_uncached_payload_without_cache_control", func(t *testing.T) {
 		respBody := []byte(`{"model":"claude-sonnet-4-6","instructions":"be helpful","input":"hello"}`)
-
-		claudePorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "claude-sonnet-4-6", forceCache1h: true, streamResponse: true}
-		_, err := ForwardNativeResponses(context.Background(), respBody, "", claudePorts)
+		ports := &nativeFlowTestPorts{sink: &cacheOutputSink{}, provider: target, upstreamModel: "claude-sonnet-4-6", streamResponse: true}
+		_, err := ForwardNativeResponses(enabledCtx, respBody, "", ports)
 		require.NoError(t, err)
-		require.Equal(t, []string{"claude-sonnet-4-6"}, claudePorts.cacheModels)
-		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "system.0.cache_control.ttl").String())
-
-		glmPorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "glm-5", forceCache1h: true, streamResponse: true}
-		_, err = ForwardNativeResponses(context.Background(), respBody, "", glmPorts)
-		require.NoError(t, err)
-		require.Equal(t, []string{"glm-5"}, glmPorts.cacheModels)
-		require.Equal(t, "5m", gjson.GetBytes(glmPorts.builtBodies[0], "system.0.cache_control.ttl").String())
+		require.Empty(t, ports.cacheModels)
+		require.NotContains(t, string(ports.builtBodies[0]), "cache_control")
 	})
 
-	t.Run("chat_claude_versus_glm", func(t *testing.T) {
+	t.Run("chat_conversion_leaves_uncached_payload_without_cache_control", func(t *testing.T) {
 		chatBody := []byte(`{"model":"claude-sonnet-4-6","messages":[{"role":"system","content":"be helpful"},{"role":"user","content":"hello"}]}`)
-
-		claudePorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "claude-sonnet-4-6", forceCache1h: true, streamResponse: true}
-		_, err := ForwardNativeChat(context.Background(), chatBody, "", claudePorts)
+		ports := &nativeFlowTestPorts{sink: &cacheOutputSink{}, provider: target, upstreamModel: "claude-sonnet-4-6", streamResponse: true}
+		_, err := ForwardNativeChat(enabledCtx, chatBody, "", ports)
 		require.NoError(t, err)
-		require.Equal(t, []string{"claude-sonnet-4-6"}, claudePorts.cacheModels)
-		require.Equal(t, "1h", gjson.GetBytes(claudePorts.builtBodies[0], "system.0.cache_control.ttl").String())
-
-		glmPorts := &nativeFlowTestPorts{sink: &cacheOutputSink{}, upstreamModel: "glm-5", forceCache1h: true, streamResponse: true}
-		_, err = ForwardNativeChat(context.Background(), chatBody, "", glmPorts)
-		require.NoError(t, err)
-		require.Equal(t, []string{"glm-5"}, glmPorts.cacheModels)
-		require.Equal(t, "5m", gjson.GetBytes(glmPorts.builtBodies[0], "system.0.cache_control.ttl").String())
+		require.Empty(t, ports.cacheModels)
+		require.NotContains(t, string(ports.builtBodies[0]), "cache_control")
 	})
 }

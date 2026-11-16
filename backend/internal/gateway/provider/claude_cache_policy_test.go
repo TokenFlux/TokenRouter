@@ -11,6 +11,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
+// claude_cache_policy_test.go verifies request-context helpers and model
+// eligibility rules for per-Key forced one-hour Claude prompt caching. The
+// tests cover Anthropic, OpenCode, and OpenAI provider platforms alongside
+// mapped passback families so non-Claude destinations never receive Claude TTL
+// rewrites.
+
 // TestAPIKeyForceClaude1hCacheContextHelpers reads and derives the per-Key
 // Claude one-hour cache flag across nil, empty, enabled, and disabled contexts.
 // It checks nil inputs default safely to false and derived contexts isolate

@@ -7,6 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// authenticate_test.go verifies that APIKeyService.Authenticate copies the
+// stored force_claude_1h_cache flag from active APIKey records into the
+// returned AccessSnapshot. Authentication snapshots carry Key-level gateway
+// policies so downstream forwarding reads the configured cache lifetime without
+// querying storage again.
+
 // TestAPIKeyService_Authenticate_CopiesForceClaude1hCache authenticates active
 // credentials with disabled and enabled Claude one-hour cache flags. It checks
 // the returned access snapshot exposes each credential's configured override.
