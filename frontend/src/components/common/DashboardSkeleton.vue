@@ -27,19 +27,25 @@ const { t } = useI18n()
   >
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-hidden="true">
       <div v-for="card in 8" :key="card" class="card p-4">
-        <div class="flex flex-col gap-2 lg:flex-row">
-          <Skeleton :width="36" :height="36" class="shrink-0" />
-          <div class="min-w-0 flex-1 space-y-3">
-            <Skeleton width="65%" :height="12" />
-            <Skeleton width="80%" :height="24" />
-            <Skeleton width="55%" :height="12" />
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <Skeleton :width="34" :height="34" class="shrink-0 self-start rounded-control" />
+          <div class="min-w-0 flex-1 space-y-1.5">
+            <Skeleton :width="86" :height="12" class="max-w-full" />
+            <Skeleton :width="58" :height="20" class="max-w-full" />
+            <Skeleton :width="74" :height="12" class="max-w-full" />
           </div>
         </div>
       </div>
     </div>
-    <div class="card flex items-center justify-between gap-2 p-4" aria-hidden="true">
-      <Skeleton :width="128" :height="36" />
-      <Skeleton :width="112" :height="36" />
+    <div class="card flex flex-wrap items-center justify-between gap-2 p-4" aria-hidden="true">
+      <div class="flex min-w-0 items-center gap-2">
+        <Skeleton :width="64" :height="14" class="shrink-0" />
+        <Skeleton :width="200" :height="36" class="min-w-0 rounded-control" />
+      </div>
+      <div class="flex items-center gap-2">
+        <Skeleton :width="56" :height="14" />
+        <Skeleton :width="112" :height="36" class="rounded-control" />
+      </div>
     </div>
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-hidden="true">
       <div v-for="chart in 2" :key="chart" class="card space-y-4 p-4">

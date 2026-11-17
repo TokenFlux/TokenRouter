@@ -61,6 +61,26 @@ const stats = {
 }
 
 describe('UsageStatsCards', () => {
+  // The first summary request can fail before any metrics are available. Pending
+  // and failed states never show business zeros, while a successful response can.
+  it('distinguishes a pending or failed summary from a measured zero', async () => {
+    const wrapper = mount(UsageStatsCards, {
+      props: { stats: null, loading: true },
+      global: { stubs: { BalanceIcon: true, Icon: true } },
+    })
+
+    expect(wrapper.get('[aria-busy="true"]').find('.skeleton').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('$0.0000')
+
+    await wrapper.setProps({ loading: false })
+    expect(wrapper.get('[role="status"]').text()).toBe('usage.summaryUnavailable')
+
+    await wrapper.setProps({ stats: { ...stats, total_requests: 0, total_actual_cost: 0 } })
+    expect(wrapper.text()).toContain('$0.0000')
+    expect(wrapper.find('[aria-busy="true"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   // Some system requests have unknown or partial costs alongside a known total.
   // The count must be visible with provider expenses and disappear when those expenses are hidden.
   it('marks an incomplete provider cost total', async () => {

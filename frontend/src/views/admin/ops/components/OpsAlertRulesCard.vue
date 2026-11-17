@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
+
 import Icon from '@/components/icons/Icon.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
@@ -539,12 +542,8 @@ function cancelDelete() {
       </div>
     </div>
 
-    <div v-if="loading" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-      {{ t('admin.ops.alertRules.loading') }}
-    </div>
-
     <div
-      v-else-if="sortedRules.length === 0"
+      v-if="!loading && sortedRules.length === 0"
       class="rounded-surface border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
     >
       {{ t('admin.ops.alertRules.empty') }}
@@ -558,7 +557,33 @@ function cancelDelete() {
       <div class="max-h-[520px] overflow-y-auto">
         <!-- check-ui-allow: Local alert-rule table height -->
         <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-          <div v-for="row in sortedRules" :key="row.id" class="space-y-2 p-4">
+          <div
+            v-if="loading && !sortedRules.length"
+            role="status"
+            :aria-label="t('common.loading')"
+            aria-busy="true"
+            data-loading-skeleton
+          >
+            <div
+              v-for="row in 4"
+              :key="row"
+              class="space-y-2 p-4 border-b border-gray-100 last:border-0 dark:border-dark-800"
+              aria-hidden="true"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <Skeleton :width="120" :height="16" />
+                <Skeleton :width="50" :height="14" />
+              </div>
+              <Skeleton :width="140" :height="14" />
+              <div class="flex items-center justify-between gap-2">
+                <Skeleton :width="48" :height="14" />
+                <div class="flex gap-2">
+                  <Skeleton v-for="action in 2" :key="action" :width="48" :height="28" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div v-else v-for="row in sortedRules" :key="row.id" class="space-y-2 p-4">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="text-xs font-bold text-gray-900 dark:text-white">{{ row.name }}</div>
@@ -626,7 +651,15 @@ function cancelDelete() {
               </th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+          <TableSkeletonBody
+            v-if="loading && !sortedRules.length"
+            :columns="5"
+            cell-class="px-4 py-3"
+          />
+          <tbody
+            v-else
+            class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900"
+          >
             <tr
               v-for="row in sortedRules"
               :key="row.id"

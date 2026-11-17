@@ -303,9 +303,31 @@
       @close="closeConfirmation"
     >
       <div class="space-y-4" :aria-busy="loading || approving">
-        <p v-if="loading" class="text-sm text-gray-500 dark:text-dark-400" role="status">{{
-          t('common.loading')
-        }}</p>
+        <div
+          v-if="loading && !confirmation"
+          class="space-y-4"
+          role="status"
+          :aria-label="t('common.loading')"
+          data-loading-skeleton
+        >
+          <div class="space-y-1.5">
+            <Skeleton :width="164" :height="20" />
+            <Skeleton :width="208" :height="14" class="max-w-full" />
+          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300">{{
+            t('admin.mcp.operationDetails')
+          }}</p>
+          <div>
+            <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{
+              t('admin.mcp.preview')
+            }}</h4>
+            <div class="mt-2 space-y-2 rounded-control bg-gray-50 p-3 dark:bg-dark-900">
+              <Skeleton width="42%" :height="12" />
+              <Skeleton width="64%" :height="12" />
+              <Skeleton width="24%" :height="12" />
+            </div>
+          </div>
+        </div>
         <p v-if="error" class="text-sm text-red-600 dark:text-red-400" role="alert">{{ error }}</p>
         <template v-if="confirmation">
           <div>
@@ -350,7 +372,7 @@
             :disabled="approving"
             @click="closeConfirmation"
           >
-            {{ t(confirmation?.state === 'pending' ? 'common.cancel' : 'common.close') }}
+            {{ t(loading || confirmation?.state === 'pending' ? 'common.cancel' : 'common.close') }}
           </button>
           <button
             v-if="error && !confirmation"
@@ -360,8 +382,14 @@
             @click="load"
             >{{ t('admin.mcp.refresh') }}</button
           >
+          <Skeleton
+            v-if="loading && !confirmation"
+            :width="88"
+            :height="36"
+            class="rounded-control"
+          />
           <button
-            v-if="confirmation?.state === 'pending'"
+            v-else-if="confirmation?.state === 'pending'"
             class="btn btn-primary"
             type="button"
             :disabled="loading || approving"
@@ -563,6 +591,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
 import type { Column } from '@/components/common/table/types'
 import MotionTransition from '@/components/common/MotionTransition.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ScopeSelector from '@/components/common/ScopeSelector.vue'
 import McpAuthorizeDialog from './mcp/McpAuthorizeDialog.vue'

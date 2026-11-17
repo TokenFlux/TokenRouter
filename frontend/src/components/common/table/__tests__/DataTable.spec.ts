@@ -70,6 +70,35 @@ describe('DataTable', () => {
     wrapper.unmount()
   })
 
+  // A pending mobile table shares field headings with its loaded cards. Values
+  // and interactive selection only appear once the parent supplies the result.
+  it('keeps the mobile card labels visible while row values load', async () => {
+    stubMobileMatchMedia()
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [
+          { key: 'name', label: 'Name' },
+          { key: 'status', label: 'Status' },
+        ],
+        data: [],
+        loading: true,
+        selectable: true,
+      },
+    })
+
+    const placeholder = wrapper.get('[data-loading-skeleton]')
+    expect(placeholder.text()).toBe('NameStatus')
+    expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('empty.noData')
+
+    await wrapper.setProps({ data: [{ id: 1, name: 'Example', status: 'Ready' }], loading: false })
+
+    expect(wrapper.find('[data-loading-skeleton]').exists()).toBe(false)
+    expect(wrapper.get('[data-field="name"]').text()).toBe('NameExample')
+    expect(wrapper.get('[data-test="select-row"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   // A sortable column starts ascending and is clicked once. Both direction
   // arrows must remain visible while active color and accessible sort direction
   // switch to descending.

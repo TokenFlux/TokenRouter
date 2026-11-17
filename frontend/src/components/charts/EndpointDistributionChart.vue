@@ -52,90 +52,93 @@
         </div>
       </div>
     </div>
-    <ChartSkeleton v-if="loading" variant="distribution" />
     <!-- Align the table and chart at their top edges on desktop. -->
-    <div
-      v-else-if="displayEndpointStats.length > 0 && chartData"
-      class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
+    <DistributionChartLayout
+      v-if="loading || (displayEndpointStats.length > 0 && chartData)"
+      :loading="loading"
     >
-      <div class="h-48 w-48 shrink-0">
-        <Doughnut :data="chartData" :options="doughnutOptions" />
-      </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
-              <th class="pb-2 text-left">{{ t('usage.endpoint') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
-              <th v-if="showStandardCost" class="pb-2 text-right">
-                {{ t('admin.dashboard.standard') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="item in displayEndpointStats" :key="item.endpoint">
-              <tr
-                data-icon-trigger
-                class="group/breakdown border-t border-gray-100 transition-colors dark:border-dark-600"
-                :class="
-                  enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''
-                "
-                @click="enableBreakdown && toggleBreakdown(item.endpoint)"
-              >
-                <!--
+      <template #chart>
+        <Doughnut v-if="chartData" :data="chartData" :options="doughnutOptions" />
+      </template>
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-gray-500 dark:text-gray-400">
+            <th class="pb-2 text-left">{{ t('usage.endpoint') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
+            <th v-if="showStandardCost" class="pb-2 text-right">
+              {{ t('admin.dashboard.standard') }}
+            </th>
+          </tr>
+        </thead>
+        <TableSkeletonBody
+          v-if="loading"
+          :columns="4 + Number(showStandardCost)"
+          :rows="4"
+          cell-class="py-2"
+        />
+        <tbody v-else>
+          <template v-for="item in displayEndpointStats" :key="item.endpoint">
+            <tr
+              data-icon-trigger
+              class="group/breakdown border-t border-gray-100 transition-colors dark:border-dark-600"
+              :class="
+                enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''
+              "
+              @click="enableBreakdown && toggleBreakdown(item.endpoint)"
+            >
+              <!--
                   Endpoint names use ordinary text colors and show interactive
                   emphasis when an expandable row is hovered.
                 -->
-                <td
-                  class="max-w-[180px] truncate py-1.5 font-medium text-gray-900 dark:text-white"
-                  :class="
-                    enableBreakdown
-                      ? 'group-hover/breakdown:text-primary-600 dark:group-hover/breakdown:text-primary-500'
-                      : ''
-                  "
-                  :title="item.endpoint"
-                >
-                  <span class="inline-flex items-center gap-1">
-                    <Icon
-                      v-if="enableBreakdown"
-                      name="chevronRight"
-                      size="xs"
-                      :animate-on-hover="false"
-                      class="h-3 w-3 shrink-0 transition-transform duration-normal"
-                      :class="{ 'rotate-90': expandedKey === item.endpoint }"
-                    />
-                    {{ item.endpoint }}
-                  </span>
-                </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatNumber(item.requests) }}
-                </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatTokens(item.total_tokens) }}
-                </td>
-                <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  {{ balanceUnitSymbol }}{{ formatCost(item.actual_cost) }}
-                </td>
-                <td
-                  v-if="showStandardCost"
-                  class="py-1.5 text-right text-gray-400 dark:text-gray-500"
-                >
-                  {{ usdUnitSymbol }}{{ formatCost(item.cost) }}
-                </td>
-              </tr>
-              <ExpandableTableRow
-                :open="expandedKey === item.endpoint"
-                :colspan="distributionColspan"
+              <td
+                class="max-w-[180px] truncate py-1.5 font-medium text-gray-900 dark:text-white"
+                :class="
+                  enableBreakdown
+                    ? 'group-hover/breakdown:text-primary-600 dark:group-hover/breakdown:text-primary-500'
+                    : ''
+                "
+                :title="item.endpoint"
               >
-                <UserBreakdownSubTable :items="breakdownItems" :loading="breakdownLoading" />
-              </ExpandableTableRow>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </div>
+                <span class="inline-flex items-center gap-1">
+                  <Icon
+                    v-if="enableBreakdown"
+                    name="chevronRight"
+                    size="xs"
+                    :animate-on-hover="false"
+                    class="h-3 w-3 shrink-0 transition-transform duration-normal"
+                    :class="{ 'rotate-90': expandedKey === item.endpoint }"
+                  />
+                  {{ item.endpoint }}
+                </span>
+              </td>
+              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                {{ formatNumber(item.requests) }}
+              </td>
+              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                {{ formatTokens(item.total_tokens) }}
+              </td>
+              <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+                {{ balanceUnitSymbol }}{{ formatCost(item.actual_cost) }}
+              </td>
+              <td
+                v-if="showStandardCost"
+                class="py-1.5 text-right text-gray-400 dark:text-gray-500"
+              >
+                {{ usdUnitSymbol }}{{ formatCost(item.cost) }}
+              </td>
+            </tr>
+            <ExpandableTableRow
+              :open="expandedKey === item.endpoint"
+              :colspan="distributionColspan"
+            >
+              <UserBreakdownSubTable :items="breakdownItems" :loading="breakdownLoading" />
+            </ExpandableTableRow>
+          </template>
+        </tbody>
+      </table>
+    </DistributionChartLayout>
     <div
       v-else
       class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
@@ -154,7 +157,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
-import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
+import DistributionChartLayout from './DistributionChartLayout.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'

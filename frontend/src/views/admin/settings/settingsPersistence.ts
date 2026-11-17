@@ -101,8 +101,8 @@ export function useSettingsPersistence(actions: SettingsPersistenceActions) {
       appStore.showError(extractApiErrorMessage(error, t('admin.settings.failedToLoad')))
     } finally {
       loading.value = false
-      // Initial loading hides navigation elements, so schedule active-tab
-      // positioning after changing loading state and allowing the root to render.
+      // Wait for the editable panels to render so active tab positioning can
+      // include the gateway content anchor when that section is selected.
       actions.afterLoad()
     }
     if (!loadFailed.value) {

@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="space-y-4">
-      <UsageStatsCards :stats="usageStats" />
+      <UsageStatsCards :stats="usageStats" :loading="inboundEndpointLoading" />
       <!-- Charts Section -->
       <div class="space-y-4">
         <div class="card p-4">
@@ -343,6 +343,8 @@ const route = useRoute()
 // Usage display state stores the current summary and page separately from trend and
 // distribution responses used by charts.
 const usageStats = ref<AdminUsageStatsResponse | null>(null)
+// The summary scope identifies the filters that own the displayed numeric totals.
+let usageStatsScope = ''
 const usageLogs = ref<AdminUsageLog[]>([])
 // Loading flags distinguish the records table and chart requests so each section can render
 // its own progress while showExportDialog coordinates background CSV export tasks.
@@ -383,7 +385,7 @@ const upstreamEndpointStats = ref<EndpointStat[]>([])
 const endpointPathStats = ref<EndpointStat[]>([])
 // Endpoint loading state separates the summary's inbound request from raw-source requests
 // so changing source selects the correct indicator.
-const inboundEndpointLoading = ref(false)
+const inboundEndpointLoading = ref(true)
 const rawEndpointLoading = ref(false)
 const endpointStatsLoading = computed(() =>
   endpointDistributionSource.value === 'inbound'
@@ -755,8 +757,8 @@ const loadEndpointStats = async (source: EndpointSource, force = false) => {
 //
 // The active raw endpoint starts independently, allowing summary cards and that chart to
 // finish separately. Only the current summary sequence can replace totals, clear inbound
-// results on error, or release its loading state. A failed current summary keeps the
-// earlier usageStats record but clears inbound endpoint counts.
+// results on error, or release its loading state. A failed refresh can retain totals
+// from the same filter scope; a changed scope waits for its own summary.
 const loadStats = async (force = false) => {
   // Cancel the prior summary before invalidating raw-source caches so the replacement
   // summary and selected raw chart use the refreshed filter state.
@@ -764,6 +766,8 @@ const loadStats = async (force = false) => {
   const controller = new AbortController()
   statsAbortController = controller
   const seq = ++statsReqSeq
+  const scope = JSON.stringify(statsParams('inbound', false))
+  if (scope !== usageStatsScope) usageStats.value = null
   loadedRawEndpoints.upstream = false
   loadedRawEndpoints.path = false
   upstreamEndpointStats.value = []
@@ -775,11 +779,12 @@ const loadStats = async (force = false) => {
       signal: controller.signal,
     })
     if (seq !== statsReqSeq) return
+    usageStatsScope = scope
     usageStats.value = response
     inboundEndpointStats.value = response.endpoints || []
   } catch (error) {
-    // Only the current summary failure clears inbound counts; previously displayed summary
-    // totals remain until another successful summary response arrives.
+    // A superseded request cannot clear inbound counts for a newer set of filters;
+    // a matching summary stays visible because its numeric totals still describe those filters.
     if (seq !== statsReqSeq) return
     console.error('Failed to load usage statistics:', error)
     inboundEndpointStats.value = []

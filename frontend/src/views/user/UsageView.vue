@@ -3,6 +3,7 @@
     <div class="space-y-4">
       <UsageStatsCards
         :stats="usageStats"
+        :loading="endpointStatsLoading"
         :show-provider-cost="false"
         :show-standard-cost="false"
       />
@@ -454,6 +455,8 @@ type EndpointSource = 'inbound' | 'upstream' | 'path'
 // Usage display state stores the current summary and page separately from trend and
 // distribution responses used by charts.
 const usageStats = ref<UsageStatsResponse | null>(null)
+// The summary scope identifies the filters that own the displayed numeric totals.
+let usageStatsScope = ''
 const usageLogs = ref<UsageLog[]>([])
 const trendData = ref<TrendDataPoint[]>([])
 const requestedModelStats = ref<ModelStat[]>([])
@@ -478,7 +481,7 @@ const teamMemberSeries = ref<
 const loading = ref(false)
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
-const endpointStatsLoading = ref(false)
+const endpointStatsLoading = ref(true)
 const teamChartsLoading = ref(false)
 const showExportDialog = ref(false)
 const { activeExportCount, handleDialogTasksChanged, handleDialogActiveIdsChanged } =
@@ -838,25 +841,29 @@ const loadLogs = async () => {
 // summary can publish results.
 //
 // Current success replaces summary and inbound endpoint counts, clearing unsupported
-// upstream and raw-path arrays. Current failure clears endpoint arrays but retains the
-// earlier summary. The same sequence protects the loading flag, preventing a late
+// upstream and raw-path arrays. Current failure clears endpoint arrays and retains the
+// earlier summary only when its filtered scope matches. The same sequence protects the loading flag, preventing a late
 // completion from ending progress for a newer summary request.
 const loadStats = async () => {
   // Capture summary ownership before fetching so current statistics and
   // endpoint arrays publish together, with loading cleanup under the same
   // generation.
   const seq = ++statsReqSeq
+  const params = normalizedFilters.value
+  const scope = JSON.stringify(params)
+  if (scope !== usageStatsScope) usageStats.value = null
   endpointStatsLoading.value = true
   try {
-    const stats = await usageAPI.getStats(normalizedFilters.value)
+    const stats = await usageAPI.getStats(params)
     if (seq !== statsReqSeq) return
+    usageStatsScope = scope
     usageStats.value = stats
     inboundEndpointStats.value = stats.endpoints || []
     upstreamEndpointStats.value = []
     endpointPathStats.value = []
   } catch (error) {
-    // Only the newest failed summary clears endpoint arrays; the earlier summary total
-    // remains visible until another successful response replaces it.
+    // Only the active request clears charts when it fails; a matching summary
+    // remains available because its totals came from the same queried filters.
     if (seq !== statsReqSeq) return
     console.error('Failed to load usage stats:', error)
     inboundEndpointStats.value = []

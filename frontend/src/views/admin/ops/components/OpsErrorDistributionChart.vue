@@ -7,6 +7,7 @@ import { Doughnut } from 'vue-chartjs'
 import type { OpsErrorDistributionResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import { useChartTheme } from '@/composables/useChartTheme'
@@ -194,15 +195,9 @@ const options = computed(() => ({
         </div>
       </div>
 
+      <ChartSkeleton v-else-if="state === 'loading'" variant="donut" height="100%" />
       <div v-else class="flex h-full items-center justify-center">
-        <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">
-          {{ t('common.loading') }}
-        </div>
-        <EmptyState
-          v-else
-          :title="t('common.noData')"
-          :description="t('admin.ops.charts.emptyError')"
-        />
+        <EmptyState :title="t('common.noData')" :description="t('admin.ops.charts.emptyError')" />
       </div>
     </div>
   </div>

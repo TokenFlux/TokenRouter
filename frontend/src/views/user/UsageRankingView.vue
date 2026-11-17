@@ -35,14 +35,61 @@
         aria-busy="true"
         data-loading-skeleton
       >
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" aria-hidden="true">
-          <div v-for="card in 3" :key="card" class="card min-w-0 space-y-3 p-4">
-            <Skeleton width="55%" :height="12" />
-            <Skeleton width="75%" :height="28" />
-            <Skeleton width="65%" :height="12" />
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-end" aria-hidden="true">
+          <div
+            v-for="rank in 3"
+            :key="rank"
+            class="rounded-control border border-gray-200 bg-white p-5 shadow-sm dark:border-dark-700 dark:bg-dark-800"
+            :class="[topCardOrderClass(rank), rank === 1 ? 'md:p-6' : '']"
+          >
+            <Skeleton :width="72" :height="24" class="rounded-full" />
+            <div class="mt-7 flex flex-col items-center">
+              <Skeleton variant="circle" :width="64" :height="64" />
+              <Skeleton :width="116" :height="20" class="mt-4" />
+              <Skeleton :width="88" :height="30" class="mt-2" />
+              <Skeleton :width="58" :height="12" class="mt-1" />
+            </div>
+            <div class="mt-6 flex justify-evenly gap-2">
+              <div v-for="metric in 2" :key="metric" class="space-y-1">
+                <Skeleton :width="54" :height="12" class="mx-auto" />
+                <Skeleton :width="68" :height="12" />
+              </div>
+            </div>
           </div>
         </div>
-        <ContentSkeleton variant="list" :rows="5" class="card p-6" />
+        <section
+          class="rounded-control border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
+          aria-hidden="true"
+        >
+          <div
+            class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="space-y-1.5">
+              <Skeleton :width="124" :height="18" />
+              <Skeleton :width="186" :height="12" />
+            </div>
+            <Skeleton :width="136" :height="12" />
+          </div>
+          <div class="divide-y divide-gray-100 dark:divide-dark-700">
+            <div
+              v-for="rank in 5"
+              :key="rank"
+              class="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-5 py-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+            >
+              <Skeleton :width="48" :height="32" class="mt-1 sm:mt-0" />
+              <div class="flex min-w-0 items-center gap-3">
+                <Skeleton variant="circle" :width="40" :height="40" class="shrink-0" />
+                <Skeleton :width="104" :height="16" class="max-w-full" />
+              </div>
+              <div class="col-span-2 flex justify-between gap-3 sm:col-span-1 sm:justify-end">
+                <div v-for="metric in 3" :key="metric" class="space-y-1">
+                  <Skeleton :width="56" :height="16" class="sm:ml-auto" />
+                  <Skeleton :width="72" :height="12" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div
@@ -124,7 +171,6 @@
 
 <script setup lang="ts">
 import Skeleton from '@/components/common/Skeleton.vue'
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import {
   computed,
   defineComponent,

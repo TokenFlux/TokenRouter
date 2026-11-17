@@ -361,11 +361,23 @@ function uploaded(result: PluginChange): void {
         ><Icon name="chevronLeft" size="sm" />{{ t('admin.plugins.title') }}</RouterLink
       >
 
-      <div v-if="!ready" class="flex items-start gap-4" aria-busy="true">
-        <Skeleton width="64px" height="64px" />
-        <div class="flex-1 space-y-3 pt-1">
-          <Skeleton width="220px" height="28px" />
-          <Skeleton width="360px" height="14px" />
+      <div
+        v-if="!ready"
+        class="flex min-w-0 items-start gap-4"
+        role="status"
+        :aria-label="t('common.loading')"
+        aria-busy="true"
+        data-loading-skeleton
+      >
+        <Skeleton :width="64" :height="64" class="shrink-0 rounded-control" />
+        <div class="min-w-0 flex-1 space-y-2 pt-0.5">
+          <Skeleton :width="220" :height="26" class="max-w-full" />
+          <div class="flex flex-wrap gap-2">
+            <Skeleton :width="88" :height="14" />
+            <Skeleton :width="64" :height="14" />
+            <Skeleton :width="42" :height="14" />
+          </div>
+          <Skeleton :width="360" :height="14" class="max-w-full" />
         </div>
       </div>
 

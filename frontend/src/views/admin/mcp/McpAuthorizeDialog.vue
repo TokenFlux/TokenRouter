@@ -8,54 +8,80 @@
     @after-leave="emit('after-leave')"
   >
     <div class="space-y-5" :aria-busy="loading || submitting">
-      <p v-if="loading" class="text-sm text-gray-500" role="status">{{ t('common.loading') }}</p>
+      <span v-if="loading" class="sr-only" role="status">{{ t('common.loading') }}</span>
       <p
         v-if="error"
         class="rounded-control border border-red-200 p-3 text-sm text-red-600 dark:border-red-900 dark:text-red-400"
         role="alert"
         >{{ error }}</p
       >
-      <template v-if="review && !loading">
+      <template v-if="loading || review">
         <dl class="grid gap-4 sm:grid-cols-2">
           <div
             ><dt class="text-sm text-gray-500 dark:text-gray-400">{{
               t('admin.mcp.oauth.account')
             }}</dt
-            ><dd class="mt-1 break-all font-medium">{{ auth.user?.email }}</dd></div
+            ><dd class="mt-1 break-all font-medium"
+              ><Skeleton v-if="loading" :width="132" :height="14" class="max-w-full" />
+              <template v-else>{{ auth.user?.email }}</template></dd
+            ></div
           >
           <div
             ><dt class="text-sm text-gray-500 dark:text-gray-400">{{
               t('admin.mcp.oauth.application')
             }}</dt
-            ><dd class="mt-1 break-words font-medium">{{
-              review.request.client.client_name
-            }}</dd></div
+            ><dd class="mt-1 break-words font-medium"
+              ><Skeleton v-if="loading" :width="156" :height="14" class="max-w-full" />
+              <template v-else>{{ review?.request.client.client_name }}</template></dd
+            ></div
           >
           <div class="sm:col-span-2"
             ><dt class="text-sm text-gray-500 dark:text-gray-400">{{
               t('admin.mcp.oauth.client')
             }}</dt
-            ><dd class="mt-1 break-all font-mono text-sm">{{
-              review.request.client.client_id
-            }}</dd></div
+            ><dd class="mt-1 break-all font-mono text-sm"
+              ><Skeleton v-if="loading" :width="192" :height="14" class="max-w-full" />
+              <template v-else>{{ review?.request.client.client_id }}</template></dd
+            ></div
           >
           <div
             ><dt class="text-sm text-gray-500 dark:text-gray-400">{{
               t('admin.mcp.oauth.callback')
             }}</dt
-            ><dd class="mt-1 break-all text-sm">{{ callbackOrigin }}</dd></div
+            ><dd class="mt-1 break-all text-sm"
+              ><Skeleton v-if="loading" :width="192" :height="14" class="max-w-full" />
+              <template v-else>{{ callbackOrigin }}</template></dd
+            ></div
           >
           <div
             ><dt class="text-sm text-gray-500 dark:text-gray-400">{{
               t('admin.mcp.oauth.requestExpires')
             }}</dt
-            ><dd class="mt-1 text-sm">{{ formatDateTime(review.request.expires_at) }}</dd></div
+            ><dd class="mt-1 text-sm"
+              ><Skeleton v-if="loading" :width="108" :height="14" class="max-w-full" />
+              <template v-else>{{
+                review ? formatDateTime(review.request.expires_at) : ''
+              }}</template></dd
+            ></div
           >
         </dl>
         <p class="text-sm text-gray-600 dark:text-gray-400">{{
           t('admin.mcp.oauth.identityHint')
         }}</p>
-        <fieldset :disabled="submitting || expired" class="min-w-0 space-y-4">
+        <div v-if="loading" class="space-y-3" aria-hidden="true" data-loading-skeleton>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="input-label mb-0">{{ t('admin.mcp.permissions') }}</span>
+            <Skeleton :width="72" :height="14" />
+          </div>
+          <p class="input-hint">{{ t('admin.mcp.permissionHint') }}</p>
+          <div>
+            <span class="input-label">{{ t('admin.mcp.preset') }}</span>
+            <Skeleton :height="36" class="rounded-control" />
+            <Skeleton width="72%" :height="14" class="mt-1.5" />
+          </div>
+          <Skeleton :width="134" :height="16" />
+        </div>
+        <fieldset v-else-if="review" :disabled="submitting || expired" class="min-w-0 space-y-4">
           <McpPermissionPicker
             :key="review.request.id"
             v-model="selected"
@@ -79,19 +105,19 @@
         >{{ t('admin.mcp.refresh') }}</button
       >
     </div>
-    <template v-if="review && !loading" #footer>
+    <template v-if="loading || review" #footer>
       <div class="flex justify-end gap-2">
         <button
           class="btn btn-secondary"
           type="button"
-          :disabled="submitting || expired"
+          :disabled="loading || submitting || expired"
           @click="decide(false)"
           >{{ t('admin.mcp.oauth.deny') }}</button
         >
         <button
           class="btn btn-primary"
           type="button"
-          :disabled="submitting || expired || !selected.size"
+          :disabled="loading || submitting || expired || !selected.size"
           @click="decide(true)"
           >{{ submitting ? t('common.processing') : t('admin.mcp.oauth.authorize') }}</button
         >
@@ -104,6 +130,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Skeleton from '@/components/common/Skeleton.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { useStepUp, isStepUpCancelled, StepUpCancelledError } from '@/composables/useStepUp'

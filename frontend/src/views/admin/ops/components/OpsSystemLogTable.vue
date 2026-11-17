@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
+
 import RequestIdLink from '@/components/common/RequestIdLink.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
@@ -717,16 +720,34 @@ onMounted(async () => {
     <div
       class="overflow-hidden rounded-surface border border-gray-200 dark:border-dark-700 dark:bg-dark-900"
     >
-      <div v-if="loading" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{{
-        t('common.loading')
-      }}</div>
       <div
-        v-else-if="!hasData"
+        v-if="!loading && !hasData"
         class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
         >{{ t('admin.ops.systemLogs.empty') }}</div
       >
       <div v-else-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-        <div v-for="row in logs" :key="row.id" class="space-y-1.5 p-3">
+        <div
+          v-if="loading && !logs.length"
+          role="status"
+          :aria-label="t('common.loading')"
+          aria-busy="true"
+          data-loading-skeleton
+        >
+          <div
+            v-for="row in 4"
+            :key="row"
+            class="space-y-1.5 p-3 border-b border-gray-100 last:border-0 dark:border-dark-800"
+            aria-hidden="true"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <Skeleton :width="52" :height="20" class="rounded-full" />
+              <Skeleton :width="88" :height="12" />
+            </div>
+            <Skeleton :width="86" :height="12" />
+            <Skeleton width="82%" :height="12" />
+          </div>
+        </div>
+        <div v-else v-for="row in logs" :key="row.id" class="space-y-1.5 p-3">
           <div class="flex items-center justify-between gap-2">
             <span
               class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold"
@@ -774,7 +795,8 @@ onMounted(async () => {
               >
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 dark:divide-dark-800 dark:bg-dark-900">
+          <TableSkeletonBody v-if="loading && !logs.length" :columns="4" cell-class="px-3 py-2" />
+          <tbody v-else class="divide-y divide-gray-100 dark:divide-dark-800 dark:bg-dark-900">
             <tr v-for="row in logs" :key="row.id" class="align-top">
               <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">{{
                 formatTime(row.created_at)

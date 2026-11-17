@@ -4,11 +4,11 @@
     :description="t('admin.settings.emailTemplates.description')"
   >
     <template #actions>
-      <div class="flex flex-wrap gap-2">
+      <div class="flex w-full flex-wrap gap-2 sm:w-auto">
         <button
           type="button"
           class="btn btn-secondary btn-sm h-9"
-          :disabled="loadingTemplate || previewing || !canPreview"
+          :disabled="previewing || !canPreview"
           @click="refreshPreview"
         >
           {{
@@ -20,7 +20,7 @@
         <button
           type="button"
           class="btn btn-secondary btn-sm h-9"
-          :disabled="loadingTemplate || restoring || !selectedEvent || !selectedLocale"
+          :disabled="!canEdit"
           @click="restoreOfficial"
         >
           {{
@@ -33,8 +33,16 @@
     </template>
 
     <div class="space-y-6">
-      <ContentSkeleton v-if="loadingList" variant="form" :rows="4" class="py-4" />
+      <EmailTemplateSkeleton v-if="loadingList" show-selectors />
 
+      <div v-else-if="listFailed" class="flex flex-wrap items-center gap-3" role="alert">
+        <p class="flex-1 text-sm text-gray-600 dark:text-dark-300">{{
+          t('admin.settings.emailTemplates.listUnavailable')
+        }}</p>
+        <button type="button" class="btn btn-secondary" @click="loadTemplateList">{{
+          t('common.retry')
+        }}</button>
+      </div>
       <template v-else>
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
@@ -45,7 +53,7 @@
               id="email-template-event"
               v-model="selectedEvent"
               :options="emailTemplateEventSelectOptions"
-              :disabled="loadingTemplate || eventOptions.length === 0"
+              :disabled="writingTemplate || eventOptions.length === 0"
             />
           </div>
           <div>
@@ -56,7 +64,7 @@
               id="email-template-locale"
               v-model="selectedLocale"
               :options="emailTemplateLocaleSelectOptions"
-              :disabled="loadingTemplate || localeOptions.length === 0"
+              :disabled="writingTemplate || localeOptions.length === 0"
             />
           </div>
         </div>
@@ -104,7 +112,18 @@
           {{ t('admin.settings.emailTemplates.empty') }}
         </div>
 
-        <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <EmailTemplateSkeleton v-else-if="loadingTemplate" />
+
+        <div v-else-if="templateFailed" class="flex flex-wrap items-center gap-3" role="alert">
+          <p class="flex-1 text-sm text-gray-600 dark:text-dark-300">{{
+            t('admin.settings.emailTemplates.templateUnavailable')
+          }}</p>
+          <button type="button" class="btn btn-secondary" @click="loadTemplate">{{
+            t('common.retry')
+          }}</button>
+        </div>
+
+        <div v-else-if="hasCurrentTemplate" class="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div class="space-y-4">
             <div>
               <label class="input-label" for="email-template-subject">
@@ -115,7 +134,7 @@
                 v-model="subject"
                 type="text"
                 class="input"
-                :disabled="loadingTemplate"
+                :disabled="!canEdit"
                 :placeholder="t('admin.settings.emailTemplates.subjectPlaceholder')"
               />
             </div>
@@ -129,7 +148,7 @@
                 v-model="html"
                 rows="18"
                 class="input min-h-[28rem] resize-y font-mono text-sm leading-6"
-                :disabled="loadingTemplate"
+                :disabled="!canEdit"
                 :placeholder="t('admin.settings.emailTemplates.htmlPlaceholder')"
               ></textarea>
             </div>
@@ -180,7 +199,13 @@
                 </span>
               </div>
               <div class="bg-gray-100 p-3 dark:bg-dark-900">
+                <Skeleton
+                  v-if="previewing && !previewHtml"
+                  height="36rem"
+                  class="rounded-control"
+                />
                 <iframe
+                  v-else
                   class="h-[36rem] w-full rounded-control border border-gray-200 bg-white dark:border-dark-700"
                   sandbox=""
                   :srcdoc="previewHtml"
@@ -200,11 +225,16 @@
 </template>
 
 <script setup lang="ts">
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import EmailTemplateSkeleton from './EmailTemplateSkeleton.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
-import type { EmailTemplateEventOption, EmailTemplateOption } from '@/api/admin/settings'
+import type {
+  EmailTemplateDetail,
+  EmailTemplateEventOption,
+  EmailTemplateOption,
+} from '@/api/admin/settings'
 import Select from '@/components/common/Select.vue'
 import SettingsCard from '@/components/common/settings/SettingsCard.vue'
 import { useDirtyTracker } from '@/composables/useDirtyTracker'
@@ -221,12 +251,11 @@ import { extractApiErrorMessage } from '@/utils/apiError'
  * subject and HTML have their own save-registry snapshot, separate from SMTP
  * settings.
  *
- * Loading, saving, and restoring apply the returned template before requesting
- * a preview. Initialization suppresses selection-triggered duplicate loads
- * while the first template is fetched. Later selection and preview requests
- * have no generation check, so responses apply when they complete. Template
- * identity is the selected event and locale pair; this editor does not
- * maintain localized-content source revisions.
+ * Content becomes editable only after a successful read for its event and
+ * locale. Selection changes clear the editor immediately, and request counters
+ * keep earlier responses from publishing content or previews for a different
+ * selection. Saving and restoring hold the selection and draft steady until
+ * the write settles. The preview can complete independently of that write.
  */
 
 // Interface translations and application notifications serve both template
@@ -310,18 +339,32 @@ const fallbackPlaceholders = [
   '{{report_html}}',
 ]
 
-// Request flags drive independent loading indicators; responses apply on
-// completion and these flags do not identify or cancel overlapping requests.
+// Request flags keep the list, selected template, preview, and writes independent.
 const loadingList = ref(true)
+const listFailed = ref(false)
 const loadingTemplate = ref(false)
+const templateFailed = ref(false)
 const previewing = ref(false)
 const restoring = ref(false)
-// Server choices and the selected event-locale pair determine which template
-// the editor loads, saves, previews, or restores.
+const savingTemplate = ref(false)
+const writingTemplate = computed(() => savingTemplate.value || restoring.value)
+
+// The selection contains the exact server event and locale used by every editor operation.
 const eventOptions = ref<EmailTemplateOption[]>([])
 const localeOptions = ref<string[]>([])
 const selectedEvent = ref('')
 const selectedLocale = ref('')
+const selection = computed(() => ({ event: selectedEvent.value, locale: selectedLocale.value }))
+
+// loadedSelection belongs to the response that populated the draft. Each read and preview
+// counter advances independently, preventing late completions from replacing current content.
+const loadedSelection = shallowRef<typeof selection.value | null>(null)
+const hasCurrentTemplate = computed(() => loadedSelection.value === selection.value)
+let templateGeneration = 0
+let previewGeneration = 0
+
+// disposed prevents a pending index request from starting another read after editor teardown.
+let disposed = false
 // Editable content and preview output have separate refs so server-rendered
 // preview HTML does not replace the administrator's template source.
 const subject = ref('')
@@ -668,18 +711,14 @@ function formatPlaceholder(placeholder: string): string {
   return `{{${trimmed}}}`
 }
 
-// Save requires both nonblank content fields, while preview requires HTML and
-// selection because its subject may be supplied as empty text.
+// The editor and writes require a draft loaded for the current event and locale.
+const canEdit = computed(
+  () => hasCurrentTemplate.value && !loadingTemplate.value && !writingTemplate.value,
+)
 const canSave = computed(
-  () =>
-    Boolean(selectedEvent.value && selectedLocale.value) &&
-    subject.value.trim().length > 0 &&
-    html.value.trim().length > 0,
+  () => canEdit.value && subject.value.trim().length > 0 && html.value.trim().length > 0,
 )
-
-const canPreview = computed(
-  () => Boolean(selectedEvent.value && selectedLocale.value) && html.value.trim().length > 0,
-)
+const canPreview = computed(() => hasCurrentTemplate.value && html.value.trim().length > 0)
 
 /**
  * formatLocale labels Chinese and English language variants using translated
@@ -724,174 +763,175 @@ function selectInitialLocale(locales: string[]): string {
 }
 
 /**
- * applyTemplate replaces editable subject, HTML, custom status, and
- * placeholder fields from a server template. It records the replacement as
- * clean immediately, making loaded, saved, and restored content the comparison
- * point for the save registry.
+ * applyTemplate installs the returned content for the captured selection.
+ * Callers check request ownership first. The loaded identity and clean snapshot
+ * are published with the subject and HTML before a preview request starts.
  */
-function applyTemplate(template: {
-  subject: string // Stored template subject source.
-  html: string // Stored template HTML source.
-  // is_custom marks the response as customized only when true; omission
-  // displays the official-template status.
-  is_custom?: boolean
-  // placeholders supplies event tokens; omission or an empty array lets the
-  // display use the shared token catalog.
-  placeholders?: string[]
-}) {
+function applyTemplate(template: EmailTemplateDetail, target: typeof selection.value) {
   subject.value = template.subject
   html.value = template.html
   isCustomTemplate.value = template.is_custom === true
   placeholders.value = template.placeholders || []
-  // This response supplies the current saved template, so update the
-  // comparison snapshot after assigning both editable content fields.
+  loadedSelection.value = target
   markClean()
 }
 
 /**
- * loadTemplate loads the currently selected event and locale, applies the
- * response, and requests its preview. Missing selection returns immediately;
- * overlapping loads apply when they finish, and errors are displayed while the
- * loading flag is released.
+ * loadTemplate replaces the editor for the current event and locale. It clears
+ * the old draft and preview when selection changes so a failed request cannot
+ * carry their content into the new identity. Only the latest read for the
+ * current selection can publish content, report failure, or release its loading
+ * indicator. A successful read starts preview rendering independently.
  */
 async function loadTemplate() {
-  if (!selectedEvent.value || !selectedLocale.value) return
-  loadingTemplate.value = true
+  const target = selection.value
+  // Invalidate previous content and preview requests before installing the new
+  // draft state, so a late response cannot make an unrelated selection editable.
+  const generation = ++templateGeneration
+  previewGeneration += 1
+  previewing.value = false
+  loadedSelection.value = null
+  templateFailed.value = false
+  subject.value = ''
+  html.value = ''
+  isCustomTemplate.value = false
+  placeholders.value = []
+  previewSubject.value = ''
+  previewHtml.value = ''
+  markClean()
+  loadingTemplate.value = Boolean(target.event && target.locale)
+  if (!loadingTemplate.value) return
   try {
-    const template = await adminAPI.settings.getEmailTemplate(
-      selectedEvent.value,
-      selectedLocale.value,
-    )
-    applyTemplate(template)
-    await refreshPreview()
+    const template = await adminAPI.settings.getEmailTemplate(target.event, target.locale)
+    if (generation !== templateGeneration || target !== selection.value) return
+    applyTemplate(template, target)
+    void refreshPreview()
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    if (generation !== templateGeneration || target !== selection.value) return
+    templateFailed.value = true
+    appStore.showError(
+      extractApiErrorMessage(err, t('admin.settings.emailTemplates.templateUnavailable')),
+    )
   } finally {
-    loadingTemplate.value = false
+    if (generation === templateGeneration) loadingTemplate.value = false
   }
 }
 
 /**
- * loadTemplateList initializes event and locale choices from the server and
- * fetches the first selected template. It normalizes legacy event options,
- * chooses a locale compatible with the interface language, and sets
- * initializingSelection before changing the two selected identities.
- *
- * That flag suppresses watcher-triggered loads during the initial explicit
- * fetch. Both success and failure release initialization state, while the
- * list-loading flag is released in finally. The nested template loader handles
- * its own errors, leaving list options available when the first content
- * request fails.
+ * loadTemplateList reads the available identities and starts the first content
+ * request. It sets event and locale together with the selection watcher
+ * suspended so the editor requests only the chosen pair. A failed list read
+ * leaves its own retry state, separate from failures for individual templates.
  */
 async function loadTemplateList() {
   loadingList.value = true
+  listFailed.value = false
   try {
     const response = await adminAPI.settings.getEmailTemplates()
+    if (disposed) return
     eventOptions.value = response.events.map(normalizeEventOption)
     localeOptions.value = response.locales
-    placeholders.value = response.placeholders || []
-    // Set the watcher gate before changing either selection, preventing two
-    // selection updates from duplicating the explicit initial load.
+    // Suspend the synchronous watcher across both assignments; either one
+    // alone could point at a template the user never selected.
     initializingSelection.value = true
     selectedEvent.value = eventOptions.value[0]?.value || ''
     selectedLocale.value = selectInitialLocale(response.locales)
-    await loadTemplate()
     initializingSelection.value = false
+    void loadTemplate()
   } catch (err: unknown) {
-    initializingSelection.value = false
-    appStore.showError(extractApiErrorMessage(err, t('common.error')))
+    if (disposed) return
+    listFailed.value = true
+    appStore.showError(
+      extractApiErrorMessage(err, t('admin.settings.emailTemplates.listUnavailable')),
+    )
   } finally {
+    initializingSelection.value = false
     loadingList.value = false
   }
 }
 
 /**
- * saveTemplate persists the selected event and locale with the current subject
- * and HTML. Blank required fields return false with validation feedback,
- * allowing the page save registry to retain the outstanding work.
- *
- * On success, the server response replaces the editor and establishes its
- * clean snapshot before preview refresh. Preview errors are reported by
- * refreshPreview and do not reverse the saved result or change this function
- * to false. The function returns false for update failures and has no
- * response-generation check for selection changes during the request.
+ * saveTemplate writes subject and HTML for the currently loaded identity.
+ * Invalid or unavailable drafts return false without an API call. The write
+ * holds the fields and selection steady until it finishes, then applies the
+ * returned template only if the editor still owns that selection. A preview
+ * failure leaves the persisted write successful.
  */
 async function saveTemplate(): Promise<boolean> {
   if (!canSave.value) {
     appStore.showError(t('admin.settings.emailTemplates.validationRequired'))
     return false
   }
+  const target = selection.value
+  savingTemplate.value = true
   try {
-    const template = await adminAPI.settings.updateEmailTemplate(
-      selectedEvent.value,
-      selectedLocale.value,
-      {
-        subject: subject.value,
-        html: html.value,
-      },
-    )
-    applyTemplate(template)
-    await refreshPreview()
+    const template = await adminAPI.settings.updateEmailTemplate(target.event, target.locale, {
+      subject: subject.value,
+      html: html.value,
+    })
+    if (hasCurrentTemplate.value && target === selection.value) {
+      applyTemplate(template, target)
+      void refreshPreview()
+    }
     return true
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
     return false
+  } finally {
+    savingTemplate.value = false
   }
 }
 
 /**
- * refreshPreview renders the current template draft through the server preview
- * endpoint. Invalid preview input clears displayed preview fields; failures
- * retain the previous preview, and overlapping successful requests publish in
- * completion order.
+ * refreshPreview renders the current draft in the selected event and locale.
+ * Only the latest preview for that selection can update the panel or its busy
+ * flag. A failed render keeps any existing preview of the same selection and
+ * reports the error without affecting the editable template or save state.
  */
 async function refreshPreview() {
-  if (!canPreview.value) {
-    previewSubject.value = ''
-    previewHtml.value = ''
-    return
-  }
+  if (!canPreview.value) return
+  const target = selection.value
+  // A manual preview and post-save preview can overlap; the later request owns
+  // the panel, even if the older renderer finishes after it.
+  const generation = ++previewGeneration
   previewing.value = true
   try {
     const preview = await adminAPI.settings.previewEmailTemplate({
-      event: selectedEvent.value,
-      locale: selectedLocale.value,
+      event: target.event,
+      locale: target.locale,
       subject: subject.value,
       html: html.value,
     })
+    if (generation !== previewGeneration || target !== selection.value) return
     previewSubject.value = preview.subject
     previewHtml.value = preview.html
   } catch (err: unknown) {
+    if (generation !== previewGeneration || target !== selection.value) return
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
   } finally {
-    previewing.value = false
+    if (generation === previewGeneration) previewing.value = false
   }
 }
 
 /**
- * restoreOfficial resets the selected event and locale after browser
- * confirmation and applies the returned official template. It then refreshes
- * the preview and reports success while owning the restore indicator until the
- * operation settles.
- *
- * Applying the response also marks the subject and HTML clean, so the save bar
- * reflects the persisted reset immediately. Preview failure is handled
- * separately and leaves the restore successful. Selection changes during the
- * request have no generation check, and cancellation before submission leaves
- * the editor unchanged.
+ * restoreOfficial resets the currently loaded template after browser confirmation.
+ * It holds the draft and selectors during the write and applies the restored
+ * content only to its matching selection. Canceling the prompt leaves the draft
+ * unchanged, and a later preview failure does not reverse a successful reset.
  */
 async function restoreOfficial() {
-  if (!selectedEvent.value || !selectedLocale.value) return
-  if (!window.confirm(t('admin.settings.emailTemplates.restoreConfirm'))) return
-
+  if (!canEdit.value || !window.confirm(t('admin.settings.emailTemplates.restoreConfirm'))) return
+  const target = selection.value
   restoring.value = true
   try {
     const template = await adminAPI.settings.restoreOfficialEmailTemplate(
-      selectedEvent.value,
-      selectedLocale.value,
+      target.event,
+      target.locale,
     )
-    applyTemplate(template)
-    await refreshPreview()
+    if (hasCurrentTemplate.value && target === selection.value) {
+      applyTemplate(template, target)
+      void refreshPreview()
+    }
     appStore.showSuccess(t('admin.settings.emailTemplates.restoreSuccess'))
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('common.error')))
@@ -922,13 +962,22 @@ const { dirty, markClean } = useDirtyTracker({
 })
 useSettingsSaveTarget('emailTemplate', { dirty, save: saveTemplate, discard: loadTemplate })
 
-// Initial list setup owns its first load; later event or locale changes
-// request content immediately and apply responses when they complete.
-watch([selectedEvent, selectedLocale], ([eventValue, localeValue], [oldEvent, oldLocale]) => {
-  if (initializingSelection.value) return
-  if (!eventValue || !localeValue) return
-  if (eventValue === oldEvent && localeValue === oldLocale) return
-  void loadTemplate()
+// Invalidate the draft synchronously when a selector changes so a save
+// triggered in the same tick cannot submit content for the previous identity.
+watch(
+  selection,
+  () => {
+    if (!initializingSelection.value) void loadTemplate()
+  },
+  { flush: 'sync' },
+)
+
+// Responses that outlive the editor must not publish their content or previews.
+onBeforeUnmount(() => {
+  disposed = true
+  templateGeneration += 1
+  previewGeneration += 1
+  loadedSelection.value = null
 })
 
 // Load available identities on mount; hiding the settings panel retains this

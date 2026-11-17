@@ -18,6 +18,7 @@ import type { OpsThroughputTrendPoint } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import { formatHistoryLabel, sumNumbers } from '../utils/opsFormatters'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import {
@@ -180,15 +181,9 @@ const options = computed(() => {
 
     <div class="min-h-0 flex-1">
       <Line v-if="state === 'ready' && chartData" :data="chartData" :options="options" />
+      <ChartSkeleton v-else-if="state === 'loading'" height="100%" />
       <div v-else class="flex h-full items-center justify-center">
-        <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">
-          {{ t('common.loading') }}
-        </div>
-        <EmptyState
-          v-else
-          :title="t('common.noData')"
-          :description="t('admin.ops.charts.emptyRequest')"
-        />
+        <EmptyState :title="t('common.noData')" :description="t('admin.ops.charts.emptyRequest')" />
       </div>
     </div>
   </div>

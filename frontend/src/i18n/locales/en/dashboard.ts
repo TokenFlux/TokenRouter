@@ -445,6 +445,7 @@ export default {
     cacheTtlOverridden1h: 'Billed as 1h',
     totalRequests: 'Total Requests',
     totalTokens: 'Total Tokens',
+    summaryUnavailable: 'Usage totals could not be loaded.',
     cacheTotal: 'Cache',
     cacheBreakdown: 'Cache Token Breakdown',
     cacheCreationTokensLabel: 'Cache Creation',

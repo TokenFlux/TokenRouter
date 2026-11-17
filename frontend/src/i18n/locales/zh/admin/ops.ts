@@ -456,6 +456,7 @@ export default {
         historyHint: '同一规则 + 相同维度的最近事件',
         historyLoading: '加载历史中...',
         historyEmpty: '暂无历史记录',
+        historyFailed: '无法加载告警历史。',
       },
       table: {
         time: '时间',

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -543,14 +545,37 @@ watch(
         <span class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {{ displayTitle }}
         </span>
-        <span class="text-xs text-gray-500 dark:text-gray-400">
+        <Skeleton v-if="loading && !displayRows.length" :width="48" :height="12" />
+        <span v-else class="text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.ops.concurrency.totalRows', { count: displayRows.length }) }}
         </span>
       </div>
 
+      <div
+        v-if="loading && !displayRows.length"
+        class="space-y-2 overflow-hidden p-3"
+        role="status"
+        :aria-label="t('common.loading')"
+        aria-busy="true"
+        data-loading-skeleton
+      >
+        <div
+          v-for="row in 4"
+          :key="row"
+          class="space-y-1.5 rounded-control bg-gray-50 p-2.5 dark:bg-dark-950"
+          aria-hidden="true"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <Skeleton :width="84" :height="14" class="min-w-0" />
+            <Skeleton :width="48" :height="14" class="shrink-0" />
+          </div>
+          <Skeleton :height="6" class="rounded-full" />
+        </div>
+      </div>
+
       <!-- No matching observations -->
       <div
-        v-if="displayRows.length === 0"
+        v-else-if="displayRows.length === 0"
         class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
       >
         {{ t('admin.ops.concurrency.empty') }}

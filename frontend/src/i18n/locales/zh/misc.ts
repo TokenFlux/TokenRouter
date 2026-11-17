@@ -647,6 +647,8 @@ export default {
     tabTopUp: '按量充值',
     tabSubscribe: '订阅',
     subscriptionSavingsBadge: '更省',
+    checkoutUnavailable: '无法加载购买选项。',
+    dashboardUnavailable: '无法加载支付统计。',
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     confirmSubscription: '确认订阅',

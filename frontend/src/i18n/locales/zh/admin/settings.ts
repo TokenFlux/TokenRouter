@@ -1181,6 +1181,8 @@ export default {
       enterRecipientHint: '请输入收件人邮箱地址',
     },
     emailTemplates: {
+      listUnavailable: '无法加载邮件模板列表。',
+      templateUnavailable: '无法加载此邮件模板。',
       title: '邮件模板',
       description: '按事件和语言自定义通知邮件主题与 HTML 内容。',
       event: '事件',

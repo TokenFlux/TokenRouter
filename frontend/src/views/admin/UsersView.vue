@@ -297,6 +297,13 @@
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
+          <template #loading-email>
+            <div class="flex min-w-0 items-center gap-2">
+              <Skeleton variant="circle" :width="32" :height="32" class="shrink-0" />
+              <Skeleton :width="150" :height="14" class="min-w-0" />
+            </div>
+          </template>
+
           <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
               <UserAvatar
@@ -578,32 +585,36 @@
             </div>
           </template>
 
-          <template #cell-usage="{ row }">
+          <template
+            v-for="usageKey in USAGE_COLUMN_KEYS"
+            :key="usageKey"
+            #[`cell-${usageKey}`]="{ row }"
+          >
+            <div
+              v-if="!usageStats[row.id] && usageStatus === 'pending'"
+              class="space-y-1"
+              :aria-label="t('common.loading')"
+              aria-busy="true"
+              data-loading-skeleton
+            >
+              <Skeleton :width="80" :height="12" class="max-w-full max-lg:ml-auto" />
+              <Skeleton :width="92" :height="12" class="max-w-full max-lg:ml-auto" />
+            </div>
+            <span
+              v-else-if="!usageStats[row.id] && usageStatus !== 'ready'"
+              class="text-xs text-gray-500 dark:text-dark-400"
+              >—</span
+            >
             <PlatformUsageBreakdown
+              v-else-if="usageKey === 'usage'"
               :today="usageStats[row.id]?.today_actual_cost ?? 0"
               :total="usageStats[row.id]?.total_actual_cost ?? 0"
               :by-platform="usageStats[row.id]?.by_platform"
             />
-          </template>
-
-          <template #cell-usage_anthropic="{ row }">
-            <PlatformCostCell :usage="getPlatformUsage(row.id, 'anthropic')" />
-          </template>
-
-          <template #cell-usage_openai="{ row }">
-            <PlatformCostCell :usage="getPlatformUsage(row.id, 'openai')" />
-          </template>
-
-          <template #cell-usage_gemini="{ row }">
-            <PlatformCostCell :usage="getPlatformUsage(row.id, 'gemini')" />
-          </template>
-
-          <template #cell-usage_antigravity="{ row }">
-            <PlatformCostCell :usage="getPlatformUsage(row.id, 'antigravity')" />
-          </template>
-
-          <template #cell-usage_qoder="{ row }">
-            <PlatformCostCell :usage="getPlatformUsage(row.id, 'qoder')" />
+            <PlatformCostCell
+              v-else
+              :usage="getPlatformUsage(row.id, USAGE_COLUMN_PLATFORMS[usageKey])"
+            />
           </template>
 
           <template #cell-concurrency="{ row }">
@@ -686,7 +697,9 @@
           </template>
 
           <template #empty>
+            <LoadErrorState v-if="usersLoadError" :message="usersLoadError" @retry="loadUsers" />
             <EmptyState
+              v-else
               :title="t('admin.users.noUsersYet')"
               :description="t('admin.users.createFirstUser')"
               :action-text="t('admin.users.createUser')"
@@ -876,9 +889,11 @@ import type { UserAttributeDefinition } from '@/api/admin/userAttributes.types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/table/types'
 import type { SelectOption } from '@/components/common/Select.vue'
+import LoadErrorState from '@/components/common/LoadErrorState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -1172,7 +1187,8 @@ const columns = computed<Column[]>(() =>
 // Primary user rows, their loading indicator, search text, and saved-sort key support
 // the server-paginated table controls.
 const users = ref<AdminUser[]>([])
-const loading = ref(false)
+const loading = ref(true)
+const usersLoadError = ref('')
 const searchQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 // loadInitialSortState restores a supported server sort from browser storage. Missing
@@ -1406,9 +1422,12 @@ const getAttributeDefinition = (attrId: number): UserAttributeDefinition | undef
 // usageStats holds batch usage keyed by user identity for aggregate/platform cells and
 // optional current-page cost sorting.
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
+// usageStatus distinguishes an in-flight batch from a successful batch with no
+// usage and an unavailable batch. Previously loaded per-user data stays usable.
+const usageStatus = ref<'idle' | 'pending' | 'ready' | 'unavailable'>('idle')
 
 // getPlatformUsage finds one user's loaded usage entry for the requested platform.
-const getPlatformUsage = (userId: number, platform: string) =>
+const getPlatformUsage = (userId: number, platform: string | null) =>
   usageStats.value[userId]?.by_platform?.find((p) => p.platform === platform)
 
 // UsageMetric selects today or total cost for current-page sorting.
@@ -1613,6 +1632,7 @@ const loadUsersSecondaryData = async (
   const tasks: Promise<void>[] = []
 
   if (hasVisibleUsageColumn.value) {
+    usageStatus.value = 'pending'
     tasks.push(
       (async () => {
         try {
@@ -1625,12 +1645,15 @@ const loadUsersSecondaryData = async (
           // page.
           if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
           usageStats.value = usageResponse.stats
+          usageStatus.value = 'ready'
         } catch (e) {
           // The primary page may have been replaced while optional data was loading;
           // aborted page work cannot publish or report into its successor.
           if (signal?.aborted) return
           // Keep other optional work and primary rows available after usage lookup
           // failure; the missing usage cells retain their current values.
+          if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+          usageStatus.value = 'unavailable'
           console.error('Failed to load usage stats:', e)
         }
       })(),
@@ -1868,6 +1891,7 @@ const loadUsers = async () => {
   abortController = currentAbortController
   const { signal } = currentAbortController
   loading.value = true
+  usersLoadError.value = ''
   try {
     const attrFilters: Record<number, string> = {}
     for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
@@ -1903,6 +1927,8 @@ const loadUsers = async () => {
     // Clear secondary maps when replacing user rows so observations from the
     // preceding page are not presented as data for the new page.
     usageStats.value = {}
+    usageStatus.value =
+      response.items.length > 0 && hasVisibleUsageColumn.value ? 'pending' : 'idle'
     userAttributeValues.value = {}
 
     if (response.items.length > 0) {
@@ -1918,6 +1944,7 @@ const loadUsers = async () => {
       }, 50)
     }
   } catch (error: any) {
+    if (signal.aborted || abortController !== currentAbortController) return
     const errorInfo = error as {
       name?: string // transport exception name
       code?: string // transport error code
@@ -1932,7 +1959,8 @@ const loadUsers = async () => {
       return
     }
     const message = error.response?.data?.detail || error.message || t('admin.users.failedToLoad')
-    appStore.showError(message)
+    usersLoadError.value = message
+    if (users.value.length) appStore.showError(message)
     console.error('Error loading users:', error)
   } finally {
     // Only the current primary request releases list loading, because an older

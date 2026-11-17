@@ -143,27 +143,39 @@ onBeforeUnmount(() => controller?.abort())
         </button>
       </div>
 
-      <!-- Loading placeholders follow the detail card sections. -->
       <div
         v-if="loading"
         class="card overflow-hidden"
+        role="status"
         aria-busy="true"
         :aria-label="t('common.loading')"
+        data-loading-skeleton
       >
         <div
-          class="flex items-center gap-2 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+          class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+          aria-hidden="true"
         >
-          <Skeleton width="4rem" height="1.25rem" />
-          <Skeleton width="16rem" height="1.25rem" />
-        </div>
-        <div class="grid grid-cols-2 gap-4 px-6 py-4 md:grid-cols-4">
-          <div v-for="index in 4" :key="index" class="space-y-2">
-            <Skeleton width="4rem" height="0.75rem" />
-            <Skeleton width="7rem" height="1.25rem" />
+          <div class="flex min-w-0 items-center gap-2">
+            <Skeleton :width="66" :height="20" class="shrink-0 rounded-full" />
+            <Skeleton :width="36" :height="18" class="shrink-0" />
+            <Skeleton :width="116" :height="14" class="min-w-0" />
           </div>
+          <Skeleton :width="168" :height="14" class="max-w-full" />
         </div>
-        <div class="space-y-2 border-t border-gray-100 px-6 py-5 dark:border-dark-700">
-          <Skeleton v-for="index in 4" :key="index" height="0.75rem" />
+        <div class="grid grid-cols-2 gap-4 px-6 py-4 md:grid-cols-4" aria-hidden="true">
+          <div
+            v-for="field in [
+              t('requests.startedAt'),
+              t('requests.duration'),
+              t('requests.statusCode'),
+              t('requests.model'),
+            ]"
+            :key="field"
+            class="min-w-0"
+          >
+            <p class="text-xs text-gray-500 dark:text-dark-400">{{ field }}</p>
+            <Skeleton :width="92" :height="14" class="my-1.5 max-w-full" />
+          </div>
         </div>
       </div>
 

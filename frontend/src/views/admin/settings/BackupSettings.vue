@@ -1,10 +1,7 @@
 <template>
   <div class="space-y-4">
     <!-- Storage connection draft -->
-    <SettingsCard
-      :title="t('admin.backup.storage.title')"
-      :description="t('admin.backup.storage.description')"
-    >
+    <BackupConfigCard section="storage" :status="configStatus.storage" @retry="loadStorageConfig">
       <template #actions>
         <button
           type="button"
@@ -125,13 +122,10 @@
           </div>
         </template>
       </SettingsSection>
-    </SettingsCard>
+    </BackupConfigCard>
 
     <!-- Backup content inclusion draft -->
-    <SettingsCard
-      :title="t('admin.backup.content.title')"
-      :description="t('admin.backup.content.description')"
-    >
+    <BackupConfigCard section="content" :status="configStatus.content" @retry="loadContentConfig">
       <SettingsSection>
         <SettingToggleRow
           v-for="option in contentOptions"
@@ -145,13 +139,10 @@
           {{ t('admin.backup.content.excludedCount', { count: contentExcludedCount }) }}
         </p>
       </SettingsSection>
-    </SettingsCard>
+    </BackupConfigCard>
 
     <!-- Scheduled backup retention draft -->
-    <SettingsCard
-      :title="t('admin.backup.schedule.title')"
-      :description="t('admin.backup.schedule.description')"
-    >
+    <BackupConfigCard section="schedule" :status="configStatus.schedule" @retry="loadSchedule">
       <SettingsSection>
         <SettingToggleRow
           id="backup-schedule-enabled"
@@ -207,7 +198,7 @@
           </SettingsSubpanel>
         </Collapse>
       </SettingsSection>
-    </SettingsCard>
+    </BackupConfigCard>
 
     <!-- Backup history and record actions -->
     <SettingsCard
@@ -249,101 +240,67 @@
         </div>
       </template>
 
-      <div class="overflow-x-auto">
-        <table class="w-full min-w-[800px] text-sm">
-          <thead>
-            <tr
-              class="border-b border-gray-200 text-left text-xs tracking-wide text-gray-500 dark:border-dark-700 dark:text-dark-400"
-            >
-              <th class="py-2 pr-4">ID</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.storage') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.size') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.parts') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.expiresAt') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.triggeredBy') }}</th>
-              <th class="py-2 pr-4">{{ t('admin.backup.columns.startedAt') }}</th>
-              <th class="py-2">{{ t('admin.backup.columns.actions') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="record in backups"
-              :key="record.id"
-              class="border-b border-gray-100 align-top dark:border-dark-700"
-            >
-              <td class="py-3 pr-4 font-mono text-xs">{{ record.id }}</td>
-              <td class="py-3 pr-4">
-                <span
-                  class="rounded-compact px-2 py-0.5 text-xs"
-                  :class="statusClass(record.status)"
-                >
-                  {{
-                    record.status === 'running' && record.progress
-                      ? t(`admin.backup.progress.${record.progress}`)
-                      : t(`admin.backup.status.${record.status}`)
-                  }}
-                </span>
-              </td>
-              <td class="py-3 pr-4 text-xs">{{ storageLabel(record) }}</td>
-              <td class="py-3 pr-4 text-xs">{{ record.file_name }}</td>
-              <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
-              <td class="py-3 pr-4 text-xs">{{ record.parts?.length || 1 }}</td>
-              <td class="py-3 pr-4 text-xs">
+      <BackupRecordsTable :state="backupTableState">
+        <tr
+          v-for="record in backups"
+          :key="record.id"
+          class="border-b border-gray-100 align-top dark:border-dark-700"
+        >
+          <td class="py-3 pr-4 font-mono text-xs">{{ record.id }}</td>
+          <td class="py-3 pr-4">
+            <span class="rounded-compact px-2 py-0.5 text-xs" :class="statusClass(record.status)">
+              {{
+                record.status === 'running' && record.progress
+                  ? t(`admin.backup.progress.${record.progress}`)
+                  : t(`admin.backup.status.${record.status}`)
+              }}
+            </span>
+          </td>
+          <td class="py-3 pr-4 text-xs">{{ storageLabel(record) }}</td>
+          <td class="py-3 pr-4 text-xs">{{ record.file_name }}</td>
+          <td class="py-3 pr-4 text-xs">{{ formatSize(record.size_bytes) }}</td>
+          <td class="py-3 pr-4 text-xs">{{ record.parts?.length || 1 }}</td>
+          <td class="py-3 pr-4 text-xs">
+            {{ record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire') }}
+          </td>
+          <td class="py-3 pr-4 text-xs">
+            {{
+              record.triggered_by === 'scheduled'
+                ? t('admin.backup.trigger.scheduled')
+                : t('admin.backup.trigger.manual')
+            }}
+          </td>
+          <td class="py-3 pr-4 text-xs">{{ formatDate(record.started_at) }}</td>
+          <td class="py-3 text-xs">
+            <div class="flex flex-wrap gap-1">
+              <button
+                v-if="record.status === 'completed'"
+                type="button"
+                class="btn btn-secondary btn-xs"
+                @click="downloadBackup(record.id)"
+              >
+                {{ t('admin.backup.actions.download') }}
+              </button>
+              <button
+                v-if="record.status === 'completed'"
+                type="button"
+                class="btn btn-secondary btn-xs"
+                :disabled="restoringId === record.id"
+                @click="restoreBackup(record.id)"
+              >
                 {{
-                  record.expires_at ? formatDate(record.expires_at) : t('admin.backup.neverExpire')
+                  restoringId === record.id
+                    ? t('common.loading')
+                    : t('admin.backup.actions.restore')
                 }}
-              </td>
-              <td class="py-3 pr-4 text-xs">
-                {{
-                  record.triggered_by === 'scheduled'
-                    ? t('admin.backup.trigger.scheduled')
-                    : t('admin.backup.trigger.manual')
-                }}
-              </td>
-              <td class="py-3 pr-4 text-xs">{{ formatDate(record.started_at) }}</td>
-              <td class="py-3 text-xs">
-                <div class="flex flex-wrap gap-1">
-                  <button
-                    v-if="record.status === 'completed'"
-                    type="button"
-                    class="btn btn-secondary btn-xs"
-                    @click="downloadBackup(record.id)"
-                  >
-                    {{ t('admin.backup.actions.download') }}
-                  </button>
-                  <button
-                    v-if="record.status === 'completed'"
-                    type="button"
-                    class="btn btn-secondary btn-xs"
-                    :disabled="restoringId === record.id"
-                    @click="restoreBackup(record.id)"
-                  >
-                    {{
-                      restoringId === record.id
-                        ? t('common.loading')
-                        : t('admin.backup.actions.restore')
-                    }}
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-danger btn-xs"
-                    @click="removeBackup(record.id)"
-                  >
-                    {{ t('common.delete') }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="backups.length === 0">
-              <td colspan="10" class="py-6 text-center text-sm text-gray-500 dark:text-dark-400">
-                {{ t('admin.backup.empty') }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </button>
+              <button type="button" class="btn btn-danger btn-xs" @click="removeBackup(record.id)">
+                {{ t('common.delete') }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      </BackupRecordsTable>
     </SettingsCard>
   </div>
 
@@ -540,7 +497,7 @@
 
 <script setup lang="ts">
 import MotionTransition from '@/components/common/MotionTransition.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
 import { useAppStore } from '@/stores'
@@ -570,6 +527,8 @@ import SettingsSection from '@/components/common/settings/SettingsSection.vue'
 import SettingsSegmented, {
   type SettingsSegmentedOption,
 } from '@/components/common/settings/SettingsSegmented.vue'
+import BackupConfigCard from './BackupConfigCard.vue'
+import BackupRecordsTable from './BackupRecordsTable.vue'
 import SettingsSubpanel from '@/components/common/settings/SettingsSubpanel.vue'
 
 /**
@@ -624,6 +583,18 @@ function reportStepUpBlocked(error: unknown): boolean {
   )
   return true
 }
+
+// ConfigReadStatus distinguishes each initial request from an available editor
+// or a request that failed before the section received server settings.
+type ConfigReadStatus = 'pending' | 'ready' | 'failed'
+
+// configStatus tracks the independent first reads. Later failed refreshes keep
+// available drafts mounted so edits and the last read state remain accessible.
+const configStatus = reactive<Record<'storage' | 'content' | 'schedule', ConfigReadStatus>>({
+  storage: 'pending',
+  content: 'pending',
+  schedule: 'pending',
+})
 
 // Storage drafts retain the selected backend and editable S3 fields
 // separately so switching storage type keeps entered remote settings.
@@ -731,7 +702,20 @@ const scheduleForm = ref<BackupScheduleConfig>({
 // Record state drives table actions, creation progress, restoration identity,
 // and the currently opened split-archive download links.
 const backups = ref<BackupRecord[]>([])
-const loadingBackups = ref(false)
+const loadingBackups = ref(true)
+const backupsLoadFailed = ref(false)
+
+// backupReadSequence identifies the latest history read across manual refresh and visibility changes.
+let backupReadSequence = 0
+
+// backupTableState keeps available records visible during refresh and
+// distinguishes a first request, a failed read, and a successful empty result.
+const backupTableState = computed(() => {
+  if (backups.value.length > 0) return 'ready'
+  if (loadingBackups.value) return 'loading'
+  if (backupsLoadFailed.value) return 'failed'
+  return 'empty'
+})
 const creatingBackup = ref(false)
 // restoringId identifies the row under restoration; an empty value releases
 // all restore action indicators.
@@ -971,6 +955,7 @@ function buildStoragePayload(): BackupStorageConfig {
  * survives a failed read.
  */
 async function loadStorageConfig() {
+  if (configStatus.storage !== 'ready') configStatus.storage = 'pending'
   try {
     const cfg = await adminAPI.backup.getStorageConfig()
     storageForm.value = {
@@ -980,7 +965,9 @@ async function loadStorageConfig() {
     }
     s3Form.value = normalizeS3Form(cfg.s3)
     s3SecretConfigured.value = Boolean(cfg.s3?.access_key_id)
+    configStatus.storage = 'ready'
   } catch (error) {
+    if (configStatus.storage !== 'ready') configStatus.storage = 'failed'
     appStore.showError(
       (error as { message?: string /* Optional server error message. */ })?.message ||
         t('errors.networkError'),
@@ -1066,10 +1053,13 @@ function normalizeContentConfig(cfg?: Partial<BackupContentConfig>): BackupConte
  * the existing draft, and still establish a clean snapshot.
  */
 async function loadContentConfig() {
+  if (configStatus.content !== 'ready') configStatus.content = 'pending'
   try {
     const cfg = await adminAPI.backup.getContentConfig()
     contentForm.value = normalizeContentConfig(cfg)
+    configStatus.content = 'ready'
   } catch (error) {
+    if (configStatus.content !== 'ready') configStatus.content = 'failed'
     appStore.showError(
       (error as { message?: string /* Optional server error message. */ })?.message ||
         t('errors.networkError'),
@@ -1117,6 +1107,7 @@ async function saveContentConfig(): Promise<boolean> {
  * marks the resulting schedule clean after the render tick.
  */
 async function loadSchedule() {
+  if (configStatus.schedule !== 'ready') configStatus.schedule = 'pending'
   try {
     const cfg = await adminAPI.backup.getSchedule()
     scheduleForm.value = {
@@ -1125,7 +1116,9 @@ async function loadSchedule() {
       retain_days: cfg.retain_days || 14,
       retain_count: cfg.retain_count || 10,
     }
+    configStatus.schedule = 'ready'
   } catch (error) {
+    if (configStatus.schedule !== 'ready') configStatus.schedule = 'failed'
     appStore.showError(
       (error as { message?: string /* Optional server error message. */ })?.message ||
         t('errors.networkError'),
@@ -1159,22 +1152,31 @@ async function saveSchedule(): Promise<boolean> {
 }
 
 /**
- * loadBackups refreshes displayed records while owning the list-loading
- * indicator for its request. An absent item list becomes empty; errors keep
- * previous records and are reported through the application store.
+ * loadBackups refreshes the history table for mounting, polling, and manual
+ * refresh. A newer read owns the records, the failure state, and the loading
+ * indicator as soon as it begins. A late result from an earlier read cannot
+ * invalidate the newer list or display an error against it. A current failure
+ * preserves the last visible records and reports an error through the app store.
  */
 async function loadBackups() {
+  // Claim the history state before dispatch so an earlier read cannot publish
+  // records or clear the latest request's pending indicator.
+  const sequence = ++backupReadSequence
   loadingBackups.value = true
   try {
     const result = await adminAPI.backup.listBackups()
+    if (sequence !== backupReadSequence) return
     backups.value = result.items || []
+    backupsLoadFailed.value = false
   } catch (error) {
+    if (sequence !== backupReadSequence) return
+    backupsLoadFailed.value = true
     appStore.showError(
       (error as { message?: string /* Optional server error message. */ })?.message ||
         t('errors.networkError'),
     )
   } finally {
-    loadingBackups.value = false
+    if (sequence === backupReadSequence) loadingBackups.value = false
   }
 }
 

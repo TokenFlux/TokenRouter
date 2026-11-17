@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+
 import Disclosure from '@/components/common/Disclosure.vue'
 
 import { ref, computed, watch } from 'vue'
@@ -394,8 +396,34 @@ async function saveAllSettings() {
     width="extra-wide"
     @close="emit('close')"
   >
-    <div v-if="loading" class="py-10 text-center text-sm text-gray-500">
-      {{ t('common.loading') }}
+    <div
+      v-if="loading"
+      class="space-y-6"
+      role="status"
+      :aria-label="t('common.loading')"
+      aria-busy="true"
+      data-loading-skeleton
+    >
+      <div class="space-y-3 rounded-surface bg-gray-50 p-4 dark:bg-dark-950" aria-hidden="true">
+        <Skeleton :width="142" :height="18" />
+        <div class="space-y-2">
+          <Skeleton :width="124" :height="14" />
+          <Skeleton :height="36" />
+          <Skeleton :width="260" :height="12" class="max-w-full" />
+        </div>
+      </div>
+      <div
+        v-for="section in 2"
+        :key="section"
+        class="space-y-3 rounded-surface bg-gray-50 p-4 dark:bg-dark-950"
+        aria-hidden="true"
+      >
+        <Skeleton :width="176" :height="18" />
+        <div class="flex items-center justify-between gap-4">
+          <Skeleton :width="124" :height="16" />
+          <Skeleton :width="44" :height="24" class="shrink-0 rounded-full" />
+        </div>
+      </div>
     </div>
 
     <div v-else-if="runtimeSettings && emailConfig && advancedSettings" class="space-y-6">

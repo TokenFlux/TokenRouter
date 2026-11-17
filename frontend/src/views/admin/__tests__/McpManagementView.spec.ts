@@ -200,7 +200,8 @@ describe('MCP token management', () => {
     })
     const wrapper = page()
     const modal = wrapper.get('[role="dialog"][aria-modal="true"]')
-    expect(modal.text()).toContain('common.loading')
+    expect(modal.get('[role="status"][aria-label="common.loading"]').exists()).toBe(true)
+    expect(modal.text()).not.toContain('admin.mcp.approve')
     await flushPromises()
     resolveReview({
       id: 'modal-review',

@@ -1,5 +1,5 @@
 <template>
-  <AppLayout :hide-page-heading="!!teamContext">
+  <AppLayout :hide-page-heading="loading || !!teamContext">
     <div class="space-y-4">
       <div v-if="transferToken" class="border-b border-gray-200 pb-6 dark:border-dark-700">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -36,18 +36,58 @@
         aria-busy="true"
         data-loading-skeleton
       >
-        <div class="space-y-3" aria-hidden="true">
-          <Skeleton :width="192" :height="28" />
-          <Skeleton :width="256" :height="16" />
+        <div class="space-y-2" aria-hidden="true">
+          <header class="flex flex-wrap items-end justify-between gap-4">
+            <div class="min-w-0 space-y-2">
+              <div class="flex items-center gap-3">
+                <Skeleton :width="144" :height="28" class="min-w-0" />
+                <Skeleton :width="62" :height="20" class="shrink-0 rounded-full" />
+              </div>
+              <Skeleton :width="156" :height="14" />
+            </div>
+            <div class="flex gap-2">
+              <Skeleton :width="96" :height="36" class="rounded-control" />
+              <Skeleton :width="86" :height="36" class="rounded-control" />
+            </div>
+          </header>
+          <div class="flex gap-1 overflow-hidden border-b border-gray-200 dark:border-dark-700">
+            <div v-for="tab in 3" :key="tab" class="flex h-9 items-center px-4">
+              <Skeleton :width="52" :height="14" />
+            </div>
+          </div>
         </div>
-        <div
-          class="flex gap-4 border-b border-gray-200 pb-3 dark:border-dark-700"
-          aria-hidden="true"
-        >
-          <Skeleton v-for="tab in 3" :key="tab" :width="80" :height="36" />
-        </div>
-        <ContentSkeleton variant="list" :rows="4" class="card p-6" />
+        <section class="card overflow-hidden" aria-hidden="true">
+          <div
+            class="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-dark-700"
+          >
+            <Skeleton :width="96" :height="20" />
+            <Skeleton :width="72" :height="14" />
+          </div>
+          <div class="divide-y divide-gray-100 dark:divide-dark-700">
+            <div
+              v-for="member in 3"
+              :key="member"
+              class="flex flex-wrap items-center justify-between gap-4 p-5"
+            >
+              <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <Skeleton :width="96" :height="16" />
+                  <Skeleton :width="44" :height="18" class="rounded-full" />
+                </div>
+                <Skeleton :width="145" :height="14" />
+              </div>
+              <Skeleton :width="72" :height="28" class="rounded-control" />
+            </div>
+          </div>
+        </section>
       </div>
+
+      <LoadErrorState
+        v-else-if="teamLoadError && !teamContext"
+        class="card"
+        :message="teamLoadError"
+        @retry="loadInitialTeam"
+      />
 
       <div v-else-if="!teamContext" class="mx-auto max-w-xl py-10">
         <div class="mb-8 text-center">
@@ -571,12 +611,12 @@
 <script setup lang="ts">
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import Skeleton from '@/components/common/Skeleton.vue'
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { vContentReveal } from '@/directives/contentReveal'
 
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import LoadErrorState from '@/components/common/LoadErrorState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -630,6 +670,7 @@ const { balanceUnitSymbol, hasCustomBalanceIcon } = useBalanceDisplay()
 // Loading and operation flags distinguish initial data, refresh, form submission, and
 // invitation resolution; preview state is loaded independently from current membership.
 const loading = ref(true)
+const teamLoadError = ref('')
 const refreshing = ref(false)
 const submitting = ref(false)
 const resolvingToken = ref(false)
@@ -1125,17 +1166,26 @@ const resolvePendingToken = async (resolution: 'accepted' | 'declined') => {
   }
 }
 
-onMounted(async () => {
-  const invitationRequest = loadInvitationPreview()
+// loadInitialTeam reads membership before deciding whether to show team setup.
+// A failed membership request leaves a retry, while a known team keeps its
+// shell if one of its secondary lists fails.
+async function loadInitialTeam() {
+  loading.value = true
+  teamLoadError.value = ''
   try {
     await loadContext()
     await loadTeamData()
   } catch (error: any) {
-    appStore.showError(error?.message || t('team.loadFailed'))
+    teamLoadError.value = error?.message || t('team.loadFailed')
+    if (teamContext.value) appStore.showError(teamLoadError.value)
   } finally {
     loading.value = false
   }
-  await invitationRequest
+}
+
+onMounted(() => {
+  void loadInvitationPreview()
+  void loadInitialTeam()
 })
 useLocaleRefresh(loadTeamData)
 </script>

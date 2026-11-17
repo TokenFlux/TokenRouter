@@ -1,6 +1,6 @@
 <template>
-  <!-- Show the TOTP card after status loading confirms that the administrator has enabled the feature. -->
-  <div v-if="status?.feature_enabled" class="card">
+  <!-- Keep the status card in place while checking whether the administrator enabled two-factor authentication. -->
+  <div v-if="(!status && loading) || status?.feature_enabled" class="card">
     <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <h2 class="text-lg font-medium text-gray-900 dark:text-white">
         {{ t('profile.totp.title') }}
@@ -11,10 +11,26 @@
     </div>
     <div class="px-6 py-6">
       <!-- Loading state -->
-      <ContentSkeleton v-if="loading" variant="detail" :rows="2" class="py-4" />
+      <div
+        v-if="loading && !status"
+        class="flex items-center justify-between gap-4"
+        role="status"
+        :aria-label="t('common.loading')"
+        aria-busy="true"
+        data-loading-skeleton
+      >
+        <div class="flex min-w-0 items-center gap-4" aria-hidden="true">
+          <Skeleton variant="circle" :width="48" :height="48" class="shrink-0" />
+          <div class="min-w-0 space-y-2">
+            <Skeleton :width="98" :height="16" class="max-w-full" />
+            <Skeleton :width="126" :height="14" class="max-w-full" />
+          </div>
+        </div>
+        <Skeleton :width="64" :height="36" class="shrink-0" />
+      </div>
 
       <!-- 2FA Enabled -->
-      <div v-else-if="status.enabled" class="flex items-center justify-between">
+      <div v-else-if="status?.enabled" class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="flex-shrink-0 rounded-full bg-green-100 p-3 dark:bg-green-900/30">
             <Icon name="shield" size="lg" class="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -28,13 +44,18 @@
             </p>
           </div>
         </div>
-        <button type="button" class="btn btn-outline-danger" @click="showDisableDialog = true">
+        <button
+          type="button"
+          class="btn btn-outline-danger"
+          :disabled="loading"
+          @click="showDisableDialog = true"
+        >
           {{ t('profile.totp.disable') }}
         </button>
       </div>
 
       <!-- 2FA Not Enabled -->
-      <div v-else class="flex items-center justify-between">
+      <div v-else-if="status" class="flex items-center justify-between">
         <div class="flex items-center gap-4">
           <div class="flex-shrink-0 rounded-full bg-gray-100 p-3 dark:bg-dark-700">
             <Icon name="shield" size="lg" class="h-6 w-6 text-gray-400" />
@@ -48,7 +69,12 @@
             </p>
           </div>
         </div>
-        <button type="button" class="btn btn-primary" @click="showSetupModal = true">
+        <button
+          type="button"
+          class="btn btn-primary"
+          :disabled="loading"
+          @click="showSetupModal = true"
+        >
           {{ t('profile.totp.enable') }}
         </button>
       </div>
@@ -75,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import { useLeavingPresence } from '@/composables/useLeavingPresence'
 import Icon from '@/components/icons/Icon.vue'
 import { ref, onMounted } from 'vue'

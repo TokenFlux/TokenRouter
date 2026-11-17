@@ -74,103 +74,109 @@
       </div>
     </div>
 
-    <ChartSkeleton v-if="activeView === 'model_distribution' && loading" variant="distribution" />
-    <div
-      v-else-if="activeView === 'model_distribution' && displayModelStats.length > 0 && chartData"
-      class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
+    <DistributionChartLayout
+      v-if="
+        activeView === 'model_distribution' &&
+        (loading || (displayModelStats.length > 0 && chartData))
+      "
+      :loading="loading"
     >
-      <div class="h-48 w-48 shrink-0">
-        <Doughnut :data="chartData" :options="doughnutOptions" />
-      </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
-              <th class="pb-2 text-left">{{ t('admin.dashboard.model') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
-              <th v-if="showProviderCost" class="pb-2 text-right">
-                {{ t('admin.dashboard.providerCost') }}
-              </th>
-              <th v-if="showStandardCost" class="pb-2 text-right">
-                {{ t('admin.dashboard.standard') }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="model in displayModelStats" :key="model.model">
-              <tr
-                data-icon-trigger
-                class="group/breakdown border-t border-gray-100 transition-colors dark:border-dark-600"
-                :class="
-                  enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''
-                "
-                @click="enableBreakdown && toggleBreakdown('model', model.model)"
-              >
-                <!--
+      <template #chart>
+        <Doughnut v-if="chartData" :data="chartData" :options="doughnutOptions" />
+      </template>
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-gray-500 dark:text-gray-400">
+            <th class="pb-2 text-left">{{ t('admin.dashboard.model') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
+            <th v-if="showProviderCost" class="pb-2 text-right">
+              {{ t('admin.dashboard.providerCost') }}
+            </th>
+            <th v-if="showStandardCost" class="pb-2 text-right">
+              {{ t('admin.dashboard.standard') }}
+            </th>
+          </tr>
+        </thead>
+        <TableSkeletonBody
+          v-if="loading"
+          :columns="4 + Number(showProviderCost) + Number(showStandardCost)"
+          :rows="4"
+          cell-class="py-2"
+        />
+        <tbody v-else>
+          <template v-for="model in displayModelStats" :key="model.model">
+            <tr
+              data-icon-trigger
+              class="group/breakdown border-t border-gray-100 transition-colors dark:border-dark-600"
+              :class="
+                enableBreakdown ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40' : ''
+              "
+              @click="enableBreakdown && toggleBreakdown('model', model.model)"
+            >
+              <!--
                   Expandable model names respond to row hover, and the arrow inherits
                   their text color.
                 -->
-                <td
-                  class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white"
-                  :class="
-                    enableBreakdown
-                      ? 'group-hover/breakdown:text-primary-600 dark:group-hover/breakdown:text-primary-500'
-                      : ''
-                  "
-                  :title="model.model"
-                >
-                  <span class="inline-flex items-center gap-1">
-                    <Icon
-                      v-if="enableBreakdown"
-                      name="chevronRight"
-                      size="xs"
-                      :animate-on-hover="false"
-                      class="h-3 w-3 shrink-0 transition-transform duration-normal"
-                      :class="{ 'rotate-90': expandedKey === `model-${model.model}` }"
-                    />
-                    {{ model.model }}
-                  </span>
-                </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatNumber(model.requests) }}
-                </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatTokens(model.total_tokens) }}
-                </td>
-                <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  {{ balanceUnitSymbol }}{{ formatCost(model.actual_cost) }}
-                </td>
-                <td
-                  v-if="showProviderCost"
-                  class="py-1.5 text-right text-orange-500 dark:text-orange-400"
-                >
-                  {{ usdUnitSymbol }}{{ formatCost(model.provider_cost) }}
-                </td>
-                <td
-                  v-if="showStandardCost"
-                  class="py-1.5 text-right text-gray-400 dark:text-gray-500"
-                >
-                  {{ usdUnitSymbol }}{{ formatCost(model.cost) }}
-                </td>
-              </tr>
-              <ExpandableTableRow
-                :open="expandedKey === `model-${model.model}`"
-                :colspan="distributionColspan"
+              <td
+                class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white"
+                :class="
+                  enableBreakdown
+                    ? 'group-hover/breakdown:text-primary-600 dark:group-hover/breakdown:text-primary-500'
+                    : ''
+                "
+                :title="model.model"
               >
-                <UserBreakdownSubTable
-                  :items="breakdownItems"
-                  :loading="breakdownLoading"
-                  :show-provider-cost="showProviderCost"
-                  :show-standard-cost="showStandardCost"
-                />
-              </ExpandableTableRow>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </div>
+                <span class="inline-flex items-center gap-1">
+                  <Icon
+                    v-if="enableBreakdown"
+                    name="chevronRight"
+                    size="xs"
+                    :animate-on-hover="false"
+                    class="h-3 w-3 shrink-0 transition-transform duration-normal"
+                    :class="{ 'rotate-90': expandedKey === `model-${model.model}` }"
+                  />
+                  {{ model.model }}
+                </span>
+              </td>
+              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                {{ formatNumber(model.requests) }}
+              </td>
+              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                {{ formatTokens(model.total_tokens) }}
+              </td>
+              <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+                {{ balanceUnitSymbol }}{{ formatCost(model.actual_cost) }}
+              </td>
+              <td
+                v-if="showProviderCost"
+                class="py-1.5 text-right text-orange-500 dark:text-orange-400"
+              >
+                {{ usdUnitSymbol }}{{ formatCost(model.provider_cost) }}
+              </td>
+              <td
+                v-if="showStandardCost"
+                class="py-1.5 text-right text-gray-400 dark:text-gray-500"
+              >
+                {{ usdUnitSymbol }}{{ formatCost(model.cost) }}
+              </td>
+            </tr>
+            <ExpandableTableRow
+              :open="expandedKey === `model-${model.model}`"
+              :colspan="distributionColspan"
+            >
+              <UserBreakdownSubTable
+                :items="breakdownItems"
+                :loading="breakdownLoading"
+                :show-provider-cost="showProviderCost"
+                :show-standard-cost="showStandardCost"
+              />
+            </ExpandableTableRow>
+          </template>
+        </tbody>
+      </table>
+    </DistributionChartLayout>
     <div
       v-else-if="activeView === 'model_distribution'"
       class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
@@ -178,70 +184,72 @@
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
 
-    <ChartSkeleton v-else-if="rankingLoading" variant="distribution" />
     <div
-      v-else-if="rankingError"
+      v-else-if="rankingError && !rankingLoading"
       class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
     >
       {{ t('admin.dashboard.failedToLoad') }}
     </div>
     <!-- Use the same desktop top alignment for the distribution and ranking views. -->
-    <div
-      v-else-if="rankingDisplayItems.length > 0 && rankingChartData"
-      class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
+    <DistributionChartLayout
+      v-else-if="rankingLoading || (rankingDisplayItems.length > 0 && rankingChartData)"
+      :loading="rankingLoading"
     >
-      <div class="h-48 w-48 shrink-0">
-        <Doughnut :data="rankingChartData" :options="rankingDoughnutOptions" />
-      </div>
-      <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
-              <th class="pb-2 text-left">{{ t('admin.dashboard.spendingRankingUser') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingRequests') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingTokens') }}</th>
-              <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingSpend') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(item, index) in rankingDisplayItems"
-              :key="item.isOther ? 'others' : `${item.user_id}-${index}`"
-              class="border-t border-gray-100 transition-colors dark:border-dark-600"
-              :class="
-                item.isOther
-                  ? 'bg-gray-50/70 dark:bg-dark-700/20'
-                  : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40'
-              "
-              @click="item.isOther ? undefined : emit('ranking-click', item)"
-            >
-              <td class="py-1.5">
-                <div class="flex min-w-0 items-center gap-2">
-                  <span class="shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    {{ item.isOther ? 'Σ' : `#${index + 1}` }}
-                  </span>
-                  <span
-                    class="block max-w-[140px] truncate font-medium text-gray-900 dark:text-white"
-                    :title="getRankingRowLabel(item)"
-                  >
-                    {{ getRankingRowLabel(item) }}
-                  </span>
-                </div>
-              </td>
-              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                {{ formatNumber(item.requests) }}
-              </td>
-              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                {{ formatTokens(item.tokens) }}
-              </td>
-              <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                {{ balanceUnitSymbol }}{{ formatCost(item.actual_cost) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <template #chart>
+        <Doughnut
+          v-if="rankingChartData"
+          :data="rankingChartData"
+          :options="rankingDoughnutOptions"
+        />
+      </template>
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-gray-500 dark:text-gray-400">
+            <th class="pb-2 text-left">{{ t('admin.dashboard.spendingRankingUser') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingRequests') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingTokens') }}</th>
+            <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingSpend') }}</th>
+          </tr>
+        </thead>
+        <TableSkeletonBody v-if="rankingLoading" :columns="4" :rows="4" cell-class="py-2" />
+        <tbody v-else>
+          <tr
+            v-for="(item, index) in rankingDisplayItems"
+            :key="item.isOther ? 'others' : `${item.user_id}-${index}`"
+            class="border-t border-gray-100 transition-colors dark:border-dark-600"
+            :class="
+              item.isOther
+                ? 'bg-gray-50/70 dark:bg-dark-700/20'
+                : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-700/40'
+            "
+            @click="item.isOther ? undefined : emit('ranking-click', item)"
+          >
+            <td class="py-1.5">
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="shrink-0 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                  {{ item.isOther ? 'Σ' : `#${index + 1}` }}
+                </span>
+                <span
+                  class="block max-w-[140px] truncate font-medium text-gray-900 dark:text-white"
+                  :title="getRankingRowLabel(item)"
+                >
+                  {{ getRankingRowLabel(item) }}
+                </span>
+              </div>
+            </td>
+            <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+              {{ formatNumber(item.requests) }}
+            </td>
+            <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+              {{ formatTokens(item.tokens) }}
+            </td>
+            <td class="py-1.5 text-right text-green-600 dark:text-green-400">
+              {{ balanceUnitSymbol }}{{ formatCost(item.actual_cost) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </DistributionChartLayout>
     <div
       v-else
       class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
@@ -260,7 +268,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
-import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
+import DistributionChartLayout from './DistributionChartLayout.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
 import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
+
 import { computed, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
@@ -325,12 +328,8 @@ function onNextPage() {
       {{ errorMessage }}
     </div>
 
-    <div v-if="loading" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-      {{ t('admin.ops.loadingText') }}
-    </div>
-
     <EmptyState
-      v-else-if="items.length === 0"
+      v-if="!loading && items.length === 0"
       :title="t('common.noData')"
       :description="t('admin.ops.tokenStats.empty')"
     />
@@ -339,7 +338,33 @@ function onNextPage() {
       <div class="overflow-hidden rounded-surface border border-gray-200 dark:border-dark-700">
         <div class="max-h-panel overflow-auto">
           <div v-if="!isDesktopViewport" class="divide-y divide-gray-100 dark:divide-dark-800">
-            <div v-for="row in items" :key="row.model" class="space-y-2 p-3">
+            <div
+              v-if="loading && !items.length"
+              role="status"
+              :aria-label="t('common.loading')"
+              aria-busy="true"
+              data-loading-skeleton
+            >
+              <div
+                v-for="row in 4"
+                :key="row"
+                class="space-y-2 p-3 border-b border-gray-100 last:border-0 dark:border-dark-800"
+                aria-hidden="true"
+              >
+                <Skeleton :width="146" :height="14" class="max-w-full" />
+                <div class="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <div
+                    v-for="metric in 6"
+                    :key="metric"
+                    class="flex min-h-4 min-w-0 items-center justify-between gap-2"
+                  >
+                    <Skeleton width="56%" :height="12" />
+                    <Skeleton width="24%" :height="12" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else v-for="row in items" :key="row.model" class="space-y-2 p-3">
               <div class="break-all text-xs font-medium text-gray-900 dark:text-gray-100">
                 {{ row.model }}
               </div>
@@ -421,7 +446,12 @@ function onNextPage() {
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <TableSkeletonBody
+              v-if="loading && !items.length"
+              :columns="7"
+              cell-class="px-2 py-2"
+            />
+            <tbody v-else>
               <tr
                 v-for="row in items"
                 :key="row.model"

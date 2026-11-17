@@ -1,18 +1,50 @@
 <template>
   <div v-if="!isDesktopViewport" class="space-y-4" :aria-busy="loading">
     <template v-if="loading">
+      <div role="status" :aria-label="t('common.loading')" class="sr-only"></div>
+      <div
+        v-if="selectable"
+        class="flex min-h-5 items-center justify-end gap-2 px-1"
+        aria-hidden="true"
+      >
+        <Skeleton :width="16" :height="16" />
+        <span class="text-sm font-medium text-gray-600 dark:text-gray-300">{{
+          t('common.selectAll')
+        }}</span>
+      </div>
       <div
         v-for="i in 5"
         :key="i"
         class="rounded-surface border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        data-loading-skeleton
+        aria-hidden="true"
       >
         <div class="space-y-3">
-          <div v-for="column in dataColumns" :key="column.key" class="flex justify-between">
-            <Skeleton :width="80" :height="16" />
-            <Skeleton :width="128" :height="16" />
+          <div v-if="selectable" class="flex justify-end">
+            <Skeleton :width="16" :height="16" />
           </div>
-          <div v-if="hasActionsColumn" class="border-t border-gray-200 pt-3 dark:border-dark-700">
-            <Skeleton :height="32" />
+          <div
+            v-for="column in dataColumns"
+            :key="column.key"
+            :data-field="column.key"
+            class="flex min-h-5 min-w-0 items-center justify-between gap-4"
+          >
+            <span class="text-xs font-medium tracking-wider text-gray-500 dark:text-dark-300">
+              {{ column.label }}
+            </span>
+            <slot :name="'loading-' + column.key">
+              <Skeleton
+                :width="column.key === 'status' ? 48 : 96"
+                :height="14"
+                class="max-w-[45%] shrink-0"
+              />
+            </slot>
+          </div>
+          <div
+            v-if="hasActionsColumn"
+            class="flex items-center gap-1 border-t border-gray-200 pt-3 dark:border-dark-700"
+          >
+            <Skeleton v-for="action in loadingActionCount" :key="action" :width="36" :height="36" />
           </div>
         </div>
       </div>
@@ -109,6 +141,7 @@
     ref="tableWrapperRef"
     class="table-wrapper sticky-boundary-line"
     :aria-busy="loading"
+    :aria-label="loading ? t('common.loading') : undefined"
     :class="{
       'actions-expanded': actionsExpanded,
       'is-scrollable': isScrollable,
@@ -128,6 +161,7 @@
               :indeterminate="someVisibleSelected"
               :aria-label="t('common.selectAll')"
               data-test="select-all"
+              :disabled="loading"
               @change="toggleAllVisible(($event.target as HTMLInputElement).checked)"
             />
           </th>
@@ -209,21 +243,42 @@
       <tbody
         class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900"
       >
-        <!-- Desktop columns and mobile cards share the loading skeleton recipe. -->
-        <tr v-if="loading" v-for="i in 5" :key="i">
+        <!-- Loading cells retain the same column order, sticky positions, and padding as data cells. -->
+        <tr v-if="loading" v-for="i in 5" :key="i" aria-hidden="true" data-loading-skeleton>
           <td v-if="selectable" class="table-selection-cell py-3">
             <Skeleton :width="16" :height="16" class="mx-auto" />
           </td>
           <td
-            v-for="column in orderedColumns"
+            v-for="(column, colIndex) in orderedColumns"
             :key="column.key"
-            :class="['whitespace-nowrap py-3', getColumnLayoutClass(column)]"
+            :class="[
+              'whitespace-nowrap py-3',
+              getColumnLayoutClass(column),
+              getStickyColumnClass(column, colIndex),
+              column.class,
+            ]"
           >
+            <div v-if="column.key === 'actions'" class="flex items-center gap-1">
+              <Skeleton
+                v-for="action in loadingActionCount"
+                :key="action"
+                :width="32"
+                :height="36"
+              />
+            </div>
             <Skeleton
-              :width="column.key === 'select' ? 16 : '75%'"
+              v-else-if="column.key === 'select'"
+              :width="16"
               :height="16"
-              :class="column.key === 'select' ? 'mx-auto' : ''"
+              class="mx-auto"
             />
+            <slot v-else :name="'loading-' + column.key">
+              <Skeleton
+                :width="column.key === 'status' ? 48 : 64"
+                :height="14"
+                class="my-[3px] inline-block max-w-full align-middle"
+              />
+            </slot>
           </td>
         </tr>
 
@@ -339,7 +394,9 @@ import { useTableColumnOrder } from '@/components/common/table/useTableColumnOrd
 
 // DataTable.vue renders responsive data rows with sorting, controlled selection,
 // movable columns, and optional desktop virtualization. Desktop and mobile
-// presentations share row ordering and column definitions. Selection retains
+// presentations share row ordering and column definitions. Callers can provide a
+// decorative loading slot for a column whose layout includes more than one shape.
+// Selection retains
 // keys outside the visible page, and structural selection and action columns
 // keep their positions when data columns move. Browser preferences provide
 // independent sort and column order state for each caller-supplied storage key.
@@ -548,11 +605,16 @@ onUnmounted(() => {
 interface Props {
   columns: Column[] // Ordered caller column definitions.
   data: any[] // Current page row records.
-  loading?: boolean // Show row loading placeholders.
+  /** Loading replaces row values and selection controls until the requested data arrives. */
+  loading?: boolean
   stickyFirstColumn?: boolean // Pin first data column.
   stickyActionsColumn?: boolean // Pin right action column.
   expandableActions?: boolean // Enable action-width expansion checks.
-  actionsCount?: number // Declared action count input.
+  /**
+   * actionsCount bounds the loading action placeholders. Rows can expose fewer actions
+   * according to their own permissions and state.
+   */
+  actionsCount?: number
   rowKey?: string | ((row: any) => string | number) // Stable row identity source.
   /**
    * defaultSortKey and defaultSortOrder configure the initial choice when browser storage has no valid preference for a currently sortable column. Both values pass through the same normalization as restored preferences.
@@ -599,6 +661,10 @@ const props = withDefaults(defineProps<Props>(), {
   selectable: false,
   selectedKeys: () => [],
 })
+
+// loadingActionCount approximates the visible action strip before row-specific controls exist.
+// Three slots leave room for a collapsed overflow menu in tables with many actions.
+const loadingActionCount = computed(() => Math.min(props.actionsCount ?? 2, 3))
 
 // Sort and action-expansion state drive header feedback, rendered row ordering,
 // and the visibility of overflowing action controls.

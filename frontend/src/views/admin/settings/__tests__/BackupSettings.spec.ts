@@ -162,6 +162,31 @@ describe('admin BackupSettings 分卷备份', () => {
     document.body.innerHTML = ''
   })
 
+  // Backup history can finish independently of configuration. Pending history
+  // keeps the headers and reserves rows until a successful response confirms
+  // there are no records to list.
+  it('shows an empty backup history only after the first read succeeds', async () => {
+    let completeHistory!: (response: { items: [] }) => void
+    listBackups.mockReturnValueOnce(
+      new Promise((resolve) => {
+        completeHistory = resolve
+      }),
+    )
+    const wrapper = mountBackupSettings()
+    await flushPromises()
+
+    const table = wrapper.get('table')
+    expect(table.find('thead').exists()).toBe(true)
+    expect(table.find('tbody[data-loading-skeleton]').exists()).toBe(true)
+    expect(table.text()).not.toContain('admin.backup.empty')
+
+    completeHistory({ items: [] })
+    await flushPromises()
+    expect(table.find('tbody[data-loading-skeleton]').exists()).toBe(false)
+    expect(table.text()).toContain('admin.backup.empty')
+    wrapper.unmount()
+  })
+
   // A split record omits storage_type and its S3 key. Download must show the
   // part count and individual remote links while bypassing the authenticated
   // single-file endpoint.

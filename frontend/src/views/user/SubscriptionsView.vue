@@ -9,12 +9,52 @@
         aria-busy="true"
         data-loading-skeleton
       >
-        <div v-for="card in 2" :key="card" class="card space-y-6 p-6" aria-hidden="true">
-          <Skeleton width="50%" :height="24" />
-          <Skeleton width="70%" :height="16" />
-          <ContentSkeleton variant="detail" :rows="6" />
-          <Skeleton :height="36" />
-        </div>
+        <article
+          v-for="card in 2"
+          :key="card"
+          class="card flex flex-col overflow-hidden"
+          aria-hidden="true"
+        >
+          <header
+            class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6"
+          >
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex items-center gap-2">
+                <Skeleton :width="112" :height="20" class="max-w-full" />
+                <Skeleton :width="48" :height="18" class="shrink-0 rounded-full" />
+              </div>
+              <Skeleton :width="176" :height="14" class="max-w-full" />
+            </div>
+            <Skeleton :width="0" :height="28" class="w-full shrink-0 sm:w-24" />
+          </header>
+          <div
+            class="grid grid-cols-2 border-y border-gray-100 dark:border-dark-700 sm:grid-cols-3"
+          >
+            <div
+              v-for="field in 3"
+              :key="field"
+              class="space-y-2 px-4 py-3 sm:px-6"
+              :class="
+                field === 3
+                  ? 'col-span-2 border-t border-gray-100 dark:border-dark-700 sm:col-span-1 sm:border-t-0'
+                  : 'border-r border-gray-100 dark:border-dark-700'
+              "
+            >
+              <Skeleton :width="68" :height="12" class="max-w-full" />
+              <Skeleton :width="88" :height="14" class="max-w-full" />
+            </div>
+          </div>
+          <div class="space-y-4 px-4 py-4 sm:px-6">
+            <div v-for="period in 3" :key="period">
+              <div class="flex justify-between gap-3">
+                <Skeleton :width="76" :height="16" />
+                <Skeleton :width="88" :height="16" />
+              </div>
+              <Skeleton :height="6" class="mt-2 rounded-full" />
+              <Skeleton :width="112" :height="12" class="mt-1.5" />
+            </div>
+          </div>
+        </article>
       </div>
 
       <div v-else-if="planChains.length === 0" class="card">
@@ -244,7 +284,6 @@
 import { getLocale } from '@/i18n'
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import Skeleton from '@/components/common/Skeleton.vue'
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

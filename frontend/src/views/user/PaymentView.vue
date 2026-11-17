@@ -2,18 +2,25 @@
   <AppLayout>
     <!-- Tabs share the title row and hide while payment or subscription confirmation owns the page. -->
     <template
-      v-if="!loading && tabs.length > 1 && paymentPhase === 'select' && !selectedPlan"
+      v-if="
+        !checkoutLoadFailed &&
+        tabs.length > 1 &&
+        paymentPhase === 'select' &&
+        !selectedPlan &&
+        !(loading && directPlanCheckout)
+      "
       #page-heading-actions
     >
-      <div v-segmented role="tablist" class="segmented gap-1">
+      <div v-segmented role="tablist" class="segmented gap-1" :aria-busy="loading">
         <button
           v-for="tab in tabs"
           :key="tab.key"
           type="button"
           role="tab"
-          :aria-selected="activeTab === tab.key"
+          :aria-selected="(loading ? requestedTab : activeTab) === tab.key"
+          :disabled="loading"
           class="segmented-item flex h-8 items-center justify-center gap-1 whitespace-nowrap px-1 text-sm sm:gap-2 sm:px-4"
-          :class="{ 'segmented-item-active': activeTab === tab.key }"
+          :class="{ 'segmented-item-active': (loading ? requestedTab : activeTab) === tab.key }"
           @click="activeTab = tab.key"
         >
           {{ tab.label }}
@@ -36,39 +43,17 @@
     >
       <MotionTransition name="purchase-slide" :css="!loading">
         <div :key="activeTab" class="w-full space-y-4">
-          <!-- Initial loading reserves the same two-column space used by checkout selection and its summary. -->
-          <div
+          <PurchaseSkeleton
             v-if="loading"
-            role="status"
-            aria-busy="true"
-            :aria-label="t('common.loading')"
-            class="space-y-4"
-          >
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
-              <div class="space-y-4">
-                <div class="card space-y-4 p-4 sm:p-6">
-                  <Skeleton width="6rem" height="1rem" />
-                  <div class="grid grid-cols-3 gap-2">
-                    <Skeleton v-for="n in 9" :key="n" height="2.75rem" />
-                  </div>
-                  <Skeleton height="2.25rem" />
-                </div>
-                <div class="card space-y-4 p-4 sm:p-6">
-                  <Skeleton width="6rem" height="1rem" />
-                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Skeleton v-for="n in 2" :key="n" height="3.5rem" />
-                  </div>
-                </div>
-              </div>
-              <div class="card space-y-3 p-4 sm:p-6">
-                <Skeleton width="5rem" height="1rem" />
-                <Skeleton height="1rem" />
-                <Skeleton height="1rem" />
-                <Skeleton width="9rem" height="1.75rem" class="ml-auto" />
-                <Skeleton height="2.5rem" />
-              </div>
-            </div>
-          </div>
+            :plans="requestedTab === 'subscription' && !directPlanCheckout"
+            :plan-checkout="directPlanCheckout"
+          />
+          <LoadErrorState
+            v-else-if="checkoutLoadFailed"
+            class="card"
+            :message="t('payment.checkoutUnavailable')"
+            @retry="loadCheckout"
+          />
           <template v-else>
             <!-- Balance and subscription orders share the waiting panel. -->
             <PaymentStatusPanel
@@ -636,6 +621,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { BillingInfo, SubscriptionPlan, CheckoutInfoResponse } from '@/api/payment.types'
+import LoadErrorState from '@/components/common/LoadErrorState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
@@ -652,7 +638,7 @@ import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
-import Skeleton from '@/components/common/Skeleton.vue'
+import PurchaseSkeleton from './purchase/PurchaseSkeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useCountUp } from '@/composables/useCountUp'
 import {
@@ -701,6 +687,15 @@ const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions
 // Editable purchase fields stay on the page. An empty selectedMethod represents an
 // unselected checkout, and the controller owns submission errors and launch operations.
 const loading = ref(true)
+const checkoutLoadFailed = ref(false)
+
+// The URL determines the initial tab and whether plan confirmation can own the page header.
+const requestedTab = computed(() =>
+  route.query.tab === 'subscription' ? 'subscription' : 'recharge',
+)
+const directPlanCheckout = computed(
+  () => requestedTab.value === 'subscription' && Boolean(route.query.plan || route.query.group),
+)
 const activeTab = ref<'recharge' | 'subscription'>('recharge')
 const amount = ref<number | null>(null)
 const selectedMethod = ref('')
@@ -1313,10 +1308,17 @@ async function confirmSubscribe() {
   await createOrder(plan.price, 'subscription', plan.id)
 }
 
-onMounted(async () => {
+// loadCheckout reads checkout configuration, then restores any existing payment
+// and applies the requested plan selection. A configuration failure keeps the
+// page on its retry state; later recovery errors use the existing payment feedback.
+async function loadCheckout() {
+  loading.value = true
+  checkoutLoadFailed.value = false
+  let configurationLoaded = false
   try {
     const res = await paymentAPI.getCheckoutInfo()
     checkout.value = res.data
+    configurationLoaded = true
     if (enabledMethods.value.length) {
       const order: readonly string[] = METHOD_ORDER
       const sorted = [...enabledMethods.value].sort((a, b) => {
@@ -1353,15 +1355,24 @@ onMounted(async () => {
       }
     }
   } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+    if (configurationLoaded) {
+      appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+    } else {
+      checkoutLoadFailed.value = true
+    }
   } finally {
     loading.value = false
   }
   // A background subscription refresh can fail independently of checkout loading; the existing
   // store list remains available to the plan cards.
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
-})
+}
+onMounted(() => void loadCheckout())
 useLocaleRefresh(async () => {
+  if (checkoutLoadFailed.value) {
+    await loadCheckout()
+    return
+  }
   const { data } = await paymentAPI.getCheckoutInfo()
   checkout.value = data
   if (selectedPlan.value)

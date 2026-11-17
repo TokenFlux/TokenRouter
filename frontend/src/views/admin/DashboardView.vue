@@ -390,6 +390,12 @@
           </div>
         </div>
       </template>
+      <LoadErrorState
+        v-else
+        class="card"
+        :message="t('admin.dashboard.failedToLoad')"
+        @retry="loadDashboardStats"
+      />
     </div>
   </AppLayout>
 </template>
@@ -408,6 +414,7 @@ import type {
   UserSpendingRankingItem,
 } from '@/api/admin/dashboard.types'
 import type { TrendDataPoint, ModelStat } from '@/api/usage.types'
+import LoadErrorState from '@/components/common/LoadErrorState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import DashboardSkeleton from '@/components/common/DashboardSkeleton.vue'

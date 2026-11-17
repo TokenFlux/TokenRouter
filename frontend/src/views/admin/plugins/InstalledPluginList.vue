@@ -47,16 +47,24 @@ function detailRoute(item: PluginInstallation, tab?: string) {
   <ul
     v-if="loading"
     class="card divide-y divide-gray-100 overflow-hidden dark:divide-dark-700"
+    :aria-label="t('common.loading')"
     aria-busy="true"
+    data-loading-skeleton
   >
-    <li v-for="row in 3" :key="row" class="flex items-center gap-4 px-4 py-3.5">
-      <Skeleton width="40px" height="40px" />
+    <li v-for="row in 3" :key="row" class="flex items-center gap-4 px-4 py-3.5" aria-hidden="true">
+      <Skeleton :width="40" :height="40" class="shrink-0 rounded-control" />
       <div class="min-w-0 flex-1 space-y-2">
-        <Skeleton width="180px" height="14px" />
-        <Skeleton width="320px" height="12px" />
+        <Skeleton :width="180" :height="14" class="max-w-full" />
+        <Skeleton :width="320" :height="12" class="max-w-full" />
+        <Skeleton v-if="!updates" :width="56" :height="18" class="rounded-full sm:hidden" />
       </div>
-      <Skeleton width="56px" height="12px" />
-      <Skeleton width="36px" height="20px" class="rounded-full" />
+      <template v-if="updates">
+        <Skeleton :width="80" :height="12" class="hidden shrink-0 md:block" />
+        <Skeleton :width="88" :height="28" class="shrink-0" />
+      </template>
+      <Skeleton v-else :width="80" :height="18" class="hidden shrink-0 rounded-full sm:block" />
+      <Skeleton :width="36" :height="20" class="shrink-0 rounded-full" />
+      <Skeleton :width="16" :height="16" class="shrink-0" />
     </li>
   </ul>
   <ul v-else class="card divide-y divide-gray-100 overflow-hidden dark:divide-dark-700">

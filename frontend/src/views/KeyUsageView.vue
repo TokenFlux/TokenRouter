@@ -129,35 +129,56 @@
 
       <!-- Results Container -->
       <div v-if="showResults">
-        <!-- Loading Skeleton -->
-        <div v-if="showLoading" class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div
+          v-if="showLoading"
+          class="space-y-4"
+          role="status"
+          :aria-label="t('common.loading')"
+          aria-busy="true"
+          data-loading-skeleton
+        >
+          <div class="mb-2 flex justify-center" aria-hidden="true">
+            <Skeleton :width="116" :height="40" class="rounded-full" />
+          </div>
+          <div class="grid grid-cols-1 gap-6 md:grid-cols-2" aria-hidden="true">
             <div
+              v-for="ring in 2"
+              :key="ring"
               class="rounded-surface border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900"
             >
-              <div class="skeleton h-5 w-24 mb-6"></div>
-              <div class="flex justify-center">
-                <div class="skeleton w-44 h-44 rounded-full"></div>
+              <div class="mb-6 flex items-center justify-between gap-2">
+                <Skeleton :width="104" :height="16" />
+                <Skeleton :width="20" :height="20" />
               </div>
-            </div>
-            <div
-              class="rounded-surface border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900"
-            >
-              <div class="skeleton h-5 w-24 mb-6"></div>
-              <div class="flex justify-center">
-                <div class="skeleton w-44 h-44 rounded-full"></div>
+              <div
+                class="mx-auto flex aspect-square w-full max-w-44 items-center justify-center rounded-full border-8 border-gray-200 dark:border-dark-700"
+              >
+                <div class="space-y-2">
+                  <Skeleton :width="75" :height="24" />
+                  <Skeleton :width="54" :height="12" class="mx-auto" />
+                </div>
               </div>
             </div>
           </div>
           <div
-            class="rounded-surface border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900"
+            class="overflow-hidden rounded-surface border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900"
+            aria-hidden="true"
           >
-            <div class="skeleton h-5 w-32 mb-6"></div>
-            <div class="space-y-4">
-              <div class="skeleton h-4 w-full"></div>
-              <div class="skeleton h-4 w-3/4"></div>
-              <div class="skeleton h-4 w-5/6"></div>
-              <div class="skeleton h-4 w-2/3"></div>
+            <div class="border-b border-gray-200 px-8 py-5 dark:border-dark-700">
+              <Skeleton :width="128" :height="16" />
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-dark-800">
+              <div
+                v-for="row in 4"
+                :key="row"
+                class="flex items-center justify-between gap-4 px-8 py-4"
+              >
+                <div class="flex min-w-0 items-center gap-3">
+                  <Skeleton :width="32" :height="32" class="shrink-0 rounded-control" />
+                  <Skeleton :width="88" :height="14" class="min-w-0" />
+                </div>
+                <Skeleton :width="88" :height="14" class="shrink-0" />
+              </div>
             </div>
           </div>
         </div>
@@ -626,6 +647,7 @@ import { useAppStore } from '@/stores'
 import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import Skeleton from '@/components/common/Skeleton.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useTheme } from '@/composables/useTheme'
 import { buildGatewayUrl } from '@/api/client'

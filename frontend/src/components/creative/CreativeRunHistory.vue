@@ -286,10 +286,25 @@
             </MotionTransition>
           </div>
         </div>
-        <p
-          v-else-if="!studio.loadingHistory.value"
-          class="py-8 text-center text-xs text-gray-400 dark:text-dark-400"
+        <div
+          v-else-if="studio.loadingHistory.value"
+          role="status"
+          :aria-label="t('common.loading')"
+          aria-busy="true"
+          data-loading-skeleton
+          class="space-y-0.5"
         >
+          <div v-for="row in 4" :key="row" class="space-y-1 px-2.5 py-2" aria-hidden="true">
+            <div class="flex items-center gap-2">
+              <Skeleton :width="64" :height="20" class="shrink-0 rounded-full" />
+              <Skeleton :width="102" :height="12" class="min-w-0" />
+              <Skeleton :width="16" :height="16" class="ml-auto shrink-0" />
+            </div>
+            <Skeleton width="80%" :height="12" />
+            <Skeleton :width="76" :height="12" />
+          </div>
+        </div>
+        <p v-else class="py-8 text-center text-xs text-gray-400 dark:text-dark-400">
           {{ t('creative.history.empty') }}
         </p>
       </div>
@@ -298,6 +313,7 @@
 </template>
 
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

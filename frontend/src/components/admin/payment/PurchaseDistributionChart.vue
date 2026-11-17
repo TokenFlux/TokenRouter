@@ -1,5 +1,5 @@
 <template>
-  <div class="card p-4">
+  <div class="card p-4" :aria-busy="loading">
     <div class="mb-4 flex flex-wrap items-end justify-between gap-2">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
         {{ t('payment.admin.purchaseDistribution') }}
@@ -13,7 +13,7 @@
       />
     </div>
     <div
-      v-if="!items?.length"
+      v-if="!loading && !items?.length"
       class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
     >
       {{ t('payment.admin.noData') }}
@@ -24,7 +24,8 @@
           {{ t('payment.admin.amountShare') }}
         </p>
         <div class="mx-auto h-52 max-w-52">
-          <Doughnut :data="amountChartData" :options="amountChartOptions" />
+          <Skeleton v-if="loading" variant="circle" :height="208" />
+          <Doughnut v-else :data="amountChartData" :options="amountChartOptions" />
         </div>
       </div>
       <div class="min-w-0">
@@ -32,7 +33,8 @@
           {{ t('payment.admin.countShare') }}
         </p>
         <div class="mx-auto h-52 max-w-52">
-          <Doughnut :data="countChartData" :options="countChartOptions" />
+          <Skeleton v-if="loading" variant="circle" :height="208" />
+          <Doughnut v-else :data="countChartData" :options="countChartOptions" />
         </div>
       </div>
       <div class="max-h-64 min-w-0 overflow-y-auto">
@@ -44,7 +46,8 @@
               <th class="pb-2 text-right">{{ t('payment.admin.orderCount') }}</th>
             </tr>
           </thead>
-          <tbody>
+          <TableSkeletonBody v-if="loading" :columns="3" cell-class="py-2" />
+          <tbody v-else>
             <tr
               v-for="(item, index) in sortedItems"
               :key="distributionKey(item, index)"
@@ -79,6 +82,9 @@
 </template>
 
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
+
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, type TooltipItem } from 'chart.js'
@@ -116,6 +122,7 @@ type PurchaseDistributionItem = DashboardStats['purchase_distribution'][number]
 // props supplies parent-owned records and presentation state consumed by this component
 // and its event handlers.
 const props = defineProps<{
+  loading?: boolean // Initial distribution request pending.
   items: PurchaseDistributionItem[] /* ordered display item collection */
 }>()
 

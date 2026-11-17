@@ -1,10 +1,7 @@
 <template>
   <AppLayout>
     <div class="w-full min-w-0 space-y-4">
-      <!-- Mount editable panels after bulk loading completes; every tab then keeps its controls mounted while hidden. -->
-      <SettingsSkeleton v-if="loading" />
-
-      <form v-else @submit.prevent="saveAllSettings" class="space-y-4" novalidate>
+      <form @submit.prevent="saveAllSettings" class="space-y-4" novalidate>
         <div class="settings-tabs-sticky">
           <div
             :class="[
@@ -26,6 +23,7 @@
                   type="button"
                   role="tab"
                   :aria-selected="activeTab === tab.key"
+                  :disabled="loading"
                   :tabindex="activeTab === tab.key ? 0 : -1"
                   :class="['settings-tab', activeTab === tab.key && 'settings-tab-active']"
                   @click="selectSettingsTab(tab.key)"
@@ -56,6 +54,7 @@
                   type="button"
                   role="tab"
                   :aria-selected="activeGatewaySection === section.key"
+                  :disabled="loading"
                   :tabindex="activeGatewaySection === section.key ? 0 : -1"
                   :data-testid="`gateway-section-tab-${section.key}`"
                   :class="[
@@ -83,142 +82,151 @@
           </div>
         </div>
 
-        <div
-          v-show="activeTab === 'security'"
-          v-content-reveal="activeTab === 'security'"
-          class="space-y-4"
-        >
-          <AdminApiKeySettings :controller="adminApiKey" />
-        </div>
-
-        <div
-          v-show="activeTab === 'gateway'"
-          v-content-reveal="activeTab === 'gateway'"
-          :ref="navigation.gatewayContentStartRef"
-          class="gateway-settings-content space-y-4"
-        >
-          <GatewayPolicySettings
-            :controller="gateway"
-            :active-gateway-section="activeGatewaySection"
-          />
-        </div>
-
-        <div
-          v-show="activeTab === 'security'"
-          v-content-reveal="activeTab === 'security'"
-          class="space-y-4"
-        >
-          <SecuritySettings :form="form" :controller="security" />
-
-          <IdentitySettings :form="form" :controller="identity" />
-        </div>
-
-        <div
-          v-show="activeTab === 'users'"
-          v-content-reveal="activeTab === 'users'"
-          class="space-y-4"
-        >
-          <UserDefaultsSettings :form="form" :controller="users" />
-        </div>
-
-        <div
-          v-show="activeTab === 'gateway'"
-          v-content-reveal="activeTab === 'gateway'"
-          class="space-y-4"
-        >
-          <GatewayForwardingSettings
-            :form="form"
-            :controller="gateway"
-            :web-search="webSearch"
-            :active-gateway-section="activeGatewaySection"
-          />
-        </div>
-
-        <div
-          v-show="activeTab === 'general'"
-          v-content-reveal="activeTab === 'general'"
-          class="space-y-4"
-        >
-          <GeneralSettings :form="form" :controller="general" :images-disabled="discarding" />
-        </div>
-
-        <div
-          v-show="activeTab === 'agreement'"
-          v-content-reveal="activeTab === 'agreement'"
-          class="space-y-4"
-        >
-          <AgreementSettings :form="form" :controller="agreement" />
-        </div>
-
-        <div
-          v-show="activeTab === 'features'"
-          v-content-reveal="activeTab === 'features'"
-          class="space-y-4"
-        >
-          <FeatureSettings
-            :form="form"
-            :controller="features"
-            :preview-balance-unit-name="general.previewBalanceUnitName.value"
-          />
-        </div>
-
-        <div
-          v-show="activeTab === 'payment'"
-          v-content-reveal="activeTab === 'payment'"
-          class="space-y-4"
-        >
-          <PaymentSettings
-            :form="form"
-            :controller="payment"
-            :preview-balance-unit-name="general.previewBalanceUnitName.value"
-          />
-        </div>
-
-        <div
-          v-show="activeTab === 'email'"
-          v-content-reveal="activeTab === 'email'"
-          class="space-y-4"
-        >
-          <EmailSettings
-            :form="form"
-            :controller="email"
-            :load-failed="loadFailed"
-            :preview-balance-unit-symbol="general.previewBalanceUnitSymbol.value"
-          />
-        </div>
-
-        <div v-show="activeTab === 'backup'" v-content-reveal="activeTab === 'backup'">
-          <BackupSettings />
-        </div>
-
-        <SettingsSaveBar
-          :visible="settingsSaveRegistry.dirty.value && !loadFailed"
-          :message="t('admin.settings.unsavedChanges')"
-        >
-          <button
-            type="button"
-            :disabled="saving || discarding"
-            class="btn bg-transparent text-white/70 hover:bg-white/10 hover:text-white focus:ring-offset-gray-900 dark:text-dark-200 dark:hover:bg-dark-800 dark:focus:ring-offset-dark-900"
-            data-testid="settings-save-bar-discard"
-            @click="discardAllSettings"
+        <!-- The real navigation reserves its own height; editable panels wait for the bulk response. -->
+        <SettingsSkeleton
+          v-if="loading"
+          :tab="activeTab"
+          :gateway-section="activeGatewaySection"
+          :smtp-enabled="appStore.cachedPublicSettings?.email_verify_enabled ?? null"
+        />
+        <template v-else>
+          <div
+            v-show="activeTab === 'security'"
+            v-content-reveal="activeTab === 'security'"
+            class="space-y-4"
           >
-            {{ t('admin.settings.discardChanges') }}
-          </button>
-          <button
-            type="submit"
-            :disabled="saving || discarding"
-            class="btn btn-primary focus:ring-offset-gray-900 dark:focus:ring-offset-dark-900"
+            <AdminApiKeySettings :controller="adminApiKey" />
+          </div>
+
+          <div
+            v-show="activeTab === 'gateway'"
+            v-content-reveal="activeTab === 'gateway'"
+            :ref="navigation.gatewayContentStartRef"
+            class="gateway-settings-content space-y-4"
           >
-            <Icon
-              name="loader"
-              size="sm"
-              :animate-on-hover="false"
-              v-if="saving"
-              class="h-4 w-4 animate-spin"
+            <GatewayPolicySettings
+              :controller="gateway"
+              :active-gateway-section="activeGatewaySection"
             />
-            {{ saving ? t('admin.settings.saving') : t('admin.settings.saveSettings') }}
-          </button>
-        </SettingsSaveBar>
+          </div>
+
+          <div
+            v-show="activeTab === 'security'"
+            v-content-reveal="activeTab === 'security'"
+            class="space-y-4"
+          >
+            <SecuritySettings :form="form" :controller="security" />
+
+            <IdentitySettings :form="form" :controller="identity" />
+          </div>
+
+          <div
+            v-show="activeTab === 'users'"
+            v-content-reveal="activeTab === 'users'"
+            class="space-y-4"
+          >
+            <UserDefaultsSettings :form="form" :controller="users" />
+          </div>
+
+          <div
+            v-show="activeTab === 'gateway'"
+            v-content-reveal="activeTab === 'gateway'"
+            class="space-y-4"
+          >
+            <GatewayForwardingSettings
+              :form="form"
+              :controller="gateway"
+              :web-search="webSearch"
+              :active-gateway-section="activeGatewaySection"
+            />
+          </div>
+
+          <div
+            v-show="activeTab === 'general'"
+            v-content-reveal="activeTab === 'general'"
+            class="space-y-4"
+          >
+            <GeneralSettings :form="form" :controller="general" :images-disabled="discarding" />
+          </div>
+
+          <div
+            v-show="activeTab === 'agreement'"
+            v-content-reveal="activeTab === 'agreement'"
+            class="space-y-4"
+          >
+            <AgreementSettings :form="form" :controller="agreement" />
+          </div>
+
+          <div
+            v-show="activeTab === 'features'"
+            v-content-reveal="activeTab === 'features'"
+            class="space-y-4"
+          >
+            <FeatureSettings
+              :form="form"
+              :controller="features"
+              :preview-balance-unit-name="general.previewBalanceUnitName.value"
+            />
+          </div>
+
+          <div
+            v-show="activeTab === 'payment'"
+            v-content-reveal="activeTab === 'payment'"
+            class="space-y-4"
+          >
+            <PaymentSettings
+              :form="form"
+              :controller="payment"
+              :preview-balance-unit-name="general.previewBalanceUnitName.value"
+            />
+          </div>
+
+          <div
+            v-show="activeTab === 'email'"
+            v-content-reveal="activeTab === 'email'"
+            class="space-y-4"
+          >
+            <EmailSettings
+              :form="form"
+              :controller="email"
+              :load-failed="loadFailed"
+              :preview-balance-unit-symbol="general.previewBalanceUnitSymbol.value"
+            />
+          </div>
+
+          <div v-show="activeTab === 'backup'" v-content-reveal="activeTab === 'backup'">
+            <BackupSettings />
+          </div>
+
+          <SettingsSaveBar
+            :visible="settingsSaveRegistry.dirty.value && !loadFailed"
+            :message="t('admin.settings.unsavedChanges')"
+          >
+            <button
+              type="button"
+              :disabled="saving || discarding"
+              class="btn bg-transparent text-white/70 hover:bg-white/10 hover:text-white focus:ring-offset-gray-900 dark:text-dark-200 dark:hover:bg-dark-800 dark:focus:ring-offset-dark-900"
+              data-testid="settings-save-bar-discard"
+              @click="discardAllSettings"
+            >
+              {{ t('admin.settings.discardChanges') }}
+            </button>
+            <button
+              type="submit"
+              :disabled="saving || discarding"
+              class="btn btn-primary focus:ring-offset-gray-900 dark:focus:ring-offset-dark-900"
+            >
+              <Icon
+                name="loader"
+                size="sm"
+                :animate-on-hover="false"
+                v-if="saving"
+                class="h-4 w-4 animate-spin"
+              />
+              {{ saving ? t('admin.settings.saving') : t('admin.settings.saveSettings') }}
+            </button>
+          </SettingsSaveBar>
+        </template>
       </form>
 
       <!-- Provider dialogs own nested forms, so they remain siblings of the settings form and cannot submit its drafts. -->

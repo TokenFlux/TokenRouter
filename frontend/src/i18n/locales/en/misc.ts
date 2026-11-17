@@ -666,6 +666,8 @@ export default {
     tabTopUp: 'Pay-as-you-go',
     tabSubscribe: 'Subscribe',
     subscriptionSavingsBadge: 'Pay less',
+    checkoutUnavailable: 'Could not load checkout options.',
+    dashboardUnavailable: 'Could not load payment analytics.',
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     confirmSubscription: 'Confirm Subscription',

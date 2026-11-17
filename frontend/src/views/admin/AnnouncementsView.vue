@@ -327,7 +327,7 @@ const appStore = useAppStore()
 // Announcement rows and the loading flag describe the displayed server page and its
 // active list request.
 const announcements = ref<Announcement[]>([])
-const loading = ref(false)
+const loading = ref(true)
 
 // The status and search drafts supply optional list filters when their text is
 // nonempty.

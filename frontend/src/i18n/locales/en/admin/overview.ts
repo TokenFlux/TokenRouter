@@ -207,6 +207,8 @@ export default {
     },
     neverExpire: 'Never',
     empty: 'No backup records',
+    configurationUnavailable: 'Backup configuration could not be loaded.',
+    recordsUnavailable: 'Backup records could not be loaded.',
     actions: {
       download: 'Download',
       downloadParts: 'Download Parts',

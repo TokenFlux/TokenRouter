@@ -461,6 +461,7 @@ export default {
         historyHint: 'Recent events with same rule + dimensions',
         historyLoading: 'Loading history...',
         historyEmpty: 'No history',
+        historyFailed: 'Could not load alert history.',
       },
       table: {
         time: 'Time',

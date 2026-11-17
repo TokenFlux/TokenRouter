@@ -1262,6 +1262,8 @@ export default {
       enterRecipientHint: 'Please enter a recipient email address',
     },
     emailTemplates: {
+      listUnavailable: 'Could not load the email template list.',
+      templateUnavailable: 'Could not load this email template.',
       title: 'Email Templates',
       description:
         'Customize notification email subjects and HTML content for each event and locale.',

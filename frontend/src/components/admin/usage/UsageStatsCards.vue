@@ -1,6 +1,14 @@
 <template>
   <!-- Icons stay at the top when desktop text wraps or optional details add lines; narrow screens stack icon and text. -->
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+  <div
+    v-if="!stats && !loading"
+    class="card p-4 text-sm text-gray-500 dark:text-dark-400"
+    role="status"
+  >
+    {{ t('usage.summaryUnavailable') }}
+  </div>
+  <div v-else class="grid grid-cols-2 gap-4 lg:grid-cols-4" :aria-busy="!stats">
+    <span v-if="!stats" class="sr-only" role="status">{{ t('common.loading') }}</span>
     <div class="card p-4">
       <div class="flex flex-col items-start gap-2 lg:flex-row lg:gap-3">
         <div
@@ -10,7 +18,8 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500">{{ t('usage.totalRequests') }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
+          <Skeleton v-if="!stats" :width="62" :height="20" class="my-1" />
+          <p v-else class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
             {{ stats?.total_requests?.toLocaleString() || '0' }}
           </p>
           <p class="mt-0.5 text-xs text-gray-400">{{ t('usage.inSelectedRange') }}</p>
@@ -26,11 +35,15 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500">{{ t('usage.totalTokens') }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
+          <Skeleton v-if="!stats" :width="76" :height="20" class="my-1" />
+          <p v-else class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
             {{ formatTokens(stats?.total_tokens || 0) }}
           </p>
           <!-- Each detail segment stays together while wrapping is allowed between segments. -->
-          <p class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
+          <div v-if="!stats" class="mt-1 flex flex-wrap gap-x-1 gap-y-2" aria-hidden="true">
+            <Skeleton v-for="detail in 3" :key="detail" :width="47" :height="12" class="shrink-0" />
+          </div>
+          <p v-else class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
             <span class="whitespace-nowrap"
               >{{ t('usage.in') }}: {{ formatTokens(stats?.total_input_tokens || 0) }}</span
             >
@@ -78,14 +91,24 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500">{{ t('usage.totalCost') }}</p>
+          <Skeleton v-if="!stats" :width="84" :height="20" class="my-1" />
           <p
+            v-else
             class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums text-green-600 lg:text-xl"
           >
             {{ formatBalanceAmount(stats?.total_actual_cost || 0, { fractionDigits: 4 }) }}
           </p>
           <!-- Cost segments remain unbroken so wrapping occurs between complete monetary values. -->
+          <Skeleton
+            v-if="!stats && showStandardCost"
+            :width="96"
+            :height="12"
+            class="mt-1 max-w-full"
+          />
           <div
-            v-if="showStandardCost || (showProviderCost && totalProviderCost != null)"
+            v-else-if="
+              stats && (showStandardCost || (showProviderCost && totalProviderCost != null))
+            "
             class="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-gray-400"
           >
             <span
@@ -120,7 +143,8 @@
         </div>
         <div class="min-w-0 flex-1">
           <p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
+          <Skeleton v-if="!stats" :width="58" :height="20" class="my-1" />
+          <p v-else class="mt-0.5 whitespace-nowrap text-lg font-bold tabular-nums lg:text-xl">
             {{ formatDuration(stats?.average_duration_ms || 0) }}
           </p>
         </div>
@@ -133,6 +157,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
+import Skeleton from '@/components/common/Skeleton.vue'
 import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import type { UsageStatsResponse } from '@/api/usage.types'
 import Icon from '@/components/icons/Icon.vue'
@@ -142,15 +167,17 @@ import { formatTokens } from '@/utils/format'
 // UsageStatsCards.vue renders usage totals and cache details for administrator and user
 // pages. Provider cost, standard cost visibility, and strike-through styling are caller
 // choices, while actual charges use the configured balance formatter and provider charges
-// use USD.
+// use USD. A summary that is still being requested reserves the numeric fields
+// within the cards. An unavailable initial summary displays its own status.
 
 // props holds the summary record and caller-selected visibility rules used by the
 // statistics cards.
 const props = withDefaults(
   defineProps<{
-    // stats supplies the current summary; null leaves the template to render its zero or
-    // empty presentation.
+    // stats holds the last successful summary, including its legitimate zero values.
+    // Null leaves numeric fields pending or unavailable according to loading.
     stats: (AdminUsageStatsResponse | UsageStatsResponse) | null
+    loading?: boolean // Summary request in progress.
     showProviderCost?: boolean // provider charge visibility flag
     strikeStandardCost?: boolean // standard cost strike-through flag
     showStandardCost?: boolean // standard cost visibility flag

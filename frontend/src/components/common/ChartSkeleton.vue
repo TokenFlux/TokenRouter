@@ -4,8 +4,8 @@ import Skeleton from './Skeleton.vue'
 
 /**
  * ChartSkeleton.vue reserves chart space while callers load plot or distribution data.
- * The default frame matches the common twelve rem chart area, and a height override
- * lets a containing card keep its intended dimensions during loading.
+ * Plot and donut frames default to twelve rem. Distribution placeholders use that
+ * size for the chart, with independent space for summary rows on narrow screens.
  */
 
 /**
@@ -14,7 +14,7 @@ import Skeleton from './Skeleton.vue'
  */
 withDefaults(
   defineProps<{
-    variant?: 'plot' | 'distribution' // chart placeholder shape
+    variant?: 'plot' | 'distribution' | 'donut' // chart placeholder shape
     height?: string /* CSS height override */
   }>(),
   {
@@ -30,7 +30,7 @@ const { t } = useI18n()
 
 <template>
   <div
-    class="h-48"
+    :class="variant === 'distribution' ? '' : 'h-48'"
     :style="{ height }"
     role="status"
     :aria-label="t('common.loading')"
@@ -38,12 +38,24 @@ const { t } = useI18n()
   >
     <div
       v-if="variant === 'distribution'"
-      class="flex h-full items-center gap-6"
+      class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6"
       aria-hidden="true"
     >
-      <Skeleton variant="circle" :width="128" :height="128" class="shrink-0" />
-      <div class="min-w-0 flex-1 space-y-4">
+      <Skeleton variant="circle" :width="192" :height="192" class="shrink-0" />
+      <div class="w-full min-w-0 flex-1 space-y-4">
         <Skeleton v-for="row in 4" :key="row" :width="row % 2 ? '85%' : '65%'" :height="12" />
+      </div>
+    </div>
+    <div
+      v-else-if="variant === 'donut'"
+      class="flex h-full flex-col items-center gap-4"
+      aria-hidden="true"
+    >
+      <div class="flex min-h-0 w-full flex-1 items-center justify-center">
+        <div class="skeleton aspect-square h-full max-h-48 max-w-full rounded-full"></div>
+      </div>
+      <div class="flex max-w-full justify-center gap-3">
+        <Skeleton v-for="legend in 3" :key="legend" :width="42" :height="12" />
       </div>
     </div>
     <div v-else class="flex h-full flex-col gap-4" aria-hidden="true">

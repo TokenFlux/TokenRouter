@@ -19,7 +19,7 @@
     </template>
     <div class="space-y-4">
       <div
-        v-if="loading"
+        v-if="loading && !stats"
         class="space-y-4"
         role="status"
         :aria-label="t('common.loading')"
@@ -27,23 +27,19 @@
         data-loading-skeleton
       >
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4" aria-hidden="true">
-          <div v-for="card in 5" :key="card" class="card min-w-0 space-y-3 p-4">
-            <Skeleton width="55%" :height="12" />
-            <Skeleton width="75%" :height="28" />
-            <Skeleton width="65%" :height="12" />
+          <div v-for="card in 5" :key="card" class="card p-4">
+            <div class="flex items-start gap-3">
+              <Skeleton :width="36" :height="36" class="shrink-0 rounded-control" />
+              <div class="min-w-0 flex-1 space-y-1.5">
+                <Skeleton :width="92" :height="12" class="max-w-full" />
+                <Skeleton :width="76" :height="24" class="max-w-full" />
+                <Skeleton v-if="card <= 2" :width="54" :height="12" />
+              </div>
+            </div>
           </div>
         </div>
         <DailyRevenueChart :data="[]" :loading="true" />
-        <div class="card p-4">
-          <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
-            {{ t('payment.admin.purchaseDistribution') }}
-          </h3>
-          <div class="grid gap-4 xl:grid-cols-3">
-            <ChartSkeleton variant="distribution" height="208px" />
-            <ChartSkeleton variant="distribution" height="208px" />
-            <ContentSkeleton :rows="3" />
-          </div>
-        </div>
+        <PurchaseDistributionChart :items="[]" loading />
         <div class="grid gap-4 lg:grid-cols-2">
           <div class="card p-4">
             <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
@@ -61,7 +57,7 @@
       </div>
       <template v-else-if="stats">
         <OrderStatsCards :stats="stats" />
-        <DailyRevenueChart :data="stats.daily_series || []" :loading="loading" />
+        <DailyRevenueChart :data="stats.daily_series || []" />
         <PurchaseDistributionChart :items="stats.purchase_distribution || []" />
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div class="card p-4">
@@ -144,12 +140,12 @@
           </div>
         </div>
       </template>
+      <LoadErrorState v-else class="card" :message="dashboardError" @retry="loadDashboard" />
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { ref, onMounted } from 'vue'
@@ -158,6 +154,7 @@ import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { CurrencyAmounts, DashboardStats, TopUserPaymentStats } from '@/api/payment.types'
+import LoadErrorState from '@/components/common/LoadErrorState.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -179,7 +176,11 @@ const appStore = useAppStore()
 
 // loading tracks dashboard request progress for loading presentation and clears after the
 // request success or error handling finishes.
-const loading = ref(false)
+const loading = ref(true)
+const dashboardError = ref('')
+
+// dashboardRequest identifies the latest selected payment analytics range.
+let dashboardRequest = 0
 // stats holds the latest successful dashboard response; null represents the period before
 // any response has populated the page.
 const stats = ref<DashboardStats | null>(null)
@@ -266,21 +267,34 @@ function formatMoney(currency: string, amount: number): string {
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount)
 }
 
-// loadDashboard requests analytics for the current start and end date inputs. Success
-// replaces the statistics, while failure displays an error and retains the previous
-// results for the page.
+// loadDashboard reads analytics for the chosen start and end dates. Only the
+// latest range request publishes results, errors, and loading cleanup. A first
+// failure shows a retry; a refresh failure can retain existing analytics with
+// a notification.
 async function loadDashboard() {
+  // Capture ownership before dispatch so an earlier range cannot end the
+  // loading state or replace the results for a newer date selection.
+  const request = ++dashboardRequest
   loading.value = true
+  dashboardError.value = ''
   try {
     const res = await adminPaymentAPI.getDashboard({
       start_date: startDate.value,
       end_date: endDate.value,
     })
+    if (request !== dashboardRequest) return
     stats.value = res.data
   } catch (err: unknown) {
-    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+    if (request !== dashboardRequest) return
+    dashboardError.value = extractI18nErrorMessage(
+      err,
+      t,
+      'payment.errors',
+      t('payment.dashboardUnavailable'),
+    )
+    if (stats.value) appStore.showError(dashboardError.value)
   } finally {
-    loading.value = false
+    if (request === dashboardRequest) loading.value = false
   }
 }
 

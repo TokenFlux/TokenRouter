@@ -201,6 +201,8 @@ export default {
     },
     neverExpire: '永不过期',
     empty: '暂无备份记录',
+    configurationUnavailable: '无法加载备份配置。',
+    recordsUnavailable: '无法加载备份记录。',
     actions: {
       download: '下载',
       downloadParts: '下载分卷',

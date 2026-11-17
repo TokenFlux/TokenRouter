@@ -38,16 +38,42 @@
         aria-busy="true"
         data-loading-skeleton
       >
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" aria-hidden="true">
-          <div v-for="card in 4" :key="card" class="card min-w-0 space-y-3 p-4">
-            <Skeleton width="55%" :height="12" />
-            <Skeleton width="75%" :height="28" />
-            <Skeleton width="65%" :height="12" />
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" aria-hidden="true">
+          <div
+            v-for="card in 4"
+            :key="card"
+            class="flex min-w-0 items-center gap-3 rounded-control border border-gray-100 bg-white px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800"
+          >
+            <Skeleton :width="36" :height="36" class="shrink-0 rounded-control" />
+            <div class="min-w-0 flex-1 space-y-2">
+              <Skeleton :width="96" :height="12" class="max-w-full" />
+              <Skeleton :width="72" :height="20" class="max-w-full" />
+            </div>
           </div>
         </div>
-        <div class="grid gap-4 xl:grid-cols-2">
-          <ContentSkeleton variant="form" :rows="4" class="card p-6" />
-          <ContentSkeleton variant="list" :rows="5" class="card p-6" />
+        <div class="card overflow-hidden" aria-hidden="true">
+          <div class="space-y-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div class="min-w-0 flex-1 space-y-2">
+                <Skeleton :width="144" :height="20" />
+                <Skeleton :width="320" :height="14" class="max-w-full" />
+              </div>
+              <Skeleton :width="88" :height="36" class="shrink-0" />
+            </div>
+            <div class="flex gap-2">
+              <Skeleton v-for="tab in 3" :key="tab" :width="86" :height="32" />
+            </div>
+            <Skeleton :height="36" />
+          </div>
+          <div
+            v-for="row in 4"
+            :key="row"
+            class="flex justify-between gap-4 border-b border-gray-100 px-6 py-4 last:border-0 dark:border-dark-700"
+          >
+            <Skeleton width="28%" :height="14" />
+            <Skeleton width="18%" :height="14" />
+            <Skeleton width="25%" :height="14" />
+          </div>
         </div>
       </div>
 
@@ -79,7 +105,19 @@
                   </span>
                 </div>
                 <div class="mt-1 flex min-w-0 items-baseline gap-2">
+                  <Skeleton
+                    v-if="
+                      item.key === 'logs' &&
+                      activeRecordTab === 'cyber' &&
+                      logsLoading &&
+                      !cyberSummary
+                    "
+                    :width="48"
+                    :height="20"
+                    class="my-1"
+                  />
                   <p
+                    v-else
                     class="truncate text-xl font-semibold leading-7 text-gray-900 dark:text-white"
                     >{{ item.value }}</p
                   >
@@ -499,9 +537,15 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">{{
                   t('admin.riskControl.cyberEvents')
                 }}</p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{
-                  formatNumber(cyberSummary?.events ?? 0)
-                }}</p>
+                <Skeleton
+                  v-if="logsLoading && !cyberSummary"
+                  :width="48"
+                  :height="20"
+                  class="my-1"
+                />
+                <p v-else class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ cyberSummary ? formatNumber(cyberSummary.events) : '—' }}
+                </p>
               </div>
               <div
                 class="rounded-control border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/30"
@@ -509,9 +553,15 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">{{
                   t('admin.riskControl.cyberRequests')
                 }}</p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{
-                  formatNumber(cyberSummary?.requests ?? 0)
-                }}</p>
+                <Skeleton
+                  v-if="logsLoading && !cyberSummary"
+                  :width="48"
+                  :height="20"
+                  class="my-1"
+                />
+                <p v-else class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ cyberSummary ? formatNumber(cyberSummary.requests) : '—' }}
+                </p>
               </div>
               <div
                 class="rounded-control border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/30"
@@ -519,9 +569,15 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">{{
                   t('admin.riskControl.cyberUsers')
                 }}</p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{
-                  formatNumber(cyberSummary?.users ?? 0)
-                }}</p>
+                <Skeleton
+                  v-if="logsLoading && !cyberSummary"
+                  :width="48"
+                  :height="20"
+                  class="my-1"
+                />
+                <p v-else class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ cyberSummary ? formatNumber(cyberSummary.users) : '—' }}
+                </p>
               </div>
               <div
                 class="rounded-control border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/30"
@@ -529,11 +585,28 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">{{
                   t('admin.riskControl.cyberProviders')
                 }}</p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{
-                  formatNumber(cyberSummary?.providers ?? 0)
-                }}</p>
+                <Skeleton
+                  v-if="logsLoading && !cyberSummary"
+                  :width="48"
+                  :height="20"
+                  class="my-1"
+                />
+                <p v-else class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ cyberSummary ? formatNumber(cyberSummary.providers) : '—' }}
+                </p>
               </div>
             </div>
+          </div>
+
+          <div
+            v-if="recordsError"
+            class="flex flex-wrap items-center gap-3 px-6 py-3 text-sm"
+            role="alert"
+          >
+            <p class="flex-1 text-gray-600 dark:text-dark-300">{{ recordsError }}</p>
+            <button type="button" class="btn btn-secondary" @click="loadRecords">{{
+              t('common.retry')
+            }}</button>
           </div>
 
           <div v-if="activeRecordTab === 'moderation'" class="overflow-x-auto">
@@ -582,17 +655,16 @@
                   >
                 </tr>
               </thead>
+              <TableSkeletonBody
+                v-if="logsLoading && !logs.length"
+                :columns="10"
+                cell-class="px-5 py-3"
+              />
               <tbody
+                v-else
                 class="divide-y divide-gray-100 bg-white dark:divide-dark-800 dark:bg-dark-800"
               >
-                <tr v-if="logsLoading">
-                  <td
-                    colspan="10"
-                    class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
-                    >{{ t('common.loading') }}</td
-                  >
-                </tr>
-                <tr v-else-if="logs.length === 0">
+                <tr v-if="logs.length === 0 && !recordsError">
                   <td
                     colspan="10"
                     class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -773,17 +845,16 @@
                   >
                 </tr>
               </thead>
+              <TableSkeletonBody
+                v-if="logsLoading && !cyberWarnings.length"
+                :columns="8"
+                cell-class="px-5 py-3"
+              />
               <tbody
+                v-else
                 class="divide-y divide-gray-100 bg-white dark:divide-dark-800 dark:bg-dark-800"
               >
-                <tr v-if="logsLoading">
-                  <td
-                    colspan="8"
-                    class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
-                    >{{ t('common.loading') }}</td
-                  >
-                </tr>
-                <tr v-else-if="cyberWarnings.length === 0">
+                <tr v-if="cyberWarnings.length === 0 && !recordsError">
                   <td
                     colspan="8"
                     class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -2561,6 +2632,7 @@ import type { APIKeysWriteMode, APIKeyMetadataDraft } from './risk-control/confi
 import { useRiskControlDetails } from './risk-control/useRiskControlDetails'
 import RequestIdLink from '@/components/common/RequestIdLink.vue'
 import { vSegmented } from '@/directives/segmented'
+import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
@@ -2673,6 +2745,10 @@ const appStore = useAppStore()
 const loading = ref(true)
 const saving = ref(false)
 const logsLoading = ref(false)
+const recordsError = ref('')
+
+// recordsRequest identifies the latest record query across the moderation and cyber tabs.
+let recordsRequest = 0
 const statusLoading = ref(false)
 const apiKeyTesting = ref(false)
 const hashActionLoading = ref(false)
@@ -3097,18 +3173,21 @@ const overviewItems = computed<OverviewItem[]>(() => [
   {
     key: 'logs',
     label: t('admin.riskControl.overview.logs'),
-    value: formatNumber(
+    value:
       activeRecordTab.value === 'cyber'
-        ? (cyberSummary.value?.events ?? pagination.total)
-        : pagination.total,
-    ),
+        ? cyberSummary.value
+          ? formatNumber(cyberSummary.value.events)
+          : '—'
+        : formatNumber(pagination.total),
     meta:
       activeRecordTab.value === 'cyber'
-        ? t('admin.riskControl.cyberSummaryMeta', {
-            requests: formatNumber(cyberSummary.value?.requests ?? 0),
-            users: formatNumber(cyberSummary.value?.users ?? 0),
-            providers: formatNumber(cyberSummary.value?.providers ?? 0),
-          })
+        ? cyberSummary.value
+          ? t('admin.riskControl.cyberSummaryMeta', {
+              requests: formatNumber(cyberSummary.value.requests),
+              users: formatNumber(cyberSummary.value.users),
+              providers: formatNumber(cyberSummary.value.providers),
+            })
+          : ''
         : t('admin.riskControl.overview.currentFilter'),
     icon: 'document',
     iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300',
@@ -3458,79 +3537,67 @@ async function saveConfig() {
 }
 
 /**
- * loadLogs requests the current moderation page using its applicable filters.
- * Empty filter values are omitted, invalid dates are omitted, and successful
- * responses replace both the displayed rows and pagination metadata.
+ * loadRecords requests the selected tab's records and publishes their pagination.
+ * A later request takes ownership of the table, its error, and loading indicator,
+ * even when the two requests belong to different tabs. Cyber warnings and their
+ * summary publish together so the counters describe the same query as the rows.
+ * Failed reads do not publish a successful empty result.
  */
-async function loadLogs() {
+async function loadRecords() {
+  // Claim the shared table state before dispatching so a completion from
+  // another tab cannot clear the indicator or replace the selected page's totals.
+  const request = ++recordsRequest
+  const tab = activeRecordTab.value
   logsLoading.value = true
+  recordsError.value = ''
+  const params = {
+    page: pagination.page,
+    page_size: pagination.page_size,
+    request_id: filters.request_id || undefined,
+    search: filters.search || undefined,
+    from: normalizeDateTimeLocal(filters.from),
+    to: normalizeDateTimeLocal(filters.to),
+  }
   try {
-    const params = {
-      page: pagination.page,
-      page_size: pagination.page_size,
+    if (tab === 'cyber') {
+      const [result, summary] = await Promise.all([
+        adminAPI.riskControl.listCyberWarnings(params),
+        adminAPI.riskControl.getCyberSummary(params),
+      ])
+      if (request !== recordsRequest) return
+      cyberWarnings.value = result.items
+      cyberSummary.value = summary
+      Object.assign(pagination, {
+        total: result.total,
+        page: result.page,
+        page_size: result.page_size,
+        pages: result.pages,
+      })
+      return
+    }
+    const result = await adminAPI.riskControl.listLogs({
+      ...params,
       result: filters.result || undefined,
       group_id: filters.group_id || undefined,
       endpoint: filters.endpoint || undefined,
-      request_id: filters.request_id || undefined,
-      search: filters.search || undefined,
-      from: normalizeDateTimeLocal(filters.from),
-      to: normalizeDateTimeLocal(filters.to),
-    }
-    const result = await adminAPI.riskControl.listLogs(params)
+    })
+    if (request !== recordsRequest) return
     logs.value = result.items
-    pagination.total = result.total
-    pagination.page = result.page
-    pagination.page_size = result.page_size
-    pagination.pages = result.pages
+    Object.assign(pagination, {
+      total: result.total,
+      page: result.page,
+      page_size: result.page_size,
+      pages: result.pages,
+    })
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.logsFailed')))
+    if (request !== recordsRequest) return
+    recordsError.value = extractApiErrorMessage(
+      err,
+      t(tab === 'cyber' ? 'admin.riskControl.cyberFailed' : 'admin.riskControl.logsFailed'),
+    )
   } finally {
-    logsLoading.value = false
+    if (request === recordsRequest) logsLoading.value = false
   }
-}
-
-/**
- * loadCyberWarnings requests cyber rows and their aggregate summary together.
- * Both results must succeed before either is published, so a failed summary
- * request leaves the previous displayed rows and summary available.
- */
-async function loadCyberWarnings() {
-  logsLoading.value = true
-  try {
-    const params = {
-      page: pagination.page,
-      page_size: pagination.page_size,
-      request_id: filters.request_id || undefined,
-      search: filters.search || undefined,
-      from: normalizeDateTimeLocal(filters.from),
-      to: normalizeDateTimeLocal(filters.to),
-    }
-    const [result, summary] = await Promise.all([
-      adminAPI.riskControl.listCyberWarnings(params),
-      adminAPI.riskControl.getCyberSummary(params),
-    ])
-    cyberWarnings.value = result.items
-    cyberSummary.value = summary
-    pagination.total = result.total
-    pagination.page = result.page
-    pagination.page_size = result.page_size
-    pagination.pages = result.pages
-  } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.cyberFailed')))
-  } finally {
-    logsLoading.value = false
-  }
-}
-
-/**
- * loadRecords refreshes the currently selected moderation or cyber record tab.
- */
-async function loadRecords() {
-  if (activeRecordTab.value === 'cyber') {
-    await loadCyberWarnings()
-    return
-  }
-  await loadLogs()
 }
 
 /**
@@ -3737,6 +3804,9 @@ function onPageSizeChange(pageSize: number) {
 function switchRecordTab(tab: RecordTab) {
   if (activeRecordTab.value === tab) return
   activeRecordTab.value = tab
+  // The outbound tab's pagination and summary cannot describe the incoming tab's first request.
+  pagination.total = 0
+  pagination.pages = 0
   pagination.page = 1
   void loadRecords()
 }
@@ -4334,6 +4404,7 @@ onMounted(() => {
 // Navigation invalidates pending detail generations and releases media before
 // clearing the status timer, preventing previews from outliving this page.
 onUnmounted(() => {
+  recordsRequest += 1
   disposeDetails()
   if (statusTimer !== null) {
     window.clearInterval(statusTimer)

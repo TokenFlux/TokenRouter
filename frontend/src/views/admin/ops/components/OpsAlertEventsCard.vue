@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Skeleton from '@/components/common/Skeleton.vue'
 import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -52,6 +53,11 @@ const selected = ref<AlertEvent | null>(null)
 const detailLoading = ref(false)
 const detailActionLoading = ref(false)
 const historyLoading = ref(false)
+const historyError = ref(false)
+
+// Detail and history counters invalidate responses after selection or range changes.
+let detailRequest = 0
+let historyRequest = 0
 const history = ref<AlertEvent[]>([])
 const historyRange = ref('7d')
 const historyRangeOptions = computed(() => [
@@ -256,8 +262,11 @@ function formatDimensionsSummary(event: AlertEvent): string {
   return parts.length ? parts.join(' ') : '-'
 }
 
-// closeDetail hides the event dialog and clears its selected row and history.
+// closeDetail hides the event dialog, clears its selection, and discards pending detail and history results.
 function closeDetail() {
+  // Closing invalidates both reads so reopening another event cannot show the closed event's data.
+  detailRequest += 1
+  historyRequest += 1
   showDetail.value = false
   selected.value = null
   history.value = []
@@ -267,24 +276,31 @@ function closeDetail() {
 // history. A detail failure keeps the supplied row visible and reports the
 // failure, then history loads for the current selection.
 async function openDetail(row: AlertEvent) {
+  // A new event owns both reads, so late responses cannot attach the previous
+  // event's details or history to the actions in this dialog.
+  const request = ++detailRequest
+  historyRequest += 1
   showDetail.value = true
   selected.value = row
   detailLoading.value = true
   historyLoading.value = true
+  historyError.value = false
 
   try {
     const detail = await opsAPI.getAlertEvent(row.id)
+    if (request !== detailRequest) return
     selected.value = detail
   } catch (err: any) {
+    if (request !== detailRequest) return
     // Keep the clicked row available when detail retrieval fails so the dialog
     // still identifies the event being investigated.
     console.error('[OpsAlertEventsCard] Failed to load alert detail', err)
     appStore.showError(err?.response?.data?.detail || t('admin.ops.alertEvents.detail.loadFailed'))
   } finally {
-    detailLoading.value = false
+    if (request === detailRequest) detailLoading.value = false
   }
 
-  await loadHistory()
+  if (request === detailRequest) await loadHistory()
 }
 
 // loadHistory fetches recent candidates for the selected event and narrows them
@@ -292,6 +308,10 @@ async function openDetail(row: AlertEvent) {
 // API query; missing selection or retrieval failure clears history.
 async function loadHistory() {
   const ev = selected.value
+  // Replacing the range captures a new owner before dispatch so an earlier
+  // history result cannot appear under the newly selected dates.
+  const request = ++historyRequest
+  historyError.value = false
   if (!ev) {
     history.value = []
     historyLoading.value = false
@@ -312,6 +332,7 @@ async function loadHistory() {
       status: '',
     })
 
+    if (request !== historyRequest) return
     // Best-effort: narrow to same rule_id + dimensions The candidate query is
     // broader than one rule, so keep matching rule, platform, and group
     // identities before showing event history.
@@ -327,10 +348,12 @@ async function loadHistory() {
   } catch (err: any) {
     // History failure clears this optional section while leaving the selected
     // alert detail available for inspection and later retry.
+    if (request !== historyRequest) return
     console.error('[OpsAlertEventsCard] Failed to load alert history', err)
     history.value = []
+    historyError.value = true
   } finally {
-    historyLoading.value = false
+    if (request === historyRequest) historyLoading.value = false
   }
 }
 
@@ -427,7 +450,7 @@ watch([timeRange, severity, status, emailSent], () => {
 // Reload the selected event history when its time window changes and the detail
 // dialog is currently visible.
 watch(historyRange, () => {
-  if (showDetail.value) loadHistory()
+  if (showDetail.value && !detailLoading.value) loadHistory()
 })
 
 // severityBadgeClass maps priority codes and descriptive severity aliases to
@@ -767,9 +790,39 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
     >
       <div
         v-if="detailLoading"
-        class="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400"
+        class="space-y-5"
+        role="status"
+        :aria-label="t('common.loading')"
+        aria-busy="true"
+        data-loading-skeleton
       >
-        {{ t('admin.ops.alertEvents.detail.loading') }}
+        <div
+          class="flex flex-col gap-2 rounded-surface bg-gray-50 p-4 sm:flex-row sm:justify-between dark:bg-dark-950"
+          aria-hidden="true"
+        >
+          <div class="min-w-0 space-y-2">
+            <div class="flex gap-2">
+              <Skeleton :width="48" :height="22" class="rounded-full" />
+              <Skeleton :width="64" :height="22" class="rounded-full" />
+            </div>
+            <Skeleton :width="172" :height="16" class="max-w-full" />
+            <Skeleton :width="194" :height="12" class="max-w-full" />
+          </div>
+          <div class="flex gap-2">
+            <Skeleton :width="146" :height="36" class="rounded-control" />
+            <Skeleton :width="96" :height="36" class="rounded-control" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-hidden="true">
+          <div
+            v-for="item in 4"
+            :key="item"
+            class="space-y-2 rounded-surface bg-gray-50 p-4 dark:bg-dark-950"
+          >
+            <Skeleton :width="72" :height="12" />
+            <Skeleton :width="122" :height="16" class="max-w-full" />
+          </div>
+        </div>
       </div>
 
       <div v-else-if="!selected" class="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -922,13 +975,19 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
           </div>
 
           <div
-            v-if="historyLoading"
-            class="py-6 text-center text-xs text-gray-500 dark:text-gray-400"
+            v-if="historyError"
+            class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+            role="alert"
           >
-            {{ t('admin.ops.alertEvents.detail.historyLoading') }}
+            <p class="text-gray-600 dark:text-dark-300">{{
+              t('admin.ops.alertEvents.detail.historyFailed')
+            }}</p>
+            <button type="button" class="btn btn-secondary" @click="loadHistory">{{
+              t('common.retry')
+            }}</button>
           </div>
           <div
-            v-else-if="history.length === 0"
+            v-else-if="!historyLoading && history.length === 0"
             class="py-6 text-center text-xs text-gray-500 dark:text-gray-400"
           >
             {{ t('admin.ops.alertEvents.detail.historyEmpty') }}
@@ -954,7 +1013,13 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
                   >
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+              <TableSkeletonBody
+                v-if="historyLoading"
+                :columns="3"
+                :rows="4"
+                cell-class="px-3 py-2"
+              />
+              <tbody v-else class="divide-y divide-gray-100 dark:divide-dark-700">
                 <tr
                   v-for="it in history"
                   :key="it.id"

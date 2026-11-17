@@ -9,15 +9,56 @@
         aria-busy="true"
         data-loading-skeleton
       >
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-hidden="true">
-          <div v-for="card in 4" :key="card" class="card min-w-0 space-y-3 p-4">
-            <Skeleton width="55%" :height="12" />
-            <Skeleton width="75%" :height="28" />
-            <Skeleton width="65%" :height="12" />
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-hidden="true">
+          <div v-for="card in 4" :key="card" class="card p-4">
+            <Skeleton :width="110" :height="14" />
+            <Skeleton :width="72" :height="28" class="mt-2" />
+            <Skeleton v-if="card === 1" :width="120" :height="12" class="mt-1" />
           </div>
         </div>
-        <ContentSkeleton variant="form" :rows="2" class="card p-6" />
-        <ContentSkeleton variant="list" :rows="4" class="card p-6" />
+        <div class="card p-6" aria-hidden="true">
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{
+            t('affiliate.title')
+          }}</h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{
+            t('affiliate.description')
+          }}</p>
+          <div class="mt-5 grid min-w-0 gap-4 md:grid-cols-2">
+            <div
+              v-for="title in [t('affiliate.yourCode'), t('affiliate.inviteLink')]"
+              :key="title"
+              class="min-w-0 space-y-2"
+            >
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ title }}</p>
+              <div
+                class="flex min-w-0 flex-col gap-2 rounded-surface border border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900 sm:flex-row sm:items-center"
+              >
+                <Skeleton :width="120" :height="16" class="min-w-0 sm:mr-auto" />
+                <Skeleton :width="0" :height="28" class="w-full shrink-0 sm:w-24" />
+              </div>
+            </div>
+          </div>
+          <div
+            class="mt-5 space-y-2 rounded-surface border border-gray-200 p-4 dark:border-dark-700"
+          >
+            <Skeleton :width="84" :height="16" />
+            <Skeleton
+              v-for="line in 3"
+              :key="line"
+              :width="line === 3 ? '54%' : '82%'"
+              :height="14"
+            />
+          </div>
+        </div>
+        <div class="card p-6" aria-hidden="true">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div class="min-w-0 flex-1 space-y-2">
+              <Skeleton :width="142" :height="18" />
+              <Skeleton :width="278" :height="14" class="max-w-full" />
+            </div>
+            <Skeleton :width="0" :height="36" class="w-full shrink-0 sm:w-28" />
+          </div>
+        </div>
       </div>
 
       <template v-else-if="detail">
@@ -233,7 +274,6 @@
 <script setup lang="ts">
 import { getLocale } from '@/i18n'
 import Skeleton from '@/components/common/Skeleton.vue'
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'

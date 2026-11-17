@@ -182,7 +182,27 @@
           </template>
 
           <template #cell-usage="{ row }">
-            <div v-if="usageLoading" class="text-xs text-gray-400">—</div>
+            <div
+              v-if="usageLoading && !usageMap.has(row.id)"
+              class="space-y-1"
+              :aria-label="t('common.loading')"
+              aria-busy="true"
+              data-loading-skeleton
+            >
+              <Skeleton
+                v-for="line in 3"
+                :key="line"
+                :width="96"
+                :height="12"
+                class="max-w-full max-lg:ml-auto"
+              />
+            </div>
+            <span
+              v-else-if="!usageMap.has(row.id) && !usageLoaded"
+              class="text-xs text-gray-500 dark:text-dark-400"
+              :title="t('usage.summaryUnavailable')"
+              >—</span
+            >
             <div v-else class="space-y-0.5 text-xs">
               <div class="text-gray-500 dark:text-gray-400">
                 <span class="text-gray-400 dark:text-gray-500">{{
@@ -556,6 +576,7 @@ import type { ProtocolID } from '@/api/protocols.types'
 import type { Column } from '@/components/common/table/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import DataTable from '@/components/common/table/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -1007,7 +1028,7 @@ const groups = ref<AdminGroup[]>([])
 const unavailableFallbackGroups = ref<AdminGroup[]>([])
 // loading tracks the current list request so the table can present pending data to
 // administrators.
-const loading = ref(false)
+const loading = ref(true)
 // usageMap and usageLoading supply group cost summaries, while capacityMap holds request,
 // session, and RPM measurements indexed by group ID.
 const usageMap = ref<
@@ -1021,6 +1042,10 @@ const usageMap = ref<
   >
 >(new Map())
 const usageLoading = ref(false)
+// usageLoaded records whether a successful response can confirm an omitted group's zero costs.
+const usageLoaded = ref(false)
+// usageRequest keeps overlapping table refreshes from replacing the latest cost query.
+let usageRequest = 0
 const capacityMap = ref<
   Map<
     number,
@@ -1833,9 +1858,13 @@ const loadUsageSummary = async () => {
     usageLoading.value = false
     return
   }
+  // Claim the group-cost read before dispatch so a late completion cannot
+  // release the current indicator or overwrite the new response's totals.
+  const request = ++usageRequest
   usageLoading.value = true
   try {
     const data = await adminAPI.groups.getUsageSummary()
+    if (request !== usageRequest) return
     const map = new Map<
       number,
       {
@@ -1852,10 +1881,11 @@ const loadUsageSummary = async () => {
       })
     }
     usageMap.value = map
+    usageLoaded.value = true
   } catch (error) {
-    console.error('Error loading group usage summary:', error)
+    if (request === usageRequest) console.error('Error loading group usage summary:', error)
   } finally {
-    usageLoading.value = false
+    if (request === usageRequest) usageLoading.value = false
   }
 }
 

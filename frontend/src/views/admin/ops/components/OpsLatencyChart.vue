@@ -6,6 +6,7 @@ import { Doughnut } from 'vue-chartjs'
 import type { OpsLatencyHistogramResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
+import ChartSkeleton from '@/components/common/ChartSkeleton.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -185,15 +186,9 @@ const options = computed(() => ({
 
     <div class="min-h-0 flex-1">
       <Doughnut v-if="state === 'ready' && chartData" :data="chartData" :options="options" />
+      <ChartSkeleton v-else-if="state === 'loading'" variant="donut" height="100%" />
       <div v-else class="flex h-full items-center justify-center">
-        <div v-if="state === 'loading'" class="animate-pulse text-sm text-gray-400">
-          {{ t('common.loading') }}
-        </div>
-        <EmptyState
-          v-else
-          :title="t('common.noData')"
-          :description="t('admin.ops.charts.emptyRequest')"
-        />
+        <EmptyState :title="t('common.noData')" :description="t('admin.ops.charts.emptyRequest')" />
       </div>
     </div>
 

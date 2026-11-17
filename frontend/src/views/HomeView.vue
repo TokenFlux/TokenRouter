@@ -298,12 +298,34 @@
         </div>
 
         <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div
-            v-if="homeMarketplaceLoading"
-            class="rounded-surface border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-500 dark:border-dark-800 dark:bg-dark-900 dark:text-dark-400 sm:col-span-2 lg:col-span-3"
-          >
-            {{ t('common.loading') }}
-          </div>
+          <template v-if="homeMarketplaceLoading">
+            <span role="status" :aria-label="t('common.loading')" class="sr-only"></span>
+            <article
+              v-for="card in 3"
+              :key="card"
+              class="rounded-surface border border-gray-200 bg-white p-6 dark:border-dark-800 dark:bg-dark-900"
+              aria-hidden="true"
+              aria-busy="true"
+              data-loading-skeleton
+            >
+              <div class="flex items-start gap-4">
+                <Skeleton :width="48" :height="48" class="shrink-0 rounded-surface" />
+                <div class="min-w-0 flex-1 space-y-2 py-1">
+                  <Skeleton :width="146" :height="20" class="max-w-full" />
+                  <Skeleton :width="92" :height="14" class="max-w-full" />
+                </div>
+              </div>
+              <div
+                class="mt-5 grid grid-cols-2 gap-1 border-t border-gray-200 pt-5 dark:border-dark-800 sm:gap-4"
+              >
+                <div v-for="field in 2" :key="field" class="space-y-2">
+                  <Skeleton width="70%" :height="14" />
+                  <Skeleton width="48%" :height="14" />
+                </div>
+              </div>
+              <Skeleton :width="96" :height="16" class="mt-5" />
+            </article>
+          </template>
 
           <div
             v-else-if="supportedProviders.length === 0"
@@ -627,6 +649,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import ModelCapabilityTags from '@/components/marketplace/ModelCapabilityTags.vue'
+import Skeleton from '@/components/common/Skeleton.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { getMarketplaceModels, getMarketplaceStats } from '@/api/marketplace'
 import type { MarketplaceGroup, MarketplaceModel, MarketplaceStats } from '@/api/marketplace.types'
