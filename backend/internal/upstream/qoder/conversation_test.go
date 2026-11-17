@@ -22,7 +22,7 @@ func TestQoderConversationStoreExpiresState(t *testing.T) {
 	store := NewQoderConversationStore(5 * time.Millisecond)
 	messages := []QoderMessage{{Role: "user", Text: "hello"}}
 
-	plan := store.PlanWithOptions("key", "", nil, messages, QoderConversationPlanOptions{})
+	plan := store.Plan("key", "", nil, messages)
 	require.NotNil(t, plan)
 	plan.Commit()
 
@@ -31,7 +31,7 @@ func TestQoderConversationStoreExpiresState(t *testing.T) {
 	// snapshot.
 	time.Sleep(10 * time.Millisecond)
 
-	next := store.PlanWithOptions("key", "", nil, messages, QoderConversationPlanOptions{})
+	next := store.Plan("key", "", nil, messages)
 	require.False(t, next.Reused)
 	require.True(t, next.IncludeSystem)
 	require.Len(t, next.MessagesToSend, 1)
@@ -183,7 +183,7 @@ func TestQoderConversationRollbackVersionControl(t *testing.T) {
 // still-current accepted state after its initial version is observed.
 func TestQoderConversationRollbackAcceptedDeletesOwnNewState(t *testing.T) {
 	store := NewQoderConversationStore(5 * time.Minute)
-	plan := store.PlanWithOptions("rollback_new_state", "system", nil, []QoderMessage{{Role: "user", Text: "hello"}}, QoderConversationPlanOptions{})
+	plan := store.Plan("rollback_new_state", "system", nil, []QoderMessage{{Role: "user", Text: "hello"}})
 
 	plan.CommitAccepted()
 
@@ -212,7 +212,7 @@ func TestQoderConversationRollbackAcceptedRestoresPreviousState(t *testing.T) {
 	key := "rollback_previous_state"
 	system := "system"
 	firstMessages := []QoderMessage{{Role: "user", Text: "first"}}
-	initialPlan := store.PlanWithOptions(key, system, nil, firstMessages, QoderConversationPlanOptions{})
+	initialPlan := store.Plan(key, system, nil, firstMessages)
 	initialPlan.Commit(upstream.TokenUsage{InputTokens: 10, OutputTokens: 2})
 
 	store.Mu.Lock()
@@ -227,7 +227,7 @@ func TestQoderConversationRollbackAcceptedRestoresPreviousState(t *testing.T) {
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
 	}
-	plan := store.PlanWithOptions(key, system, nil, nextMessages, QoderConversationPlanOptions{})
+	plan := store.Plan(key, system, nil, nextMessages)
 	if !plan.Reused {
 		t.Fatal("expected plan to reuse previous conversation")
 	}
@@ -259,21 +259,21 @@ func TestQoderConversationRollbackAcceptedDoesNotClobberConcurrentCommit(t *test
 	key := "rollback_concurrent_commit"
 	system := "system"
 	firstMessages := []QoderMessage{{Role: "user", Text: "first"}}
-	initialPlan := store.PlanWithOptions(key, system, nil, firstMessages, QoderConversationPlanOptions{})
+	initialPlan := store.Plan(key, system, nil, firstMessages)
 	initialPlan.Commit()
 
-	plan := store.PlanWithOptions(key, system, nil, []QoderMessage{
+	plan := store.Plan(key, system, nil, []QoderMessage{
 		{Role: "user", Text: "first"},
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
-	}, QoderConversationPlanOptions{})
+	})
 	plan.CommitAccepted()
 
-	concurrentPlan := store.PlanWithOptions(key, system, nil, []QoderMessage{
+	concurrentPlan := store.Plan(key, system, nil, []QoderMessage{
 		{Role: "user", Text: "first"},
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
-	}, QoderConversationPlanOptions{})
+	})
 	concurrentPlan.Commit()
 
 	store.Mu.Lock()

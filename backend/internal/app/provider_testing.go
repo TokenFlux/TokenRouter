@@ -17,7 +17,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	catalogprovider "github.com/TokenFlux/TokenRouter/internal/modelcatalog/provider"
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
@@ -133,7 +132,7 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 	targets := &provideradapter.TestTargets{
 		Jev:  &provideradapter.JevProviderTest{Attributes: probeAttributes, Transport: transport, ValidateURL: urlPolicy.Validate},
 		Read: store.GetByID, OpenAI: openaiTest, Gemini: geminiTest, Anthropic: anthropicTest,
-		Qoder:  &provideradapter.QoderProviderTest{Attributes: probeAttributes, Sessions: qoderSessions, Client: qoder.NewClient(qoder.APIBaseURL), Transport: transport, Profiles: profiles, RewriteModel: openaiprotocol.ReplaceModelInBody},
+		Qoder:  &provideradapter.QoderProviderTest{Attributes: probeAttributes, Sessions: qoderSessions, Client: qoder.NewClient(qoder.APIBaseURL), Transport: transport, Profiles: profiles},
 		Grok:   &provideradapter.GrokProviderTest{Attributes: probeAttributes, Tokens: grokToken, Transport: transport, Store: store, OperatorValidator: urlPolicy.Validate, DefaultBaseURL: gatewayprovider.GrokDefaultBaseURLReader(settings)},
 		Native: &provideradapter.NativeProtocolTest{Attributes: probeAttributes, Transport: transport, Profiles: profiles, Store: store, ValidateURL: urlPolicy.Validate, Responses: openaiTest},
 		Antigravity: &provideradapter.AntigravityProviderTest{Probe: func(ctx context.Context, value *provider.Record, request provider.PreparedTestRequest) (*antigravity.TestConnectionResult, error) {

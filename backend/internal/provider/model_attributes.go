@@ -62,6 +62,13 @@ func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelcatal
 	if target.Platform == "qoder" && target.Site == "" {
 		target.Site = "global"
 	}
+	if target.Platform == "qoder" {
+		target.QoderVersion = r.QoderCatalogVersion()
+		if observed, found := r.QoderModel(model); found {
+			target.QoderModel = &observed
+			target.AttributeModel = observed.Identity
+		}
+	}
 	chat := upstreamProtocol == "openai_chat_completions"
 	// Callers without an upstream protocol still use the legacy text route
 	// setting to choose Chat-specific interpretation; the default is Responses,

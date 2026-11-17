@@ -55,7 +55,7 @@ var managedConfigurationExtraKeys = []string{
 	"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start",
 	"quota_monthly_used", "quota_monthly_start",
 	"grok_billing_snapshot", "grok_usage_snapshot", "grok_observed_models",
-	"qoder_quota_snapshot", "qoder_quota_updated_at",
+	"qoder_quota_snapshot", "qoder_quota_updated_at", QoderCatalogExtraKey,
 	"ollama_cloud_usage_session", "ollama_cloud_usage_auto_refresh", "ollama_cloud_usage_snapshot",
 	"cn_usage_monitor_snapshot", "model_rate_limits", "antigravity_quota_scopes", "antigravity_credits_overages",
 }

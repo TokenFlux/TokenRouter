@@ -130,6 +130,11 @@ func (s *QoderUsage) fetchQoderQuotaUsageWithProvider(ctx context.Context, provi
 	if err != nil {
 		return nil, err
 	}
+	if provider.GetCredential("refresh_mode") == qoder.RefreshModeDeviceToken {
+		client := qoder.NewOAuthClientForProfile(profile, nil)
+		client.Doer = QoderRequestDoer(provider, s.Transport, s.Profiles)
+		return client.GetUsagePresentation(ctx, session.Identity.SecurityOauthToken)
+	}
 	logicalPath := qoder.QuotaUsagePath
 	// CN quota queries use cached organization identity as orgId; Global queries
 	// retain the plain quota path, so site-specific routing does not leak that
@@ -225,6 +230,7 @@ func qoderQuotaInfoFromResponse(resp *qoder.QuotaUsageResponse, updatedAt time.T
 		expiresAt = &t
 	}
 	quota := &providercore.QoderQuotaInfo{
+		DisplayMode:          resp.DisplayMode,
 		UserID:               strings.TrimSpace(resp.UserID),
 		UserType:             strings.TrimSpace(resp.UserType),
 		UsageType:            strings.TrimSpace(resp.UsageType),
@@ -236,6 +242,24 @@ func qoderQuotaInfoFromResponse(resp *qoder.QuotaUsageResponse, updatedAt time.T
 		IsPlanQuotaProrated:  resp.IsPlanQuotaProrated,
 		LastUpdatedAt:        &updatedAt,
 		SnapshotFromProvider: fromSnapshot,
+	}
+	if resp.Enterprise != nil {
+		quota.Enterprise = &providercore.QoderEnterpriseUsage{OpenMode: resp.Enterprise.OpenMode, DetailURL: resp.Enterprise.DetailURL, FallbackURL: resp.Enterprise.FallbackURL}
+	}
+	for _, item := range resp.Dedicated {
+		progress := providercore.QoderQuotaProgress{Total: item.Total, Used: item.Used, Remaining: item.Remaining, Percentage: qoder.NormalizeQuotaPercentage(item.Percentage), Unit: item.Unit, Available: item.Available}
+		packageInfo := providercore.QoderDedicatedQuota{QoderQuotaProgress: progress, ID: item.ID, Name: item.Name, Description: item.Description, Status: item.Status}
+		if item.ExpiresAt > 0 {
+			expiry := time.Unix(int64(item.ExpiresAt), 0)
+			if item.ExpiresAt >= 1_000_000_000_000 {
+				expiry = time.UnixMilli(int64(item.ExpiresAt))
+			}
+			packageInfo.ExpiresAt = &expiry
+		}
+		for _, label := range item.Labels {
+			packageInfo.Labels = append(packageInfo.Labels, providercore.QoderQuotaLabel{Dimension: label.Dimension, Value: label.Value})
+		}
+		quota.Dedicated = append(quota.Dedicated, packageInfo)
 	}
 	quota.UserQuota = qoderQuotaProgressFromRaw(resp.UserQuota, true)
 	// A present zero-valued bucket is authoritative. Prefer each canonical object

@@ -481,3 +481,20 @@ func newMutationHandler(source *managementMutationFixture, invalidator providerc
 	batch := providercore.NewManagementBatch(source, managed, providercore.ManagementCreationOptions{Privacy: source})
 	return NewManagementHandler(source, ManagementOptions{Managed: managed, Presenter: presenter, RuntimePresenter: presenter, Privacy: source, Batch: batch})
 }
+
+// attachQoderHTTPFixtureCatalog supplies serialized account models to HTTP tests.
+// The fixture uses the same persisted representation as production observations,
+// while authentication and transport remain controlled by each test's own doubles.
+func attachQoderHTTPFixtureCatalog(value *providercore.Record) {
+	if value.Extra == nil {
+		value.Extra = map[string]any{}
+	}
+	value.Extra[providercore.QoderCatalogExtraKey] = map[string]any{
+		"identity": providercore.QoderCatalogIdentity(value), "version": "fixture", "fetched_at": time.Now(),
+		"models": []map[string]any{
+			{"key": "auto", "alias": "auto", "enabled": true, "input_limit": 1000000},
+			{"key": "ultimate", "alias": "ultimate", "enabled": true, "input_limit": 1000000},
+			{"key": "qmodel_38max", "alias": "qwen3.8-max", "enabled": true, "input_limit": 1000000},
+		},
+	}
+}

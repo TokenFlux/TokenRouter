@@ -140,6 +140,29 @@ func (r *RefreshExchange) refreshIdentity(
 		return nil, time.Time{}, errors.New("no refresh token available")
 	}
 	securityToken := strings.TrimSpace(provider.GetCredential("security_oauth_token"))
+	if refreshMode == RefreshModeDeviceToken {
+		client := NewOAuthClientForProfile(MustProfileForSite(site), nil)
+		client.Doer = doer
+		token, err := client.RefreshDeviceToken(ctx, refreshToken, machine)
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+		user, err := client.GetUserInfo(ctx, token.AccessTokenValue())
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+		identity := BuildIdentityFromDeviceToken(user, token)
+		// A missing subscription field in userinfo must not reset an existing
+		// account classification during routine token rotation.
+		identity.UserType = FirstNonEmptyQoder(user.UserType, provider.GetCredential("user_type"), identity.UserType)
+		if accountType, err := client.GetAccountType(ctx, token.AccessTokenValue()); err == nil && accountType != "" {
+			identity.UserType = accountType
+		}
+		if previous := provider.GetCredential("uid"); previous != "" && previous != identity.UID {
+			return nil, time.Time{}, errors.New("qoder: refreshed device token belongs to another account")
+		}
+		return identity, token.ExpiryTime(time.Now()), nil
+	}
 	if refreshMode == RefreshModeQoderCN20 {
 		if site != SiteCN {
 			return nil, time.Time{}, errors.New("qoder qodercn20 refresh requires cn site")

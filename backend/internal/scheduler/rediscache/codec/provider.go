@@ -31,11 +31,12 @@ import (
 // scheduler storage. Its copied scalar values and reused pointer/map values
 // come from Record; callers keep the source graph stable while marshaling.
 type providerWire struct {
-	ID       int64   // persisted provider identity
-	Name     string  // configured display name
-	Notes    *string // optional administrator notes
-	Platform string  // configured upstream platform
-	Type     string  // provider authentication type
+	QoderCatalogIdentityHint string  `json:",omitempty"` // private account observation identity
+	ID                       int64   // persisted provider identity
+	Name                     string  // configured display name
+	Notes                    *string // optional administrator notes
+	Platform                 string  // configured upstream platform
+	Type                     string  // provider authentication type
 	// Credentials retains the source map during encoding, including secrets
 	// omitted by public Record JSON.
 	Credentials map[string]any // stored credential field values
@@ -173,6 +174,7 @@ func recordToWire(value *provider.Record, seen map[*provider.Record]*providerWir
 	out.Notes = value.Notes
 	out.Platform = value.Platform
 	out.Type = value.Type
+	out.QoderCatalogIdentityHint = value.QoderCatalogIdentityHint
 	out.Credentials = value.Credentials
 	out.Extra = value.Extra
 	out.ProxyID = value.ProxyID
@@ -253,6 +255,7 @@ func recordFromWire(value *providerWire) *provider.Record {
 	out.Notes = value.Notes
 	out.Platform = value.Platform
 	out.Type = value.Type
+	out.QoderCatalogIdentityHint = value.QoderCatalogIdentityHint
 	out.Credentials = value.Credentials
 	out.Extra = value.Extra
 	out.ProxyID = value.ProxyID

@@ -62,7 +62,7 @@ export interface QoderTokenInfo {
   name?: string // Human-readable display name.
   user_type?: string // Recorded user type.
   site?: QoderSite // Provider deployment site.
-  refresh_mode?: 'cosy' | 'qodercn20' // Recorded refresh mode.
+  refresh_mode?: 'cosy' | 'qodercn20' | 'device_token' // Recorded refresh mode.
   expires_at?: string // Recorded expiration timestamp.
   extra?: Record<string, unknown> // Additional provider metadata.
   [key: string]: unknown // Additional token response fields.

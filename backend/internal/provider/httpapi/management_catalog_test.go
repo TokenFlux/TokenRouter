@@ -92,14 +92,17 @@ func TestAvailableModelsUsesUnifiedCatalog(t *testing.T) {
 		{name: "wildcard", platform: "openai", kind: "apikey", credentials: map[string]any{"model_whitelist": []string{"gpt-*"}}, excludes: []string{"gpt-5.4", "catalog-model"}},
 		{name: "spark", platform: "openai", kind: "oauth", parent: &parent, includes: []string{"gpt-5.3-codex-spark"}, excludes: []string{"gpt-5.4", "catalog-model"}},
 		{name: "google one", platform: "gemini", kind: "oauth", credentials: map[string]any{"oauth_type": "google_one"}, excludes: []string{"gemini-new-model", "catalog-model"}},
-		{name: "qoder cn", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "cn"}, includes: []string{"qwen3.6-flash"}, excludes: []string{"claude-opus-4-6", "catalog-model"}},
-		{name: "qoder global", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "global"}, includes: []string{"claude-opus-4-6"}, excludes: []string{"qwen3.6-flash", "catalog-model"}},
+		{name: "qoder cn", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "cn"}, includes: []string{"qwen3.8-max"}, excludes: []string{"claude-opus-4-6", "catalog-model"}},
+		{name: "qoder global", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "global"}, includes: []string{"ultimate"}, excludes: []string{"qwen3.6-flash", "catalog-model"}},
 		{name: "kimi", platform: "kimi", kind: "apikey", excludes: []string{"catalog-model"}},
 		{name: "zhipu", platform: "zhipu", kind: "apikey", excludes: []string{"glm-4.7"}},
 		{name: "deepseek", platform: "deepseek", kind: "apikey", excludes: []string{"catalog-model"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &availableModelsAdminService{managementMutationFixture: newManagementMutationFixture(), provider: providercore.Record{ID: 42, Platform: tc.platform, Type: tc.kind, Credentials: tc.credentials, Extra: tc.extra, ParentProviderID: tc.parent}}
+			if tc.platform == "qoder" {
+				attachQoderHTTPFixtureCatalog(&svc.provider)
+			}
 			rec := httptest.NewRecorder()
 			setupAvailableModelsRouter(svc).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/providers/42/models", nil))
 			require.Equal(t, http.StatusOK, rec.Code)

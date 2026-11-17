@@ -83,6 +83,57 @@ describe('ProviderUsageCell', () => {
     })
   })
 
+  // An enterprise account supplies an external usage destination instead of numeric
+  // credits. The cell must show that destination without rendering a zero balance or
+  // a quota-exhaustion warning.
+  it('renders Qoder enterprise usage without inventing a balance', async () => {
+    getUsage.mockResolvedValue({
+      qoder_quota: {
+        display_mode: 'enterprise',
+        enterprise: { open_mode: 'externalBrowser', detail_url: 'https://qoder.com/usage' },
+      },
+    })
+    const wrapper = mount(ProviderUsageCell, {
+      props: { provider: makeProvider({ id: 5100, platform: 'qoder', type: 'cosy' }) },
+      global: { stubs: { UsageProgressBar: true, ProviderQuotaInfo: true } },
+    })
+    await flushPromises()
+    expect(wrapper.get('a').attributes('href')).toBe('https://qoder.com/usage')
+    expect(wrapper.text()).not.toContain('0/0')
+    expect(wrapper.text()).not.toContain('exceeded')
+    wrapper.unmount()
+  })
+
+  // A dedicated package has credits remaining while the general account pool is
+  // exhausted. Its separate scope and amount must remain visible without increasing
+  // the general pool's displayed total.
+  it('keeps Qoder dedicated credits out of the general total', async () => {
+    getUsage.mockResolvedValue({
+      qoder_quota: {
+        user_quota: { total: 100, used: 100, remaining: 0, unit: 'credits' },
+        dedicated_packages: [
+          {
+            id: 'one',
+            name: 'Flash credits',
+            total: 20,
+            remaining: 15,
+            available: true,
+            labels: [{ dimension: 'model', value: 'Qwen3.8-Flash' }],
+          },
+        ],
+      },
+    })
+    const wrapper = mount(ProviderUsageCell, {
+      props: { provider: makeProvider({ id: 5101, platform: 'qoder', type: 'cosy' }) },
+      global: { stubs: { UsageProgressBar: true, ProviderQuotaInfo: true } },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('100/100 credits')
+    expect(wrapper.text()).toContain('Flash credits: 15/20')
+    expect(wrapper.text()).toContain('Qwen3.8-Flash')
+    wrapper.unmount()
+  })
+
   // OpenCode payg and disabled Go providers still have local requests and token
   // statistics. Hiding upstream controls must leave those local observations visible.
   it.each(['payg', 'disabled'])(

@@ -41,7 +41,7 @@ func TestModelMarketplaceQoderProviderMappedCustomModelUsesRouteKeyManualPricing
 	billingService := billingtestkit.Calculator(nil, nil)
 	svc := newCatalogueMarketplace(nil, newCatalogueFixture(&modelsListProviderRepoStub{byGroup: map[int64][]providercore.Record{
 		groupID: {
-			{
+			withQoderModels(providercore.Record{
 				ID:       1,
 				Platform: capability.PlatformQoder,
 				Type:     capability.ProviderTypeCosy,
@@ -50,7 +50,7 @@ func TestModelMarketplaceQoderProviderMappedCustomModelUsesRouteKeyManualPricing
 						"custom-qoder-model": "qmodel",
 					},
 				},
-			},
+			}),
 		},
 	}}, pricingConfigService, cataloguePriceResolver(pricingConfigService, billingService)), billingService)
 	group := &routing.Group{ID: groupID, RateMultiplier: 1}

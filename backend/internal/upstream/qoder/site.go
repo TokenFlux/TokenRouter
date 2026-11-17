@@ -31,13 +31,15 @@ const (
 	// RefreshModeQoderCN20 identifies credentials containing a QoderCN20 refresh
 	// token.
 	RefreshModeQoderCN20 = "qodercn20"
+	// RefreshModeDeviceToken selects the desktop OpenAPI refresh flow on either site.
+	RefreshModeDeviceToken = "device_token"
 
 	// Browser, OpenAPI, Center, and Gateway endpoint constants supply each site's
 	// default Profile. CN uses OpenAPI and Gateway while its default Center
 	// endpoint remains empty.
 	GlobalDeviceAuthorizationURL = "https://qoder.com/device/selectAccounts"
 	// CNDeviceAuthorizationURL is the CN browser authorization URL.
-	CNDeviceAuthorizationURL = "https://qoder.com.cn/device/selectAccounts"
+	CNDeviceAuthorizationURL = "https://qoder.cn/device/selectAccounts"
 	// GlobalOpenAPIBaseURL is the global OpenAPI base URL.
 	GlobalOpenAPIBaseURL = "https://openapi.qoder.sh"
 	// CNOpenAPIBaseURL is the CN OpenAPI base URL.
@@ -45,21 +47,25 @@ const (
 	// GlobalCenterBaseURL is the global Center base URL.
 	GlobalCenterBaseURL = "https://center.qoder.sh"
 	// GlobalGatewayBaseURL is the global inference gateway URL.
-	GlobalGatewayBaseURL = "https://api1.qoder.sh"
+	GlobalGatewayBaseURL = "https://api2.qoder.sh"
 	// CNGatewayBaseURL is the CN inference gateway URL.
 	CNGatewayBaseURL = "https://gateway.qoder.com.cn"
 	// GlobalClientVersion and CNClientVersion supply version text for OpenAPI
 	// User-Agent, machine headers, encrypted payload headers, and business metadata
 	// when no profile override is supplied.
-	GlobalClientVersion = "1.24.2"
+	GlobalClientVersion = "1.1.86-hotfix.5.3"
 	// CNClientVersion is the COSY version sent to the CN site.
-	CNClientVersion = "1.24.2"
+	CNClientVersion = "1.1.86-hotfix.5.3"
+	// DesktopClientType and DesktopProduct identify the app workload selected by
+	// both desktop distributions, independently of legacy IDE credential exchanges.
+	DesktopClientType = "10"
+	DesktopProduct    = "app"
 	// GlobalOAuthClientID and CNOAuthClientID identify public OAuth clients in
 	// their respective browser authorization URLs. Profile normalization retains
 	// that identity alongside the site's token endpoints.
-	GlobalOAuthClientID = "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
+	GlobalOAuthClientID = "732aef47-9cf2-46a2-95fe-4cebb5d0d1fa"
 	// CNOAuthClientID is the CN public OAuth client ID.
-	CNOAuthClientID = "f5a7f67c-11a8-491e-8b8e-a07f2d0df4b7"
+	CNOAuthClientID = "732aef47-9cf2-46a2-95fe-4cebb5d0d1fa"
 	// GlobalOpenAPIProductName and CNOpenAPIProductName distinguish site labels in
 	// OpenAPI User-Agent text. Profile.OpenAPIUserAgent joins the selected product
 	// label with its normalized client version.
@@ -111,6 +117,8 @@ func ParseRefreshMode(value string) (string, error) {
 		return RefreshModeCosy, nil
 	case RefreshModeQoderCN20:
 		return RefreshModeQoderCN20, nil
+	case RefreshModeDeviceToken:
+		return RefreshModeDeviceToken, nil
 	default:
 		return "", fmt.Errorf("qoder: unsupported refresh_mode %q", strings.TrimSpace(value))
 	}

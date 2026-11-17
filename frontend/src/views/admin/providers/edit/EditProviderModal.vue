@@ -379,6 +379,13 @@
         </template>
 
         <template #models>
+          <SettingsNotice v-if="unobservedQoderTargets.length">
+            {{
+              t('admin.providers.qoder.modelsNotObserved', {
+                models: unobservedQoderTargets.join(', '),
+              })
+            }}
+          </SettingsNotice>
           <!-- Saved-provider sync reads stored credentials, so unsaved connection edits withhold it. -->
           <SettingsNotice
             v-if="showModelRestriction && connectionChanged"
@@ -391,6 +398,7 @@
             v-if="showModelRestriction"
             v-model:mode="modelRestrictionMode"
             :allowed-models="allowedModels"
+            :models="isQoderCosyProvider ? (qoderCatalogStatus?.models ?? []) : undefined"
             v-model:mappings="modelMappings"
             :platform="provider.type === 'bedrock' ? 'anthropic' : provider.platform"
             :provider-id="
@@ -406,6 +414,11 @@
             @synced="storeModelProtocolSuggestions"
             @add="touchQoderModelRestriction"
             @remove="touchQoderModelRestriction"
+          />
+
+          <QoderModelCatalog
+            v-if="isQoderCosyProvider && !connectionChanged && qoderCatalogStatus?.model_details"
+            :models="qoderCatalogStatus.model_details"
           />
 
           <OpenCodeFields
@@ -1071,6 +1084,7 @@ import AnthropicOAuthRequestFields from '@/components/provider/form/AnthropicOAu
 import CustomErrorCodesFields from '@/components/provider/form/CustomErrorCodesFields.vue'
 import HeaderOverrideFields from '@/components/provider/form/HeaderOverrideFields.vue'
 import ModelRestrictionFields from '@/components/provider/form/ModelRestrictionFields.vue'
+import QoderModelCatalog from '@/components/provider/form/QoderModelCatalog.vue'
 import PoolModeFields from '@/components/provider/form/PoolModeFields.vue'
 import QuotaLimitFields from '@/components/provider/form/QuotaLimitFields.vue'
 import TempUnschedFields from '@/components/provider/form/TempUnschedFields.vue'
@@ -1559,6 +1573,27 @@ const {
 const isQoderCosyProvider = computed(
   () => props.provider?.platform === 'qoder' && props.provider?.type === 'cosy',
 )
+// qoderSyncedStatus retains an accepted manual refresh for the current form. Hydration
+// clears it so a replacement provider never inherits another account's status.
+const qoderSyncedStatus = ref<Provider['qoder_model_catalog_status']>()
+// qoderCatalogStatus prefers a manual refresh over the status supplied at hydration.
+const qoderCatalogStatus = computed(
+  () => qoderSyncedStatus.value ?? props.provider?.qoder_model_catalog_status,
+)
+// unobservedQoderTargets compares explicit mapping targets with this account's
+// enabled routes. Keep custom targets editable when reporting missing names.
+const unobservedQoderTargets = computed(() => {
+  const observed = qoderCatalogStatus.value?.models
+  if (!isQoderCosyProvider.value || !observed || modelRestrictionMode.value !== 'mapping') return []
+  const known = new Set(observed.map((id) => id.toLowerCase()))
+  return [
+    ...new Set(
+      modelMappings.value
+        .map((row) => row.to.trim())
+        .filter((id) => id && !known.has(id.toLowerCase())),
+    ),
+  ]
+})
 
 // originalQoderSite reads the saved Qoder site for comparison with the draft. Missing and
 // unknown site values select global, matching hydration and allowing the warning to
@@ -1832,6 +1867,7 @@ const connectionChanged = computed(
 // sync as the current mode's accepted catalog table. Responses without suggestions leave
 // the table unchanged; manual overrides stay separate in either case.
 function storeModelProtocolSuggestions(result: SyncUpstreamModelsResult) {
+  if (result.sync_status) qoderSyncedStatus.value = { ...result.sync_status, models: result.models }
   if (result.model_protocols)
     openCodeProtocols.value.suggestions[editProviderMode.value] = { ...result.model_protocols }
 }
@@ -1857,6 +1893,7 @@ const resolvedUpstreamUsageAdapter = computed(() =>
 // administrator changes use their normal watcher behavior. The connection snapshot is
 // taken after hydration so the restored values count as saved.
 const syncFormFromProvider = (newProvider: Provider | null) => {
+  qoderSyncedStatus.value = undefined
   if (!newProvider) {
     upstreamProtocols.value = undefined
     return

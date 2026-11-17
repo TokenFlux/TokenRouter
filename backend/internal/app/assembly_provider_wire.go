@@ -41,6 +41,7 @@ var providerAssemblyProviders = wire.NewSet(
 	provideClaudeAuthorization,
 	provideTokenCacheInvalidator,
 	provideQoderTokens,
+	provideQoderCatalog,
 	provideQoderRequestRefresh,
 	provideQoderAuthorization,
 	providerAuthorizationHTTPProviders,

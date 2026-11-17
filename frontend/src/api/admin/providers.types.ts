@@ -138,9 +138,40 @@ export interface OllamaCloudUsageSettings {
   debounce_minutes: number // Trailing refresh silence minutes.
 }
 
+/** QoderCatalogModel contains the properties supplied by the last account sync. */
+export interface QoderCatalogModel {
+  key: string // Upstream route ID.
+  name: string // Upstream display name.
+  alias?: string // Public request alias.
+  identity?: string // Qualified catalog model name.
+  enabled: boolean // Account eligibility.
+  default: boolean // Preferred account route.
+  reasoning: boolean // Upstream reasoning support.
+  can_disable: boolean // Whether callers may disable reasoning.
+  default_thinking: boolean // Default reasoning switch.
+  default_effort?: string // Default reasoning intensity.
+  efforts: string[] | null // Available reasoning intensities.
+  input_limit: number // Input token limit, zero when unspecified.
+  output_limit?: number // Output token limit.
+  context_windows: number[] | null // Selectable context windows in tokens.
+  default_context?: number // Default context window in tokens.
+  vision: boolean // Visual input support reported by the upstream.
+}
+
+/** QoderModelCatalogStatus carries a saved account observation without credentials. */
+export interface QoderModelCatalogStatus {
+  state: 'missing' | 'unavailable' | 'stale' | 'fresh' // Observation availability.
+  model_details?: QoderCatalogModel[] // Includes disabled routes for inspection.
+  models?: string[] // Enabled names in a usable account snapshot.
+  fetched_at?: string // Last successful synchronization timestamp.
+  last_error?: string // Sanitized synchronization error.
+  version?: string // Model observation content version.
+}
+
 // Provider describes an administrator-visible upstream connection and its current
 // scheduling state.
 export interface Provider {
+  qoder_model_catalog_status?: QoderModelCatalogStatus // Account model synchronization status.
   id: number // Record numeric identifier.
   name: string // Record display name.
   notes?: string | null // Administrator record notes.
@@ -435,6 +466,25 @@ export interface ProviderUsageInfo {
     minimum_balance?: number // Required minimum balance.
   }> | null // Upstream credit balances.
   qoder_quota?: {
+    display_mode?: 'qoder' | 'enterprise' // Upstream usage presentation mode.
+    enterprise?: {
+      open_mode: 'externalBrowser' | 'systemDeepLink' // Upstream navigation mode.
+      detail_url: string // Upstream detail destination.
+      fallback_url?: string // Optional browser fallback destination.
+    } // Enterprise usage has no inferred numeric balance.
+    dedicated_packages?: Array<{
+      id: string // Upstream package identifier.
+      name: string // Upstream package name.
+      description?: string // Upstream scope explanation.
+      remaining: number // Scoped credits remaining.
+      total: number // Scoped credit allowance.
+      available?: boolean // Upstream package availability.
+      expires_at?: string // Optional package expiration timestamp.
+      labels?: Array<{
+        dimension: string // Restriction dimension name.
+        value: string // Restriction display value.
+      }> // Upstream scope display labels.
+    }> // Restricted packages remain separate from general credits.
     user_type?: string // Upstream account category.
     usage_type?: string // Upstream quota category.
     total_usage_percentage?: number // Total quota utilization percentage.

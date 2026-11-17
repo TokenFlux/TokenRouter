@@ -20,6 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	catalogtest "github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
@@ -657,11 +658,13 @@ func TestGatewayModels_AntigravityConfiguredModelMetadata(t *testing.T) {
 // DeepSeek and Claude names from Qoder execution model choices.
 func TestGatewayModels_QoderUsesExecutionModels(t *testing.T) {
 	groupID := int64(28)
+	qoderProvider := provider.Record{ID: 1, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{}}
+	gatewaytestkit.SetQoderCatalog(&qoderProvider)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
 			byGroup: map[int64][]provider.Record{
 				groupID: {
-					{ID: 1, Platform: capability.PlatformQoder},
+					qoderProvider,
 				},
 			},
 		},
@@ -682,7 +685,7 @@ func TestGatewayModels_QoderUsesExecutionModels(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, "list", got.Object)
 	require.Contains(t, modelIDsForTest(got.Data), "deepseek-v4-pro")
-	require.Contains(t, modelIDsForTest(got.Data), "claude-opus-4-6")
+	require.Contains(t, modelIDsForTest(got.Data), "ultimate")
 }
 
 // TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild lists one
@@ -1327,11 +1330,14 @@ func TestGatewayModels_OpenAIEmptyListKeepsOpenAIResponseShape(t *testing.T) {
 // response returns those configured choices in that exact order.
 func TestGatewayModels_QoderCustomModelsListFiltersConfiguredModels(t *testing.T) {
 	groupID := int64(29)
+	qoderProvider := provider.Record{ID: 1, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{}}
+	qoderProvider.Credentials["model_whitelist"] = []string{"deepseek-v4-pro", "claude-sonnet-4-6", "lite"}
+	gatewaytestkit.SetQoderCatalog(&qoderProvider)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsProviderRepoStub{
 			byGroup: map[int64][]provider.Record{
 				groupID: {
-					{ID: 1, Platform: capability.PlatformQoder, Credentials: map[string]any{"model_whitelist": []string{"deepseek-v4-pro", "claude-sonnet-4-6", "lite"}}},
+					qoderProvider,
 				},
 			},
 		},

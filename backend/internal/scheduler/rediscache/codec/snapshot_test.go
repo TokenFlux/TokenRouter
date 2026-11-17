@@ -2,6 +2,7 @@ package codec
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -24,6 +25,34 @@ type geminiQuotaUsageFixture struct {
 	// calls increments on each fixture read so the test can distinguish skipped
 	// third-party quota checks from official usage queries.
 	calls int // observed usage query count
+}
+
+// TestProviderCodecQoderCatalogSurvivesCredentialFiltering preserves account
+// eligibility before full credential hydration. The metadata payload carries
+// its derived observation identity and site without copying the access token.
+func TestProviderCodecQoderCatalogSurvivesCredentialFiltering(t *testing.T) {
+	value := &provider.Record{ID: 19, Platform: provider.PlatformQoder, Type: provider.ProviderTypeCosy, Credentials: map[string]any{"site": "cn", "uid": "fixture-user", "security_oauth_token": "private-access-token"}}
+	value.Extra = map[string]any{provider.QoderCatalogExtraKey: map[string]any{"identity": provider.QoderCatalogIdentity(value), "version": "fixture", "fetched_at": time.Now(), "models": []map[string]any{{"key": "qmodel", "alias": "qwen-test", "enabled": true, "input_limit": 1000000}}}}
+	full, metadata, err := (ProviderCodec{}).Encode(WrapRecord(value))
+	require.NoError(t, err)
+	require.NotContains(t, string(metadata), "private-access-token")
+	for _, payload := range [][]byte{full, metadata} {
+		decoded, err := UnmarshalProviderRecord(payload)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"qmodel", "qwen-test"}, decoded.QoderRequestModelIDs())
+		require.Equal(t, "cn", decoded.ModelAttributeTarget("qmodel", "qoder_chat").Site)
+		public, err := json.Marshal(decoded)
+		require.NoError(t, err)
+		require.NotContains(t, string(public), "QoderCatalogIdentityHint")
+	}
+	value.Credentials["security_oauth_token"] = "rotated-token"
+	require.NotEmpty(t, value.QoderRequestModelIDs())
+	value.Credentials["organization_id"] = "replacement-org"
+	_, metadata, err = (ProviderCodec{}).Encode(WrapRecord(value))
+	require.NoError(t, err)
+	decoded, err := UnmarshalProviderRecord(metadata)
+	require.NoError(t, err)
+	require.Empty(t, decoded.QoderRequestModelIDs())
 }
 
 // GetModelUsage counts the fixture query and returns an empty result for the

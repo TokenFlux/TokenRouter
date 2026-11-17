@@ -5,8 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
@@ -127,11 +129,30 @@ func NewQoderFixture(tokens *provideradapter.QoderTokenProvider, client qoder.St
 // token, one output token, and completion; callers own the returned fixture
 // lifetime.
 func NewDefaultQoderFixture() (*provider.Record, *QoderFixture, *QoderClient) {
-	value := &provider.Record{ID: 8801, Name: "qoder", Platform: provider.PlatformQoder, Type: provider.ProviderTypeCosy, Credentials: map[string]any{}}
+	value := &provider.Record{ID: 8801, Name: "qoder", Platform: provider.PlatformQoder, Type: provider.ProviderTypeCosy, Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4-6": "ultimate"}}}
+	SetQoderCatalog(value)
 	client := &QoderClient{Body: "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
 		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":1,\\\"completion_tokens\\\":1,\\\"total_tokens\\\":2}}\"}\n\n" +
 		"data: {\"body\":\"[DONE]\"}\n\n"}
 	tokens := provideradapter.NewQoderTokenProvider(qoder.SessionBuilder{})
 	tokens.Core.Sessions = map[int64]provider.QoderSessionCacheEntry[*qoder.SessionContext]{value.ID: {CredentialsHash: provider.QoderCredentialsHash(value.Credentials), Session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}}}}
 	return value, NewQoderFixture(tokens, client, qoder.NewQoderConversationStore(qoder.QoderConversationTTL)), client
+}
+
+// SetQoderCatalog attaches synthetic current capabilities to an execution fixture.
+// Call it after changing authentication fields so the observation belongs to
+// that fixture identity. These values exercise conversion independently of
+// account entitlements or live upstream discovery.
+func SetQoderCatalog(value *provider.Record) {
+	models := []modelcatalog.QoderModel{
+		{Key: "auto", Alias: "auto", Enabled: true, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "ultimate", Alias: "ultimate", Enabled: true, Reasoning: true, DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "medium", "high", "xhigh", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "qmodel_38max", Alias: "qwen3.8-max", Enabled: true, Reasoning: true, CanDisable: true, DefaultThinking: true, DefaultEffort: "medium", Efforts: []string{"low", "medium", "xhigh"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "dmodel", Alias: "deepseek-v4-pro", Enabled: true, Reasoning: true, CanDisable: true, DefaultThinking: true, DefaultEffort: "max", Efforts: []string{"high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "gmodel", Alias: "glm-5.3", Enabled: true, Reasoning: true, DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+	}
+	if value.Extra == nil {
+		value.Extra = map[string]any{}
+	}
+	value.Extra[provider.QoderCatalogExtraKey] = &provider.QoderCatalogSnapshot{Identity: provider.QoderCatalogIdentity(value), Version: "fixture", FetchedAt: time.Now(), Models: models}
 }

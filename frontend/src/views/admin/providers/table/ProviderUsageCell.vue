@@ -438,6 +438,21 @@
       <div v-else-if="error" class="text-xs text-red-500">
         {{ error }}
       </div>
+      <div
+        v-else-if="usageInfo?.qoder_quota?.display_mode === 'enterprise'"
+        class="space-y-1 text-xs"
+      >
+        <a
+          v-if="qoderEnterpriseURL"
+          :href="qoderEnterpriseURL"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-link"
+        >
+          {{ t('admin.providers.qoder.viewUpstreamUsage') }}
+        </a>
+        <span v-else>{{ t('admin.providers.qoder.enterpriseUsage') }}</span>
+      </div>
       <div v-else-if="usageInfo?.qoder_quota" class="space-y-1">
         <div
           v-if="usageInfo.error"
@@ -453,6 +468,19 @@
           wide-label
           color="indigo"
         />
+        <div
+          v-for="pack in usageInfo.qoder_quota.dedicated_packages"
+          :key="pack.id"
+          class="text-xs text-gray-500 dark:text-gray-400"
+          :title="pack.description"
+        >
+          {{ pack.name }}: {{ formatCompactNumber(pack.remaining) }}/{{
+            formatCompactNumber(pack.total)
+          }}
+          <span v-for="label in pack.labels" :key="label.dimension + label.value">
+            {{ label.value }}</span
+          >
+        </div>
         <div
           class="flex flex-wrap items-center justify-end gap-1.5 text-xs text-gray-500 dark:text-gray-400 lg:justify-start"
         >
@@ -1444,6 +1472,23 @@ interface GrokQuotaBarInfo {
 type QoderQuotaProgressLike = NonNullable<
   NonNullable<ProviderUsageInfo['qoder_quota']>['user_quota']
 >
+// qoderEnterpriseURL exposes only a browser-safe HTTPS destination. Native deep links
+// use their HTTPS fallback, and a missing destination leaves a descriptive label.
+const qoderEnterpriseURL = computed(() => {
+  const view = usageInfo.value?.qoder_quota?.enterprise
+  const candidate = view?.open_mode === 'externalBrowser' ? view.detail_url : view?.fallback_url
+  if (!candidate) return undefined
+  try {
+    const parsed = new URL(candidate)
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password
+      ? candidate
+      : undefined
+  } catch {
+    // A malformed upstream destination still needs an informative usage view, so
+    // retain its label without creating a clickable or executable navigation target.
+    return undefined
+  }
+})
 
 /**
  * qoderQuotaPoolCapacity derives one pool capacity from its available observations. A positive

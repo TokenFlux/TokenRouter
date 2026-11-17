@@ -2,7 +2,6 @@ package qoder
 
 import (
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -61,10 +60,10 @@ func TestProfileForSiteUsesFrozenProductionValues(t *testing.T) {
 	require.Equal(t, GlobalOpenAPIBaseURL, global.OpenAPIBaseURL)
 	require.Equal(t, GlobalCenterBaseURL, global.CenterBaseURL)
 	require.Equal(t, GlobalGatewayBaseURL, global.GatewayBaseURL)
-	require.Equal(t, "1.24.2", GlobalClientVersion)
-	require.Equal(t, "1.24.2", global.ClientVersion)
+	require.Equal(t, "1.1.86-hotfix.5.3", GlobalClientVersion)
+	require.Equal(t, "1.1.86-hotfix.5.3", global.ClientVersion)
 	require.Equal(t, GlobalOAuthClientID, global.OAuthClientID)
-	require.Equal(t, "Qoder/1.24.2", global.OpenAPIUserAgent())
+	require.Equal(t, "Qoder/1.1.86-hotfix.5.3", global.OpenAPIUserAgent())
 
 	cn, err := ProfileForSite(SiteCN)
 	require.NoError(t, err)
@@ -72,10 +71,10 @@ func TestProfileForSiteUsesFrozenProductionValues(t *testing.T) {
 	require.Equal(t, CNOpenAPIBaseURL, cn.OpenAPIBaseURL)
 	require.Empty(t, cn.CenterBaseURL)
 	require.Equal(t, CNGatewayBaseURL, cn.GatewayBaseURL)
-	require.Equal(t, "1.24.2", CNClientVersion)
-	require.Equal(t, "1.24.2", cn.ClientVersion)
+	require.Equal(t, "1.1.86-hotfix.5.3", CNClientVersion)
+	require.Equal(t, "1.1.86-hotfix.5.3", cn.ClientVersion)
 	require.Equal(t, CNOAuthClientID, cn.OAuthClientID)
-	require.Equal(t, "Qoder CN/1.24.2", cn.OpenAPIUserAgent())
+	require.Equal(t, "Qoder CN/1.1.86-hotfix.5.3", cn.OpenAPIUserAgent())
 }
 
 // TestNormalizeProfileAllowsTestEndpointInjection overrides CN OpenAPI and
@@ -101,273 +100,4 @@ func TestMachineOSForNormalizesArchitectureAliases(t *testing.T) {
 	require.Equal(t, "aarch64_linux", MachineOSFor("aarch64", "linux"))
 	require.Equal(t, "x86_64_linux", MachineOSFor("amd64", "linux"))
 	require.Equal(t, "x86_64_darwin", MachineOSFor("x86_64", "darwin"))
-}
-
-// TestModelsAndAliasesAreSiteAware compares each site's public list and selected
-// route mappings. It checks CN/global eligibility, removed preview-name
-// passthrough, and acceptance of an unknown raw route.
-func TestModelsAndAliasesAreSiteAware(t *testing.T) {
-	require.ElementsMatch(t, []string{
-		"claude-opus-4-6",
-		"auto",
-		"performance",
-		"efficient",
-		"lite",
-		"qwen3.8-max",
-		"qwen3.7-max",
-		"qwen3.7-plus",
-		"kimi-k3",
-		"kimi-k2.7-code",
-		"glm-5.3",
-		"glm-5.2",
-		"deepseek-v4-pro",
-		"deepseek-v4-flash",
-		"minimax-m3",
-	}, DefaultRequestModelIDsForSite(SiteGlobal))
-	require.ElementsMatch(t, []string{
-		"auto",
-		"qwen3.8-max",
-		"qwen3.7-max",
-		"qwen3.7-plus",
-		"qwen3.6-flash",
-		"deepseek-v4-pro",
-		"deepseek-v4-flash",
-		"glm-5.3",
-		"glm-5.2",
-		"kimi-k2.7-code",
-		"minimax-m2.7",
-	}, DefaultRequestModelIDsForSite(SiteCN))
-
-	route, ok := AliasForSite(SiteGlobal, "qwen3.8-max")
-	require.True(t, ok)
-	require.Equal(t, "qmodel_38max", route)
-	route, ok = AliasForSite(SiteCN, "glm-5.3")
-	require.True(t, ok)
-	require.Equal(t, "gmodel", route)
-	route, ok = AliasForSite(SiteCN, "qwen3.8-max")
-	require.True(t, ok)
-	require.Equal(t, "qmodel_38max", route)
-	route, ok = AliasForSite(SiteCN, "minimax-m2.7")
-	require.True(t, ok)
-	require.Equal(t, "mmodel", route)
-	// Removed preview names have no alias-table entry. Check their raw passthrough
-	// eligibility so model normalization cannot silently redirect those configured
-	// request names.
-	_, ok = AliasForSite(SiteGlobal, "qwen3.8-max-preview")
-	require.False(t, ok)
-	_, ok = AliasForSite(SiteCN, "qwen3.8-max-preview")
-	require.False(t, ok)
-	require.False(t, isKnownPublicAlias("qwen3.8-max-preview"))
-	require.False(t, isKnownRouteKey("qmodel_preview"))
-	require.True(t, ModelCompatibleWithSite(SiteGlobal, "qwen3.8-max"))
-	require.True(t, ModelCompatibleWithSite(SiteGlobal, "qmodel_38max"))
-	require.True(t, ModelCompatibleWithSite(SiteCN, "qwen3.8-max"))
-	require.True(t, ModelCompatibleWithSite(SiteCN, "qmodel_38max"))
-	require.False(t, ModelCompatibleWithSite(SiteGlobal, "minimax-m2.7"))
-	require.True(t, ModelCompatibleWithSite(SiteCN, "minimax-m2.7"))
-	require.True(t, ModelCompatibleWithSite(SiteGlobal, "unknown-raw-key"))
-}
-
-// TestThinkingCapabilityForSiteUsesSiteSnapshot covers known aliases, raw
-// routes, whitespace, empty site, and unknown inputs. It checks effort classes
-// and unsupported controls for the selected site.
-func TestThinkingCapabilityForSiteUsesSiteSnapshot(t *testing.T) {
-	tests := []struct {
-		site  Site               // selected credential site
-		model string             // model lookup input
-		want  ThinkingCapability // expected capability value
-	}{
-		{site: SiteGlobal, model: "qwen3.8-max", want: ThinkingToggleOnly},
-		{site: SiteGlobal, model: " QMODEL_38MAX ", want: ThinkingToggleOnly},
-		{site: SiteGlobal, model: "qwen3.7-max", want: ThinkingToggleOnly},
-		{site: SiteGlobal, model: "qwen3.7-plus", want: ThinkingToggleOnly},
-		{site: SiteGlobal, model: "deepseek-v4-pro", want: ThinkingHighMax},
-		{site: SiteGlobal, model: "deepseek-v4-flash", want: ThinkingHighMax},
-		{site: SiteGlobal, model: "glm-5.3", want: ThinkingLowHighMax},
-		{site: SiteGlobal, model: "glm-5.2", want: ThinkingHighMax},
-		{site: SiteGlobal, model: "kimi-k3", want: ThinkingUnsupported},
-		// An empty site selects global capabilities, as ParseSite does.
-		{site: "", model: "deepseek-v4-pro", want: ThinkingHighMax},
-		{site: SiteCN, model: "auto", want: ThinkingUnsupported},
-		{site: SiteCN, model: "qwen3.8-max", want: ThinkingToggleOnly},
-		{site: SiteCN, model: " QMODEL_38MAX ", want: ThinkingToggleOnly},
-		{site: SiteCN, model: "qwen3.7-max", want: ThinkingToggleOnly},
-		{site: SiteCN, model: "qwen3.7-plus", want: ThinkingToggleOnly},
-		{site: SiteCN, model: "qwen3.6-flash", want: ThinkingUnsupported},
-		{site: SiteCN, model: "deepseek-v4-pro", want: ThinkingHighMax},
-		{site: SiteCN, model: "deepseek-v4-flash", want: ThinkingHighMax},
-		{site: SiteCN, model: "glm-5.3", want: ThinkingLowHighMax},
-		{site: SiteCN, model: "glm-5.2", want: ThinkingHighMax},
-		{site: SiteCN, model: "kimi-k2.7-code", want: ThinkingUnsupported},
-		{site: SiteCN, model: "minimax-m2.7", want: ThinkingUnsupported},
-	}
-
-	for _, tt := range tests {
-		t.Run(string(tt.site)+"/"+tt.model, func(t *testing.T) {
-			require.Equal(t, tt.want, ThinkingCapabilityForSite(tt.site, tt.model))
-		})
-	}
-
-	// CN raw routes, case variants, and surrounding whitespace resolve like public
-	// aliases.
-	require.Equal(t, ThinkingToggleOnly, ThinkingCapabilityForSite(SiteCN, " QMODEL_LATEST "))
-	require.Equal(t, ThinkingHighMax, ThinkingCapabilityForSite(SiteCN, "dmodel"))
-	// Shared routes have matching capabilities; global-only and unknown routes
-	// remain site-specific.
-	require.Equal(t, ThinkingToggleOnly, ThinkingCapabilityForSite(SiteGlobal, " QMODEL_LATEST "))
-	require.Equal(t, ThinkingHighMax, ThinkingCapabilityForSite(SiteGlobal, "dmodel"))
-	require.Equal(t, ThinkingUnsupported, ThinkingCapabilityForSite(SiteGlobal, "kmodel_latest"))
-	require.Equal(t, ThinkingUnsupported, ThinkingCapabilityForSite(SiteCN, "custom-model"))
-	require.Equal(t, ThinkingUnsupported, ThinkingCapabilityForSite(Site("invalid"), "qmodel_38max"))
-}
-
-// TestThinkingCapabilitySnapshotsCoverEveryModel compares published aliases and
-// capability keys for both sites. It requires one route entry for each alias
-// target and matching unique route sets.
-func TestThinkingCapabilitySnapshotsCoverEveryModel(t *testing.T) {
-	tests := []struct {
-		name         string                        // fixture case label
-		models       []string                      // published alias list
-		aliases      map[string]string             // alias route snapshot
-		capabilities map[string]ThinkingCapability // thinking capability snapshot
-	}{
-		{name: "国际站", models: DefaultRequestModelIDsForSite(SiteGlobal), aliases: globalAliases, capabilities: globalThinkingCapabilities},
-		{name: "国内站", models: DefaultRequestModelIDsForSite(SiteCN), aliases: cnAliases, capabilities: cnThinkingCapabilities},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Alias targets define the published route set. Compare that set with
-			// capability keys so a missing entry cannot silently become unsupported
-			// through map zero values.
-			wantRoutes := make(map[string]struct{}, len(tt.aliases))
-			for _, model := range tt.models {
-				route, ok := tt.aliases[model]
-				require.True(t, ok, "%s模型 %q 缺少 route key", tt.name, model)
-				wantRoutes[route] = struct{}{}
-			}
-			require.Len(t, tt.aliases, len(tt.models), "%s模型和 alias 数量必须一致", tt.name)
-
-			gotRoutes := make(map[string]struct{}, len(tt.capabilities))
-			for route := range tt.capabilities {
-				gotRoutes[route] = struct{}{}
-			}
-			require.Equal(t, wantRoutes, gotRoutes, "%s Thinking 能力表必须与模型 route key 完全一致", tt.name)
-		})
-	}
-}
-
-// TestSharedThinkingCapabilitiesStayInSyncAcrossSites examines routes appearing
-// in both thinking snapshots. It checks equal capabilities for each shared key
-// while leaving site-exclusive routes outside that comparison.
-func TestSharedThinkingCapabilitiesStayInSyncAcrossSites(t *testing.T) {
-	// Shared routes use the same capabilities; site-only routes use their own
-	// snapshot.
-	for route, globalCapability := range globalThinkingCapabilities {
-		cnCapability, shared := cnThinkingCapabilities[route]
-		if !shared {
-			continue
-		}
-		require.Equal(t, cnCapability, globalCapability, "共有 route %q 的 Thinking 能力不一致", route)
-	}
-}
-
-// TestContextCapabilitySnapshotCoversEveryPublishedRoute compares complete
-// expected input-limit maps for both sites. It checks every public alias and
-// normalized uppercase raw route against its corresponding snapshot.
-func TestContextCapabilitySnapshotCoversEveryPublishedRoute(t *testing.T) {
-	globalExpected := map[string]ContextCapability{
-		"ultimate":      {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"auto":          {MaxInputTokens: 180000},
-		"performance":   {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"efficient":     {MaxInputTokens: 180000},
-		"lite":          {MaxInputTokens: 180000},
-		"qmodel_38max":  {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"qmodel_latest": {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"qmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"kmodel_latest": {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"kmodel":        {MaxInputTokens: 256000, RuntimeSelectable: true},
-		"gmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"gm51model":     {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"dmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"dfmodel":       {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"mmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-	}
-	cnExpected := map[string]ContextCapability{
-		"auto":          {MaxInputTokens: 180000},
-		"qmodel_38max":  {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"qmodel_latest": {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"qmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"q36fmodel":     {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"dmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"dfmodel":       {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"gmodel":        {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"gm51model":     {MaxInputTokens: 1000000, RuntimeSelectable: true},
-		"kmodel":        {MaxInputTokens: 256000, RuntimeSelectable: true},
-		"mmodel":        {MaxInputTokens: 200000, RuntimeSelectable: true},
-	}
-	tests := []struct {
-		name     string                       // fixture case label
-		site     Site                         // selected credential site
-		actual   map[string]ContextCapability // actual context snapshot
-		expected map[string]ContextCapability // expected context snapshot
-	}{
-		{name: "国际站", site: SiteGlobal, actual: globalContextCapabilities, expected: globalExpected},
-		{name: "国内站", site: SiteCN, actual: cnContextCapabilities, expected: cnExpected},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, tt.actual, "%s上下文能力快照与已验证值不一致", tt.name)
-			aliases := AliasesForSite(tt.site)
-			for alias, route := range aliases {
-				want, ok := tt.expected[route]
-				require.True(t, ok, "公开模型 %q 的 route %q 缺少上下文能力", alias, route)
-				require.Equal(t, want, ContextCapabilityForSite(tt.site, alias), "公开 alias %q", alias)
-				require.Equal(t, want, ContextCapabilityForSite(tt.site, " "+strings.ToUpper(route)+" "), "raw route %q", route)
-			}
-		})
-	}
-}
-
-// TestContextCapabilityForSiteUsesHighestVerifiedTier selects representative
-// fixed and runtime-capable routes across sites. It checks their expected token
-// limits and flags, including the empty-site global default.
-func TestContextCapabilityForSiteUsesHighestVerifiedTier(t *testing.T) {
-	tests := []struct {
-		name  string            // fixture case label
-		site  Site              // selected credential site
-		model string            // model lookup input
-		want  ContextCapability // expected capability value
-	}{
-		{name: "国际站 Ultimate", site: SiteGlobal, model: "ultimate", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-		{name: "国际站 Performance", site: SiteGlobal, model: "performance", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-		{name: "国际站 Auto", site: SiteGlobal, model: "auto", want: ContextCapability{MaxInputTokens: 180000}},
-		{name: "国际站 Kimi K2.7", site: SiteGlobal, model: "kimi-k2.7-code", want: ContextCapability{MaxInputTokens: 256000, RuntimeSelectable: true}},
-		{name: "国际站 GLM 5.3", site: SiteGlobal, model: "glm-5.3", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-		{name: "国内站 Qwen3.6", site: SiteCN, model: "qwen3.6-flash", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-		{name: "国内站 GLM 5.3", site: SiteCN, model: "gmodel", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-		{name: "国内站 Kimi K2.7", site: SiteCN, model: "kmodel", want: ContextCapability{MaxInputTokens: 256000, RuntimeSelectable: true}},
-		{name: "国内站 MiniMax", site: SiteCN, model: "minimax-m2.7", want: ContextCapability{MaxInputTokens: 200000, RuntimeSelectable: true}},
-		{name: "空站点按国际站", site: "", model: "qwen3.8-max", want: ContextCapability{MaxInputTokens: 1000000, RuntimeSelectable: true}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, ContextCapabilityForSite(tt.site, tt.model))
-		})
-	}
-}
-
-// TestContextCapabilityForSiteFallsBackForUnknownRoutes queries unknown, hidden,
-// removed, and invalid-site route inputs. It checks the execution-default token
-// limit with runtime selection disabled in every case.
-func TestContextCapabilityForSiteFallsBackForUnknownRoutes(t *testing.T) {
-	want := ContextCapability{MaxInputTokens: FallbackMaxInputTokens}
-	for _, site := range []Site{SiteGlobal, SiteCN} {
-		for _, model := range []string{"custom-route", "cmodel", "qmodel_preview", "qwen3.8-max-preview"} {
-			require.Equal(t, want, ContextCapabilityForSite(site, model), "site=%s model=%s", site, model)
-		}
-	}
-	require.Equal(t, want, ContextCapabilityForSite(Site("invalid"), "qmodel_38max"))
 }

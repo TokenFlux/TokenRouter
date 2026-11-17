@@ -191,7 +191,7 @@ func TestQoderNativeGatewayAttemptsAndCompletion(t *testing.T) {
 					_, ok := excluded[1]
 					require.True(t, ok)
 				}
-				target := &qoder.Target{ProviderID: id, Site: qoder.SiteGlobal, UserType: "personal_standard", Session: func(context.Context) (*qoder.SessionContext, error) { return &qoder.SessionContext{}, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
+				target := &qoder.Target{ProviderID: id, Site: qoder.SiteGlobal, Session: func(context.Context) (*qoder.SessionContext, error) { return &qoder.SessionContext{}, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
 				return &gateway.Selection{Snapshot: provider.ProviderSnapshot{ID: id}, Acquired: true, Release: func() { releases.Add(1) }, Executor: executor, Input: upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIChatCompletions, Body: request.Body, Stream: tc.stream, Target: target}, Bind: func(context.Context, upstream.AttemptResult) { bindings.Add(1) }, Complete: func(_ context.Context, r upstream.AttemptResult) {
 					completions.Add(1)
 					require.Equal(t, 12, r.Usage.InputTokens)

@@ -918,6 +918,7 @@ export async function getAvailableModels(id: number): Promise<ClaudeModel[]> {
  */
 export interface SyncUpstreamModelsResult {
   models: string[] // Model identifier list.
+  sync_status?: import('./providers.types').QoderModelCatalogStatus // Account catalog synchronization status.
   // Catalogue suggestions describe returned IDs and exclude saved manual overrides,
   // so forms can display them independently from the administrator's editable choices.
   model_protocols?: Record<string, import('@/api/protocols.types').ProtocolID>

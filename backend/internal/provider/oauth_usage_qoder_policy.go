@@ -126,6 +126,16 @@ func QoderQuotaRateLimitResetAt(quota *QoderQuotaInfo, now time.Time) (time.Time
 	if quota == nil || quota.ExpiresAt == nil || !quota.ExpiresAt.After(now) {
 		return time.Time{}, false
 	}
+	if quota.DisplayMode == "enterprise" {
+		return time.Time{}, false
+	}
+	for _, item := range quota.Dedicated {
+		// Dedicated credits cannot increase the general balance, but available
+		// scoped credits prevent a provider-wide pause that would also block their models.
+		if item.Available && item.Remaining > 0 && (item.ExpiresAt == nil || item.ExpiresAt.After(now)) {
+			return time.Time{}, false
+		}
+	}
 	if QoderQuotaIsPersonalZeroQuota(quota) {
 		return time.Time{}, false
 	}

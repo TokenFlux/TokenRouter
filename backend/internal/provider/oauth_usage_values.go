@@ -112,6 +112,9 @@ type QoderQuotaProgress struct {
 // QoderQuotaInfo combines Qoder account metadata and optional credit-pool
 // observations.
 type QoderQuotaInfo struct {
+	DisplayMode string                `json:"display_mode,omitempty"`       // upstream usage presentation mode
+	Enterprise  *QoderEnterpriseUsage `json:"enterprise,omitempty"`         // external enterprise usage destination
+	Dedicated   []QoderDedicatedQuota `json:"dedicated_packages,omitempty"` // scoped credit package observations
 	// upstream quota user identifier
 	UserID string `json:"user_id,omitempty"`
 	// upstream account type label
@@ -140,6 +143,30 @@ type QoderQuotaInfo struct {
 	LastUpdatedAt *time.Time `json:"last_updated_at,omitempty"`
 	// stored provider snapshot indicator
 	SnapshotFromProvider bool `json:"snapshot_from_provider,omitempty"`
+}
+
+// QoderEnterpriseUsage describes an external usage view without numeric quota.
+type QoderEnterpriseUsage struct {
+	OpenMode    string `json:"open_mode"`              // upstream navigation mode
+	DetailURL   string `json:"detail_url"`             // upstream detail destination
+	FallbackURL string `json:"fallback_url,omitempty"` // optional browser fallback destination
+}
+
+// QoderQuotaLabel describes a dedicated credit package's upstream usage scope.
+type QoderQuotaLabel struct {
+	Dimension string `json:"dimension"` // restriction dimension name
+	Value     string `json:"value"`     // restriction display value
+}
+
+// QoderDedicatedQuota retains restricted credits separately from general pools.
+type QoderDedicatedQuota struct {
+	QoderQuotaProgress                   // observed dedicated credit amounts
+	ID                 string            `json:"id"`                   // upstream package identifier
+	Name               string            `json:"name"`                 // upstream package name
+	Description        string            `json:"description"`          // upstream scope explanation
+	Status             string            `json:"status"`               // upstream package state
+	ExpiresAt          *time.Time        `json:"expires_at,omitempty"` // optional package expiration
+	Labels             []QoderQuotaLabel `json:"labels,omitempty"`     // upstream scope display labels
 }
 
 // UsageInfo carries platform quota observations, local totals, and usage-query

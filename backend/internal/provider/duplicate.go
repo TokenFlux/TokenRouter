@@ -73,6 +73,7 @@ var duplicateProviderDiscardedExtraKeys = map[string]struct{}{
 	"grok_usage_snapshot":                    {},
 	"grok_billing_snapshot":                  {},
 	"qoder_quota_snapshot":                   {},
+	QoderCatalogExtraKey:                     {},
 	"qoder_quota_updated_at":                 {},
 	UsageMonitorSnapshotExtraKey:             {},
 	"antigravity_credits_overages":           {},

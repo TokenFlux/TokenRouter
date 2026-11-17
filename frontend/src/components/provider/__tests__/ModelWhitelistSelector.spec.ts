@@ -197,6 +197,31 @@ describe('ModelWhitelistSelector', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual(['claude-sonnet-4-5'])
   })
 
+  // Manual Qoder sync adds every new supported ID once and retains custom selections.
+  // The accepted observation also reaches the parent for rendering account capabilities.
+  it('merges manually synchronized Qoder candidates into the whitelist', async () => {
+    const result = {
+      models: ['qwen4-max', 'qmodel_latest', 'qwen4-max'],
+      sync_status: { state: 'fresh' },
+    }
+    syncUpstreamModels.mockResolvedValue(result)
+    const wrapper = mountSelector({
+      platform: 'qoder',
+      providerId: 8,
+      modelValue: ['retired-model', 'qwen4-max'],
+    })
+    await syncButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(syncUpstreamModels).toHaveBeenCalledWith(8, expect.any(AbortSignal))
+    expect(wrapper.emitted('update:modelValue')).toEqual([
+      [['retired-model', 'qwen4-max', 'qmodel_latest']],
+    ])
+    expect(wrapper.emitted('synced')).toEqual([[result]])
+    expect(wrapper.text()).toContain('admin.providers.qoder.modelsNotObserved')
+    expect(showSuccess).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   // An OpenCode create form previews models with its drafted service mode. The sync action
   // must be offered for that platform, forward provider_mode, and report the response's
   // protocol suggestions through the synced event before merging the model IDs.

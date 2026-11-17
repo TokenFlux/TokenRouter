@@ -242,12 +242,12 @@ OpenCode 导出显示名、附件、推理、温度、工具调用、模态和�
 - OpenAI 使用目录的 effort 集合。GPT-5.2/5.4 的采样参数在 effort 为 none 时可用；GPT-6 的 Chat 工具能力依型号与 effort 设置条件。Codex OAuth 禁用采样与输出参数字段，模型的输出容量仍保留。Spark 的当前接入为文本输入。GPT-5.6 Sol/Terra/Luna 的 OAuth Compact 将 max 编码成 xhigh，规则在最终型号确定后执行。
 - Claude thinking 的预算、开关和档位来自服务条目。温度按 thinking 状态处理，adaptive、手动 budget 与 Sonnet 5.5 的 between_tools 分别表达。Bedrock 已登记型号的缓存 TTL、tool search 与 adaptive 编码在 `modelcatalog/bedrock.go`，新增型号需同时修改固定清单和报文测试。
 - Grok 4.7 读取 xhigh，Build 0.1 等会推理但没有可调选项的型号显示空集合。Composer 的 reasoning 参数清理和 4.20 系列的 logprobs 规则单独执行。GLM-5.2/5.3 使用叠加管理员覆盖后的档位集合，已允许的档位按请求值发送，兼容别名在最终集合内转换。Messages 的字段编码在读取这份能力后执行。DeepSeek 的 temperature 与 top_p 分别按 thinking 状态处理。
-- Qoder 的站点路由表在 `modelcatalog/qoder.go`，输入上限写入 `input_limit`。`mmodel` 按站点选择公共身份，动态档位的公共属性保持未知，未知 raw route 使用 200000 输入执行默认值。当前转换器支持文本与工具交互，模态为 text。
+- Qoder 的路由与能力来自账号模型快照。`modelcatalog/qoder_catalog.go` 定义观察属性，提供商和快照版本参与缓存隔离；同一个路由键可以在不同账号上拥有不同名称和限制。动态档位不绑定固定厂商身份，显式自定义 raw route 没有观察时使用 200000 的输入执行默认值。转换器仍只声明文本与工具交互能力。
 - Antigravity 的 Messages Claude 路线限制输出 64000，其他 Messages 转换限制 65000，Chat 转换限制 64000，并取目录更小值。Gemini 直通入口使用其本身的能力。已登记 Opus 4.6/4.7/4.8 adaptive 请求使用 24576 预算；指定 Gemini 私有路由的采样、stop 与 toolConfig 处理单独保存。
 - Gemini 转换按最终模型的控制集合发送互斥的 thinkingLevel 或 thinkingBudget。客户端控制来自转换前的请求，预算会按目录与当前转换的输出空间处理。已知不允许关闭 thinking 的型号不会被显示为可关闭。
 - 媒体尺寸、参考图数量与细分参数在 `modelcatalog/media.go`。创作台与批量图片按最终路线检查这些值。Responses 的图片工具在请求构造末尾读取工具型号的属性，HTTP 与 WebSocket 共用处理。OAuth 图片接口的构造器不发送 input_fidelity，该路线将此参数标为不可用。Ollama Cloud 的输出参数 clamp 使用解析后的输出上限；提供商配置为非正数时关闭 clamp。
 
-规则依据包括 [OpenAI 模型指南](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.4)、[部署检查](https://developers.openai.com/api/docs/guides/deployment-checklist)、[Claude 协议](https://platform.claude.com/docs/en/claude_api_primer)、[Grok 推理](https://docs.x.ai/developers/model-capabilities/text/reasoning)、[GLM-5.3](https://docs.z.ai/guides/llm/glm-5.3)、[DeepSeek thinking](https://api-docs.deepseek.com/guides/thinking_mode/)、[Gemini GenerateContent thinking](https://ai.google.dev/gemini-api/docs/generate-content/thinking)和 [Kimi Coding 型号](https://www.kimi.com/code/docs/en/kimi-code/models)。Qoder 的实现以当前 1.24.2 适配表为准。
+规则依据包括 [OpenAI 模型指南](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.4)、[部署检查](https://developers.openai.com/api/docs/guides/deployment-checklist)、[Claude 协议](https://platform.claude.com/docs/en/claude_api_primer)、[Grok 推理](https://docs.x.ai/developers/model-capabilities/text/reasoning)、[GLM-5.3](https://docs.z.ai/guides/llm/glm-5.3)、[DeepSeek thinking](https://api-docs.deepseek.com/guides/thinking_mode/)、[Gemini GenerateContent thinking](https://ai.google.dev/gemini-api/docs/generate-content/thinking)和 [Kimi Coding 型号](https://www.kimi.com/code/docs/en/kimi-code/models)。Qoder 的实现以账号实时目录及当前客户端协议为准，见 [Qoder 原生上游](qoder_upstream.md)。
 
 <a id="group_availability_probe"></a>
 ## 容量与可用性

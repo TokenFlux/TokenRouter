@@ -14,7 +14,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
 )
 
@@ -360,11 +359,7 @@ func (p ModelPolicy) UpstreamModel(ctx context.Context, requested string) string
 	} else {
 		mapped := p.forwardMappedModel(requested)
 		if value.Platform == capability.PlatformQoder {
-			site, err := qoder.ParseSite(value.GetCredential("site"))
-			if err != nil {
-				return ""
-			}
-			model = qoder.ResolveQoderModelForSite(site, mapped).Key
+			model = value.NormalizeQoderModel(mapped)
 		} else {
 			model = p.AnthropicUpstream(mapped)
 		}

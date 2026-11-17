@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -133,14 +134,15 @@ func (r *QoderRuntime) Target(metadata qoder.RequestMetadata, value *provider.Re
 		site = qoder.SiteGlobal
 	}
 	id := int64(0)
-	userType := "personal_standard"
 	if value != nil {
 		id = value.ID
-		userType = qoder.FirstNonEmptyQoder(value.GetCredential("user_type"), userType)
 	}
 	return &qoder.Target{
-		ProviderID: id, Site: site, UserType: userType, Metadata: metadata,
+		ProviderID: id, Site: site, Metadata: metadata,
 		Attributes: func(ctx context.Context, model string, wire protocol.ProtocolID) (modelcatalog.Resolution, error) {
+			if _, err := value.QoderCatalog(time.Now()); err != nil {
+				return modelcatalog.Resolution{}, &qoder.APIError{StatusCode: 503, Code: "model_catalog_unavailable", Message: err.Error()}
+			}
 			target := value.ModelAttributeTarget(model, string(wire))
 			target.ClientProtocol, target.UpstreamProtocol = string(wire), string(wire)
 			session := routing.ModelAttributesFromContext(ctx)

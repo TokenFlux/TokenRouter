@@ -167,6 +167,16 @@
     </div>
 
     <!-- Custom Model Input -->
+    <p
+      v-if="unobservedQoderSelections.length"
+      class="mb-3 text-xs text-amber-600 dark:text-amber-400"
+    >
+      {{
+        t('admin.providers.qoder.modelsNotObserved', {
+          models: unobservedQoderSelections.join(', '),
+        })
+      }}
+    </p>
     <div class="mb-3">
       <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{
         t('admin.providers.customModelName')
@@ -218,8 +228,9 @@ import { SEARCH_DEBOUNCE_MS } from '@/constants/ui'
 // query. Only the current generation may publish its results or loading state, and
 // unmount invalidates pending catalog work. Upstream synchronization follows a separate
 // request path: a changed provider identity or preview credential cancels it, and a
-// current completion merges returned IDs into the selection and reports the full
-// result through the synced event.
+// current completion reports the full result through the synced event. All platforms
+// merge supported IDs into the current selection. Qoder also uses that account’s
+// latest candidates for local suggestions and missing-name feedback.
 
 // t resolves interface labels from the active component locale while reactive consumers
 // update their displayed text.
@@ -279,6 +290,18 @@ const isSyncingUpstream = ref(false)
 // syncRequest identifies the synchronization allowed to publish. Replacing or clearing
 // it invalidates older responses even when the inputs later return to their old values.
 let syncRequest: AbortController | undefined
+// syncedQoderModels keeps account suggestions separate from the editable whitelist.
+// Undefined means the current form has not completed a manual sync for this identity.
+const syncedQoderModels = ref<string[]>()
+// unobservedQoderSelections identifies saved names missing from the latest account
+// response; explicit custom routes remain editable and are not silently removed.
+const unobservedQoderSelections = computed(() => {
+  if (!normalizedPlatforms.value.includes('qoder')) return []
+  const models = syncedQoderModels.value ?? props.models
+  if (!models) return []
+  const known = new Set(models.map((model) => model.toLowerCase()))
+  return props.modelValue.filter((model) => !model.includes('*') && !known.has(model.toLowerCase()))
+})
 // normalizedPlatforms trims and deduplicates the preferred platform list for determining
 // whether the upstream synchronization action is available.
 const normalizedPlatforms = computed(() => {
@@ -311,6 +334,7 @@ const upstreamSyncPlatforms = new Set([
   'deepseek',
   'jev',
   'opencode',
+  'qoder',
 ])
 // canSyncUpstream selects saved-provider or preview-credential eligibility from the
 // normalized platforms before the template shows its synchronization action.
@@ -322,6 +346,7 @@ const canSyncUpstream = computed(() => {
     )
   }
   if (props.syncCredentials) {
+    if (props.syncCredentials.platform === 'qoder') return false
     return upstreamSyncPlatforms.has(props.syncCredentials.platform.toLowerCase())
   }
   return false
@@ -357,7 +382,7 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 // loading. Successful pages deduplicate IDs and leave the selected model array untouched;
 // failures retain any already displayed suggestions for retry.
 const loadCatalog = async (append = false) => {
-  if (props.models !== undefined) return
+  if (props.models !== undefined || normalizedPlatforms.value.includes('qoder')) return
   const version = ++queryVersion
   const page = append ? catalogPage.value + 1 : 1
   loadingCatalog.value = true
@@ -399,7 +424,11 @@ watch([showDropdown, searchQuery, () => props.models], () => {
   catalogFailed.value = false
   catalogModels.value = []
   catalogTotal.value = 0
-  if (showDropdown.value && props.models === undefined) {
+  if (
+    showDropdown.value &&
+    props.models === undefined &&
+    !normalizedPlatforms.value.includes('qoder')
+  ) {
     searchTimer = setTimeout(() => {
       void loadCatalog()
     }, SEARCH_DEBOUNCE_MS)
@@ -408,6 +437,7 @@ watch([showDropdown, searchQuery, () => props.models], () => {
 // cancelUpstreamSync aborts the active synchronization request and releases its busy
 // state so another target can be synchronized immediately.
 const cancelUpstreamSync = () => {
+  syncedQoderModels.value = undefined
   syncRequest?.abort()
   syncRequest = undefined
   isSyncingUpstream.value = false
@@ -434,9 +464,13 @@ onBeforeUnmount(() => {
 const filteredModels = computed(() => {
   const query = searchQuery.value.toLowerCase().trim()
   const ids =
-    props.models === undefined
-      ? catalogModels.value
-      : props.models.filter((id) => id.toLowerCase().includes(query))
+    syncedQoderModels.value !== undefined
+      ? syncedQoderModels.value.filter((id) => id.toLowerCase().includes(query))
+      : props.models === undefined
+        ? normalizedPlatforms.value.includes('qoder')
+          ? []
+          : catalogModels.value
+        : props.models.filter((id) => id.toLowerCase().includes(query))
   return [...new Set(ids)].map((id) => ({ value: id, label: id }))
 })
 
@@ -529,6 +563,11 @@ const syncUpstreamModels = async () => {
     emit('synced', result)
 
     const upstreamModels = result.models.map((model) => model.trim()).filter(Boolean)
+    if (normalizedPlatforms.value.includes('qoder')) {
+      // Retain the account candidates for search and validation, then merge
+      // their enabled IDs into the draft using the shared whitelist behavior.
+      syncedQoderModels.value = upstreamModels
+    }
     if (upstreamModels.length === 0) {
       appStore.showInfo(t('admin.providers.syncUpstreamModelsEmpty'))
       return

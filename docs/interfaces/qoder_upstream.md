@@ -23,11 +23,11 @@ TokenRouter 通过 Qoder COSY 网关路径，支持 Qoder 原生的上游提供�
 - 创建和导入时，要求 `platform=qoder` 和 `type=cosy` 互相对应；OAuth、API Key、Upstream、Bedrock 和 Service Account 都不能保存为 Qoder 提供商。
 - 创建和编辑时的凭据校验，由 provider 的规则和 `provider/provider.CreateCredentialHooks` 组合完成；站点的 PAT 交换和机器身份准备使用原生的提供商记录，保留 CN 和 Global 的差异，并在调用时执行。
 - `credentials.site` 选择站点。为了兼容已有的提供商，没有这个字段时按 `global` 处理。
-- `credentials.refresh_mode` 记录令牌的来源。没有时按 `cosy` 处理；中国站的标准 OAuth 使用 `qodercn20`。
+- `credentials.refresh_mode` 记录令牌的来源。没有时按 `cosy` 处理；新版桌面授权在两个站点都使用 `device_token`；旧中国站 OAuth 的 `qodercn20` 继续保留。
 - 手工导入可以只提供 `pat`，也可以提供一组现有的 COSY 令牌。
 - 现有的 COSY 令牌凭据包括 `security_oauth_token`、`refresh_token`、`machine_id`、`machine_token`、`machine_type`、`uid` 或 `aid`，以及可选的组织元数据。
-- 国际站的 OAuth 和手工 COSY 凭据，通过国际站的 Center 流程刷新。中国站的标准 OAuth 先刷新 OpenAPI 令牌，再完成 `userinfo -> status`；中国站的手工 COSY 凭据使用 Gateway 的旧刷新路径。PAT 会话根据原始的 PAT 重建。
-- 中国站支持标准的 QODER_PAT 和 QoderCN20 登录。企业专属域名的 `PERSONAL_TOKEN`、组织选择、AK/SK 和区域发现都不支持。
+- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`，并重新查询 userinfo；首次授权还查询 account plan 补齐账号类型。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
+- 中国站支持标准 QODER_PAT 和新版桌面设备授权，旧 QoderCN20 凭据仍可刷新。企业专属域名的 `PERSONAL_TOKEN`、组织选择、AK/SK 和区域发现都不支持。
 
 ## 客户端协议
 
@@ -35,43 +35,20 @@ Qoder Cosy 的原生协议只有 `qoder_chat`；对外的 Messages、Responses �
 
 协议开关不影响 Qoder 的站点、模型路由、思考控制和提供商资格。Responses 子路径和 WebSocket 不属于 Qoder 的能力，启用 Responses 协议也不会开放它们。
 
+<a id="qoder_account_catalog"></a>
 ## 模型别名与映射
 
-国际站的公开别名：
+模型来自所选账号的 Gateway `/api/v2/model/list`，只读取桌面客户端的 `app` 场景。响应中的 `enable` 决定该路由是否进入账号候选，推理时上游还会检查权益；BYOK 模型不进入 COSY 账号目录。
 
-- `claude-opus-4-6`
-- `auto`
-- `performance`
-- `efficient`
-- `lite`
-- `qwen3.8-max`
-- `qwen3.7-max`
-- `qwen3.7-plus`
-- `kimi-k3`
-- `kimi-k2.7-code`
-- `glm-5.3`
-- `glm-5.2`
-- `deepseek-v4-pro`
-- `deepseek-v4-flash`
-- `minimax-m3`
+原始路由键是稳定的请求 ID。可以识别公共型号时，网关同时提供当前型号的可读别名。未识别的型号使用原始路由键，并保留上游显示名。别名冲突时保留原始路由键。明确命名的模型可以关联统一目录的公共身份；Auto、Ultimate、Fast、Sonus、Cantus 等档位或品牌名不被固定解释为某个厂商型号。路由键保持不变而显示名升级时，旧名称不会继续指向新型号。
 
-中国站的公开别名：
+管理员在已保存提供商的「模型」页点击「同步上游支持的模型」时，网关会查询该账号，把成功结果存入 `provider.extra.qoder_model_catalog`。查询最多四个并发，同账号的并发请求合并，单次上游查询预算十五秒。快照跨重启保留，持续使用至下一次手动同步成功或账号身份改变。
 
-- `auto`
-- `qwen3.8-max`
-- `qwen3.7-max`
-- `qwen3.7-plus`
-- `qwen3.6-flash`
-- `deepseek-v4-pro`
-- `deepseek-v4-flash`
-- `glm-5.3`
-- `glm-5.2`
-- `kimi-k2.7-code`
-- `minimax-m2.7`
+有效空目录会清空自动候选；网络错误、认证失败和非法响应不会清空最近成功目录。快照记录站点、已知账号和组织。更换站点、账号、组织或 PAT 后旧观察失效。同一已识别账号轮换访问令牌时仍可使用有效快照；缺少账号标识时以凭据摘要区分。写入还比较查询前的完整提供商配置，拒绝迟到结果。正常提供商快照和 outbox 传播已接受的目录更新。
 
-提供商的模型列表和默认别名解析，按 `credentials.site` 进行。路由候选直接从两个站点的 alias 表枚举、去重并按 ID 排序。名称和通用模型候选由统一目录提供。混合了两个站点的分组，公开其可调度的提供商支持的并集，但站点专属的别名和路由键，只会调度给兼容的提供商。手动配置的提供商映射仍然可以覆盖这些规则，未知的原始路由键继续透传。
+模型页将返回的可用 ID 去重并加入白名单草稿，保留已有项；点击「更新」后白名单生效。下方展示上游返回的所有模型，包括禁用项、推理档位、输入输出限制及上下文选项。管理端、公开目录、调度与请求转换共用账号快照。管理接口的 `qoder_model_catalog_status` 和同步接口的 `sync_status` 都包含 `model_details`。
 
-两个站点的 `qwen3.8-max` 都映射到正式路由 `qmodel_38max`。已经移除的 `qwen3.8-max-preview` 别名和 `qmodel_preview` 路由，不会被悄悄重定向。还需要使用旧请求名的提供商，要配置手动的 `model_mapping`，例如 `qwen3.8-max-preview -> qmodel_38max`。
+已移除模型不再提供自动候选或旧别名，管理员保存的配置不被自动改写。未知原始路由需要显式的提供商映射目标或具体白名单项，通配白名单不会自动恢复已退役型号。手动映射到当前可用路由仍然有效；已观察到但被账号禁用的路由不会被手动映射解禁。
 
 Qoder 提供商的 `model_mapping` 和其他平台使用相同的改写规则：
 
@@ -83,63 +60,32 @@ Qoder 提供商的 `model_mapping` 和其他平台使用相同的改写规则：
 
 ## 站点思考控制
 
-站点的能力快照已经基于 Qoder 国际站和中国站的 1.24.2 版本验证过。这个版本号通过 OpenAPI 的 User-Agent、`Cosy-Version`、签名载荷里的 `cosyVersion` 和推理请求里的 `business.version` 传递。
+协议基线是桌面客户端 `0.5.14` 内嵌的 `1.1.86-hotfix.5.3` 运行时。模型查询和推理均使用桌面应用身份 `Cosy-ClientType: 10`，场景和业务产品均为 `app`。运行时版本用于 OpenAPI User-Agent、`Cosy-Version`、签名载荷中的 `cosyVersion` 和推理报文的 `business.version`；桌面外壳版本不替代这些协议版本。
 
-能力查找发生在提供商级的模型映射和公共别名解析之后，所以直接映射到已知路由键的自定义请求模型，会得到相同的处理。国际站和中国站共用的路由键，思考能力相同。未知的路由键，以及没有验证过的国际站专属模型，保持原样。
+推理控制来自所选账号模型的 `thinking_config`、`efforts`、`supports_disabled` 和默认值。`low`、`medium`、`high`、`xhigh`、`max` 分别保留。缺省请求使用模型默认值；明确关闭优先于启用，不能关闭推理的模型收到关闭请求时返回参数错误。已支持的强度原样发送，缺失的中间档位提升到最近的更高可用档位，超出范围取最高档位；正数 budget 使用最高可用档位。只有开关的模型只发送开关。
 
-| 站点 | 公开模型 | 路由键 | 思考能力 | 下游映射 |
-| --- | --- | --- | --- | --- |
-| 国际站 | `qwen3.8-max` | `qmodel_38max` | 只有开关 | 任何有效的强度、启用或自适应开关、正数的预算，都开启思考，不发送级别 |
-| 国际站 | `qwen3.7-max` | `qmodel_latest` | 只有开关 | 与 Qwen3.8-Max 相同 |
-| 国际站 | `qwen3.7-plus` | `qmodel` | 只有开关 | 与 Qwen3.8-Max 相同 |
-| 国际站 | `deepseek-v4-pro` | `dmodel` | High / Max | Minimal、Low、Medium 映射为 High；High、Very High、Max 映射为 Max；任何正数预算映射为 Max |
-| 国际站 | `deepseek-v4-flash` | `dfmodel` | High / Max | 与 DeepSeek-V4-Pro 相同 |
-| 国际站 | `glm-5.3` | `gmodel` | Low / High / Max | Minimal、Low 映射为 Low；Medium、High 映射为 High；Very High、Max 映射为 Max；任何正数预算映射为 Max |
-| 国际站 | `glm-5.2` | `gm51model` | High / Max | 与 DeepSeek-V4-Pro 相同 |
-| 中国站 | `auto` | `auto` | 用户无法设置 | 保持原样 |
-| 中国站 | `qwen3.8-max` | `qmodel_38max` | 只有开关 | 与国际站的 Qwen3.8-Max 相同 |
-| 中国站 | `qwen3.7-max` | `qmodel_latest` | 只有开关 | 与 Qwen3.8-Max 相同 |
-| 中国站 | `qwen3.7-plus` | `qmodel` | 只有开关 | 与 Qwen3.8-Max 相同 |
-| 中国站 | `qwen3.6-flash` | `q36fmodel` | 用户无法设置 | 保持原样 |
-| 中国站 | `deepseek-v4-pro` | `dmodel` | High / Max | Minimal、Low、Medium 映射为 High；High、Very High、Max 映射为 Max；任何正数预算映射为 Max |
-| 中国站 | `deepseek-v4-flash` | `dfmodel` | High / Max | 与 DeepSeek-V4-Pro 相同 |
-| 中国站 | `glm-5.3` | `gmodel` | Low / High / Max | 与国际站的 GLM-5.3 相同 |
-| 中国站 | `glm-5.2` | `gm51model` | High / Max | 与 DeepSeek-V4-Pro 相同 |
-| 中国站 | `kimi-k2.7-code` | `kmodel` | 用户无法设置 | 保持原样 |
-| 中国站 | `minimax-m2.7` | `mmodel` | 用户无法设置 | 保持原样 |
-
-网关从各入站协议读取原生的控制字段：
-
-- Chat Completions：读取 `reasoning_effort`，没有时读 `reasoning.effort`。
-- Responses：读取 `reasoning.effort`，没有时读 `reasoning_effort`。
-- Anthropic Messages：读取 `output_config.effort`、`thinking.type` 和 `thinking.budget_tokens`。
-
-明确的 `thinking.type=disabled` 或强度 `none` 始终优先。其次是明确的有效强度，然后是正数的预算，最后是 `enabled` 或 `adaptive`；字段缺失或无效时，思考保持关闭。可以切换的模型在关闭时，发送 Qoder 的 `reasoning_effort=none`，请求不会退回上游的默认值。虽然 Qoder 把 Qwen3.8-Max 的思考标为默认开启，这里仍按 TokenRouter 明确控制的规则处理。未知的强度字符串会被忽略，请求照常执行。
+各入口读取原生字段：Chat 优先 `reasoning_effort`，Responses 优先 `reasoning.effort`，Messages 读取 `output_config.effort`、`thinking.type` 和 `thinking.budget_tokens`。无效强度不构成明确控制；其余有效字段仍可生效，否则继承模型默认值。`enabled` 或 `adaptive` 没有 budget 时使用模型默认强度。管理员的属性覆盖继续作用于最终可用档位。
 
 ## 上下文窗口
 
-输入上限由 `modelcatalog/qoder.go` 的固定路由表提供，写入统一属性的 `input_limit`。有明确公共身份的模型继续读取目录的总上下文，auto、performance、efficient、lite 等动态档位的总上下文保持未知。每次请求在提供商映射和站点选择后解析属性，再叠加管理员覆盖。故障转移换站点时，使用同一请求快照重新计算目标路线。
+输入上限来自账号目录的 `max_input_tokens` 和 `context_config`，选择已声明的最大可用窗口，再应用管理员覆盖。目录的原始默认窗口仍保留在快照中。模型属性和请求报文使用同一观察；已退役型号不再继承曾经绑定到该路由键的上下文。
 
-| 站点 | 最大输入 Token | 路由键 |
-| --- | ---: | --- |
-| 国际站 | 1,000,000 | `ultimate`、`performance`、`qmodel_38max`、`qmodel_latest`、`qmodel`、`kmodel_latest`、`gmodel`、`gm51model`、`dmodel`、`dfmodel`、`mmodel` |
-| 国际站 | 256,000 | `kmodel` |
-| 国际站 | 180,000 | `auto`、`efficient`、`lite` |
-| 中国站 | 1,000,000 | `qmodel_38max`、`qmodel_latest`、`qmodel`、`q36fmodel`、`dmodel`、`dfmodel`、`gmodel`、`gm51model` |
-| 中国站 | 256,000 | `kmodel` |
-| 中国站 | 200,000 | `mmodel` |
-| 中国站 | 180,000 | `auto` |
-
-有官方运行时 `contextConfig` 的路由，把所选的上限写进 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 和 `parameters.context_length`。最大值固定的路由只写 `model_config.max_input_tokens`。未知 raw route 继续透传，输入上限使用 200,000 的执行默认值，来源标为 `execution_default`。
+有上下文选项的路由将输入上限写入 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 和 `parameters.context_length`。没有选项的路由只写模型上限。显式配置且没有观察信息的自定义路由使用 200,000 的执行默认值，来源标为 `execution_default`。
 
 TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Responses 和 Anthropic Messages 里的输出 Token 字段只控制输出。客户端自己维护模型目录、压缩阈值和截断行为；`/v1/models` 和 `/models` 不公开非标准的上下文元数据。
 
 <a id="qoder_execution_boundary"></a>
 ## 平台执行与输出
 
-Qoder 的原生客户端、站点和模型能力、签名、报文转换和会话增量状态，只在 `upstream/qoder` 实现。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
+Qoder 的原生客户端、站点和模型能力、签名、报文转换和会话历史，只在 `upstream/qoder` 实现。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
 
-只用于手动导入和 opt-in 测试的本地凭据读取，隔离在 `upstream/qoder/localauth`；正常运行的服务不会自动读取本机的 Qoder 登录资料。
+三个入口都向上游发送完整历史。Responses 调用方可用 `previous_response_id` 只发送新输入或工具结果。网关按 API Key 和响应 ID 读取已完成的请求和回答，将工具结果与原调用配对。切换提供商时可以重放同一份历史，上游会话 ID 仍按提供商隔离。从较早的响应分支时只使用该响应的历史。
+
+历史只保存在当前网关进程内，默认保留两小时。整个进程最多保留 128 条、共 128 MiB，单条上限 32 MiB。重启、过期、容量淘汰或请求落到其他实例后，仅凭响应 ID 无法续接。此时返回 `previous_response_unavailable`，调用方可以提交完整历史重试。
+
+只用于手动导入和 opt-in 测试的本地凭据读取隔离在 `upstream/qoder/localauth`。macOS 桌面导入读取对应站点的 `auth.v1.dat`、`auth.machine-id` 和系统 Keychain，验证存储版本与站点；旧 CLI 文件仍可显式导入。凭据只在内存中解密，正常服务不会读取本机客户端登录资料。
+
+推理报文使用新版客户端的规范 `content`：用户文本块放在 `content` 数组，工具结果保留字符串或文本块，文本请求不再生成旧的 `contents` 副本。`chat_context.text` 和 `originalContent` 使用字符串，旧 `aliyun_user_type` 提示保持空值；模型显示名及视觉标记来自本次账号观察。自动缓存标记写到输出副本，避免改变后续会话指纹使用的输入。
 
 实际的写入和 Flush 由 HTTP 适配器负责，转换器逐段输出，整条 SSE 不会被聚合。`gateway/httpapi.QoderRequestMetadata` 复制本次的请求头，并整理出原来的 Key ID 和客户端标记，平台的会话键计算只在 upstream 执行。HTTP 测试连接同一个输出 Writer 和平台流实现。
 
@@ -159,7 +105,7 @@ Qoder 的原生客户端、站点和模型能力、签名、报文转换和会�
 
 ## 计费范围
 
-Qoder 和其他平台使用同一套价格解析规则，公开别名和路由键不需要手工定价。先按价格配置的 `billing_model_source`，选定请求模型、分组映射模型或上游模型，再为这个模型解析价格；三者之间不会互相查找另一个模型的价格。
+Qoder 和其他平台使用同一套价格解析规则，有明确报价的公共模型名可以使用统一目录价格，原始路由键和动态档位没有目录价格时保持未定价。先按价格配置的 `billing_model_source`，选定请求模型、分组映射模型或上游模型，再为这个模型解析价格；三者之间不会互相查找另一个模型的价格。
 
 1. 共享价格配置里手动填写的单价或有效区间优先。
 2. 分组没有关联价格配置时，使用统一的目录价格。
@@ -176,11 +122,13 @@ Qoder 和其他平台使用同一套价格解析规则，公开别名和路由�
 
 Qoder 有独立的上游月度 Credits 配额。TokenRouter 只把它当作提供商的用量和容量信息，它和 TokenRouter 的用户余额、订阅相互独立。
 
-提供商用量界面查询所选站点的 Gateway `/api/v2/quota/usage` 端点，并把最近一次成功的快照保存在 `provider.extra.qoder_quota_snapshot`。国际站的请求都使用 COSY 签名；中国站的 `qodercn20` 和 PAT 提供商同样使用 COSY 签名，旧版或导入的 COSY 会话按官方客户端的方式，使用 `security_oauth_token` 的 Bearer 鉴权。中国站的请求在有缓存的 `orgId` 时带上它，1.24.2 版本的常规配额查询不发送 `quota_key`。
+新版 `device_token` 提供商用 Bearer 访问所选站点的 OpenAPI `/sash/api/v2/me/usage`。`displayMode=qoder` 表示 Credits 观察；`displayMode=enterprise` 表示由上游管理的外部用量页，不生成零余额或额度耗尽判断。浏览器只提供经过 HTTPS 校验的详情地址或回退地址。
 
-实时查询失败时，管理界面可以同时显示缓存的快照和降级的用量错误。完整的上游月度 Credit 余额，是 `userQuota`、`addOnQuota` 和 `orgResourcePackage`（或 `sharedQuota`）之和，和 qodercli 的用量视图一致。对于非个人的零配额提供商，`isQuotaExceeded=true`，或者正数的合计配额已经用完时，会把正常的提供商调度信号 `rate_limited_until` 设到 Qoder 的 `expiresAt`；还有附加 Credit 或组织 Credit 时，会阻止或清除过期的配额锁。
+旧提供商继续使用 Gateway `/api/v2/quota/usage`：国际站、CN PAT 和旧 `qodercn20` 使用 COSY 签名，导入的 CN COSY 会话使用 Bearer；CN 可附带已保存的组织 ID。
 
-观测到的 `personal_standard` 结构，如果 `total=0`、`remaining=0`，并且 `expiresAt` 远在未来，只用于展示，等真实的请求错误确认限制后才生效。请求时的错误码 `115`、`agentLimitResetTime` 或 HTTP 429，走正常的提供商限流冷却。
+通用 Credits 余额只合计 `userQuota`、`addOnQuota` 和 `orgResourcePackage`。`dedicatedResourcePackages` 单独保留名称、余额、有效期和适用范围标签，不加入通用余额。存在仍可使用的专属 Credits 时，不因通用余额耗尽而停调整个提供商；具体路由资格继续由模型目录和实际请求错误决定。
+
+成功观察保存到 `provider.extra.qoder_quota_snapshot`，查询失败可显示缓存及降级错误。通用额度确已耗尽时沿用到 `expiresAt` 的调度冷却；`personal_standard` 的零配额占位结构不据此停调。请求错误码 `115`、`agentLimitResetTime` 或 HTTP 429 继续走正常限流处理。
 
 ## 运维
 

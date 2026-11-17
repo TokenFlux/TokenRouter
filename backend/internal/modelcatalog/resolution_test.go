@@ -125,34 +125,29 @@ func TestViewResolveConditionsAndOverride(t *testing.T) {
 	require.Equal(t, 128000, *catalog.View().Resolve(target, Attributes{}).Attributes.OutputLimit)
 }
 
-// TestViewResolveQoderRoutes resolves public aliases through their site route
-// keys and compares a shared key across sites. Input limits, reasoning controls,
-// and text modalities must follow the route, while unknown keys retain default
-// input limits and unknown catalog metadata.
+// TestViewResolveQoderRoutes resolves the same service key for two independent
+// account observations. Limits and defaults remain scoped to the observation,
+// while opaque routes do not inherit historical model identity or pricing.
 func TestViewResolveQoderRoutes(t *testing.T) {
 	body, err := Offline()
 	require.NoError(t, err)
 	catalog, err := Parse(body)
 	require.NoError(t, err)
-	for _, site := range []string{"global", "cn"} {
-		for model, key := range QoderAliases(site) {
-			t.Run(site+"/"+model, func(t *testing.T) {
-				result := catalog.View().Resolve(Target{Platform: "qoder", Site: site, Model: key}, Attributes{})
-				limit, selectable := QoderInputLimit(site, key)
-				require.Equal(t, limit, *result.Attributes.InputLimit)
-				require.Equal(t, selectable, result.Rules.RuntimeContext)
-				require.Equal(t, []string{"text"}, *result.Attributes.InputModalities)
-				require.Equal(t, "adapter", result.Sources["input_modalities"])
-				require.Equal(t, QoderReasoningOptions(site, key), *result.Attributes.ReasoningOptions)
-			})
-		}
-	}
-	global := catalog.View().Resolve(Target{Platform: "qoder", Site: "global", Model: "mmodel"}, Attributes{})
-	cn := catalog.View().Resolve(Target{Platform: "qoder", Site: "cn", Model: "mmodel"}, Attributes{})
-	require.Equal(t, 1000000, *global.Attributes.InputLimit)
-	require.Equal(t, 200000, *cn.Attributes.InputLimit)
-	require.NotEqual(t, global.Attributes.Context, cn.Attributes.Context)
-	unknown := catalog.View().Resolve(Target{Platform: "qoder", Model: "future-route"}, Attributes{})
+	global := QoderModel{Key: "mmodel", Identity: "minimax/minimax-m3.1-flash", InputLimit: 1000000, Reasoning: true, Efforts: []string{"low", "xhigh"}, ContextWindows: []int{200000, 1000000}}
+	cn := QoderModel{Key: "mmodel", InputLimit: 200000, Reasoning: true, Efforts: []string{"high"}}
+	firstTarget := Target{Platform: "qoder", Site: "global", Model: "mmodel", QoderModel: &global, QoderVersion: "account-1:v1"}
+	secondTarget := Target{Platform: "qoder", Site: "global", Model: "mmodel", QoderModel: &cn, QoderVersion: "account-2:v1"}
+	first := catalog.View().Resolve(firstTarget, Attributes{})
+	second := catalog.View().Resolve(secondTarget, Attributes{})
+	require.Equal(t, 1000000, *first.Attributes.InputLimit)
+	require.Equal(t, 200000, *second.Attributes.InputLimit)
+	require.Equal(t, []string{"text"}, *first.Attributes.InputModalities)
+	require.Equal(t, []string{"low", "xhigh"}, first.Attributes.Efforts())
+	require.NotEqual(t, firstTarget.Key(), secondTarget.Key())
+	cloned := first.Clone()
+	cloned.Target.QoderModel.Efforts[0] = "max"
+	require.Equal(t, "low", first.Target.QoderModel.Efforts[0])
+	unknown := catalog.View().Resolve(Target{Platform: "qoder", Model: "ultimate"}, Attributes{})
 	require.Equal(t, 200000, *unknown.Attributes.InputLimit)
 	require.Nil(t, unknown.Attributes.Context)
 	require.Nil(t, unknown.Attributes.ReasoningOptions)

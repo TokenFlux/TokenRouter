@@ -33,41 +33,29 @@ import (
 // retains matched calls and orders their results after the owning assistant
 // turn. Anthropic text and tool results become separate ordered Qoder messages,
 // while thinking history is omitted. Payload construction retains shared tool
-// definitions and text-block maps, mirrors context and thinking controls where
-// Qoder reads them, and adds ephemeral cache control to the last eligible text
-// block.
+// definitions, copies outgoing text-block maps, and mirrors observed context
+// and thinking controls. Canonical content carries text and cache annotations;
+// scalar tool results use the message-level cache marker accepted by the client.
 
-// Billing checksum normalization and blank response metadata support stable
-// history comparison while payload messages retain the Gateway's required
-// metadata shape.
+// FallbackMaxInputTokens bounds explicitly configured routes lacking observed
+// input metadata; it never contributes automatic account model candidates.
+const FallbackMaxInputTokens = modelcatalog.QoderFallbackInputLimit
+
+// Billing checksum normalization keeps volatile client billing metadata from
+// changing the stable conversation prefix used for session prefix comparison.
 var (
 	// QoderClaudeBillingCCHRe recognizes five-hex billing checksum text ending in a
 	// semicolon. System normalization replaces that volatile value before message
 	// payload or conversation fingerprint construction.
 	QoderClaudeBillingCCHRe = regexp.MustCompile(`(x-anthropic-billing-header:[^\n\r;]*?(?:;[^\n\r;]*?)*\bcch=)[0-9a-fA-F]{5}(;)`)
-
-	// QoderBlankResponseMeta supplies blank identity and usage fields to payload
-	// messages. The same nested map is shared across those messages, so callers
-	// keep this metadata immutable.
-	QoderBlankResponseMeta = map[string]any{
-		"id": "",
-		"usage": map[string]any{
-			"prompt_tokens":     0,
-			"completion_tokens": 0,
-			"total_tokens":      0,
-			"completion_tokens_details": map[string]any{
-				"reasoning_tokens": 0,
-			},
-			"prompt_tokens_details": map[string]any{
-				"cached_tokens": 0,
-			},
-		},
-	}
 )
 
 // QoderThinkingDirective carries normalized client intent before
 // route-capability effort mapping.
 type QoderThinkingDirective struct {
+	// Specified distinguishes explicit disabling from an absent client control.
+	// Missing controls inherit the selected account model's current defaults.
+	Specified bool // explicit client control
 	// Enabled selects whether adjustable routes send thinking controls. Effort is
 	// normalized client intent; effort-capable routes translate it only while
 	// Enabled is true. Disabled thinking sends none on those adjustable routes.
@@ -79,8 +67,8 @@ type QoderThinkingDirective struct {
 // Gateway preparation.
 type QoderPayloadRequest struct {
 	// Capabilities supplies per-attempt resolved attributes and execution rules
-	// when present. Nil leaves site catalog capability lookup to payload
-	// construction.
+	// when present. Nil leaves only execution defaults for an explicitly
+	// configured custom route; no site-wide model table is consulted.
 	Capabilities *modelcatalog.Resolution // resolved route attributes
 	Model        string                   // client model name
 	Site         Site                     // selected credential site
@@ -92,10 +80,10 @@ type QoderPayloadRequest struct {
 	// Tools is shared with payloads when tools are included. Callers keep its
 	// nested declarations stable while planning fingerprints and preparing request
 	// bytes.
-	Tools     []any                  // declared function tools
-	MaxTokens int                    // output tokens
-	Thinking  QoderThinkingDirective // normalized thinking intent
-	UserType  string                 // Qoder account classification
+	Tools      []any                  // declared function tools
+	ToolChoice any                    // normalized per-request tool policy
+	MaxTokens  int                    // output tokens
+	Thinking   QoderThinkingDirective // normalized thinking intent
 	// ExplicitSession, PromptCacheKey, and MetadataUserID retain distinct client
 	// session sources. QoderConversationKey selects precedence and applies API-key
 	// plus provider isolation after parsing.
@@ -107,22 +95,23 @@ type QoderPayloadRequest struct {
 	// Conversation selection then considers stable cache, metadata, header, and
 	// Claude Code sources before that generated value.
 	AutoResponseSession bool // generated session marker
-	// PreviousResponseID enables Responses append planning in Execute. The parser
+	// PreviousResponseID identifies the prior response for local replay. The parser
 	// also uses it as an explicit session candidate after session_id and
 	// conversation_id.
 	PreviousResponseID string // Responses continuation identifier
+	// RequiresPreviousResponse marks tool outputs whose calls are absent from
+	// this request. Execution must restore the matching API key’s saved history.
+	RequiresPreviousResponse bool // continuation-owned tool history
 }
 
 // BuildQoderPayloadFromChatCompletionsForSite parses Chat input and builds a
-// complete site-specific payload. The supplied site and user type determine
-// aliases and capabilities; construction sends all parsed messages with system
-// and tools enabled.
-func BuildQoderPayloadFromChatCompletionsForSite(body []byte, userType string, site Site) (map[string]any, string, error) {
+// complete payload for the supplied site. It sends all parsed messages, system
+// text, and tools. The historical user-type argument is ignored.
+func BuildQoderPayloadFromChatCompletionsForSite(body []byte, _ string, site Site) (map[string]any, string, error) {
 	request, err := ParseQoderChatCompletionsPayload(body)
 	if err != nil {
 		return nil, "", err
 	}
-	request.UserType = userType
 	request.Site = site
 	payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 	return payload, modelKey, nil
@@ -168,6 +157,7 @@ func ParseQoderChatCompletionsPayload(body []byte) (QoderPayloadRequest, error) 
 		System:          QoderChatSystemText(req.Messages),
 		Messages:        messages,
 		Tools:           QoderChatCompletionsTools(req, rawReq),
+		ToolChoice:      QoderToolChoice(rawReq["tool_choice"]),
 		MaxTokens:       maxTokens,
 		Thinking:        QoderThinkingDirectiveFromBody(body, "reasoning_effort", "reasoning.effort"),
 		ExplicitSession: FirstNonEmptyQoder(QoderStringField(rawReq, "session_id"), QoderStringField(rawReq, "conversation_id")),
@@ -177,15 +167,13 @@ func ParseQoderChatCompletionsPayload(body []byte) (QoderPayloadRequest, error) 
 }
 
 // BuildQoderPayloadFromAnthropicMessages parses Messages input and builds a
-// complete global-site payload. The supplied user type replaces the parsed
-// value; construction sends all parsed messages, system text, and converted tool
-// definitions.
-func BuildQoderPayloadFromAnthropicMessages(body []byte, userType string) (map[string]any, string, error) {
+// complete global-site payload with all parsed messages, system text, and tool
+// definitions. The historical user-type argument is ignored.
+func BuildQoderPayloadFromAnthropicMessages(body []byte, _ string) (map[string]any, string, error) {
 	request, err := ParseQoderAnthropicMessagesPayload(body)
 	if err != nil {
 		return nil, "", err
 	}
-	request.UserType = userType
 	payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 	return payload, modelKey, nil
 }
@@ -198,10 +186,10 @@ func BuildQoderPayloadFromAnthropicMessages(body []byte, userType string) (map[s
 // Explicit session_id, conversation_id, and previous_response_id are selected
 // before generating a response ID. When none exists, the generated response ID
 // becomes an auto session that yields to stable cache/header keys later.
-// Function calls and outputs are normalized into paired history before the
-// conversation planner interprets continuation input. An output needs its call in
-// the submitted items; previous_response_id does not supply missing calls for this
-// pairing step.
+// Standalone requests normalize function calls and outputs into paired history.
+// A previous_response_id request retains outputs belonging to earlier calls and
+// requires the saved response history for that API key before those outputs can be
+// forwarded. Full submitted call/result history remains available for replay.
 func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 	var req protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -210,9 +198,17 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 	if strings.TrimSpace(req.Model) == "" {
 		return QoderPayloadRequest{}, errors.New("model is required")
 	}
+	rawReq := QoderRequestMap(body)
+	previousResponseID := QoderStringField(rawReq, "previous_response_id")
 	messages, err := QoderMessagesFromResponsesInput(req.Input)
 	if err != nil {
 		return QoderPayloadRequest{}, err
+	}
+	requiresPrevious := previousResponseID != "" && qoderHasUnpairedToolOutputs(messages)
+	if previousResponseID == "" {
+		// Standalone input needs complete call/result pairs. A continuation instead
+		// restores its preceding calls from the locally retained response history.
+		messages = NormalizeQoderResponsesToolPairing(messages)
 	}
 	messages = EnrichQoderToolResultMessages(messages)
 
@@ -241,10 +237,8 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 	}
 	system := strings.Join(systemParts, "\n\n")
 
-	rawReq := QoderRequestMap(body)
 	sessionID := QoderStringField(rawReq, "session_id")
 	conversationID := QoderStringField(rawReq, "conversation_id")
-	previousResponseID := QoderStringField(rawReq, "previous_response_id")
 	explicitSession := FirstNonEmptyQoder(sessionID, conversationID, previousResponseID)
 	responseID := QoderResponsesID()
 	autoResponseSession := explicitSession == ""
@@ -256,18 +250,20 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 		maxTokens = *req.MaxOutputTokens
 	}
 	return QoderPayloadRequest{
-		Model:               req.Model,
-		System:              system,
-		Messages:            messages,
-		Tools:               QoderResponsesToolsToQoderTools(req.Tools),
-		MaxTokens:           maxTokens,
-		Thinking:            QoderThinkingDirectiveFromBody(body, "reasoning.effort", "reasoning_effort"),
-		ExplicitSession:     explicitSession,
-		PromptCacheKey:      QoderStringField(rawReq, "prompt_cache_key"),
-		MetadataUserID:      QoderMetadataUserID(rawReq["metadata"]),
-		ResponseID:          responseID,
-		AutoResponseSession: autoResponseSession,
-		PreviousResponseID:  previousResponseID,
+		Model:                    req.Model,
+		System:                   system,
+		Messages:                 messages,
+		Tools:                    QoderResponsesToolsToQoderTools(req.Tools),
+		ToolChoice:               QoderToolChoice(rawReq["tool_choice"]),
+		MaxTokens:                maxTokens,
+		Thinking:                 QoderThinkingDirectiveFromBody(body, "reasoning.effort", "reasoning_effort"),
+		ExplicitSession:          explicitSession,
+		PromptCacheKey:           QoderStringField(rawReq, "prompt_cache_key"),
+		MetadataUserID:           QoderMetadataUserID(rawReq["metadata"]),
+		ResponseID:               responseID,
+		AutoResponseSession:      autoResponseSession,
+		PreviousResponseID:       previousResponseID,
+		RequiresPreviousResponse: requiresPrevious,
 	}, nil
 }
 
@@ -322,6 +318,7 @@ func ParseQoderAnthropicMessagesPayload(body []byte) (QoderPayloadRequest, error
 		System:          system,
 		Messages:        messages,
 		Tools:           QoderResponsesToolsToQoderTools(responsesReq.Tools),
+		ToolChoice:      QoderToolChoice(rawReq["tool_choice"]),
 		MaxTokens:       maxTokens,
 		Thinking:        QoderThinkingDirectiveFromBody(body, "output_config.effort"),
 		ExplicitSession: FirstNonEmptyQoder(QoderStringField(rawReq, "session_id"), QoderStringField(rawReq, "conversation_id")),
@@ -342,7 +339,7 @@ func ParseQoderAnthropicMessagesPayload(body []byte) (QoderPayloadRequest, error
 func QoderThinkingDirectiveFromBody(body []byte, effortPaths ...string) QoderThinkingDirective {
 	thinkingType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "thinking.type").String()))
 	if thinkingType == "disabled" || thinkingType == "none" || thinkingType == "off" {
-		return QoderThinkingDirective{}
+		return QoderThinkingDirective{Specified: true}
 	}
 
 	effort := ""
@@ -355,21 +352,21 @@ func QoderThinkingDirectiveFromBody(body []byte, effortPaths ...string) QoderThi
 		}
 		mapped, disabled := NormalizeQoderThinkingEffort(raw)
 		if disabled {
-			return QoderThinkingDirective{}
+			return QoderThinkingDirective{Specified: true}
 		}
 		if effort == "" && mapped != "" {
 			effort = mapped
 		}
 	}
 	if effort != "" {
-		return QoderThinkingDirective{Enabled: true, Effort: effort}
+		return QoderThinkingDirective{Specified: true, Enabled: true, Effort: effort}
 	}
 
 	if gjson.GetBytes(body, "thinking.budget_tokens").Int() > 0 {
-		return QoderThinkingDirective{Enabled: true, Effort: "max"}
+		return QoderThinkingDirective{Specified: true, Enabled: true, Effort: "max"}
 	}
 	if thinkingType == "enabled" || thinkingType == "adaptive" {
-		return QoderThinkingDirective{Enabled: true, Effort: "max"}
+		return QoderThinkingDirective{Specified: true, Enabled: true}
 	}
 	return QoderThinkingDirective{}
 }
@@ -389,7 +386,9 @@ func NormalizeQoderThinkingEffort(raw string) (effort string, disabled bool) {
 		return "medium", false
 	case "high":
 		return "high", false
-	case "xhigh", "veryhigh", "extrahigh", "max":
+	case "xhigh", "veryhigh", "extrahigh":
+		return "xhigh", false
+	case "max":
 		return "max", false
 	default:
 		return "", false
@@ -439,9 +438,9 @@ func QoderMetadataUserID(raw any) string {
 }
 
 // QoderMessageFingerprints hashes each message's outgoing payload representation
-// in order. Payload conversion borrows text-block maps and response metadata, so
-// callers keep message contents stable while the planner computes these history
-// fingerprints.
+// in order. Outgoing text-block maps are copied, while raw tool data is read
+// synchronously. Callers keep the input stable until all history fingerprints
+// have been computed.
 func QoderMessageFingerprints(messages []QoderMessage) []string {
 	fingerprints := make([]string, 0, len(messages))
 	for _, message := range messages {
@@ -487,24 +486,22 @@ func QoderFingerprintAny(value any) string {
 }
 
 // BuildQoderPayloadWithOptions builds a complete Qoder request using selected
-// messages and inclusion flags. Model aliases and controls depend on
-// request.Site, missing user type selects personal_standard, and a blank session
-// ID generates a UUID. The supplied MaxTokens is written as provided, and
+// messages and inclusion flags. The captured account model supplies the service
+// key and execution controls. A blank session ID generates a UUID. The
+// supplied MaxTokens is written as provided, and
 // callers pass a supported site for business-profile lookup.
 //
 // Request and chat-record IDs share one UUID while request-set and business IDs
 // are separate. Prompt selection considers current messages before the request's
 // full history. System/tool inclusion and mirrored context/thinking settings
-// shape the outgoing request, and ephemeral cache control can mutate borrowed
-// text-block maps. Tools and blank response metadata remain shared references in
-// the returned payload.
+// shape the outgoing request. Automatic cache markers modify only outgoing
+// text-block maps; tool definitions remain shared references in the returned
+// payload and must stay stable until serialization finishes.
 func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string, messages []QoderMessage, includeSystem bool, includeTools bool) (map[string]any, string) {
-	modelInfo := ResolveQoderModelForSite(request.Site, request.Model)
-	userType := request.UserType
-	if strings.TrimSpace(userType) == "" {
-		userType = "personal_standard"
+	modelInfo := QoderModelInfo{Key: strings.TrimSpace(request.Model), Source: "system"}
+	if request.Capabilities != nil && request.Capabilities.Target.QoderModel != nil {
+		modelInfo.Key = request.Capabilities.Target.QoderModel.Key
 	}
-
 	requestID := uuid.NewString()
 	prompt := LatestQoderPayloadPromptText(messages, includeTools)
 	if prompt == "" {
@@ -518,28 +515,37 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	payload["chat_record_id"] = requestID
 	payload["request_set_id"] = uuid.NewString()
 	payload["session_id"] = sessionID
-	payload["aliyun_user_type"] = userType
+	// The current desktop runtime leaves this legacy hint empty. A saved plan
+	// label must not replace that protocol value when constructing a new request.
+	payload["aliyun_user_type"] = ""
 	parameters, _ := payload["parameters"].(map[string]any)
 	modelConfig, _ := payload["model_config"].(map[string]any)
 	parameters["max_tokens"] = request.MaxTokens
+	if request.ToolChoice != nil {
+		parameters["tool_choice"] = request.ToolChoice
+	}
 	modelConfig["key"] = modelInfo.Key
 	modelConfig["source"] = modelInfo.Source
+	modelConfig["display_name"] = modelInfo.Key
+	if request.Capabilities != nil && request.Capabilities.Target.QoderModel != nil {
+		model := request.Capabilities.Target.QoderModel
+		modelConfig["display_name"] = model.Name
+		modelConfig["is_vl"] = model.Vision
+	}
 	chatContext, _ := payload["chat_context"].(map[string]any)
-	chatText, _ := chatContext["text"].(map[string]any)
 	extra, _ := chatContext["extra"].(map[string]any)
 	extraModelConfig, _ := extra["modelConfig"].(map[string]any)
-	extraOriginalContent, _ := extra["originalContent"].(map[string]any)
-	chatText["text"] = prompt
+	chatContext["text"] = prompt
 	extraModelConfig["key"] = modelInfo.Key
 	extraModelConfig["source"] = modelInfo.Source
 	ApplyQoderContextCapability(payload, request.Site, modelInfo.Key, request.Capabilities)
 	ApplyQoderThinkingDirective(payload, request.Site, modelInfo.Key, request.Thinking, request.Capabilities)
-	extraOriginalContent["text"] = prompt
+	extra["originalContent"] = prompt
 	// Business name is limited to thirty runes while full prompt text remains in
 	// chat context and message history. Truncation affects this descriptive title
 	// alone.
 	payload["business"] = map[string]any{
-		"product":  "cli",
+		"product":  DesktopProduct,
 		"version":  MustProfileForSite(request.Site).ClientVersion,
 		"type":     "agent",
 		"stage":    "init",
@@ -579,22 +585,23 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 // Fixed routes return after the model limit so their request does not gain a
 // context override that the route lacks.
 func ApplyQoderContextCapability(payload map[string]any, site Site, modelKey string, resolutions ...*modelcatalog.Resolution) {
-	capability := ContextCapabilityForSite(site, modelKey)
+	maxInput := modelcatalog.QoderFallbackInputLimit
+	selectable := false
 	if len(resolutions) > 0 && resolutions[0] != nil {
 		value := resolutions[0]
 		if value.Attributes.InputLimit != nil {
-			capability.MaxInputTokens = *value.Attributes.InputLimit
+			maxInput = *value.Attributes.InputLimit
 		}
-		capability.RuntimeSelectable = value.Rules.RuntimeContext
+		selectable = value.Rules.RuntimeContext
 	}
 	modelConfig, _ := payload["model_config"].(map[string]any)
-	modelConfig["max_input_tokens"] = capability.MaxInputTokens
-	if !capability.RuntimeSelectable {
+	modelConfig["max_input_tokens"] = maxInput
+	if !selectable {
 		return
 	}
 
 	parameters, _ := payload["parameters"].(map[string]any)
-	parameters["context_length"] = capability.MaxInputTokens
+	parameters["context_length"] = maxInput
 	chatContext, _ := payload["chat_context"].(map[string]any)
 	extra, _ := chatContext["extra"].(map[string]any)
 	runtimeOverride, _ := extra["ideModelConfigOverride"].(map[string]any)
@@ -602,97 +609,37 @@ func ApplyQoderContextCapability(payload map[string]any, site Site, modelKey str
 		runtimeOverride = map[string]any{}
 		extra["ideModelConfigOverride"] = runtimeOverride
 	}
-	runtimeOverride["max_input_tokens"] = capability.MaxInputTokens
+	runtimeOverride["max_input_tokens"] = maxInput
 }
 
-// ApplyQoderThinkingDirective writes coherent switch and effort values across
-// Qoder configuration copies. The payload needs QoderBasePayload's nested maps.
-// A supplied first resolution replaces the site capability lookup, and
-// unsupported routes retain their existing configuration.
-//
-// Adjustable routes write both is_reasoning copies. Enabled toggle-only routes
-// return after those switches, retaining any preexisting effort fields. Disabled
-// routes send none to override upstream defaults.
-// Effort-capable routes map the normalized request into supported levels and
-// mirror that result in parameters, model config, extra model config, and
-// runtime override.
+// ApplyQoderThinkingDirective mirrors account-observed reasoning controls into
+// the Qoder payload. A missing account observation leaves custom routes alone;
+// Executor validates explicit unsupported controls before invoking this writer.
 func ApplyQoderThinkingDirective(payload map[string]any, site Site, modelKey string, directive QoderThinkingDirective, resolutions ...*modelcatalog.Resolution) {
-	capability := ThinkingCapabilityForSite(site, modelKey)
 	if len(resolutions) > 0 && resolutions[0] != nil {
-		capability = thinkingCapabilityFromAttributes(resolutions[0].Attributes)
-	}
-	if capability == ThinkingUnsupported {
-		return
-	}
-
-	parameters, _ := payload["parameters"].(map[string]any)
-	modelConfig, _ := payload["model_config"].(map[string]any)
-	chatContext, _ := payload["chat_context"].(map[string]any)
-	extra, _ := chatContext["extra"].(map[string]any)
-	extraModelConfig, _ := extra["modelConfig"].(map[string]any)
-	// The outgoing model and IDE configuration each carry a reasoning switch.
-	// Update both before effort selection so they describe the same enabled state.
-	modelConfig["is_reasoning"] = directive.Enabled
-	extraModelConfig["is_reasoning"] = directive.Enabled
-
-	// Toggle-only routes accept the switch without an enabling effort. Disabled
-	// requests continue below to send none and override the route's upstream
-	// default.
-	if capability == ThinkingToggleOnly && directive.Enabled {
-		return
-	}
-
-	effort := "none"
-	if directive.Enabled {
-		effort = QoderThinkingEffortForCapability(capability, directive.Effort)
-	}
-	parameters["reasoning_effort"] = effort
-	modelConfig["reasoning_effort"] = effort
-	extraModelConfig["reasoning_effort"] = effort
-	runtimeOverride, _ := extra["ideModelConfigOverride"].(map[string]any)
-	if runtimeOverride == nil {
-		runtimeOverride = map[string]any{}
-		extra["ideModelConfigOverride"] = runtimeOverride
-	}
-	runtimeOverride["reasoning_effort"] = effort
-}
-
-// QoderThinkingEffortForCapability selects a supported effort for the capability
-// and normalized request. High/max routes promote low/medium to high;
-// low/high/max routes retain low, map medium/high to high, and use max for other
-// requests.
-func QoderThinkingEffortForCapability(capability ThinkingCapability, requested string) string {
-	switch capability {
-	case ThinkingHighMax:
-		if requested == "low" || requested == "medium" {
-			return "high"
-		}
-		return "max"
-	case ThinkingLowHighMax:
-		switch requested {
-		case "low":
-			return "low"
-		case "medium", "high":
-			return "high"
-		default:
-			return "max"
-		}
-	default:
-		return requested
+		applyObservedThinking(payload, directive, resolutions[0])
 	}
 }
 
-// AddQoderEphemeralCacheControl mutates the last nonblank text block in the
-// supplied messages. An existing cache_control on that block wins. It stops
-// after that eligible block, leaving earlier blocks and non-text contents
-// available as supplied.
+// AddQoderEphemeralCacheControl marks the final nonblank message content for
+// caching. Text arrays carry the marker on their last text block, and scalar
+// content carries it on the message. Existing markers remain authoritative;
+// callers supply payload-owned message and block maps before this mutation.
 func AddQoderEphemeralCacheControl(messages []any) {
 	for _, message := range slices.Backward(messages) {
 		message, ok := message.(map[string]any)
 		if !ok {
 			continue
 		}
-		contents, _ := message["contents"].([]any)
+		if text, ok := message["content"].(string); ok && strings.TrimSpace(text) != "" {
+			// Scalar tool or assistant content carries cache control on the message,
+			// matching the desktop representation without duplicating text in another field.
+			if _, exists := message["cache_control"]; !exists {
+				message["cache_control"] = map[string]any{"type": "ephemeral"}
+			}
+			return
+		}
+		contents, _ := message["content"].([]any)
 		for _, content := range slices.Backward(contents) {
 			block, ok := content.(map[string]any)
 			if !ok || block["type"] != "text" {
@@ -730,30 +677,29 @@ func QoderBasePayload() map[string]any {
 		"version":          "3",
 		"chat_prompt":      "",
 		"parameters":       map[string]any{"max_tokens": QoderDefaultMaxTokens},
-		"aliyun_user_type": "personal_standard",
-		"session_type":     "qodercli",
+		"aliyun_user_type": "",
+		"session_type":     DesktopProduct,
 		"agent_id":         "agent_common",
 		"task_id":          "common",
 		"chat_context": map[string]any{
 			"chatPrompt": "",
 			"features":   []any{},
 			"imageUrls":  nil,
-			"text":       map[string]any{"type": "text", "text": ""},
+			"text":       "",
 			"extra": map[string]any{
 				"context":         []any{},
 				"modelConfig":     map[string]any{"is_reasoning": false, "key": "auto"},
-				"originalContent": map[string]any{"type": "text", "text": ""},
+				"originalContent": "",
 			},
 		},
 		"model_config": map[string]any{
 			"key":              "auto",
-			"display_name":     "Qoder Auto",
-			"model":            "",
 			"format":           "openai",
-			"is_vl":            false,
-			"is_reasoning":     false,
+			"model":            "",
 			"api_key":          "",
 			"url":              "",
+			"is_vl":            false,
+			"is_reasoning":     false,
 			"source":           "system",
 			"max_input_tokens": FallbackMaxInputTokens,
 		},
@@ -1004,13 +950,13 @@ func QoderStripVolatileSystemText(text string) string {
 }
 
 // QoderMessagesFromResponsesInput converts Responses text or ordered items into
-// paired Qoder history. Empty/null input produces nil, string input becomes a
+// raw Qoder history. Empty/null input produces nil, string input becomes a
 // user message, and malformed item arrays return errors.
 //
 // Consecutive function calls are collected into one assistant turn before the
-// next item is converted. Pairing then keeps calls with outputs and places their
-// results immediately after that turn, so parallel calls remain grouped even
-// when Responses input represents each call as a separate item.
+// next item is converted, so parallel calls remain grouped even when Responses
+// represents them as separate items. The request parser decides whether outputs
+// require standalone pairing or the authenticated caller’s saved response history.
 func QoderMessagesFromResponsesInput(raw json.RawMessage) ([]QoderMessage, error) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
@@ -1057,7 +1003,27 @@ func QoderMessagesFromResponsesInput(raw json.RawMessage) ([]QoderMessage, error
 		}
 	}
 	flushPendingToolCalls()
-	return NormalizeQoderResponsesToolPairing(messages), nil
+	return messages, nil
+}
+
+// qoderHasUnpairedToolOutputs identifies results that require preceding stored
+// calls. It compares call IDs rather than tool names, preserving parallel
+// invocations of the same function as separate conversation identities.
+func qoderHasUnpairedToolOutputs(messages []QoderMessage) bool {
+	calls := map[string]bool{}
+	for _, message := range messages {
+		for _, raw := range NormalizeQoderToolCalls(message.Raw["tool_calls"]) {
+			if call, ok := raw.(map[string]any); ok {
+				calls[QoderToolCallIDFromMap(call)] = true
+			}
+		}
+	}
+	for _, message := range messages {
+		if message.Role == "tool" && !calls[QoderMessageToolCallID(message)] {
+			return true
+		}
+	}
+	return false
 }
 
 // QoderMessageFromResponsesInputItem maps message, function call, or function
@@ -1547,6 +1513,44 @@ func QoderChatFunctionToQoderTool(fn protocolopenai.ChatFunction) (map[string]an
 	}, true
 }
 
+// QoderToolChoice translates public protocol tool-selection intent into the
+// OpenAI-shaped policy consumed by the desktop parameters object. Missing or
+// unrecognized controls remain absent, while none, auto, and required retain
+// their meanings independently from whether tool definitions are replayed.
+//
+// Anthropic any becomes required, and named Anthropic or Responses selections
+// become the same nested function choice as Chat. Keeping this policy separate
+// from the declared-tool list lets a continuation prohibit another tool call
+// without discarding definitions needed by the upstream conversation history.
+func QoderToolChoice(value any) any {
+	if text, ok := value.(string); ok {
+		switch strings.ToLower(strings.TrimSpace(text)) {
+		case "none", "auto", "required":
+			return strings.ToLower(strings.TrimSpace(text))
+		}
+		return nil
+	}
+	choice, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	kind := QoderStringField(choice, "type")
+	switch kind {
+	case "none", "auto":
+		return kind
+	case "any":
+		return "required"
+	}
+	name := QoderStringField(choice, "name")
+	if function, ok := choice["function"].(map[string]any); ok {
+		name = QoderStringField(function, "name")
+	}
+	if name != "" && (kind == "" || kind == "tool" || kind == "function") {
+		return map[string]any{"type": "function", "function": map[string]any{"name": name}}
+	}
+	return nil
+}
+
 // QoderApplyChatToolChoice filters declared tools by a selected name or returns
 // the usable set. Disabled choice produces an empty slice, unnamed choice
 // retains all tools, and an unknown selected name retains the declarations for
@@ -1794,43 +1798,29 @@ func QoderRawMessageOrDefault(raw json.RawMessage, fallback any) any {
 	return value
 }
 
-// QoderPayloadMessageFromMessage builds a wire message while retaining
-// structured text and tool identity. User text goes into contents with empty
-// scalar content, while other roles keep scalar text. Existing text-block maps
-// and QoderBlankResponseMeta are shared.
+// QoderPayloadMessageFromMessage builds canonical desktop message content and
+// retains tool identity. User text uses content blocks so cache annotations
+// remain attached to their text; other roles retain scalar content unless
+// explicit text blocks were supplied. The obsolete text-only contents field
+// is not emitted because current routes consume the canonical content field.
 //
-// Tool history is normalized from raw modern calls or Anthropic tool-use blocks.
-// A nonblank message ToolCallID then supplies both Gateway result-ID fields,
-// overriding any raw ID. This keeps the visible text representation and
-// call/result identity coherent across protocol conversion.
+// Tool history is normalized from raw calls or Anthropic tool-use blocks.
+// Explicit ToolCallID wins over raw aliases so call/result association remains
+// coherent. Each emitted text block receives its own map before cache markers
+// are added, keeping payload construction from mutating request-owned blocks
+// retained by conversation fingerprinting and retry preparation.
 func QoderPayloadMessageFromMessage(message QoderMessage) map[string]any {
-	isUser := message.Role == "user"
-	content := message.Text
-	// User text is carried by structured contents below. Leave scalar content
-	// empty so the payload representation does not carry a second copy there.
-	if isUser {
-		content = ""
-	}
-	msg := map[string]any{
-		"role":                        message.Role,
-		"content":                     content,
-		"contents":                    []any{},
-		"reasoning_content_signature": "",
-		"response_meta":               QoderBlankResponseMeta,
-	}
+	msg := map[string]any{"role": message.Role, "content": message.Text}
 	if len(message.TextContent) > 0 {
-		contents := make([]any, 0, len(message.TextContent))
+		content := make([]any, 0, len(message.TextContent))
 		for _, block := range message.TextContent {
-			contents = append(contents, block)
+			content = append(content, QoderCopyRawMap(block))
 		}
-		msg["contents"] = contents
-	} else if message.Text != "" {
-		msg["contents"] = []any{map[string]any{"type": "text", "text": message.Text}}
+		msg["content"] = content
+	} else if message.Role == "user" && message.Text != "" {
+		msg["content"] = []any{map[string]any{"type": "text", "text": message.Text}}
 	}
 	CopyQoderToolFields(msg, message.Raw)
-	// Explicit message identity wins after raw-field conversion. Write the same
-	// trimmed ID into both Gateway aliases so result association cannot split
-	// across competing sources.
 	if strings.TrimSpace(message.ToolCallID) != "" {
 		toolCallID := strings.TrimSpace(message.ToolCallID)
 		msg["tool_call_id"] = toolCallID

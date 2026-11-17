@@ -92,9 +92,9 @@ func cloneAntigravityModelDetail(value *AntigravityModelDetail) *AntigravityMode
 	return &out
 }
 
-// cloneQoderQuota copies account timestamps and all three optional quota
-// pools. Nil remains nil; each current pool contains scalar fields, so its
-// returned values can be edited independently.
+// cloneQoderQuota copies account timestamps, general pools, dedicated package
+// metadata, and the optional enterprise view. Nil remains nil. Returned labels
+// and expiry pointers can be edited without changing cached observations.
 func cloneQoderQuota(value *QoderQuotaInfo) *QoderQuotaInfo {
 	if value == nil {
 		return nil
@@ -105,5 +105,11 @@ func cloneQoderQuota(value *QoderQuotaInfo) *QoderQuotaInfo {
 	out.UserQuota = clonePointer(value.UserQuota)
 	out.AddOnQuota = clonePointer(value.AddOnQuota)
 	out.OrgResourcePackage = clonePointer(value.OrgResourcePackage)
+	out.Enterprise = clonePointer(value.Enterprise)
+	out.Dedicated = slices.Clone(value.Dedicated)
+	for index := range out.Dedicated {
+		out.Dedicated[index].ExpiresAt = clonePointer(value.Dedicated[index].ExpiresAt)
+		out.Dedicated[index].Labels = slices.Clone(value.Dedicated[index].Labels)
+	}
 	return &out
 }

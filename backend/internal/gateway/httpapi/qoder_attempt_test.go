@@ -271,6 +271,7 @@ func TestQoderGatewayAllowsExplicitPreviewCompatibilityMapping(t *testing.T) {
 			"model_whitelist": []any{},
 		},
 	}
+	gatewaytestkit.SetQoderCatalog(provider)
 	client := &gatewaytestkit.QoderClient{
 		Body: "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
 			"data: {\"body\":\"[DONE]\"}\n\n",
@@ -387,7 +388,7 @@ func TestQoderGatewayChatCompletionsReusesSessionAndSendsFullReplay(t *testing.T
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, secondMessages[1])["role"])
 	require.Equal(t, "assistant", qoderFixtureValue[map[string]any](t, secondMessages[2])["role"])
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, secondMessages[3])["role"])
-	require.Equal(t, "next", qoderFixtureValue[map[string]any](t, qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])["text"])
+	require.Equal(t, "next", qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])
 }
 
 // TestQoderGatewayChatCompletionsWithoutSessionDoesNotReuseByFirstText repeats
@@ -668,8 +669,8 @@ func TestQoderGatewayResponsesPreviousResponseIDWithExplicitSessionAppendsToExis
 
 // TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey mixes
 // a stable prompt-cache key with generated response aliases and a branch from
-// the first response. Each payload must retain the same upstream session and
-// correct branch prompt.
+// the first response. Linear requests reuse the session. A fork starts a new
+// session containing the exact original response and excludes the later turn.
 func TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey(t *testing.T) {
 	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
 
@@ -702,7 +703,11 @@ func TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey(t *te
 		"stream":false
 	}`))
 	thirdPayload := qoderPayloadAtForTest(t, client, 2)
-	require.Equal(t, firstPayload["session_id"], thirdPayload["session_id"])
+	require.NotEqual(t, secondPayload["session_id"], thirdPayload["session_id"])
+	messages := qoderFixtureValue[[]any](t, thirdPayload["messages"])
+	require.Len(t, messages, 3)
+	require.Equal(t, "hello", qoderPayloadMessageTextForTest(qoderFixtureValue[map[string]any](t, messages[0])))
+	require.Equal(t, "OK", qoderPayloadMessageTextForTest(qoderFixtureValue[map[string]any](t, messages[1])))
 	require.Equal(t, "branch from first id", qoderPayloadPromptForTest(t, thirdPayload))
 }
 
@@ -968,7 +973,7 @@ func TestQoderGatewayClaudeCodeContextWithoutSessionUsesStablePrefixKey(t *testi
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[1])["role"])
 	require.Equal(t, "assistant", qoderFixtureValue[map[string]any](t, messages[2])["role"])
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[3])["role"])
-	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])["text"])
+	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])
 }
 
 // TestQoderGatewayDoesNotCommitConversationOnUpstreamFailure fails one upstream
@@ -1211,7 +1216,7 @@ func TestQoderGatewayFallsBackToFullReplayWhenPrefixDoesNotMatch(t *testing.T) {
 	require.NotEqual(t, first["session_id"], second["session_id"])
 	messages := qoderFixtureValue[[]any](t, second["messages"])
 	require.Len(t, messages, 3)
-	require.Equal(t, "changed", qoderFixtureValue[map[string]any](t, qoderFixtureValue[[]any](t, qoderFixtureValue[map[string]any](t, messages[0])["contents"])[0])["text"])
+	require.Equal(t, "changed", qoderFixtureValue[map[string]any](t, qoderFixtureValue[[]any](t, qoderFixtureValue[map[string]any](t, messages[0])["content"])[0])["text"])
 }
 
 // TestQoderGatewayFallsBackToFullReplayWhenSystemOrToolsChange changes system
@@ -1300,7 +1305,7 @@ func TestQoderGatewayAnthropicMetadataSessionWinsOverChangingHeader(t *testing.T
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[0])["role"])
 	require.Equal(t, "assistant", qoderFixtureValue[map[string]any](t, messages[1])["role"])
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[2])["role"])
-	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])["text"])
+	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])
 }
 
 // TestQoderGatewayClaudeCodeUsesExplicitHeaderSessionBeforeStableSeed combines
@@ -1386,7 +1391,7 @@ func TestQoderGatewayClaudeCodeUsesMetadataSessionBeforeStableSeed(t *testing.T)
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[1])["role"])
 	require.Equal(t, "assistant", qoderFixtureValue[map[string]any](t, messages[2])["role"])
 	require.Equal(t, "user", qoderFixtureValue[map[string]any](t, messages[3])["role"])
-	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])["text"])
+	require.Equal(t, "continue", qoderFixtureValue[map[string]any](t, second["chat_context"])["text"])
 
 	metadata2 := `{"device_id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","provider_uuid":"","session_id":"66666666-7777-8888-9999-aaaaaaaaaaaa"}`
 	other := qoderForwardMessagesForTest(t, svc, provider, "", []byte(`{
@@ -2058,8 +2063,7 @@ func TestQoderGatewayForwardChatCompletionsHonorsCanceledContext(t *testing.T) {
 func qoderPayloadPromptForTest(t *testing.T, payload map[string]any) string {
 	t.Helper()
 	chatContext := qoderFixtureValue[map[string]any](t, payload["chat_context"])
-	text := qoderFixtureValue[map[string]any](t, chatContext["text"])
-	return qoderFixtureValue[string](t, text["text"])
+	return qoderFixtureValue[string](t, chatContext["text"])
 }
 
 // qoderPayloadMessageTextForTest returns the first string text block,
@@ -2072,7 +2076,7 @@ func qoderPayloadMessageTextForTest(msg map[string]any) string {
 	}
 	// Upstream fixture history can use typed content blocks or legacy string
 	// content; ignore unusable blocks before selecting the first readable representation.
-	contents, _ := msg["contents"].([]any)
+	contents, _ := msg["content"].([]any)
 	for _, raw := range contents {
 		block, ok := raw.(map[string]any)
 		if !ok || block["type"] != "text" {
@@ -4478,7 +4482,7 @@ func TestQoderThinkingFlowsThroughAllEndpoints(t *testing.T) {
 			endpoint:       "responses",
 			body:           `{"model":"deepseek-v4-pro","reasoning":{"effort":"high"},"input":"hello","stream":true}`,
 			wantEnabled:    true,
-			wantEffort:     "max",
+			wantEffort:     "high",
 			wantEffortPath: true,
 		},
 		{
@@ -4505,7 +4509,7 @@ func TestQoderThinkingFlowsThroughAllEndpoints(t *testing.T) {
 			endpoint:       "responses",
 			body:           `{"model":"deepseek-v4-pro","reasoning":{"effort":"high"},"input":"hello","stream":true}`,
 			wantEnabled:    true,
-			wantEffort:     "max",
+			wantEffort:     "high",
 			wantEffortPath: true,
 		},
 		{
@@ -4518,46 +4522,58 @@ func TestQoderThinkingFlowsThroughAllEndpoints(t *testing.T) {
 			wantEffortPath: true,
 		},
 		{
-			name:        "global qwen 38 chat completions public alias",
-			site:        qoder.SiteGlobal,
-			endpoint:    "chat",
-			body:        `{"model":"qwen3.8-max","reasoning_effort":"low","messages":[{"role":"user","content":"hello"}],"stream":true}`,
-			wantEnabled: true,
+			name:           "global qwen 38 chat completions public alias",
+			site:           qoder.SiteGlobal,
+			endpoint:       "chat",
+			body:           `{"model":"qwen3.8-max","reasoning_effort":"low","messages":[{"role":"user","content":"hello"}],"stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "low",
+			wantEffortPath: true,
 		},
 		{
-			name:        "global qwen 38 responses raw route",
-			site:        qoder.SiteGlobal,
-			endpoint:    "responses",
-			body:        `{"model":"qmodel_38max","reasoning":{"effort":"high"},"input":"hello","stream":true}`,
-			wantEnabled: true,
+			name:           "global qwen 38 responses raw route",
+			site:           qoder.SiteGlobal,
+			endpoint:       "responses",
+			body:           `{"model":"qmodel_38max","reasoning":{"effort":"high"},"input":"hello","stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "xhigh",
+			wantEffortPath: true,
 		},
 		{
-			name:        "global qwen 38 anthropic messages",
-			site:        qoder.SiteGlobal,
-			endpoint:    "messages",
-			body:        `{"model":"qwen3.8-max","max_tokens":1024,"thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hello"}],"stream":true}`,
-			wantEnabled: true,
+			name:           "global qwen 38 anthropic messages",
+			site:           qoder.SiteGlobal,
+			endpoint:       "messages",
+			body:           `{"model":"qwen3.8-max","max_tokens":1024,"thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hello"}],"stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "medium",
+			wantEffortPath: true,
 		},
 		{
-			name:        "cn qwen 38 chat completions raw route",
-			site:        qoder.SiteCN,
-			endpoint:    "chat",
-			body:        `{"model":"qmodel_38max","reasoning_effort":"medium","messages":[{"role":"user","content":"hello"}],"stream":true}`,
-			wantEnabled: true,
+			name:           "cn qwen 38 chat completions raw route",
+			site:           qoder.SiteCN,
+			endpoint:       "chat",
+			body:           `{"model":"qmodel_38max","reasoning_effort":"medium","messages":[{"role":"user","content":"hello"}],"stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "medium",
+			wantEffortPath: true,
 		},
 		{
-			name:        "cn qwen 38 responses public alias",
-			site:        qoder.SiteCN,
-			endpoint:    "responses",
-			body:        `{"model":"qwen3.8-max","reasoning":{"effort":"max"},"input":"hello","stream":true}`,
-			wantEnabled: true,
+			name:           "cn qwen 38 responses public alias",
+			site:           qoder.SiteCN,
+			endpoint:       "responses",
+			body:           `{"model":"qwen3.8-max","reasoning":{"effort":"max"},"input":"hello","stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "xhigh",
+			wantEffortPath: true,
 		},
 		{
-			name:        "cn qwen 38 anthropic messages",
-			site:        qoder.SiteCN,
-			endpoint:    "messages",
-			body:        `{"model":"qwen3.8-max","max_tokens":1024,"thinking":{"budget_tokens":1},"messages":[{"role":"user","content":"hello"}],"stream":true}`,
-			wantEnabled: true,
+			name:           "cn qwen 38 anthropic messages",
+			site:           qoder.SiteCN,
+			endpoint:       "messages",
+			body:           `{"model":"qwen3.8-max","max_tokens":1024,"thinking":{"budget_tokens":1},"messages":[{"role":"user","content":"hello"}],"stream":true}`,
+			wantEnabled:    true,
+			wantEffort:     "xhigh",
+			wantEffortPath: true,
 		},
 	}
 
@@ -4573,6 +4589,7 @@ func TestQoderThinkingFlowsThroughAllEndpoints(t *testing.T) {
 				Type:        capability.ProviderTypeCosy,
 				Credentials: credentials,
 			}
+			gatewaytestkit.SetQoderCatalog(provider)
 			client := &gatewaytestkit.QoderClient{
 				Body: "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
 					"data: {\"body\":\"[DONE]\"}\n\n",
@@ -4623,6 +4640,7 @@ func TestQoderThinkingUsesProviderMappedRouteKey(t *testing.T) {
 			},
 		},
 	}
+	gatewaytestkit.SetQoderCatalog(provider)
 	client := &gatewaytestkit.QoderClient{
 		Body: "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
 			"data: {\"body\":\"[DONE]\"}\n\n",
@@ -4647,7 +4665,7 @@ func TestQoderThinkingUsesProviderMappedRouteKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "qmodel_38max", result.UpstreamModel)
 	payload := qoderLastUpstreamPayloadForTest(t, client)
-	assertQoderThinkingPayload(t, payload, true, "", false)
+	assertQoderThinkingPayload(t, payload, true, "medium", true)
 }
 
 // assertQoderThinkingPayload checks both reasoning switches and all four

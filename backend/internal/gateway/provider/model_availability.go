@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
@@ -62,6 +63,13 @@ func NewModelAvailability(source AvailabilityProviders, groupPolicies *routing.P
 					policy := ModelPolicy{Record: record}
 					if !policy.AllowsProtocol(ctx, model) {
 						return false
+					}
+					if record.IsQoderCosy() {
+						// Missing catalog evidence is temporary unavailability, not proof
+						// that the requested model is absent. Actual admission still rejects it.
+						if _, err := record.QoderCatalog(time.Now()); err != nil {
+							return true
+						}
 					}
 					if compatible {
 						return policy.SupportsCompatibleRouting(ctx, model)

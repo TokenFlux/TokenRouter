@@ -1,6 +1,9 @@
 package modelcatalog
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"maps"
 	"net/url"
 	"slices"
@@ -25,6 +28,11 @@ import (
 // Target contains route inputs that determine metadata for a complete outbound
 // model.
 type Target struct {
+	// QoderModel carries the selected account's observed route capabilities.
+	// QoderVersion scopes cache identity to the provider and published observation;
+	// Key also captures model contents before clearing this pointer.
+	QoderModel   *QoderModel `json:"-"` // account model observation
+	QoderVersion string      `json:"-"` // account snapshot version
 	// AttributeModel is the canonical author identity for platforms whose
 	// offerings rename another author's model. Resolve derives it from the
 	// catalog publication it reads when the caller leaves it empty.
@@ -149,6 +157,10 @@ func (v View) Version() string {
 // optional output-cap pointer can still belong to the input until Clone is used.
 func (v View) Resolve(target Target, override Attributes) Resolution {
 	target = target.WithServiceIdentity()
+	if target.QoderModel != nil {
+		model := target.QoderModel.Clone()
+		target.QoderModel = &model
+	}
 	result := Resolution{Target: target, Sources: map[string]string{}, Version: v.Version()}
 	model := target.Model
 	if target.usesCanonicalIdentity() {
@@ -168,7 +180,10 @@ func (v View) Resolve(target Target, override Attributes) Resolution {
 		result.Target = target
 	}
 	if target.Platform == "qoder" {
-		model = QoderModelIdentity(target.Site, model)
+		model = ""
+		if target.QoderModel != nil {
+			model = target.QoderModel.Identity
+		}
 	}
 	if target.Platform == "antigravity" && model == "claude-sonnet-4-5-thinking" {
 		// This registered thinking alias shares Sonnet 4.5 metadata while the
@@ -593,6 +608,14 @@ func serviceRuleFamily(service string) string {
 func (t Target) Key() TargetKey {
 	t = t.WithServiceIdentity()
 	key := TargetKey{target: t}
+	if t.QoderModel != nil {
+		// Capture capability values rather than pointer identity so independent
+		// copies share results without mixing different account observations.
+		encoded, _ := json.Marshal(t.QoderModel)
+		digest := sha256.Sum256(encoded)
+		key.target.QoderVersion += ":" + hex.EncodeToString(digest[:])
+		key.target.QoderModel = nil
+	}
 	if t.OllamaOutputCap != nil {
 		// Clear the pointer after capturing its contents so two allocations with
 		// the same cap compare equally, while a missing cap remains
@@ -615,6 +638,10 @@ func (key TargetKey) ForAttributes() TargetKey {
 // optional cap, nested attributes, source map, and mutable rule values.
 // Nil and empty values retain their meanings for later request adaptation.
 func (r Resolution) Clone() Resolution {
+	if r.Target.QoderModel != nil {
+		model := r.Target.QoderModel.Clone()
+		r.Target.QoderModel = &model
+	}
 	r.Target.OllamaOutputCap = clonePointer(r.Target.OllamaOutputCap)
 	r.Attributes = r.Attributes.Clone()
 	r.Sources = maps.Clone(r.Sources)

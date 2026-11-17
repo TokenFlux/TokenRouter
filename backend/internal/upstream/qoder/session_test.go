@@ -93,10 +93,10 @@ func TestBuildPayloadB64(t *testing.T) {
 	}{
 		{name: "国际站默认版本", build: func() (string, error) {
 			return BuildPayloadB64WithVersion("test_info", "request123", GlobalClientVersion)
-		}, want: "1.24.2"},
+		}, want: "1.1.86-hotfix.5.3"},
 		{name: "国内站显式版本", build: func() (string, error) {
 			return BuildPayloadB64WithVersion("test_info", "request123", CNClientVersion)
-		}, want: "1.24.2"},
+		}, want: "1.1.86-hotfix.5.3"},
 	}
 
 	for _, tt := range tests {

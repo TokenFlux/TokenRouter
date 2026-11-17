@@ -15,7 +15,6 @@ import (
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // availabilityProviderStore filters test records by persistent configuration
@@ -465,66 +464,51 @@ func TestModelAvailabilityChecksProtocolWithoutTreatingCooldownAsMissingModel(t 
 	require.True(t, service.DiagnoseCompatible(ctx, &group.ID, "gpt-test", "").HasModelSupport)
 }
 
-// TestAvailableRequestModelsFromProvidersUsesQoderProviderSite builds CN and
-// Global Qoder providers separately and together. Rejection-model candidates
-// follow each site's defaults and their mixed union.
-func TestAvailableRequestModelsFromProvidersUsesQoderProviderSite(t *testing.T) {
-	newProvider := func(id int64, site string) providercore.Record {
-		return providercore.Record{
-			ID:          id,
-			Platform:    capability.PlatformQoder,
-			Status:      providercore.StatusActive,
-			Schedulable: true,
-			Credentials: map[string]any{"site": site},
-		}
-	}
-
-	cnModels := rejectedModelsForContract([]providercore.Record{newProvider(1, "cn")}, capability.PlatformQoder)
-	require.ElementsMatch(t, qoder.DefaultRequestModelIDsForSite(qoder.SiteCN), cnModels)
-	require.NotContains(t, cnModels, "claude-opus-4-6")
-
-	globalModels := rejectedModelsForContract([]providercore.Record{newProvider(2, "global")}, capability.PlatformQoder)
-	require.ElementsMatch(t, qoder.DefaultRequestModelIDsForSite(qoder.SiteGlobal), globalModels)
-	require.NotContains(t, globalModels, "minimax-m2.7")
-
-	mixedModels := rejectedModelsForContract([]providercore.Record{newProvider(3, "global"), newProvider(4, "cn")}, capability.PlatformQoder)
-	require.ElementsMatch(t, qoder.DefaultRequestModelIDs(), mixedModels)
+// TestAvailableRequestModelsFromProvidersUsesQoderAccountSnapshots combines
+// independent account catalogs. Each provider exposes only its observed enabled
+// routes and aliases, and mixed groups expose the union without retired names.
+func TestAvailableRequestModelsFromProvidersUsesQoderAccountSnapshots(t *testing.T) {
+	cn := qoderAvailabilityRecord(1, "cn", []map[string]any{{"key": "cn-route", "alias": "cn-model", "enabled": true}})
+	global := qoderAvailabilityRecord(2, "global", []map[string]any{{"key": "global-route", "alias": "global-model", "enabled": true}})
+	require.ElementsMatch(t, []string{"cn-route", "cn-model"}, rejectedModelsForContract([]providercore.Record{cn}, capability.PlatformQoder))
+	require.ElementsMatch(t, []string{"global-route", "global-model"}, rejectedModelsForContract([]providercore.Record{global}, capability.PlatformQoder))
+	require.ElementsMatch(t, []string{"cn-route", "cn-model", "global-route", "global-model"}, rejectedModelsForContract([]providercore.Record{cn, global}, capability.PlatformQoder))
+	cn.Extra = nil
+	require.Empty(t, rejectedModelsForContract([]providercore.Record{cn}, capability.PlatformQoder))
 }
 
-// TestAvailableRequestModelsFromProvidersFiltersConfiguredQoderModels supplies
-// site-specific whitelist and mapping overrides across CN/Global providers.
-// Candidate lists retain supported site names, reject invalid CN aliases, and
-// combine valid configured names across sites.
+// TestQoderMissingCatalogIsUnavailableEvidence distinguishes discovery failure
+// from a proven missing model. Actual admission rejects the provider, while
+// selection-error diagnosis retains the temporary-unavailability classification.
+func TestQoderMissingCatalogIsUnavailableEvidence(t *testing.T) {
+	groupID := int64(7)
+	value := providercore.Record{ID: 1, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Status: providercore.StatusActive, Schedulable: true, GroupIDs: []int64{groupID}}
+	repo := &availabilityProviderStore{providers: []ExecutionProvider{{Record: value}}}
+	diagnosis := NewModelAvailability(repo, nil, true).DiagnoseGeneral(context.Background(), &groupID, "qwen4-max", capability.PlatformQoder)
+	require.True(t, diagnosis.HasProvidersInPool)
+	require.True(t, diagnosis.HasModelSupport)
+	require.False(t, (ModelPolicy{Record: &value}).Supports(context.Background(), "qwen4-max"))
+}
+
+// TestAvailableRequestModelsFromProvidersFiltersConfiguredQoderModels checks
+// enabled and disabled account routes under an explicit whitelist. Saved
+// configuration cannot make a known disabled route eligible for dispatch.
 func TestAvailableRequestModelsFromProvidersFiltersConfiguredQoderModels(t *testing.T) {
-	newProvider := func(id int64, site string, credentials map[string]any) providercore.Record {
-		credentials["site"] = site
-		return providercore.Record{
-			ID:          id,
-			Platform:    capability.PlatformQoder,
-			Status:      providercore.StatusActive,
-			Schedulable: true,
-			Credentials: credentials,
-		}
-	}
+	row := qoderAvailabilityRecord(1, "cn", []map[string]any{{"key": "allowed", "enabled": true}, {"key": "disabled", "enabled": false}})
+	row.Credentials["model_whitelist"] = []any{"allowed", "disabled"}
+	snapshot, ok := row.Extra[providercore.QoderCatalogExtraKey].(map[string]any)
+	require.True(t, ok)
+	snapshot["identity"] = providercore.QoderCatalogIdentity(&row)
+	require.Equal(t, []string{"allowed"}, rejectedModelsForContract([]providercore.Record{row}, capability.PlatformQoder))
+}
 
-	cnWhitelist := newProvider(11, "cn", map[string]any{
-		"model_whitelist": []any{"claude-opus-4-6", "qwen3.6-flash"},
-	})
-	cnModels := rejectedModelsForContract([]providercore.Record{cnWhitelist}, capability.PlatformQoder)
-	require.Equal(t, []string{"qwen3.6-flash"}, cnModels)
-
-	cnMappingOverride := newProvider(12, "cn", map[string]any{
-		"model_mapping": map[string]any{"claude-opus-4-6": "ultimate"},
-	})
-	overrideModels := rejectedModelsForContract([]providercore.Record{cnMappingOverride}, capability.PlatformQoder)
-	require.ElementsMatch(t, qoder.DefaultRequestModelIDsForSite(qoder.SiteCN), overrideModels)
-	require.NotContains(t, overrideModels, "claude-opus-4-6", "显式映射不能突破站点能力")
-
-	globalWhitelist := newProvider(13, "global", map[string]any{
-		"model_whitelist": []any{"claude-opus-4-6", "qwen3.6-flash"},
-	})
-	mixedModels := rejectedModelsForContract([]providercore.Record{cnWhitelist, globalWhitelist}, capability.PlatformQoder)
-	require.ElementsMatch(t, []string{"claude-opus-4-6", "qwen3.6-flash"}, mixedModels)
+// qoderAvailabilityRecord attaches an account-scoped catalog to a synthetic
+// provider. The snapshot matches the fixture's credentials and current time;
+// callers changing credentials must update or intentionally invalidate it.
+func qoderAvailabilityRecord(id int64, site string, models []map[string]any) providercore.Record {
+	row := providercore.Record{ID: id, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Status: providercore.StatusActive, Schedulable: true, Credentials: map[string]any{"site": site}}
+	row.Extra = map[string]any{providercore.QoderCatalogExtraKey: map[string]any{"identity": providercore.QoderCatalogIdentity(&row), "version": "test", "fetched_at": time.Now(), "models": models}}
+	return row
 }
 
 // rejectedModelsForContract adapts supplied records to routing model-rejection

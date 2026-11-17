@@ -183,6 +183,10 @@ var DefaultPoolModeRetryableStatusCodes = []int{401, 403, 429}
 // is nonzero. CloneRecord copies supported mutable fields before this snapshot
 // is passed to another owner.
 type Record struct {
+	// QoderCatalogIdentityHint is derived by the scheduler codec before dropping
+	// credentials. It is private transport metadata, never administrator input;
+	// full database records leave it empty and derive identity from credentials.
+	QoderCatalogIdentityHint string `json:"-"`
 	// Proxy is the hydrated outbound proxy selected by ProxyID. Consumers that
 	// need connection details require hydration before reading its URL or identity.
 	Proxy *egress.Proxy `json:"-"`

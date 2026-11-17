@@ -93,6 +93,8 @@ OpenCode 探针从提供商快照一次确定最终模型和协议。流式协�
 
 实时模型同步请求由 `ModelSyncService` 跟踪在途的调用，停止时取消并等待；构造时不请求供应商。保存记录的查询只使用保存配置，预览使用调用者凭据；查询一次返回模型及目录建议，人工覆盖由配置表单管理。临时凭据的预览不持久化，错误格式只由 provider 定义；`provider/provider.ModelCatalogue` 负责实际的 endpoint、Header、响应报文解析和读取上限，app 直接绑定提供商存储和凭据来源。模型预览和提供商测试共用一个 ProbeTasks 范围，持久化的提供商仍由同一个 task 协调器串行处理。
 
+Qoder 模型目录由管理员在已保存的提供商上手动同步。启动、凭据刷新和日常推理只复用已保存的模型目录。一次查询失败会保留上次成功的同身份快照，有效空列表会清空该账号的模型候选。模型属性随同步结果展示，白名单草稿由管理员保存。[Qoder 原生上游](../interfaces/qoder_upstream.md#模型别名与映射)
+
 提供商管理的 HTTP 路由绑定 `provider/httpapi` 的具体处理器，测试直接验证所属模块。高级调度诊断通过只读的安全数据，调用 scheduler 的同一个评分算法；app 保留同一个反馈实例和 gateway 的绑定顺序。
 
 执行入口、管理接口和调度快照使用同一套提供商规则，但各自的公开数据格式不同。执行目标由提供商记录和请求路线组成，复制时保留自引用的关联和 map 的隔离。提供商和 billing 的 SQL 实例只在 app 里构造一次，配置更新、CAS 和消费累计由各自的存储负责。
@@ -126,7 +128,7 @@ Anthropic 的限流响应头，由 upstream 解析成窗口观测，provider 负
 
 Qoder、Gemini、Grok、Anthropic、Bedrock、OpenAI 和国产平台的测试目标，由 `provider/provider` 接收提供商记录，供应商请求和事件解析由对应的 upstream 实现：
 
-- Qoder 共用授权会话。
+- Qoder 探针按账号目录和白名单选择模型。空模型优先选用已启用的默认项，空提示使用简短的 Python 加法函数任务，输出上限 256 tokens。
 - Gemini 有 API Key、AI Studio OAuth、Code Assist 和 Vertex 四条请求路径。
 - Anthropic、Vertex 和 Bedrock 按最终服务型号读取所选分组的采样属性，再构造测试报文。认证与签名区域由各平台处理。
 - Grok 区分文字和图片端点，并使用同一套健康写入规则。

@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	egressadapter "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
@@ -79,10 +81,6 @@ type QoderProviderTest struct {
 	// StreamRequestContext.
 	Transport QoderTransport             // shared probe request transport
 	Profiles  *egressadapter.TLSProfiles // optional TLS profile resolver
-	// RewriteModel is required when a saved provider mapping matches a nonempty
-	// target. It writes that target into the intermediate chat request before
-	// COSY conversion.
-	RewriteModel func([]byte, string) []byte
 }
 
 // qoderTestClientWithDoer accepts provider transport for a streaming Qoder
@@ -100,7 +98,7 @@ type qoderTestClientWithDoer interface {
 // site session. PAT input invalidates a supporting session source before the
 // query; session failures become test errors before streaming starts.
 //
-// Saved model mapping rewrites the intermediate chat payload before site-specific
+// Saved model mapping selects the final allowed account route before payload
 // conversion, while the public start event retains the requested test name.
 // Global probes query user info before streaming. A doer-aware client receives
 // provider transport; another injected client uses its own stream method.
@@ -114,20 +112,33 @@ func (s *QoderProviderTest) Execute(c *TestRun, value *providercore.Record, mode
 
 	ctx := c.Context
 	testModelID := strings.TrimSpace(modelID)
-	if testModelID == "" {
-		testModelID = "auto"
+	snapshot, err := value.QoderCatalog(time.Now())
+	if err != nil {
+		return (TestStreamOutput{}).Error(c, err.Error())
 	}
+	if testModelID == "" {
+		for _, model := range snapshot.Models {
+			if model.Enabled && (testModelID == "" || model.Default) && value.IsModelSupported(model.Key, ModelDefaults(), ModelRules(value)) {
+				testModelID = model.Key
+				if model.Default {
+					break
+				}
+			}
+		}
+		if testModelID == "" {
+			return (TestStreamOutput{}).Error(c, "The Qoder account has no enabled models")
+		}
+	}
+	if !value.IsModelSupported(testModelID, ModelDefaults(), ModelRules(value)) {
+		return (TestStreamOutput{}).Error(c, "The selected model is unavailable for this Qoder provider")
+	}
+	model := value.NormalizeQoderModel(mappedTestModel(value, testModelID))
 	testPrompt := strings.TrimSpace(prompt)
 	if testPrompt == "" {
-		testPrompt = "hi"
+		testPrompt = "Write a Python function add(a, b) that returns a + b."
 	}
 
 	if c.ProtocolRoute.ClientProtocol != "" {
-		site, err := qoderSiteForRecord(value)
-		if err != nil {
-			return (TestStreamOutput{}).Error(c, err.Error())
-		}
-		model := qoder.ResolveQoderModelForSite(site, mappedTestModel(value, testModelID)).Key
 		if _, err := resolveProbeType(ctx, s.Attributes, value, c.GroupID, model, "qoder_chat", providercore.ProviderTestTypeText); err != nil {
 			return (TestStreamOutput{}).Error(c, err.Error())
 		}
@@ -154,27 +165,35 @@ func (s *QoderProviderTest) Execute(c *TestRun, value *providercore.Record, mode
 		return (TestStreamOutput{}).Error(c, err.Error())
 	}
 
-	// A sixteen-token output allowance keeps the connection probe reply short.
+	// The short coding task can spend its output budget on reasoning before text.
 	requestBody, err := json.Marshal(map[string]any{
-		"model":      testModelID,
+		"model":      model,
 		"messages":   []map[string]string{{"role": "user", "content": testPrompt}},
-		"max_tokens": 16,
+		"max_tokens": 256,
 		"stream":     true,
 	})
 	if err != nil {
 		return (TestStreamOutput{}).Error(c, "Failed to encode Qoder test payload")
 	}
-	mapping := providercore.ResolveModelMapping(value, ModelDefaults())
-	// Resolve the provider alias before site payload conversion so its route table
-	// sees the intended upstream identity while the start event keeps the test
-	// name.
-	if mapped, matched := providercore.ResolveMappedModel(mapping, strings.TrimSpace(qoder.GjsonString(requestBody, "model"))); matched && mapped != "" {
-		requestBody = s.RewriteModel(requestBody, mapped)
-	}
-	payload, modelKey, err := qoder.BuildQoderPayloadFromChatCompletionsForSite(requestBody, qoder.FirstNonEmptyQoder(value.GetCredential("user_type"), "personal_standard"), site)
+	request, err := qoder.ParseQoderChatCompletionsPayload(requestBody)
 	if err != nil {
 		return (TestStreamOutput{}).Error(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
 	}
+	request.Site = site
+	target := value.ModelAttributeTarget(request.Model, "qoder_chat")
+	var catalog modelcatalog.Catalog
+	resolution := catalog.View().Resolve(target, modelcatalog.Attributes{})
+	if s.Attributes != nil {
+		resolution, err = s.Attributes(ctx, value, c.GroupID, request.Model, "qoder_chat")
+		if err != nil {
+			return (TestStreamOutput{}).Error(c, err.Error())
+		}
+	}
+	request.Capabilities = &resolution
+	if _, err := qoder.ResolveObservedThinking(request.Thinking, &resolution); err != nil {
+		return (TestStreamOutput{}).Error(c, err.Error())
+	}
+	payload, modelKey := qoder.BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 	payloadBody, err := json.Marshal(payload)
 	if err != nil {
 		return (TestStreamOutput{}).Error(c, "Failed to encode Qoder test payload")

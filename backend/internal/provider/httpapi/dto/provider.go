@@ -27,11 +27,12 @@ import (
 // Provider is the redacted administrator view of provider configuration, stored
 // health and relationships.
 type Provider struct {
-	ID       int64   `json:"id"`       // TokenRouter provider identifier
-	Name     string  `json:"name"`     // provider display name
-	Notes    *string `json:"notes"`    // administrator description text
-	Platform string  `json:"platform"` // upstream platform identifier
-	Type     string  `json:"type"`     // provider authentication kind
+	ID                      int64          `json:"id"`                                   // TokenRouter provider identifier
+	Name                    string         `json:"name"`                                 // provider display name
+	Notes                   *string        `json:"notes"`                                // administrator description text
+	Platform                string         `json:"platform"`                             // upstream platform identifier
+	Type                    string         `json:"type"`                                 // provider authentication kind
+	QoderModelCatalogStatus map[string]any `json:"qoder_model_catalog_status,omitempty"` // saved account model properties
 	// Credentials and CredentialsStatus separate retained configuration from known
 	// sensitive values. The mapper removes classifier-selected keys and reports
 	// configured secret presence through has_<key> flags; unknown keys remain

@@ -2,8 +2,13 @@ package qoder
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"math"
+	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -24,15 +29,18 @@ import (
 // QuotaUsageResponse contains site quota metadata and alternative wire names for
 // capacity buckets.
 type QuotaUsageResponse struct {
-	UserID               string         `json:"userId"`               // quota user identifier
-	UserType             string         `json:"userType"`             // quota account classification
-	UsageType            string         `json:"usageType"`            // quota usage category
-	TotalUsagePercentage float64        `json:"totalUsagePercentage"` // percent or fraction
-	IsQuotaExceeded      bool           `json:"isQuotaExceeded"`      // reported quota exhaustion
-	ExpiresAt            FlexibleInt64  `json:"expiresAt"`            // upstream quota expiry
-	UpgradeURL           string         `json:"upgradeUrl"`           // plan upgrade URL
-	AddCreditsURL        string         `json:"addCreditsUrl"`        // credit purchase URL
-	UserQuota            *QuotaProgress `json:"userQuota"`            // primary user quota
+	DisplayMode          string           `json:"displayMode,omitempty"`               // upstream usage presentation mode
+	Enterprise           *EnterpriseUsage `json:"enterpriseUsage,omitempty"`           // external enterprise usage view
+	Dedicated            []DedicatedQuota `json:"dedicatedResourcePackages,omitempty"` // restricted credit package observations
+	UserID               string           `json:"userId"`                              // quota user identifier
+	UserType             string           `json:"userType"`                            // quota account classification
+	UsageType            string           `json:"usageType"`                           // quota usage category
+	TotalUsagePercentage float64          `json:"totalUsagePercentage"`                // percent or fraction
+	IsQuotaExceeded      bool             `json:"isQuotaExceeded"`                     // reported quota exhaustion
+	ExpiresAt            FlexibleInt64    `json:"expiresAt"`                           // upstream quota expiry
+	UpgradeURL           string           `json:"upgradeUrl"`                          // plan upgrade URL
+	AddCreditsURL        string           `json:"addCreditsUrl"`                       // credit purchase URL
+	UserQuota            *QuotaProgress   `json:"userQuota"`                           // primary user quota
 	// AddOnQuota and AddOnQuotaSnake are alternative addon buckets. The provider
 	// reader selects the canonical pointer first, including a present zero-valued
 	// object.
@@ -46,6 +54,37 @@ type QuotaUsageResponse struct {
 	SharedQuota         *QuotaProgress `json:"sharedQuota"`          // canonical shared quota
 	SharedQuotaSnake    *QuotaProgress `json:"shared_quota"`         // legacy shared quota
 	IsPlanQuotaProrated bool           `json:"isPlanQuotaProrated"`  // reported prorated plan
+}
+
+// EnterpriseUsage identifies an upstream-owned usage view without numeric quota.
+type EnterpriseUsage struct {
+	OpenMode    string `json:"openMode"`              // upstream navigation mode
+	DetailURL   string `json:"detailUrl"`             // upstream detail destination
+	FallbackURL string `json:"fallbackUrl,omitempty"` // optional HTTPS browser destination
+}
+
+// QuotaLabel retains the upstream description of a dedicated package's scope.
+type QuotaLabel struct {
+	Dimension string `json:"dimension"` // restriction dimension name
+	Value     string `json:"value"`     // restriction display value
+}
+
+// DedicatedQuota contains credits restricted to an upstream-described scope.
+// These amounts never contribute to the unrestricted account balance because
+// display labels alone do not establish machine-readable model eligibility.
+type DedicatedQuota struct {
+	ID          string        `json:"id"`            // upstream package identifier
+	Name        string        `json:"name"`          // upstream package name
+	Description string        `json:"description"`   // upstream scope explanation
+	Status      string        `json:"status"`        // upstream package state
+	Available   bool          `json:"available"`     // observed package availability
+	Total       float64       `json:"total"`         // package credit total
+	Used        float64       `json:"used"`          // package credits consumed
+	Remaining   float64       `json:"remaining"`     // package credits remaining
+	Percentage  float64       `json:"percentage"`    // observed utilization percentage
+	Unit        string        `json:"unit"`          // upstream credit unit
+	ExpiresAt   FlexibleInt64 `json:"expiresAt"`     // upstream package expiry
+	Labels      []QuotaLabel  `json:"displayLabels"` // upstream scope display labels
 }
 
 // QuotaProgress holds observed quota amounts and JSON presence needed for
@@ -79,6 +118,77 @@ type QuotaProgress struct {
 	remainingSet  bool // nonnull remaining present
 	percentageSet bool // nonnull percentage present
 	availableSet  bool // nonnull available present
+}
+
+// GetUsagePresentation reads the desktop OpenAPI usage view with a device token.
+// The caller supplies provider transport and cancellation. Response bodies are
+// bounded and closed, and failed responses use the shared credential redaction.
+func (c *OAuthClient) GetUsagePresentation(ctx context.Context, token string) (*QuotaUsageResponse, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/sash/api/v2/me/usage", nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("User-Agent", c.userAgent())
+	response, err := c.do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	// Read one extra byte to reject oversized responses instead of accepting a
+	// truncated prefix as an authoritative zero or empty account observation.
+	body, err := io.ReadAll(io.LimitReader(response.Body, (4<<20)+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > 4<<20 {
+		return nil, errors.New("qoder: usage response exceeds size limit")
+	}
+	if response.StatusCode != http.StatusOK {
+		return nil, ParseAPIErrorBody(response.StatusCode, string(body))
+	}
+	return ParseUsagePresentation(body)
+}
+
+// ParseUsagePresentation distinguishes numeric credit views from enterprise
+// navigation views. Invalid or mixed envelopes fail instead of becoming zero
+// balances. Browser destinations must be HTTPS URLs without embedded credentials.
+func ParseUsagePresentation(body []byte) (*QuotaUsageResponse, error) {
+	var envelope struct {
+		Mode       string           `json:"displayMode"`
+		Quota      json.RawMessage  `json:"qoderUsage"`
+		Enterprise *EnterpriseUsage `json:"enterpriseUsage"`
+	}
+	if json.Unmarshal(body, &envelope) != nil {
+		return nil, errors.New("qoder: invalid usage presentation")
+	}
+	switch envelope.Mode {
+	case "qoder":
+		var quota QuotaUsageResponse
+		if envelope.Enterprise != nil || json.Unmarshal(envelope.Quota, &quota) != nil || quota.UserID == "" || quota.UserType == "" || quota.UsageType != "credits" {
+			return nil, errors.New("qoder: invalid credit usage presentation")
+		}
+		quota.DisplayMode = "qoder"
+		return &quota, nil
+	case "enterprise":
+		view := envelope.Enterprise
+		if view == nil || len(envelope.Quota) != 0 || view.OpenMode != "externalBrowser" && view.OpenMode != "systemDeepLink" {
+			return nil, errors.New("qoder: invalid enterprise usage presentation")
+		}
+		if view.OpenMode == "externalBrowser" && !validUsageBrowserURL(view.DetailURL) || view.FallbackURL != "" && !validUsageBrowserURL(view.FallbackURL) {
+			return nil, errors.New("qoder: invalid enterprise usage destination")
+		}
+		return &QuotaUsageResponse{DisplayMode: "enterprise", Enterprise: view}, nil
+	default:
+		return nil, errors.New("qoder: unsupported usage presentation mode")
+	}
+}
+
+// validUsageBrowserURL accepts HTTPS navigation without userinfo or control bytes.
+func validUsageBrowserURL(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil && !strings.ContainsAny(value, "\r\n\x00")
 }
 
 // UnmarshalJSON decodes quota values and records which derivation inputs were

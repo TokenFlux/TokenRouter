@@ -71,7 +71,7 @@ func TestCNClientUsesGatewayEndpointVersionAndCanonicalSignaturePath(t *testing.
 	require.NotNil(t, resp)
 	require.Equal(t, "gateway.example", captured.URL.Host)
 	require.Equal(t, "/algo/api/v2/service/pro/sse/agent_chat_generation", captured.URL.Path)
-	require.Equal(t, "1.24.2", captured.Header.Get("Cosy-Version"))
+	require.Equal(t, "1.1.86-hotfix.5.3", captured.Header.Get("Cosy-Version"))
 	require.Equal(t, "aarch64_darwin", captured.Header.Get("Cosy-Machineos"))
 	require.Equal(t, "mid-abc", captured.Header.Get("Cosy-Machineid"))
 	require.Equal(t, []string{""}, captured.Header.Values("Cosy-Machinetoken"))
@@ -286,8 +286,8 @@ func TestHeadersDataPolicyIsDisagree(t *testing.T) {
 // uses the global integration defaults.
 func TestHeadersUseGlobalSiteVersion(t *testing.T) {
 	h := getHeaders(t)
-	if h.Get("cosy-version") != "1.24.2" {
-		t.Errorf("cosy-version = %q, want 1.24.2", h.Get("cosy-version"))
+	if h.Get("cosy-version") != "1.1.86-hotfix.5.3" {
+		t.Errorf("cosy-version = %q, want 1.1.86-hotfix.5.3", h.Get("cosy-version"))
 	}
 }
 
@@ -1058,4 +1058,15 @@ func TestParseSSELineEmptyData(t *testing.T) {
 			t.Fatalf("empty heartbeat produced events=%v err=%v", events, err)
 		}
 	}
+}
+
+// TestParseAPIErrorBodyNestedGatewayRejection retains the vendor's nested
+// intention rejection code and classification. This request-specific failure
+// must not be mistaken for authentication expiry or model entitlement denial.
+func TestParseAPIErrorBodyNestedGatewayRejection(t *testing.T) {
+	err := ParseAPIErrorBody(416, `{"error":{"code":406,"message":"","type":"intention_rejected"}}`)
+	require.Equal(t, "406", err.Code)
+	require.Equal(t, "intention_rejected", err.Message)
+	require.False(t, MayRefreshAttempt(err))
+	require.False(t, err.IsEntitlementDenied())
 }

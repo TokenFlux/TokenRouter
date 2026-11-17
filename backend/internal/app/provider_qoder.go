@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	providerauth "github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
@@ -68,4 +70,17 @@ func provideQoderTokens(transport provideradapter.QoderTransport, profiles *egre
 // are reported through slog.Warn.
 func provideTokenCacheInvalidator(cache providerauth.AccessTokenCache, sessions *provideradapter.QoderTokenProvider) providerauth.TokenCacheInvalidator {
 	return providerauth.NewCompositeTokenCacheInvalidator(cache, sessions, slog.Warn)
+}
+
+// provideQoderCatalog binds one account catalog owner to credentials and storage.
+// The admin sync endpoint starts queries. The shutdown hook cancels any manual
+// queries still running before their storage and transport dependencies close.
+func provideQoderCatalog(store *postgres.ProviderStore, tokens *provideradapter.QoderTokenProvider, transport provideradapter.QoderTransport, profiles *egressprovider.TLSProfiles, manager *lifecycle.Manager) *providerauth.QoderCatalogService {
+	service := providerauth.NewQoderCatalogService(providerauth.QoderCatalogOptions{
+		Read:   store.GetByID,
+		Writer: store,
+		Fetch:  provideradapter.QoderCatalogFetcher(tokens, transport, profiles),
+	})
+	manager.Register(lifecycle.Hook{Name: "QoderModelCatalog", StopOrder: shutdownStageProducers, Stop: service.StopContext})
+	return service
 }

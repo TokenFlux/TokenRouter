@@ -29,7 +29,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -3867,7 +3866,7 @@ func (l qoderTargetFixture) LoadTestTarget(context.Context, providercore.TestReq
 // observations.
 func executeQoderTest(t *testing.T, output *qoderTestOutputFixture, executor *provideradapter.QoderProviderTest, value *providercore.Record, model, prompt, mode string) error {
 	t.Helper()
-	executor.RewriteModel = openaiprotocol.ReplaceModelInBody
+	attachQoderHTTPFixtureCatalog(value)
 	core := providercore.NewTestService(qoderTargetFixture{target: executor.Target(value)}, providercore.TestOptions{
 		Now:        time.Now,
 		Error:      func(message string) { log.Printf("Provider test error: %s", message) },

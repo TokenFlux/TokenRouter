@@ -333,7 +333,7 @@ func TestQoderHTTPStorageChain(t *testing.T) {
 				if !ok {
 					return nil, fmt.Errorf("fixture candidate unavailable")
 				}
-				target := &qoder.Target{ProviderID: acc.ID, Site: qoder.SiteGlobal, UserType: "personal_standard", Metadata: qoder.RequestMetadata{APIKeyID: key.ID}, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
+				target := &qoder.Target{ProviderID: acc.ID, Site: qoder.SiteGlobal, Metadata: qoder.RequestMetadata{APIKeyID: key.ID}, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
 				return &gateway.Selection{Snapshot: snapshot, Plan: *selected.Candidate.Plan, Acquired: true, Release: selected.Attempt.Release, Executor: executor, Input: upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIChatCompletions, Body: request.Body, Stream: request.Stream, ResponseModel: request.Model, Target: target}, Complete: complete}, nil
 			}
 			handler := &gatewayhttp.QoderChatHandler{Executor: gateway.NewQoderExecutor(3, time.Second, concur, runtime)}

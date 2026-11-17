@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
@@ -52,12 +51,11 @@ type streamClientWithDoer interface {
 
 // Target binds site metadata and provider callbacks needed by one Qoder attempt.
 type Target struct {
-	// Attributes resolves the mapped route for this attempt. Nil keeps the site
-	// capability snapshot used by payload construction.
+	// Attributes resolves the mapped route against its captured account catalog.
+	// Nil retains execution defaults without inferring site-wide model capabilities.
 	Attributes func(context.Context, string, protocol.ProtocolID) (modelcatalog.Resolution, error) // route attribute resolver
 	ProviderID int64                                                                               // selected provider identifier
 	Site       Site                                                                                // selected credential site
-	UserType   string                                                                              // Qoder account classification
 	Metadata   RequestMetadata                                                                     // inbound session metadata
 	// Session obtains credentials with the original request context. The callback
 	// is required and cancellation can stop the wait before inference starts.
@@ -131,15 +129,14 @@ func NewExecutor(options ExecuteOptions) *Executor {
 }
 
 // PrepareConversation builds a payload and a conversation plan for one selected
-// target. Target site and user type replace request values before session-key
-// selection. Responses requests with previous_response_id permit append-style
-// reuse; the caller publishes acceptance and completion after transport and
-// output outcomes are known.
+// target. Target site replaces request metadata before session-key
+// selection. Responses continuation input is restored before this call, so every
+// request sends complete history. The caller publishes acceptance and completion
+// after transport and output outcomes are known.
 func (e *Executor) PrepareConversation(target *Target, wireProtocol protocol.ProtocolID, request QoderPayloadRequest) (map[string]any, string, *QoderConversationPlan) {
-	request.UserType = target.UserType
 	request.Site = target.Site
 	key, source := QoderConversationKey(target.Metadata, target.ProviderID, string(wireProtocol), request)
-	plan := e.conversations.PlanWithOptions(key, request.System, request.Tools, request.Messages, QoderConversationPlanOptions{AppendToExisting: wireProtocol == protocol.ProtocolOpenAIResponses && strings.TrimSpace(request.PreviousResponseID) != ""})
+	plan := e.conversations.Plan(key, request.System, request.Tools, request.Messages)
 	payload, model := BuildQoderPayloadWithOptions(request, plan.SessionID, plan.MessagesToSend, plan.IncludeSystem, plan.IncludeTools)
 	plan.Log(target.Metadata, target.ProviderID, string(wireProtocol), request.Model, source, request, payload)
 	return payload, model, plan
@@ -229,12 +226,23 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		responseModel = request.Model
 	}
 	if target.Attributes != nil {
-		modelKey := ResolveQoderModelForSite(target.Site, request.Model).Key
-		attributes, resolveErr := target.Attributes(ctx, modelKey, input.Protocol)
+		attributes, resolveErr := target.Attributes(ctx, request.Model, input.Protocol)
 		if resolveErr != nil {
 			return upstream.AttemptResult{}, resolveErr
 		}
 		request.Capabilities = &attributes
+		if attributes.Target.QoderModel != nil {
+			request.Model = attributes.Target.QoderModel.Key
+		}
+		if _, err := ResolveObservedThinking(request.Thinking, &attributes); err != nil {
+			return upstream.AttemptResult{}, err
+		}
+	}
+	if input.Protocol == protocol.ProtocolOpenAIResponses {
+		request, err = e.conversations.RestoreResponseHistory(target.Metadata, request)
+		if err != nil {
+			return upstream.AttemptResult{}, err
+		}
 	}
 	payload, model, plan := e.PrepareConversation(target, input.Protocol, request)
 	body, err := json.Marshal(payload)
@@ -282,6 +290,7 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 	output := upstream.NewOutputContext(sink)
 	mapper := QoderDeclaredToolNameMapper(QoderAnySlice(payload["tools"]))
 	var nativeUsage upstream.TokenUsage
+	var responseOutput json.RawMessage
 	commitComplete := true
 	if input.Stream {
 		var stream *QoderStreamResult
@@ -294,6 +303,7 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 			stream, err = WriteQoderAnthropicStreamResponse(executionCtx, output, responseModel, response, QoderAnthropicStreamUsageMapper(plan.RecordUsage), QoderAnthropicStreamToolNameMapper(mapper))
 		}
 		if stream != nil {
+			responseOutput = stream.ResponseOutput
 			nativeUsage = stream.Usage
 			result.Usage = plan.RecordUsage(nativeUsage)
 			result.HasUsage = stream.HasUsage
@@ -338,6 +348,15 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 			return upstream.AttemptResult{}, err
 		}
 		result.Served = true
+		if input.Protocol == protocol.ProtocolOpenAIResponses {
+			var response struct {
+				Output json.RawMessage `json:"output"`
+			}
+			if err := json.Unmarshal(responseBody, &response); err != nil {
+				return upstream.AttemptResult{}, err
+			}
+			responseOutput = response.Output
+		}
 		// Upstream generation and usage collection have completed before client
 		// output. Keep Served and Usage when the sink fails so completion can account
 		// for that work.
@@ -357,6 +376,10 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 	// Register the returned ID after output handling so later previous_response_id
 	// requests can find that session.
 	if input.Protocol == protocol.ProtocolOpenAIResponses && request.ResponseID != "" {
+		// Replay storage is bounded and optional after a successful response.
+		// Evicted or oversized histories produce an explicit continuation error later;
+		// they do not turn already completed inference into a failed chargeable attempt.
+		e.conversations.SaveResponseHistory(target.Metadata, request, responseOutput)
 		plan.AddAlias(QoderProviderScopedConversationKey(target.ProviderID, QoderConversationExplicitSessionKey(target.Metadata, request.ResponseID)))
 	}
 	result.Duration = time.Since(start)

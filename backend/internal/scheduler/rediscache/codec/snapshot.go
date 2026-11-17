@@ -126,34 +126,39 @@ func marshalSchedulerCacheProvider(provider providercore.Record) ([]byte, []byte
 // shared; consumers need their own recursive copy before mutating that data
 // independently.
 func buildSchedulerMetadataProvider(provider providercore.Record) providercore.Record {
+	qoderIdentity := ""
+	if provider.IsQoderCosy() {
+		qoderIdentity = providercore.QoderCatalogIdentity(&provider)
+	}
 	return providercore.Record{
-		ID:                      provider.ID,
-		Name:                    provider.Name,
-		Platform:                provider.Platform,
-		Type:                    provider.Type,
-		Concurrency:             provider.Concurrency,
-		LoadFactor:              provider.LoadFactor,
-		Priority:                provider.Priority,
-		RateMultiplier:          provider.RateMultiplier,
-		Status:                  provider.Status,
-		LastUsedAt:              provider.LastUsedAt,
-		ExpiresAt:               provider.ExpiresAt,
-		AutoPauseOnExpired:      provider.AutoPauseOnExpired,
-		Schedulable:             provider.Schedulable,
-		RateLimitedAt:           provider.RateLimitedAt,
-		RateLimitResetAt:        provider.RateLimitResetAt,
-		OverloadUntil:           provider.OverloadUntil,
-		TempUnschedulableUntil:  provider.TempUnschedulableUntil,
-		TempUnschedulableReason: provider.TempUnschedulableReason,
-		SessionWindowStart:      provider.SessionWindowStart,
-		SessionWindowEnd:        provider.SessionWindowEnd,
-		SessionWindowStatus:     provider.SessionWindowStatus,
-		ParentProviderID:        provider.ParentProviderID,
-		QuotaDimension:          provider.QuotaDimension,
-		ProviderGroups:          filterSchedulerProviderGroups(provider.ProviderGroups),
-		GroupIDs:                filterSchedulerGroupIDs(provider.GroupIDs, provider.ProviderGroups),
-		Credentials:             filterSchedulerCredentials(provider.Credentials),
-		Extra:                   filterSchedulerExtra(provider.Extra),
+		QoderCatalogIdentityHint: qoderIdentity,
+		ID:                       provider.ID,
+		Name:                     provider.Name,
+		Platform:                 provider.Platform,
+		Type:                     provider.Type,
+		Concurrency:              provider.Concurrency,
+		LoadFactor:               provider.LoadFactor,
+		Priority:                 provider.Priority,
+		RateMultiplier:           provider.RateMultiplier,
+		Status:                   provider.Status,
+		LastUsedAt:               provider.LastUsedAt,
+		ExpiresAt:                provider.ExpiresAt,
+		AutoPauseOnExpired:       provider.AutoPauseOnExpired,
+		Schedulable:              provider.Schedulable,
+		RateLimitedAt:            provider.RateLimitedAt,
+		RateLimitResetAt:         provider.RateLimitResetAt,
+		OverloadUntil:            provider.OverloadUntil,
+		TempUnschedulableUntil:   provider.TempUnschedulableUntil,
+		TempUnschedulableReason:  provider.TempUnschedulableReason,
+		SessionWindowStart:       provider.SessionWindowStart,
+		SessionWindowEnd:         provider.SessionWindowEnd,
+		SessionWindowStatus:      provider.SessionWindowStatus,
+		ParentProviderID:         provider.ParentProviderID,
+		QuotaDimension:           provider.QuotaDimension,
+		ProviderGroups:           filterSchedulerProviderGroups(provider.ProviderGroups),
+		GroupIDs:                 filterSchedulerGroupIDs(provider.GroupIDs, provider.ProviderGroups),
+		Credentials:              filterSchedulerCredentials(provider.Credentials),
+		Extra:                    filterSchedulerExtra(provider.Extra),
 	}
 }
 
@@ -239,6 +244,7 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	// retain the configured identity, model and protocol fields their provider
 	// methods consume.
 	keys := []string{
+		"site",
 		// Attribute lookup distinguishes relay models from the platform's official
 		// service before hydration; omitting the address can reject valid image
 		// references.
@@ -289,6 +295,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 	// capabilities before hydration, so this allowlist carries the runtime
 	// observations used by those checks.
 	keys := []string{
+		providercore.QoderCatalogExtraKey,
 		"images_gif_enabled",
 		"quota_limit",
 		"quota_used",

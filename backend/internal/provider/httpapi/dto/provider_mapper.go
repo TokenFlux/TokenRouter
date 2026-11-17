@@ -260,11 +260,14 @@ func ProviderFromRecordShallow(a *provider.Record) *Provider {
 		}
 	}
 
+	if a.IsQoderCosy() {
+		out.QoderModelCatalogStatus = a.QoderCatalogStatus(time.Now())
+	}
 	return out
 }
 
 // redactProviderManagedExtra copies permitted Extra values while excluding the
-// three Ollama-managed keys. Nil stays nil. Upstream usage-query configuration
+// internal Qoder catalog and Ollama maintenance data. Nil stays nil. Upstream usage-query configuration
 // follows a separate display allowlist, and other values use CloneValues'
 // supported copying rules with unsupported references potentially shared.
 func redactProviderManagedExtra(extra map[string]any) map[string]any {
@@ -274,6 +277,10 @@ func redactProviderManagedExtra(extra map[string]any) map[string]any {
 	redacted := make(map[string]any, len(extra))
 	for key, value := range extra {
 		switch key {
+		case provider.QoderCatalogExtraKey:
+			// Model observations have an administrator status view. Omit their raw
+			// identity digest and routing metadata from editable provider configuration.
+			continue
 		case provider.OllamaCloudUsageSessionExtraKey,
 			provider.OllamaCloudUsageAutoRefreshExtraKey,
 			provider.OllamaCloudUsageSnapshotExtraKey:

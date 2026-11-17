@@ -85,12 +85,14 @@ func (r *Resolution) applyPlatform() {
 	case "antigravity":
 		r.antigravityPatch(&patch)
 	case "qoder":
-		limit, selectable := QoderInputLimit(t.Site, model)
-		patch.InputLimit = valuePointer(limit)
-		if _, known := findQoderRoute(t.Site, model); known {
-			patch.ReasoningOptions = valuePointer(QoderReasoningOptions(t.Site, model))
+		patch.InputLimit = valuePointer(QoderFallbackInputLimit)
+		if t.QoderModel != nil {
+			patch = t.QoderModel.Attributes()
+			if patch.InputLimit == nil {
+				patch.InputLimit = valuePointer(QoderFallbackInputLimit)
+			}
+			r.Rules.RuntimeContext = len(t.QoderModel.ContextWindows) > 0
 		}
-		r.Rules.RuntimeContext = selectable
 		r.Rules.ThinkingMode = "qoder"
 	case "kimi":
 		r.Rules.SignatureMode = "passback"
@@ -122,8 +124,15 @@ func (r *Resolution) applyPlatform() {
 	patch.Media = MediaForModel(t.servicePlatform(), model)
 	r.patch(patch, "platform")
 	if t.Platform == "qoder" {
-		if _, found := findQoderRoute(t.Site, t.Model); !found {
+		if t.QoderModel == nil {
 			r.Sources["input_limit"] = "execution_default"
+		} else {
+			for _, field := range patch.fieldNames() {
+				r.Sources[field] = "qoder_account"
+			}
+			if t.QoderModel.InputLimit <= 0 {
+				r.Sources["input_limit"] = "execution_default"
+			}
 		}
 	}
 }

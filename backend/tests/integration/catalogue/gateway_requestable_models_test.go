@@ -12,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -242,64 +243,40 @@ func TestResolveRequestableModels_UnrestrictedProviderAddsDefaultsAndMappingSour
 	require.NotContains(t, ids, "gpt-*")
 }
 
-// TestResolveRequestableModels_QoderUsesSchedulableProviderSiteUnion compares
-// Global, CN, and mixed Qoder provider pools. Site-specific exclusions must hold,
-// the mixed pool must deduplicate its common model, and a configured alias must
-// respect the CN site's eligibility.
-func TestResolveRequestableModels_QoderUsesSchedulableProviderSiteUnion(t *testing.T) {
+// TestResolveRequestableModels_QoderAccountUnion checks overlapping account
+// catalogs, including one disabled route. Removing the final account offering
+// a route must remove its alias from the group's public model list.
+func TestResolveRequestableModels_QoderAccountUnion(t *testing.T) {
 	groupID := int64(4121)
-	global := providercore.Record{
-		ID:          90,
-		Platform:    capability.PlatformQoder,
-		Type:        capability.ProviderTypeCosy,
-		Credentials: map[string]any{"site": "global"},
-	}
-	cn := providercore.Record{
-		ID:          91,
-		Platform:    capability.PlatformQoder,
-		Type:        capability.ProviderTypeCosy,
-		Credentials: map[string]any{"site": "cn"},
-	}
-	// resolve enumerates Qoder IDs for this group from the supplied provider rows.
-	// Each call builds a fresh catalogue with no group policy, so site eligibility
-	// is read from the current fixture credentials.
+	global := providercore.Record{ID: 90, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{"site": "global"}}
+	cn := providercore.Record{ID: 91, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{"site": "cn"}}
+	shared := modelcatalog.QoderModel{Key: "qfmodel", Alias: "qwen3.8-flash", Enabled: true}
+	global = withQoderModels(global, shared, modelcatalog.QoderModel{Key: "cmodel", Alias: "cantus", Enabled: true})
+	cn = withQoderModels(cn, shared, modelcatalog.QoderModel{Key: "jmodel", Alias: "step-5-preview", Enabled: true}, modelcatalog.QoderModel{Key: "dmodel", Enabled: false})
+	// Resolve each pool independently so the group cache cannot carry candidates
+	// from the previous membership into the next catalogue observation.
 	resolve := func(providers ...providercore.Record) []string {
 		svc := newCatalogueFixture(&modelsListProviderRepoStub{byGroup: map[int64][]providercore.Record{groupID: providers}}, nil, nil)
 		result := svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformQoder)
 		return routing.RequestableModelIDs(result.Models)
 	}
+	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "cmodel", "cantus"}, resolve(global))
+	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "jmodel", "step-5-preview"}, resolve(cn))
+	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "cmodel", "cantus", "jmodel", "step-5-preview"}, resolve(global, cn))
+	cn.Credentials["model_mapping"] = map[string]any{"disabled-alias": "dmodel"}
+	require.NotContains(t, resolve(cn), "disabled-alias")
+}
 
-	globalIDs := resolve(global)
-	require.Contains(t, globalIDs, "claude-opus-4-6")
-	require.Contains(t, globalIDs, "qwen3.8-max")
-	require.NotContains(t, globalIDs, "qwen3.8-max-preview")
-	require.NotContains(t, globalIDs, "qwen3.6-flash")
-	require.NotContains(t, globalIDs, "minimax-m2.7")
-
-	cnIDs := resolve(cn)
-	require.Contains(t, cnIDs, "qwen3.8-max")
-	require.NotContains(t, cnIDs, "qwen3.8-max-preview")
-	require.Contains(t, cnIDs, "qwen3.6-flash")
-	require.Contains(t, cnIDs, "minimax-m2.7")
-	require.NotContains(t, cnIDs, "claude-opus-4-6")
-	require.NotContains(t, cnIDs, "minimax-m3")
-
-	mixedIDs := resolve(global, cn)
-	require.Contains(t, mixedIDs, "claude-opus-4-6")
-	require.Contains(t, mixedIDs, "qwen3.6-flash")
-	require.Contains(t, mixedIDs, "minimax-m3")
-	require.Contains(t, mixedIDs, "minimax-m2.7")
-	require.NotContains(t, mixedIDs, "qwen3.8-max-preview")
-	qwen38Count := 0
-	for _, model := range mixedIDs {
-		if model == "qwen3.8-max" {
-			qwen38Count++
-		}
-	}
-	require.Equal(t, 1, qwen38Count, "两站模型并集只能包含一个 Qwen3.8-Max")
-
-	cn.Credentials["model_mapping"] = map[string]any{"claude-opus-4-6": "ultimate"}
-	require.NotContains(t, resolve(cn), "claude-opus-4-6", "显式映射不能扩大CN站点硬能力")
+// withQoderModels installs an identity-matched successful observation. An empty
+// list keeps explicit custom mappings eligible without adding automatic routes.
+func withQoderModels(record providercore.Record, models ...modelcatalog.QoderModel) providercore.Record {
+	record.Extra = map[string]any{providercore.QoderCatalogExtraKey: &providercore.QoderCatalogSnapshot{
+		Identity:  providercore.QoderCatalogIdentity(&record),
+		Version:   "fixture",
+		FetchedAt: time.Now(),
+		Models:    append([]modelcatalog.QoderModel{}, models...),
+	}}
+	return record
 }
 
 // TestResolveRequestableModels_ProviderWhitelistRemovesUnsupportedCandidate
@@ -573,6 +550,7 @@ func TestResolveRequestableModels_QoderRequiresEffectivePricing(t *testing.T) {
 		},
 	}
 	provider := providercore.Record{ID: 69, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{"model_mapping": map[string]any{"qoder-model": "qmodel"}, "model_whitelist": []string{"qmodel"}}}
+	provider = withQoderModels(provider)
 	svc := newCatalogueFixture(&modelsListProviderRepoStub{byGroup: map[int64][]providercore.Record{groupID: {provider}}}, routingtestkit.PricingConfig(groupID, capability.PlatformQoder, pricingConfig), nil)
 
 	result := svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformQoder)

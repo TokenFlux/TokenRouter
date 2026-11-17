@@ -22,6 +22,7 @@ import (
 // ModelSyncService tracks request-triggered model queries through an injected
 // fetch function.
 type ModelSyncService struct {
+	Qoder *QoderCatalogService // account model synchronization owner
 	// fetch receives the service-owned provider copy for one registered query.
 	// It observes cancellation so shutdown can wait for the call to return.
 	fetch func(context.Context, *Record) ([]string, error)
@@ -37,7 +38,8 @@ type ModelSyncService struct {
 
 // ModelSyncResult contains live identifiers and independently owned catalogue suggestions.
 type ModelSyncResult struct {
-	Models []string `json:"models"` // live upstream model identifiers
+	SyncStatus map[string]any `json:"sync_status,omitempty"` // account catalog synchronization state
+	Models     []string       `json:"models"`                // live upstream model identifiers
 	// ModelProtocols contains catalogue suggestions for the returned models. Saved
 	// administrator overrides remain owned by the provider configuration and form.
 	// Nil omits the field; an empty map serializes as an object that clears the
@@ -72,6 +74,19 @@ func (s *ModelSyncService) Query(ctx context.Context, v *Record) (ModelSyncResul
 	}
 	defer finish()
 	snapshot := CloneRecord(v)
+	if snapshot != nil && snapshot.IsQoderCosy() && s.Qoder != nil {
+		if snapshot.ID <= 0 {
+			return ModelSyncResult{}, &UpstreamModelSyncError{Kind: UpstreamModelSyncErrorUnsupported, Message: "Save the Qoder account before synchronizing its models"}
+		}
+		observed, err := s.Qoder.Refresh(ctx, snapshot.ID)
+		if err != nil {
+			return ModelSyncResult{}, &UpstreamModelSyncError{Kind: UpstreamModelSyncErrorUpstream, Message: "Failed to synchronize Qoder account models", Err: err}
+		}
+		// Refresh rereads saved credentials and conditionally publishes their result.
+		// Return that accepted observation rather than validating it against this
+		// handler's potentially older credential copy and reporting a false empty list.
+		return ModelSyncResult{Models: qoderCatalogModelIDs(observed), SyncStatus: observed.adminStatus()}, nil
+	}
 	models, err := s.fetch(ctx, snapshot)
 	if err != nil {
 		return ModelSyncResult{}, err

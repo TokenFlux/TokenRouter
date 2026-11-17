@@ -28,7 +28,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	usagecore "github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
@@ -582,9 +581,9 @@ func TestGatewayServiceRecordUsage_QoderRequestedImageDoesNotUseGlobalFallback(t
 // It checks positive base cost when that full alias has fixture pricing, zero
 // otherwise, and command/row charge agreement.
 func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *testing.T) {
-	aliases := qoder.DefaultRequestModelIDs()
+	aliases := map[string]string{"auto": "auto", "ultimate": "ultimate", "cantus": "cmodel", "qwen3.8-max": "qmodel_38max", "qwen4-max": "qmodel_latest", "glm-5.3": "gmodel"}
 
-	for _, alias := range aliases {
+	for alias, route := range aliases {
 		t.Run(alias, func(t *testing.T) {
 			usageRepo := &completiontestkit.UsageLogStore{Inserted: true}
 			billingRepo := &completiontestkit.SettlementStore{}
@@ -596,7 +595,7 @@ func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *
 					RequestID:     "qoder_alias_" + alias,
 					Usage:         usage,
 					Model:         alias,
-					UpstreamModel: lookupQoderAliasKeyForTest(alias),
+					UpstreamModel: route,
 					Duration:      time.Second,
 				},
 				APIKey: &apikey.APIKey{
@@ -4664,18 +4663,6 @@ func requireGatewayRecordUsageBillingRepoStub(t *testing.T, svc *completiontestk
 	billingRepo, ok := svc.Dependencies.Funds.(*completiontestkit.SettlementStore)
 	require.True(t, ok)
 	return billingRepo
-}
-
-// lookupQoderAliasKeyForTest resolves a listed Qoder request alias to its route
-// key for fixture input. Unknown aliases return their supplied spelling, so
-// test pricing still uses the declared full identity.
-func lookupQoderAliasKeyForTest(alias string) string {
-	if info, ok := qoder.LookupQoderModelAlias(alias); ok {
-		return info.Key
-	}
-	// An unknown alias stays as supplied evidence; pricing tests can then observe
-	// its missing full-identity price rather than constructing a related model name.
-	return alias
 }
 
 // newGatewayRecordUsageServiceWithResolverForTest builds the native recording

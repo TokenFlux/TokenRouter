@@ -77,6 +77,7 @@ vi.mock('vue-i18n', async () => {
     ...actual,
     useI18n: () => ({
       t: (key: string) => key,
+      n: (value: number) => value.toLocaleString('en-US'),
     }),
   }
 })
@@ -1818,6 +1819,67 @@ describe('EditProviderModal', () => {
       'claude-opus-4-6': 'ultimate',
       auto: 'auto',
     })
+  })
+
+  // Reading the saved observation displays disabled routes too. A manual sync replaces
+  // those properties immediately, while the whitelist change is saved with the form.
+  it('shows Qoder model properties and saves the synchronized whitelist on update', async () => {
+    const provider = buildQoderProvider()
+    delete provider.credentials.model_mapping
+    const previous = {
+      key: 'old-route',
+      name: 'Previous model',
+      enabled: false,
+      default: false,
+      reasoning: false,
+      can_disable: false,
+      default_thinking: false,
+      efforts: null,
+      input_limit: 1000,
+      context_windows: null,
+      vision: false,
+    }
+    provider.qoder_model_catalog_status = { state: 'fresh', models: [], model_details: [previous] }
+    updateProviderMock.mockResolvedValue(provider)
+    const wrapper = mountModal(provider)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Previous model')
+    expect(wrapper.text()).toContain('common.disabled')
+    const selector = wrapper.findComponent(ModelWhitelistSelectorStub)
+    selector.vm.$emit('synced', {
+      models: ['qmodel_latest'],
+      sync_status: {
+        state: 'fresh',
+        model_details: [
+          {
+            ...previous,
+            key: 'qmodel_latest',
+            name: 'Qwen4-Max',
+            enabled: true,
+            reasoning: true,
+            default_thinking: true,
+            default_effort: 'high',
+            efforts: ['low', 'high'],
+            input_limit: 1000000,
+            output_limit: 65536,
+            context_windows: [200000, 1000000],
+          },
+        ],
+      },
+    })
+    selector.vm.$emit('update:modelValue', ['qmodel_latest'])
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Previous model')
+    expect(wrapper.text()).toContain('Qwen4-Max')
+    expect(wrapper.text()).toContain('1,000,000 / 65,536')
+    expect(wrapper.text()).toContain('low / high')
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    await wrapper.get('form#edit-provider-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateProviderMock.mock.calls[0]?.[1]?.credentials.model_whitelist).toEqual([
+      'qmodel_latest',
+    ])
+    wrapper.unmount()
   })
 
   // A Qoder provider has no persisted model restrictions. Saving unrelated fields leaves

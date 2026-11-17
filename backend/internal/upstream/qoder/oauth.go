@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,6 +89,7 @@ type DeviceTokenResponse struct {
 	// AccessTokenValue prefers trimmed AccessToken and uses trimmed Token when that
 	// preferred value is blank, including legacy polling responses.
 	Token        string `json:"token"`         // legacy access token
+	DeviceToken  string `json:"device_token"`  // desktop device token
 	AccessToken  string `json:"access_token"`  // preferred access token
 	RefreshToken string `json:"refresh_token"` // credential refresh token
 	UserID       string `json:"user_id"`       // OpenAPI user identifier
@@ -522,7 +524,7 @@ func (c *OAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier strin
 	}
 	// A successful poll can still lack access credentials. Treat that response as
 	// pending so authorization completion cannot consume a tokenless identity.
-	if strings.TrimSpace(token.Token) == "" && strings.TrimSpace(token.AccessToken) == "" {
+	if token.AccessTokenValue() == "" {
 		return nil, false, nil
 	}
 	return &token, true, nil
@@ -565,6 +567,35 @@ func (c *OAuthClient) GetUserInfo(ctx context.Context, token string) (*UserInfo,
 		return nil, fmt.Errorf("qoder: parse userinfo response: %w", err)
 	}
 	return &info, nil
+}
+
+// GetAccountType reads the current OpenAPI subscription classification.
+// Desktop userinfo does not carry this value for every account, so callers
+// obtain it separately before encoding account-specific inference metadata.
+func (c *OAuthClient) GetAccountType(ctx context.Context, token string) (string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v2/user/plan", nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("User-Agent", c.userAgent())
+	response, err := c.do(request)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("qoder: account plan returned HTTP %d", response.StatusCode)
+	}
+	var plan struct {
+		UserType      string `json:"user_type"` // desktop account classification
+		UserTypeCamel string `json:"userType"`  // alternate account classification
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&plan); err != nil {
+		return "", errors.New("qoder: invalid account plan response")
+	}
+	return firstNonEmpty(plan.UserType, plan.UserTypeCamel), nil
 }
 
 // GetOrganizationTags loads organization metadata for a required OpenAPI user
@@ -796,7 +827,24 @@ func (r *DeviceTokenResponse) AccessTokenValue() string {
 	if strings.TrimSpace(r.AccessToken) != "" {
 		return strings.TrimSpace(r.AccessToken)
 	}
+	if strings.TrimSpace(r.DeviceToken) != "" {
+		return strings.TrimSpace(r.DeviceToken)
+	}
 	return strings.TrimSpace(r.Token)
+}
+
+// RefreshDeviceToken exchanges a desktop refresh token using its saved machine.
+// Both sites use their own OpenAPI origin. The caller owns persistence and
+// verifies the refreshed user's identity before accepting the replacement.
+func (c *OAuthClient) RefreshDeviceToken(ctx context.Context, token string, machine *MachineIdentity) (*DeviceTokenResponse, error) {
+	if strings.TrimSpace(token) == "" || machine == nil || machine.MachineID == "" {
+		return nil, errors.New("qoder: device refresh requires a token and machine identity")
+	}
+	body, err := json.Marshal(map[string]string{"refresh_token": token, "machine_id": machine.MachineID})
+	if err != nil {
+		return nil, err
+	}
+	return c.postTokenRequest(ctx, DeviceTokenRefreshPath, body, "device token refresh")
 }
 
 // ExpiryTime returns UTC expiry from absolute or relative token fields. Nil
@@ -853,7 +901,7 @@ func (r *DeviceTokenResponse) ValidateQoderCN20(now time.Time) (time.Time, error
 	return expiresAt, nil
 }
 
-// BuildIdentityFromDeviceToken assembles a global identity from a nonnil token
+// BuildIdentityFromDeviceToken assembles a desktop identity from a nonnil token
 // response and optional userinfo. The token supplies the access/refresh pair;
 // AccessTokenValue resolves its current and legacy token names. Userinfo
 // user_id/id takes precedence over token user_id for both user and account
@@ -863,7 +911,7 @@ func (r *DeviceTokenResponse) ValidateQoderCN20(now time.Time) (time.Time, error
 // metadata when present. Without userinfo, the name stays empty and user type
 // selects personal_standard; token.UserName contributes to name selection only
 // when a userinfo object exists. This helper's global identity selection remains
-// separate from CN status completion.
+// separate from legacy CN status completion.
 func BuildIdentityFromDeviceToken(user *UserInfo, token *DeviceTokenResponse) *AuthIdentity {
 	accessToken := token.AccessTokenValue()
 	userID := strings.TrimSpace(token.UserID)

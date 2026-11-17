@@ -794,6 +794,7 @@ func TestIsModelSupportedByProviderWithContext_QoderUsesGroupMappedProviderLayer
 		},
 	}
 
+	gatewaytestkit.SetQoderCatalog(&provider.Record)
 	require.True(t, svc.isModelSupportedByProviderWithContext(ctx, provider, "my-qoder"),
 		"provider whitelist should be checked after channel mapping and provider mapping")
 }

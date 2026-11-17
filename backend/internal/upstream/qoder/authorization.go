@@ -16,11 +16,11 @@ import (
 // token is available, then resolves the identity and machine fields that the
 // provider authorization owner will persist.
 //
-// CN tokens require userinfo and Gateway status completion before inference.
-// Global login can retain token-response identity when userinfo is unavailable,
+// Current desktop tokens use OpenAPI userinfo on both sites. Global login can
+// retain token-response identity when that auxiliary lookup is unavailable,
 // with auxiliary lookup failures represented by sanitized warnings. Organization
-// tags fill missing metadata using the OpenAPI user identifier, which can differ
-// from the COSY account identifier returned by CN status. The stored flow keeps
+// tags fill missing metadata using the OpenAPI user identifier. Older CN status
+// completion remains available only to the legacy credential workflow. The stored flow keeps
 // the creation-time profile, machine, and proxy together across polls.
 
 // OAuthClientPort supplies polling and identity lookups for the authorization
@@ -92,71 +92,55 @@ type AuthorizationFlow struct {
 	Profile Profile          // flow endpoint profile
 }
 
-// CompleteAuthorization polls a stored flow and returns credentials or a pending
-// marker. The caller supplies a usable flow and factory and owns authorization
-// expiry, claiming, and persistence. A false readiness result becomes
-// pending=true; exchange errors return pending=false.
+// CompleteAuthorization exchanges browser proof for desktop device credentials.
+// A pending poll leaves the flow reusable. Current desktop logins on both sites
+// use OpenAPI userinfo directly; the older CN status exchange remains available
+// only for credentials explicitly marked with the legacy refresh mode.
 //
-// CN requires validated tokens, userinfo, and CN20OAuthCompleter status
-// completion. Global userinfo failure uses the token-response user ID and
-// records a sanitized warning. Organization lookup failures become warnings for
-// either site, and CN lookup uses the OpenAPI user ID before falling back to
-// COSY identity fields.
+// CN requires a successful identity lookup. Global responses carrying a user ID
+// can retain that identity when the auxiliary lookup fails, with a sanitized
+// warning. The persisted device-token mode keeps subsequent refreshes on the
+// matching OpenAPI endpoint instead of treating them as Center COSY tokens.
 func CompleteAuthorization(ctx context.Context, session *AuthorizationFlow, factory OAuthClientFactory) (*AuthorizationTokenInfo, bool, error) {
 	client, err := factory(session.Profile, session.ProxyURL)
 	if err != nil {
 		return nil, false, err
 	}
-
-	tokenResp, ready, err := client.PollDeviceToken(ctx, session.Nonce, session.CodeVerifier)
+	token, ready, err := client.PollDeviceToken(ctx, session.Nonce, session.CodeVerifier)
 	if err != nil {
 		return nil, false, err
 	}
 	if !ready {
 		return nil, true, nil
 	}
-
-	accessToken := tokenResp.AccessTokenValue()
-	if session.Site == SiteCN {
-		expiresAt, validateErr := tokenResp.ValidateQoderCN20(time.Now())
-		if validateErr != nil {
-			return nil, false, validateErr
-		}
-		userInfo, userErr := client.GetUserInfo(ctx, accessToken)
-		if userErr != nil {
+	expires := token.ExpiryTime(time.Now())
+	if token.AccessTokenValue() == "" || strings.TrimSpace(token.RefreshToken) == "" || expires.IsZero() {
+		return nil, false, errors.New("qoder: device authorization returned incomplete credentials")
+	}
+	user, userErr := client.GetUserInfo(ctx, token.AccessTokenValue())
+	if userErr != nil {
+		// Global polling can supply the account ID even when its auxiliary lookup
+		// fails. CN lacks that fallback contract and requires the identity lookup.
+		if session.Site == SiteCN || token.UserID == "" {
 			return nil, false, userErr
 		}
-		completer, ok := client.(CN20OAuthCompleter)
-		if !ok {
-			return nil, false, errors.New("qoder CN OAuth client does not support status completion")
-		}
-		identity, completedExpiry, completeErr := completer.CompleteQoderCN20Identity(ctx, tokenResp, userInfo, session.Machine)
-		if completeErr != nil {
-			return nil, false, completeErr
-		}
-		if !completedExpiry.IsZero() {
-			expiresAt = completedExpiry
-		}
-		// CN status can return a different COSY account identifier. Query organization
-		// tags with the OpenAPI user identifier so optional metadata belongs to this
-		// login.
-		organizationLookupUID := FirstNonEmptyQoder(tokenResp.UserID, tokenResp.ID)
-		if userInfo != nil {
-			organizationLookupUID = FirstNonEmptyQoder(userInfo.UserID, userInfo.ID, organizationLookupUID)
-		}
-		orgErr := populateQoderOrganizationForUID(ctx, client, accessToken, organizationLookupUID, identity)
-		return BuildAuthorizationTokenInfoForSite(identity, session.Machine, SiteCN, RefreshModeQoderCN20, expiresAt, nil, orgErr), false, nil
+		user = &UserInfo{ID: token.UserID}
 	}
-	userInfo, userErr := client.GetUserInfo(ctx, accessToken)
-	// Global login can build identity from the token response when userinfo fails.
-	// Carry that user ID forward and report the lookup failure through fixed warnings.
-	if userErr != nil {
-		userInfo = &UserInfo{ID: tokenResp.UserID}
+	identity := BuildIdentityFromDeviceToken(user, token)
+	if reader, ok := client.(interface {
+		GetAccountType(context.Context, string) (string, error)
+	}); ok {
+		// Subscription classification is auxiliary metadata. Keep the authenticated
+		// identity usable when plan lookup fails, while retaining verified values.
+		if accountType, err := reader.GetAccountType(ctx, token.AccessTokenValue()); err == nil && accountType != "" {
+			identity.UserType = accountType
+		}
 	}
-	identity := BuildIdentityFromDeviceToken(userInfo, tokenResp)
-	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
-	expiresAt := tokenResp.ExpiryTime(time.Now())
-	return BuildAuthorizationTokenInfoForSite(identity, session.Machine, SiteGlobal, RefreshModeCosy, expiresAt, userErr, orgErr), false, nil
+	if identity.UID == "" {
+		return nil, false, errors.New("qoder: device authorization returned no user identity")
+	}
+	orgErr := populateQoderOrganization(ctx, client, token.AccessTokenValue(), identity)
+	return BuildAuthorizationTokenInfoForSite(identity, session.Machine, session.Site, RefreshModeDeviceToken, expires, userErr, orgErr), false, nil
 }
 
 // populateQoderOrganization fills missing organization metadata using the

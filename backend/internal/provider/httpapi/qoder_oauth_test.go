@@ -91,7 +91,7 @@ func TestQoderOAuthHandlerGenerateAuthURLAcceptsCNAndRejectsUnknownSite(t *testi
 	cnRequest.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(cnRecorder, cnRequest)
 	require.Equal(t, http.StatusOK, cnRecorder.Code)
-	require.Contains(t, cnRecorder.Body.String(), "qoder.com.cn")
+	require.Contains(t, cnRecorder.Body.String(), "qoder.cn")
 	require.Contains(t, cnRecorder.Body.String(), `"site":"cn"`)
 
 	invalidRecorder := httptest.NewRecorder()

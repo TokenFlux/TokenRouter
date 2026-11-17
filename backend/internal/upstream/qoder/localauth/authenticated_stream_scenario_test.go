@@ -31,7 +31,7 @@ func TestRealAPI(t *testing.T) {
 	if authDir == "" {
 		t.Skip("no home directory")
 	}
-	if _, err := os.Stat(filepath.Join(authDir, "machine_id")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(authDir, "user")); os.IsNotExist(err) {
 		t.Skip("local Qoder auth not found")
 	}
 
