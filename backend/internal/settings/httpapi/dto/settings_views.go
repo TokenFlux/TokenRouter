@@ -174,6 +174,7 @@ type SystemSettings struct {
 	DocURL                      string                          `json:"doc_url"`                         // source documentation destination text
 	HomeContent                 string                          `json:"home_content"`                    // source custom homepage content
 	HideCcsImportButton         bool                            `json:"hide_ccs_import_button"`          // CCS import control visibility switch
+	ShowUserID                  bool                            `json:"show_user_id"`                    // User ID display switch.
 	PurchaseSubscriptionEnabled bool                            `json:"purchase_subscription_enabled"`   // subscription purchase entry switch
 	PurchaseSubscriptionURL     string                          `json:"purchase_subscription_url"`       // subscription purchase destination address
 	TableDefaultPageSize        int                             `json:"table_default_page_size"`         // default table row count

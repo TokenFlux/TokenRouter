@@ -24,6 +24,7 @@ type AdminReadSettings struct {
 	FooterText          string // additional footer text
 	FrontendURL         string // deployment frontend address
 	HideCcsImportButton bool   // hide import action
+	ShowUserID          bool   // User ID display switch.
 	HomeContent         string // homepage HTML or link
 	HomeFeaturedModels  string // featured model JSON
 	// LoginAgreementDocuments carries normalized stored documents; missing,
@@ -87,6 +88,7 @@ func ReadAdminSettings(settings map[string]string) *AdminReadSettings {
 	result.DocURL = settings[SettingKeyDocURL]
 	result.HomeContent = settings[SettingKeyHomeContent]
 	result.HideCcsImportButton = settings[SettingKeyHideCcsImportButton] == "true"
+	result.ShowUserID = settings[SettingKeyShowUserID] == "true"
 	result.PurchaseSubscriptionEnabled = settings[SettingKeyPurchaseSubscriptionEnabled] == "true"
 	result.PurchaseSubscriptionURL = strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL])
 	result.CustomMenuItems = settings[SettingKeyCustomMenuItems]

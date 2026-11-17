@@ -444,7 +444,7 @@ func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.C
 }
 
 // TestSettingsFieldOwnership enumerates static participants and the flattened
-// update request type. It checks unique ownership, all 287 request fields are
+// update request type. It checks unique ownership, all request fields are
 // represented, and no participant declares an extra field outside that request.
 func TestSettingsFieldOwnership(t *testing.T) {
 	defaults := scheduler.DefaultAdminSettingsDefaults()
@@ -477,7 +477,7 @@ func TestSettingsFieldOwnership(t *testing.T) {
 		delete(owners, name)
 		count++
 	}
-	require.Equal(t, 288, count, "HTTP 字段变化需要同步字段登记")
+	require.Equal(t, 289, count, "HTTP 字段变化需要同步字段登记")
 	require.Empty(t, owners, "参与者不应声明不存在的输入字段")
 }
 
@@ -2270,4 +2270,29 @@ func TestSettingsCoverAtomicSave(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Empty(t, repo.values[site.SettingKeySiteShareImage])
 	require.Empty(t, site.ReadShareImageMetadata(repo.values[site.SettingKeySiteShareImageMeta]).Hash)
+}
+
+// TestSettingsShowUserIDDefaultsAndPartialUpdates exercises the display switch through
+// the combined settings handler. It protects the disabled default, explicit updates,
+// and retention when an unrelated save omits the field.
+func TestSettingsShowUserIDDefaultsAndPartialUpdates(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
+	response := doUpdateSettings(t, h, map[string]any{}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Contains(t, response.Body.String(), `"show_user_id":false`)
+
+	response = doUpdateSettings(t, h, map[string]any{"show_user_id": true}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, "true", repo.values[site.SettingKeyShowUserID])
+	require.Contains(t, response.Body.String(), `"show_user_id":true`)
+
+	response = doUpdateSettings(t, h, map[string]any{"contact_info": "support@example.test"}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, "true", repo.values[site.SettingKeyShowUserID])
+	require.Contains(t, response.Body.String(), `"show_user_id":true`)
+
+	response = doUpdateSettings(t, h, map[string]any{"show_user_id": false}, nil)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, "false", repo.values[site.SettingKeyShowUserID])
+	require.Contains(t, response.Body.String(), `"show_user_id":false`)
 }

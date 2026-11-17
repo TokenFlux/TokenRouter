@@ -152,6 +152,7 @@ func buildSystemSettingsResponse(
 		DocURL:                                           settings.DocURL,
 		HomeContent:                                      settings.HomeContent,
 		HideCcsImportButton:                              settings.HideCcsImportButton,
+		ShowUserID:                                       settings.ShowUserID,
 		PurchaseSubscriptionEnabled:                      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                          settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                             settings.TableDefaultPageSize,

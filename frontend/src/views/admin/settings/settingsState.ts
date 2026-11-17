@@ -375,6 +375,7 @@ export function createSettingsForm() {
     bstats_log_errors: false,
     bstats_log_sent_data: false,
     bstats_log_response_status_text: false,
+    show_user_id: false,
     team_enabled: true,
     creative_enabled: true,
     creative_model_settings: [] as CreativeModelSetting[],

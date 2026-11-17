@@ -177,6 +177,12 @@ export default {
       bucketLimitHint: '如果窗口和粒度会产生超过 720 根柱子，后端会自动放大单柱时间窗口。',
     },
     features: {
+      userId: {
+        title: '用户 ID',
+        description: '管理用户 ID 的展示。',
+        enabled: '显示用户 ID',
+        enabledHint: '在右上角头像菜单和个人资料中显示可复制的用户 ID，例如 #1233。默认关闭。',
+      },
       bstats: {
         title: 'bStats',
         description:

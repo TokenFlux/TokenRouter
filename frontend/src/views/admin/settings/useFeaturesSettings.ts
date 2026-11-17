@@ -49,6 +49,7 @@ export type FeaturesSettingsForm = Pick<
   | 'bstats_log_sent_data'
   | 'bstats_log_response_status_text'
   | 'team_enabled'
+  | 'show_user_id'
 >
 
 /**

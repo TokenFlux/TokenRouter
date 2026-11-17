@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   settings: {} as Record<string, boolean>, // Public feature switch values.
   setThemeMode: vi.fn(), // Theme selection action recorder.
   toggleTheme: vi.fn(), // Guest theme action recorder.
+  copyUserId: vi.fn(), // Account identifier clipboard recorder.
 }))
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-i18n')>()),
@@ -35,6 +36,9 @@ vi.mock('@/stores', () => ({
   useAuthStore: () => ({ user: state.user, isAdmin: false, logout: vi.fn() }),
   useOnboardingStore: () => ({ replay: vi.fn() }),
 }))
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({ cachedPublicSettings: state.settings }),
+}))
 vi.mock('@/composables/useBalanceDisplay', () => ({
   useBalanceDisplay: () => ({ formatBalanceAmount: () => '0', balanceUnitSymbol: '$' }),
 }))
@@ -45,6 +49,9 @@ vi.mock('@/composables/useTheme', () => ({
     setThemeMode: state.setThemeMode,
     toggleTheme: state.toggleTheme,
   }),
+}))
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({ copyToClipboard: state.copyUserId }),
 }))
 vi.mock('@/directives/segmented', () => ({ vSegmented: {} }))
 
@@ -59,7 +66,7 @@ beforeEach(() => {
 function mountHeader() {
   return shallowMount(AppHeader, {
     props: { publicPage: true },
-    global: { renderStubDefaultSlot: true, stubs: { RouterLink: true } },
+    global: { renderStubDefaultSlot: true, stubs: { RouterLink: true, UserIdBadge: false } },
   })
 }
 
@@ -74,6 +81,20 @@ async function openUserMenu() {
 }
 
 describe('AppHeader controls', () => {
+  // Signed-in users copy their account ID from the avatar dropdown. The closed
+  // menu keeps that identifier out of the top-level header controls.
+  it('places the copyable account ID inside the avatar dropdown', async () => {
+    state.user = { id: 1233, email: 'reader@example.test', role: 'user' }
+    state.settings = { show_user_id: true }
+    const wrapper = mountHeader()
+    expect(wrapper.text()).not.toContain('#1233')
+    await wrapper.get('.header-status-user-button').trigger('click')
+    const button = wrapper.get('.user-menu-panel button[aria-label="profile.copyUserId"]')
+    expect(button.text()).toBe('#1233')
+    await button.trigger('click')
+    expect(state.copyUserId).toHaveBeenCalledExactlyOnceWith('#1233')
+  })
+
   // Guests need a direct theme action because they have no account menu. A
   // signed-in header moves that action into the account menu's theme controls.
   it('keeps the header theme button only for guests', async () => {

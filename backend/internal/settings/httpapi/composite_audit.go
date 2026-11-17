@@ -477,6 +477,9 @@ func DiffSettings(before *composite.Snapshot, after *composite.Snapshot, beforeA
 	if before.HideCcsImportButton != after.HideCcsImportButton {
 		changed = append(changed, "hide_ccs_import_button")
 	}
+	if before.ShowUserID != after.ShowUserID {
+		changed = append(changed, "show_user_id")
+	}
 	if before.DefaultConcurrency != after.DefaultConcurrency {
 		changed = append(changed, "default_concurrency")
 	}

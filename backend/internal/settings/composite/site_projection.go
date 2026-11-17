@@ -25,6 +25,7 @@ func (s *Snapshot) SiteAdminSettings() site.AdminSettings {
 		FooterText:                  s.FooterText,
 		FrontendURL:                 s.FrontendURL,
 		HideCcsImportButton:         s.HideCcsImportButton,
+		ShowUserID:                  s.ShowUserID,
 		HomeContent:                 s.HomeContent,
 		HomeFeaturedModels:          s.HomeFeaturedModels,
 		LoginAgreementDocuments:     s.LoginAgreementDocuments,
@@ -58,6 +59,7 @@ func (s *Snapshot) ApplySiteAdminSettings(value site.AdminSettings) {
 	s.FooterText = value.FooterText
 	s.FrontendURL = value.FrontendURL
 	s.HideCcsImportButton = value.HideCcsImportButton
+	s.ShowUserID = value.ShowUserID
 	s.HomeContent = value.HomeContent
 	s.HomeFeaturedModels = value.HomeFeaturedModels
 	s.LoginAgreementDocuments = value.LoginAgreementDocuments
@@ -90,6 +92,7 @@ func (s *Snapshot) ApplySiteAdminReadSettings(value *site.AdminReadSettings) {
 	s.FooterText = value.FooterText
 	s.FrontendURL = value.FrontendURL
 	s.HideCcsImportButton = value.HideCcsImportButton
+	s.ShowUserID = value.ShowUserID
 	s.HomeContent = value.HomeContent
 	s.HomeFeaturedModels = value.HomeFeaturedModels
 	s.LoginAgreementDocuments = value.LoginAgreementDocuments

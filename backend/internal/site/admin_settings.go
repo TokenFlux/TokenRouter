@@ -31,6 +31,7 @@ type AdminSettings struct {
 	FooterText          string `json:"footer_text"`            // additional footer text
 	FrontendURL         string `json:"frontend_url"`           // deployment frontend address
 	HideCcsImportButton bool   `json:"hide_ccs_import_button"` // hide import action
+	ShowUserID          bool   `json:"show_user_id"`           // User ID display switch.
 	HomeContent         string `json:"home_content"`           // homepage HTML or link
 	HomeFeaturedModels  string `json:"home_featured_models"`   // featured model JSON
 	// LoginAgreementDocuments supplies the agreement list; marshaling normalizes
@@ -103,6 +104,7 @@ func PrepareAdminSettings(settings *AdminSettings) (map[string]string, error) {
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
+	updates[SettingKeyShowUserID] = strconv.FormatBool(settings.ShowUserID)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	tableDefaultPageSize, tablePageSizeOptions := NormalizeTablePreferences(
