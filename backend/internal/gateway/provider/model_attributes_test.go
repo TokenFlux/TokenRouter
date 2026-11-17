@@ -12,8 +12,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // mediaAttributeRepo returns a configured group attribute value and counts its
@@ -415,4 +417,51 @@ func TestReferencedAttributesPreserveOutboundModel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "custom-openai", gjson.GetBytes(body, "model").String())
 	require.False(t, gjson.GetBytes(body, "temperature").Exists())
+}
+
+// TestQoderPreviewAndRuntimeShareRoute resolves both a key and its account
+// alias under protocol-specific rules. Profile references must borrow another
+// model's data without changing the service key used by the payload encoder.
+func TestQoderPreviewAndRuntimeShareRoute(t *testing.T) {
+	row := qoderAvailabilityRecord(7, "cn", []map[string]any{
+		{"key": "native", "alias": "public-name", "name": "Original", "enabled": true, "input_limit": 1000000},
+		{"key": "other", "alias": "other-name", "name": "Referenced", "enabled": true, "input_limit": 64000},
+	})
+	row.PrepareQoderCatalog()
+	rule := routing.ModelAttributeRule{Models: []string{"native"}, Match: &routing.ModelAttributeMatch{UpstreamProtocol: "qoder_chat"}, Attributes: modelcatalog.Attributes{InputLimit: new(128000)}}
+	config := &routing.ModelAttributeConfig{Status: "active", Rules: []routing.ModelAttributeRule{rule}}
+	service := &routing.ModelAttributeService{Repo: &mediaAttributeRepo{config: config}}
+	runtime := NewQoderRuntime(QoderRuntimeOptions{Attributes: service})
+	ctx := requeststate.WithGroup(t.Context(), &routing.Group{ID: 7})
+	for _, wire := range []protocol.ProtocolID{protocol.ProtocolOpenAIResponses, protocol.ProtocolOpenAIChatCompletions, protocol.ProtocolAnthropicMessages} {
+		config.Rules[0].Match.ClientProtocol = string(wire)
+		for _, name := range []string{"native", "public-name"} {
+			rules, ok := CatalogueProvider(&row, requeststate.AttemptRoute{}).Rules.(catalogueRules)
+			require.True(t, ok)
+			target := rules.AttributeTarget(name, "native", wire, protocol.ProtocolQoderChat)
+			preview, err := service.Preview(ctx, 7, []modelcatalog.Target{target}, config)
+			require.NoError(t, err)
+			actual, err := runtime.Target(qoder.RequestMetadata{}, &row).Attributes(ctx, name, wire)
+			require.NoError(t, err)
+			require.Equal(t, preview[0], actual)
+			require.Equal(t, new(128000), actual.Attributes.InputLimit)
+			payload, key, err := qoder.BuildQoderPayloadWithOptions(qoder.QoderPayloadRequest{Model: name, Capabilities: &actual}, "", nil, true, true)
+			require.NoError(t, err)
+			require.Equal(t, "native", key)
+			config, ok := payload["model_config"].(map[string]any)
+			require.True(t, ok)
+			require.Equal(t, 128000, config["max_input_tokens"])
+		}
+	}
+	config.Rules[0] = routing.ModelAttributeRule{Models: []string{"native"}, ReferenceModel: "other-name"}
+	actual, err := runtime.Target(qoder.RequestMetadata{}, &row).Attributes(ctx, "public-name", protocol.ProtocolOpenAIResponses)
+	require.NoError(t, err)
+	require.Equal(t, "native", actual.Target.Model)
+	require.Equal(t, new("Referenced"), actual.Attributes.DisplayName)
+	require.Equal(t, new(64000), actual.Attributes.InputLimit)
+	config.Rules[0].ReferenceModel = "missing"
+	absent, err := runtime.Target(qoder.RequestMetadata{}, &row).Attributes(ctx, "public-name", protocol.ProtocolOpenAIResponses)
+	require.NoError(t, err)
+	require.Nil(t, absent.Attributes.InputLimit)
+	require.Nil(t, absent.Attributes.DisplayName)
 }

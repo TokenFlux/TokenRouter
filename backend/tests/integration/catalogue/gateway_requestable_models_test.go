@@ -12,8 +12,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
@@ -250,9 +250,9 @@ func TestResolveRequestableModels_QoderAccountUnion(t *testing.T) {
 	groupID := int64(4121)
 	global := providercore.Record{ID: 90, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{"site": "global"}}
 	cn := providercore.Record{ID: 91, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{"site": "cn"}}
-	shared := modelcatalog.QoderModel{Key: "qfmodel", Alias: "qwen3.8-flash", Enabled: true}
-	global = withQoderModels(global, shared, modelcatalog.QoderModel{Key: "cmodel", Alias: "cantus", Enabled: true})
-	cn = withQoderModels(cn, shared, modelcatalog.QoderModel{Key: "jmodel", Alias: "step-5-preview", Enabled: true}, modelcatalog.QoderModel{Key: "dmodel", Enabled: false})
+	shared := qodermodel.Model{Key: "qfmodel", Alias: "qwen3.8-flash", Enabled: true}
+	global = withQoderModels(global, shared, qodermodel.Model{Key: "cmodel", Alias: "cantus", Enabled: true})
+	cn = withQoderModels(cn, shared, qodermodel.Model{Key: "jmodel", Alias: "step-5-preview", Enabled: true}, qodermodel.Model{Key: "dmodel", Enabled: false})
 	// Resolve each pool independently so the group cache cannot carry candidates
 	// from the previous membership into the next catalogue observation.
 	resolve := func(providers ...providercore.Record) []string {
@@ -269,12 +269,12 @@ func TestResolveRequestableModels_QoderAccountUnion(t *testing.T) {
 
 // withQoderModels installs an identity-matched successful observation. An empty
 // list keeps explicit custom mappings eligible without adding automatic routes.
-func withQoderModels(record providercore.Record, models ...modelcatalog.QoderModel) providercore.Record {
+func withQoderModels(record providercore.Record, models ...qodermodel.Model) providercore.Record {
 	record.Extra = map[string]any{providercore.QoderCatalogExtraKey: &providercore.QoderCatalogSnapshot{
 		Identity:  providercore.QoderCatalogIdentity(&record),
 		Version:   "fixture",
 		FetchedAt: time.Now(),
-		Models:    append([]modelcatalog.QoderModel{}, models...),
+		Models:    append([]qodermodel.Model{}, models...),
 	}}
 	return record
 }

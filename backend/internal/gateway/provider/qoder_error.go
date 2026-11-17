@@ -27,6 +27,9 @@ import (
 // return an empty view; entitlement 403 stays forbidden, and agent-limit
 // classification overrides status to HTTP 429.
 func DescribeQoderError(err error) forward.QoderErrorView {
+	if local, ok := errors.AsType[*qoder.RequestError](err); ok {
+		return forward.QoderErrorView{Recognized: true, Status: http.StatusBadRequest, Kind: "invalid_request_error", Message: local.Message}
+	}
 	var apiErr *qoder.APIError
 	if !errors.As(err, &apiErr) {
 		return forward.QoderErrorView{}

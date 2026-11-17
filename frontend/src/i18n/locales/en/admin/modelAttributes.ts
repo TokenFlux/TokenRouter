@@ -70,7 +70,9 @@ export default {
       video: 'Video',
       pdf: 'PDF',
     },
+    beforeAdapter: 'Values before adapter restrictions',
     sources: {
+      provider: 'Provider',
       'models.dev': 'models.dev',
       local_supplement: 'Local supplement',
       rule_supplement: 'Rule supplement',

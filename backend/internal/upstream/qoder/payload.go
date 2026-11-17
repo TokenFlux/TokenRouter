@@ -37,9 +37,9 @@ import (
 // and thinking controls. Canonical content carries text and cache annotations;
 // scalar tool results use the message-level cache marker accepted by the client.
 
-// FallbackMaxInputTokens bounds explicitly configured routes lacking observed
-// input metadata; it never contributes automatic account model candidates.
-const FallbackMaxInputTokens = modelcatalog.QoderFallbackInputLimit
+// FallbackMaxInputTokens supplies the native wire limit when no group, account
+// or catalog source provided an input limit for the selected model.
+const FallbackMaxInputTokens = 200000
 
 // Billing checksum normalization keeps volatile client billing metadata from
 // changing the stable conversation prefix used for session prefix comparison.
@@ -99,6 +99,9 @@ type QoderPayloadRequest struct {
 	// also uses it as an explicit session candidate after session_id and
 	// conversation_id.
 	PreviousResponseID string // Responses continuation identifier
+	// DisableResponseStorage prevents retaining text and tool data for subsequent
+	// requests when the Responses client supplied an explicit false store flag.
+	DisableResponseStorage bool
 	// RequiresPreviousResponse marks tool outputs whose calls are absent from
 	// this request. Execution must restore the matching API key’s saved history.
 	RequiresPreviousResponse bool // continuation-owned tool history
@@ -113,8 +116,7 @@ func BuildQoderPayloadFromChatCompletionsForSite(body []byte, _ string, site Sit
 		return nil, "", err
 	}
 	request.Site = site
-	payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
-	return payload, modelKey, nil
+	return BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 }
 
 // ParseQoderChatCompletionsPayload parses Chat input into normalized system,
@@ -174,8 +176,7 @@ func BuildQoderPayloadFromAnthropicMessages(body []byte, _ string) (map[string]a
 	if err != nil {
 		return nil, "", err
 	}
-	payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
-	return payload, modelKey, nil
+	return BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 }
 
 // ParseQoderResponsesPayload normalizes Responses instructions, input items,
@@ -263,6 +264,7 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 		ResponseID:               responseID,
 		AutoResponseSession:      autoResponseSession,
 		PreviousResponseID:       previousResponseID,
+		DisableResponseStorage:   req.Store != nil && !*req.Store,
 		RequiresPreviousResponse: requiresPrevious,
 	}, nil
 }
@@ -497,10 +499,15 @@ func QoderFingerprintAny(value any) string {
 // shape the outgoing request. Automatic cache markers modify only outgoing
 // text-block maps; tool definitions remain shared references in the returned
 // payload and must stay stable until serialization finishes.
-func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string, messages []QoderMessage, includeSystem bool, includeTools bool) (map[string]any, string) {
+func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string, messages []QoderMessage, includeSystem bool, includeTools bool) (map[string]any, string, error) {
+	thinking, err := ResolveObservedThinking(request.Thinking, request.Capabilities)
+	if err != nil {
+		return nil, "", err
+	}
 	modelInfo := QoderModelInfo{Key: strings.TrimSpace(request.Model), Source: "system"}
-	if request.Capabilities != nil && request.Capabilities.Target.QoderModel != nil {
-		modelInfo.Key = request.Capabilities.Target.QoderModel.Key
+	observed, found := observedModel(request.Capabilities)
+	if found {
+		modelInfo.Key = observed.Key
 	}
 	requestID := uuid.NewString()
 	prompt := LatestQoderPayloadPromptText(messages, includeTools)
@@ -527,10 +534,13 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	modelConfig["key"] = modelInfo.Key
 	modelConfig["source"] = modelInfo.Source
 	modelConfig["display_name"] = modelInfo.Key
-	if request.Capabilities != nil && request.Capabilities.Target.QoderModel != nil {
-		model := request.Capabilities.Target.QoderModel
-		modelConfig["display_name"] = model.Name
-		modelConfig["is_vl"] = model.Vision
+	if found {
+		if observed.Name != "" {
+			modelConfig["display_name"] = observed.Name
+		}
+		if observed.Vision != nil {
+			modelConfig["is_vl"] = *observed.Vision
+		}
 	}
 	chatContext, _ := payload["chat_context"].(map[string]any)
 	extra, _ := chatContext["extra"].(map[string]any)
@@ -538,8 +548,8 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	chatContext["text"] = prompt
 	extraModelConfig["key"] = modelInfo.Key
 	extraModelConfig["source"] = modelInfo.Source
-	ApplyQoderContextCapability(payload, request.Site, modelInfo.Key, request.Capabilities)
-	ApplyQoderThinkingDirective(payload, request.Site, modelInfo.Key, request.Thinking, request.Capabilities)
+	applyContextCapability(payload, request.Capabilities, len(observed.ContextWindows) > 0)
+	applyObservedThinking(payload, thinking)
 	extra["originalContent"] = prompt
 	// Business name is limited to thirty runes while full prompt text remains in
 	// chat context and message history. Truncation affects this descriptive title
@@ -571,28 +581,16 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	} else {
 		payload["tools"] = []any{}
 	}
-	return payload, modelInfo.Key
+	return payload, modelInfo.Key, nil
 }
 
-// ApplyQoderContextCapability writes the route input limit to Qoder's supported
-// configuration locations. The payload needs the nested maps from
-// QoderBasePayload. A nonnil first resolutions entry can replace
-// input limit and runtime-selection rules.
-//
-// Every route writes model_config.max_input_tokens. Runtime-selectable routes
-// also write parameters.context_length and
-// ideModelConfigOverride.max_input_tokens, creating the latter map when absent.
-// Fixed routes return after the model limit so their request does not gain a
-// context override that the route lacks.
-func ApplyQoderContextCapability(payload map[string]any, site Site, modelKey string, resolutions ...*modelcatalog.Resolution) {
-	maxInput := modelcatalog.QoderFallbackInputLimit
-	selectable := false
-	if len(resolutions) > 0 && resolutions[0] != nil {
-		value := resolutions[0]
-		if value.Attributes.InputLimit != nil {
-			maxInput = *value.Attributes.InputLimit
-		}
-		selectable = value.Rules.RuntimeContext
+// applyContextCapability encodes the effective input limit in Qoder's nested fields.
+// The wire fallback applies only when every attribute source omitted the limit.
+// Selectable windows additionally require the runtime override and context length.
+func applyContextCapability(payload map[string]any, resolution *modelcatalog.Resolution, selectable bool) {
+	maxInput := FallbackMaxInputTokens
+	if resolution != nil && resolution.Attributes.InputLimit != nil {
+		maxInput = *resolution.Attributes.InputLimit
 	}
 	modelConfig, _ := payload["model_config"].(map[string]any)
 	modelConfig["max_input_tokens"] = maxInput
@@ -610,15 +608,6 @@ func ApplyQoderContextCapability(payload map[string]any, site Site, modelKey str
 		extra["ideModelConfigOverride"] = runtimeOverride
 	}
 	runtimeOverride["max_input_tokens"] = maxInput
-}
-
-// ApplyQoderThinkingDirective mirrors account-observed reasoning controls into
-// the Qoder payload. A missing account observation leaves custom routes alone;
-// Executor validates explicit unsupported controls before invoking this writer.
-func ApplyQoderThinkingDirective(payload map[string]any, site Site, modelKey string, directive QoderThinkingDirective, resolutions ...*modelcatalog.Resolution) {
-	if len(resolutions) > 0 && resolutions[0] != nil {
-		applyObservedThinking(payload, directive, resolutions[0])
-	}
 }
 
 // AddQoderEphemeralCacheControl marks the final nonblank message content for

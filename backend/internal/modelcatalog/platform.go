@@ -37,8 +37,7 @@ const (
 // Model encoding rules run before service authentication and endpoint variants
 // select their own sampling, thinking, signature, and media behavior. Platform
 // attribute sources are recorded when the patch is merged; later administrator
-// overrides can replace them before adapter restrictions run. Qoder unknown
-// routes retain a fixed input limit labeled execution_default, and nonpositive
+// overrides can replace them before adapter restrictions run. Nonpositive
 // Ollama caps leave the output clamping rule disabled.
 // @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_attributes
 func (r *Resolution) applyPlatform() {
@@ -84,16 +83,6 @@ func (r *Resolution) applyPlatform() {
 		}
 	case "antigravity":
 		r.antigravityPatch(&patch)
-	case "qoder":
-		patch.InputLimit = valuePointer(QoderFallbackInputLimit)
-		if t.QoderModel != nil {
-			patch = t.QoderModel.Attributes()
-			if patch.InputLimit == nil {
-				patch.InputLimit = valuePointer(QoderFallbackInputLimit)
-			}
-			r.Rules.RuntimeContext = len(t.QoderModel.ContextWindows) > 0
-		}
-		r.Rules.ThinkingMode = "qoder"
 	case "kimi":
 		r.Rules.SignatureMode = "passback"
 	case "zhipu":
@@ -123,18 +112,6 @@ func (r *Resolution) applyPlatform() {
 	}
 	patch.Media = MediaForModel(t.servicePlatform(), model)
 	r.patch(patch, "platform")
-	if t.Platform == "qoder" {
-		if t.QoderModel == nil {
-			r.Sources["input_limit"] = "execution_default"
-		} else {
-			for _, field := range patch.fieldNames() {
-				r.Sources[field] = "qoder_account"
-			}
-			if t.QoderModel.InputLimit <= 0 {
-				r.Sources["input_limit"] = "execution_default"
-			}
-		}
-	}
 }
 
 // antigravityPatch supplies limits and thinking encodings for converted
@@ -177,31 +154,18 @@ func (r *Resolution) antigravityPatch(patch *Attributes) {
 }
 
 // applyAdapter restricts resolved attributes to the selected converter's
-// representations after administrator overrides have been applied. Qoder
-// retains text modalities and disables unsupported controls, while cross-text
+// representations after administrator overrides have been applied. Cross-text
 // conversion intersects known modalities with text and image.
 //
 // Image and video entries impose their output modalities separately from
 // ordinary text conversion. Batch images retain registered 1K sizes, and
 // OpenAI OAuth image routes disable input fidelity even when configured true.
-// Unknown modality lists remain unknown except for Qoder's fixed text choices;
-// every changed attribute receives the adapter source label.
+// Provider-specific restrictions run after these shared protocol constraints.
+// Each constrained attribute receives the adapter source label.
 func (r *Resolution) applyAdapter() {
 	t := r.Target
 	patch := Attributes{}
-	if t.Platform == "qoder" {
-		// Qoder payloads use text for both directions. Intersect supplied
-		// modalities with that fixed representation so an administrator clear
-		// stays explicitly empty.
-		patch.InputModalities, patch.OutputModalities = valuePointer([]string{"text"}), valuePointer([]string{"text"})
-		if r.Attributes.InputModalities != nil {
-			patch.InputModalities = intersection(r.Attributes.InputModalities, patch.InputModalities)
-		}
-		if r.Attributes.OutputModalities != nil {
-			patch.OutputModalities = intersection(r.Attributes.OutputModalities, patch.OutputModalities)
-		}
-		patch.Attachment, patch.Temperature, patch.TopP, patch.StructuredOutput = valuePointer(false), valuePointer(false), valuePointer(false), valuePointer(false)
-	} else if t.ClientProtocol != "" && t.UpstreamProtocol != "" && t.ClientProtocol != t.UpstreamProtocol && !strings.Contains(t.ClientProtocol, "images_") && !strings.Contains(t.ClientProtocol, "videos_") && t.ClientProtocol != "image_batches" {
+	if t.ClientProtocol != "" && t.UpstreamProtocol != "" && t.ClientProtocol != t.UpstreamProtocol && !strings.Contains(t.ClientProtocol, "images_") && !strings.Contains(t.ClientProtocol, "videos_") && t.ClientProtocol != "image_batches" {
 		// Text protocol conversion has a narrower representation than a catalog
 		// modality declaration. Restrict known lists after configuration so
 		// unsupported audio, video, and PDF choices disappear.

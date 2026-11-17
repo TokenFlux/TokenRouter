@@ -48,7 +48,7 @@ Qoder Cosy 的原生协议只有 `qoder_chat`；对外的 Messages、Responses �
 
 模型页将返回的可用 ID 去重并加入白名单草稿，保留已有项；点击「更新」后白名单生效。下方展示上游返回的所有模型，包括禁用项、推理档位、输入输出限制及上下文选项。管理端、公开目录、调度与请求转换共用账号快照。管理接口的 `qoder_model_catalog_status` 和同步接口的 `sync_status` 都包含 `model_details`。
 
-已移除模型不再提供自动候选或旧别名，管理员保存的配置不被自动改写。未知原始路由需要显式的提供商映射目标或具体白名单项，通配白名单不会自动恢复已退役型号。手动映射到当前可用路由仍然有效；已观察到但被账号禁用的路由不会被手动映射解禁。
+已移除模型不再提供自动候选或旧别名，管理员保存的配置不被自动改写。白名单筛选账号可用的路由。上游移除路由或别名后，已保存的白名单项保留并提示缺失。管理员可以通过显式提供商映射指定自定义上游路由。手动映射到当前可用路由仍然有效；已观察到但被账号禁用的路由不会被手动映射解禁。
 
 Qoder 提供商的 `model_mapping` 和其他平台使用相同的改写规则：
 
@@ -64,24 +64,24 @@ Qoder 提供商的 `model_mapping` 和其他平台使用相同的改写规则：
 
 推理控制来自所选账号模型的 `thinking_config`、`efforts`、`supports_disabled` 和默认值。`low`、`medium`、`high`、`xhigh`、`max` 分别保留。缺省请求使用模型默认值；明确关闭优先于启用，不能关闭推理的模型收到关闭请求时返回参数错误。已支持的强度原样发送，缺失的中间档位提升到最近的更高可用档位，超出范围取最高档位；正数 budget 使用最高可用档位。只有开关的模型只发送开关。
 
-各入口读取原生字段：Chat 优先 `reasoning_effort`，Responses 优先 `reasoning.effort`，Messages 读取 `output_config.effort`、`thinking.type` 和 `thinking.budget_tokens`。无效强度不构成明确控制；其余有效字段仍可生效，否则继承模型默认值。`enabled` 或 `adaptive` 没有 budget 时使用模型默认强度。管理员的属性覆盖继续作用于最终可用档位。
+各入口读取原生字段：Chat 优先 `reasoning_effort`，Responses 优先 `reasoning.effort`，Messages 读取 `output_config.effort`、`thinking.type` 和 `thinking.budget_tokens`。无效强度不构成明确控制；其余有效字段仍可生效，否则继承模型默认值。`enabled` 或 `adaptive` 没有 budget 时使用模型默认强度。分组属性可缩小可用档位。原生模型必须开启推理时，显式关闭请求返回 HTTP 400；上游的故障转移和监控只处理实际发生的上游故障。
 
 ## 上下文窗口
 
 输入上限来自账号目录的 `max_input_tokens` 和 `context_config`，选择已声明的最大可用窗口，再应用管理员覆盖。目录的原始默认窗口仍保留在快照中。模型属性和请求报文使用同一观察；已退役型号不再继承曾经绑定到该路由键的上下文。
 
-有上下文选项的路由将输入上限写入 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 和 `parameters.context_length`。没有选项的路由只写模型上限。显式配置且没有观察信息的自定义路由使用 200,000 的执行默认值，来源标为 `execution_default`。
+有上下文选项的路由将输入上限写入 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 和 `parameters.context_length`。没有选项的路由只写模型上限。分组配置、账号观察和统一目录都缺少输入上限时，编码器使用 200,000；属性预览仍显示未知。
 
 TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Responses 和 Anthropic Messages 里的输出 Token 字段只控制输出。客户端自己维护模型目录、压缩阈值和截断行为；`/v1/models` 和 `/models` 不公开非标准的上下文元数据。
 
 <a id="qoder_execution_boundary"></a>
 ## 平台执行与输出
 
-Qoder 的原生客户端、站点和模型能力、签名、报文转换和会话历史，只在 `upstream/qoder` 实现。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
+`provider/qodermodel` 保存每个账号的模型索引和原生能力约束。预览、探测和推理按最终路由键、客户端协议和原生上游协议 `qoder_chat` 匹配分组属性。属性引用可以借用其他型号的字段，出站使用原模型的路由键、默认设置和协议限制。`upstream/qoder` 实现桌面协议、站点、签名、报文转换和会话历史。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
 
 三个入口都向上游发送完整历史。Responses 调用方可用 `previous_response_id` 只发送新输入或工具结果。网关按 API Key 和响应 ID 读取已完成的请求和回答，将工具结果与原调用配对。切换提供商时可以重放同一份历史，上游会话 ID 仍按提供商隔离。从较早的响应分支时只使用该响应的历史。
 
-历史只保存在当前网关进程内，默认保留两小时。整个进程最多保留 128 条、共 128 MiB，单条上限 32 MiB。重启、过期、容量淘汰或请求落到其他实例后，仅凭响应 ID 无法续接。此时返回 `previous_response_unavailable`，调用方可以提交完整历史重试。
+请求传入 `store:false` 时，网关跳过该响应的原文回放存储。允许存储的历史保存在当前网关进程内，默认保留两小时。整个进程最多保留 128 条、共 128 MiB，单条上限 32 MiB。重启、过期、容量淘汰或请求落到其他实例后，仅凭响应 ID 无法续接。此时返回 HTTP 400 参数错误，调用方可以提交完整历史重试。
 
 只用于手动导入和 opt-in 测试的本地凭据读取隔离在 `upstream/qoder/localauth`。macOS 桌面导入读取对应站点的 `auth.v1.dat`、`auth.machine-id` 和系统 Keychain，验证存储版本与站点；旧 CLI 文件仍可显式导入。凭据只在内存中解密，正常服务不会读取本机客户端登录资料。
 

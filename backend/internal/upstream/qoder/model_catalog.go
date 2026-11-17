@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // model_catalog.go queries and normalizes the desktop application's account
@@ -44,8 +44,8 @@ type catalogModel struct {
 	Source         string                     `json:"source"`                    // upstream credential source
 	Enabled        *bool                      `json:"enable"`                    // absent means enabled
 	Default        bool                       `json:"is_default"`                // upstream default route
-	Reasoning      bool                       `json:"is_reasoning"`              // advertised reasoning support
-	Vision         bool                       `json:"is_vl"`                     // advertised visual support
+	Reasoning      *bool                      `json:"is_reasoning"`              // advertised reasoning support
+	Vision         *bool                      `json:"is_vl"`                     // advertised visual support
 	Input          int                        `json:"max_input_tokens"`          // tokens
 	Output         int                        `json:"max_output_tokens"`         // tokens
 	Thinking       map[string]json.RawMessage `json:"thinking_config"`           // optional thinking controls
@@ -72,7 +72,7 @@ type catalogThinking struct {
 // ListModels fetches the authenticated desktop model catalog for this session.
 // The caller supplies its provider transport and deadline. Empty valid catalogs
 // succeed, while authentication, transport, and parsing errors remain failures.
-func (c *Client) ListModels(ctx context.Context, session *SessionContext, doer RequestDoer) ([]modelcatalog.QoderModel, error) {
+func (c *Client) ListModels(ctx context.Context, session *SessionContext, doer RequestDoer) ([]qodermodel.Model, error) {
 	var raw json.RawMessage
 	if err := c.JSONRequestContextWithDoer(ctx, http.MethodGet, session, ModelCatalogPath, nil, desktopRequestHeaders(), doer, &raw); err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (c *Client) ListModels(ctx context.Context, session *SessionContext, doer R
 // the response; ambiguous display aliases are removed while their stable keys
 // survive. These rules prevent a partial or reordered response from silently
 // assigning one model's identity to another route.
-func ParseModelCatalog(raw []byte) ([]modelcatalog.QoderModel, error) {
+func ParseModelCatalog(raw []byte) ([]qodermodel.Model, error) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 {
 		return nil, errors.New("qoder: empty model catalog response")
@@ -109,7 +109,7 @@ func ParseModelCatalog(raw []byte) ([]modelcatalog.QoderModel, error) {
 	if json.Unmarshal(raw, &entries) != nil {
 		return nil, errors.New("qoder: invalid model catalog entries")
 	}
-	models := make([]modelcatalog.QoderModel, 0, len(entries))
+	models := make([]qodermodel.Model, 0, len(entries))
 	seen := make(map[string]bool, len(entries))
 	for _, entry := range entries {
 		if entry.Source != "" && entry.Source != "system" {
@@ -138,7 +138,7 @@ func ParseModelCatalog(raw []byte) ([]modelcatalog.QoderModel, error) {
 			model.Alias = ""
 		}
 	}
-	slices.SortFunc(models, func(a, b modelcatalog.QoderModel) int { return strings.Compare(a.Key, b.Key) })
+	slices.SortFunc(models, func(a, b qodermodel.Model) int { return strings.Compare(a.Key, b.Key) })
 	return models, nil
 }
 
@@ -151,8 +151,8 @@ func ParseModelCatalog(raw []byte) ([]modelcatalog.QoderModel, error) {
 // initial is_reasoning flag is false. Explicit disabled defaults win, and an
 // effort default must belong to the supported set. Public identities derive
 // from complete model names rather than reusable opaque route keys.
-func (entry catalogModel) normalize() (modelcatalog.QoderModel, error) {
-	m := modelcatalog.QoderModel{
+func (entry catalogModel) normalize() (qodermodel.Model, error) {
+	m := qodermodel.Model{
 		Key:             strings.TrimSpace(entry.Key),
 		Name:            strings.TrimSpace(entry.Name),
 		Enabled:         entry.Enabled == nil || *entry.Enabled,
@@ -161,12 +161,9 @@ func (entry catalogModel) normalize() (modelcatalog.QoderModel, error) {
 		Vision:          entry.Vision,
 		InputLimit:      entry.Input,
 		OutputLimit:     entry.Output,
-		DefaultThinking: entry.Reasoning,
+		DefaultThinking: entry.Reasoning != nil && *entry.Reasoning,
 		DefaultEffort:   entry.DefaultEffort,
 		DefaultContext:  entry.DefaultContext,
-	}
-	if m.Name == "" {
-		m.Name = m.Key
 	}
 	alias := strings.ToLower(strings.ReplaceAll(m.Name, " ", "-"))
 	if qoderAliasSyntax.MatchString(alias) {
@@ -199,20 +196,23 @@ func (entry catalogModel) normalize() (modelcatalog.QoderModel, error) {
 		m.InputLimit = max(m.InputLimit, window)
 	}
 	var enabled, disabled catalogThinking
+	if entry.Thinking != nil || len(entry.Efforts) > 0 && string(entry.Efforts) != "null" {
+		m.CanDisable = new(false)
+	}
 	if raw, found := entry.Thinking["disabled"]; found && !bytes.Equal(raw, []byte("false")) && !bytes.Equal(raw, []byte("null")) {
-		m.CanDisable = true
+		m.CanDisable = new(true)
 		if !bytes.Equal(raw, []byte("true")) && json.Unmarshal(raw, &disabled) != nil {
 			return m, errors.New("invalid disabled thinking configuration")
 		}
 	}
 	if entry.CanDisable != nil {
-		m.CanDisable = *entry.CanDisable
+		m.CanDisable = entry.CanDisable
 	}
 	if raw, found := entry.Thinking["enabled"]; found {
 		if json.Unmarshal(raw, &enabled) != nil {
 			return m, errors.New("invalid enabled thinking configuration")
 		}
-		m.Reasoning = true
+		m.Reasoning = new(true)
 		m.DefaultThinking = enabled.Default
 	}
 	if disabled.Default {
@@ -228,11 +228,16 @@ func (entry catalogModel) normalize() (modelcatalog.QoderModel, error) {
 	}
 	if slices.Contains(values, "none") {
 		if entry.CanDisable == nil {
-			m.CanDisable = true
+			m.CanDisable = new(true)
 		}
 		values = slices.DeleteFunc(values, func(value string) bool { return value == "none" })
 	}
-	m.Efforts = values
+	if len(efforts) > 0 && string(efforts) != "null" || entry.Thinking != nil || entry.CanDisable != nil {
+		m.Efforts = values
+	}
+	if len(values) > 0 || m.CanDisable != nil && *m.CanDisable {
+		m.Reasoning = new(true)
+	}
 	if m.DefaultEffort == "" {
 		m.DefaultEffort = defaultEffort
 	}

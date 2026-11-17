@@ -134,8 +134,8 @@ type ModelAttributeCatalog struct {
 	View     func() modelcatalog.View
 	Snapshot func() ModelAttributeSnapshot // administrative entry snapshot reader
 	// Lookup supplies attribute values when View is absent during resolution.
-	// Production uses View to retain publication consistency and apply platform
-	// and adapter rules.
+	// Both readers feed the same resolution path. Production pins a complete
+	// publication through View so retries retain identical catalog metadata.
 	Lookup func(string) modelcatalog.Attributes
 	Update func() error // administrative catalogue refresh operation
 	// Candidates returns the function that expands equivalent model identities

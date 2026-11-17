@@ -121,3 +121,35 @@ func TestQoderDoesNotReportSynthesizedModel(t *testing.T) {
 		}
 	}
 }
+
+// TestResponseStoragePreference exercises both response writers with an explicit
+// opt-out. A successful first turn remains billable and its identifier cannot
+// recover submitted text or assistant output on a later partial continuation.
+func TestResponseStoragePreference(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		for _, store := range []bool{false, true} {
+			executor := NewExecutor(ExecuteOptions{})
+			target := &Target{
+				ProviderID: 1, Metadata: RequestMetadata{APIKeyID: 7},
+				Session: func(context.Context) (*SessionContext, error) { return &SessionContext{}, nil },
+				Client:  func() (StreamClient, error) { return modelTestClient{}, nil },
+			}
+			body, err := json.Marshal(map[string]any{"model": "auto", "input": "first turn", "store": store, "stream": stream})
+			require.NoError(t, err)
+			result, err := executor.Execute(t.Context(), upstream.AttemptInput{Target: target, Protocol: protocol.ProtocolOpenAIResponses, Body: body, Stream: stream}, &modelTestSink{})
+			require.NoError(t, err)
+			require.True(t, result.Served)
+			require.NotEmpty(t, result.RequestID)
+			restored, err := executor.conversations.RestoreResponseHistory(target.Metadata, QoderPayloadRequest{PreviousResponseID: result.RequestID, Messages: []QoderMessage{{Role: "user", Text: "next"}}})
+			if store {
+				require.NoError(t, err)
+				require.Equal(t, "first turn", restored.Messages[0].Text)
+			} else {
+				var invalid *RequestError
+				require.ErrorAs(t, err, &invalid)
+				require.Equal(t, "previous_response_unavailable", invalid.Code)
+				require.Zero(t, executor.conversations.responseHistoryBytes)
+			}
+		}
+	}
+}

@@ -22,18 +22,14 @@ func ModelDefaults() provider.ModelMappingDefaults {
 
 // ModelRules returns account-scoped Qoder normalization and OpenAI OAuth
 // eligibility callbacks. Qoder checks the captured record's catalog identity,
-// freshness, and enabled routes; missing observations reject actual admission.
+// and enabled routes once. Missing observations reject actual admission.
 func ModelRules(value *provider.Record) provider.ModelPlatformRules {
-	return provider.ModelPlatformRules{
-		NormalizeQoder:      value.NormalizeQoderModel,
-		OpenAIOAuthServable: provider.IsOpenAIOAuthServableModel,
-		QoderCompatible: func(model string) bool {
-			if value == nil {
-				return false
-			}
-			return value.QoderModelCompatible(model)
-		},
+	var rules provider.ModelPlatformRules
+	if value != nil && value.IsQoder() {
+		rules = value.QoderModelRules()
 	}
+	rules.OpenAIOAuthServable = provider.IsOpenAIOAuthServableModel
+	return rules
 }
 
 // SupportsOpenAIEndpoint reports endpoint eligibility using provider rules and

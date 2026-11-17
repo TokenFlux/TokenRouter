@@ -968,6 +968,7 @@
             :allowed-models="allowedModels"
             v-model:mappings="modelMappings"
             :platform="isBedrockCategory ? 'anthropic' : form.platform"
+            :models="form.platform === 'qoder' ? [] : undefined"
             :sync-credentials="form.platform === 'qoder' ? undefined : syncPreviewCredentials"
             :source-placeholder="isBedrockCategory ? t('admin.providers.fromModel') : undefined"
             :target-placeholder="isBedrockCategory ? t('admin.providers.toModel') : undefined"

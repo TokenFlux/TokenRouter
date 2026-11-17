@@ -176,7 +176,7 @@ internal/testutil/assertion`},
 		"internal/egress": {Production: `internal/server/adminapi ent/... internal/provider/transfer internal/egress/... internal/idempotency/httpapi
 internal/infra/httpclient/... internal/infra/postgres/... internal/infra/telemetry/... internal/pkg/
 internal/server/httpx`, Tests: "internal/billing"},
-		"internal/gateway": {Production: `internal/server/adminapi internal/modelcatalog internal/modelcatalog/testkit ent/... internal/provider internal/provider/provider internal/apikey internal/apikey/httpapi
+		"internal/gateway": {Production: `internal/provider/qodermodel internal/server/adminapi internal/modelcatalog internal/modelcatalog/testkit ent/... internal/provider internal/provider/provider internal/apikey internal/apikey/httpapi
 internal/billing internal/billing/pricing internal/billing/testkit internal/creative
 internal/creative/provider internal/egress internal/egress/provider internal/gateway/...
 internal/identity internal/identity/httpapi/authctx internal/infra/httpclient/...
@@ -271,7 +271,7 @@ internal/server/httpx internal/settings internal/team/... internal/usage/postgre
 internal/notification/smtp internal/notification/testkit internal/site`},
 		"internal/testutil": {Production: `ent/... internal/billing internal/gateway/rediscache internal/gateway/session
 internal/infra/postgres/... internal/scheduler internal/testutil/... migrations`, Tests: ""},
-		"internal/upstream": {Production: `internal/modelcatalog internal/egress/urlpolicy internal/gateway/clientmeta internal/infra/httpclient/...
+		"internal/upstream": {Production: `internal/provider/qodermodel internal/modelcatalog internal/egress/urlpolicy internal/gateway/clientmeta internal/infra/httpclient/...
 internal/infra/telemetry/... internal/pkg/ internal/protocol internal/protocol/anthropic
 internal/protocol/bridge internal/protocol/gemini internal/protocol/google internal/protocol/grok
 internal/protocol/openai internal/protocol/systemone internal/protocol/wirejson internal/routing/capability
@@ -294,9 +294,10 @@ internal/routing/capability internal/testutil/assertion migrations`},
 		"internal/pkg/locale":   {Production: "internal/pkg/locale internal/pkg/apperror", Tests: ""},
 		"internal/provider/httpapi/dto": {Production: `internal/provider internal/provider/httpapi/dto internal/egress/httpapi/dto internal/routing
 internal/routing/httpapi/dto`, Tests: "internal/routing/capability"},
-		"internal/provider/transfer":  {Production: "internal/provider/transfer internal/egress", Tests: ""},
-		"internal/provider/usageview": {Production: "internal/provider/usageview internal/upstream/usageview", Tests: ""},
-		"internal/apikey/httpapi/dto": {Production: "internal/apikey internal/apikey/httpapi/dto internal/routing", Tests: "internal/billing"},
+		"internal/provider/qodermodel": {Production: "internal/modelcatalog", Tests: ""},
+		"internal/provider/transfer":   {Production: "internal/provider/transfer internal/egress", Tests: ""},
+		"internal/provider/usageview":  {Production: "internal/provider/usageview internal/upstream/usageview", Tests: ""},
+		"internal/apikey/httpapi/dto":  {Production: "internal/apikey internal/apikey/httpapi/dto internal/routing", Tests: "internal/billing"},
 		"internal/app/bootstrap": {Production: `ent ent/securitysecret internal/app/bootstrap internal/config internal/identity
 internal/identity/postgres internal/infra/crypto internal/infra/postgres internal/infra/redis
 internal/infra/telemetry/logging internal/pkg/timezone internal/routing/postgres migrations`, Tests: "ent/enttest ent/group ent/runtime internal/billing internal/routing/capability"},
@@ -383,7 +384,7 @@ internal/upstream/usageview`, Tests: ""},
 internal/infra/telemetry/... internal/pkg/ internal/protocol internal/protocol/anthropic
 internal/protocol/bridge internal/protocol/openai internal/protocol/wirejson internal/upstream
 internal/upstream/openai/...`, Tests: "internal/testutil/assertion"},
-		"internal/upstream/qoder": {Production: `internal/modelcatalog internal/infra/httpclient/... internal/infra/telemetry/... internal/pkg/ internal/protocol
+		"internal/upstream/qoder": {Production: `internal/provider/qodermodel internal/modelcatalog internal/infra/httpclient/... internal/infra/telemetry/... internal/pkg/ internal/protocol
 internal/protocol/anthropic internal/protocol/bridge internal/protocol/openai internal/upstream
 internal/upstream/qoder/...`, Tests: ""},
 		"internal/upstream/usageprovider": {Production: `internal/upstream/internal/usageclient internal/upstream/usagecontract

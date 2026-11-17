@@ -204,7 +204,6 @@ func (h *QoderCompatibleRuntime) Execution(c *gin.Context, call QoderCompatibleC
 			kind = "upstream_error"
 			message = "Upstream request failed"
 		}
-		SetOpsUpstreamError(c, h.options.Errors.Describe(forwardErr).SourceStatus, message, "")
 		h.streamingAwareError(c, status, kind, message, true, endpoint)
 		return true
 	}

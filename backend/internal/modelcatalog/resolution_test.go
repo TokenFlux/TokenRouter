@@ -125,34 +125,6 @@ func TestViewResolveConditionsAndOverride(t *testing.T) {
 	require.Equal(t, 128000, *catalog.View().Resolve(target, Attributes{}).Attributes.OutputLimit)
 }
 
-// TestViewResolveQoderRoutes resolves the same service key for two independent
-// account observations. Limits and defaults remain scoped to the observation,
-// while opaque routes do not inherit historical model identity or pricing.
-func TestViewResolveQoderRoutes(t *testing.T) {
-	body, err := Offline()
-	require.NoError(t, err)
-	catalog, err := Parse(body)
-	require.NoError(t, err)
-	global := QoderModel{Key: "mmodel", Identity: "minimax/minimax-m3.1-flash", InputLimit: 1000000, Reasoning: true, Efforts: []string{"low", "xhigh"}, ContextWindows: []int{200000, 1000000}}
-	cn := QoderModel{Key: "mmodel", InputLimit: 200000, Reasoning: true, Efforts: []string{"high"}}
-	firstTarget := Target{Platform: "qoder", Site: "global", Model: "mmodel", QoderModel: &global, QoderVersion: "account-1:v1"}
-	secondTarget := Target{Platform: "qoder", Site: "global", Model: "mmodel", QoderModel: &cn, QoderVersion: "account-2:v1"}
-	first := catalog.View().Resolve(firstTarget, Attributes{})
-	second := catalog.View().Resolve(secondTarget, Attributes{})
-	require.Equal(t, 1000000, *first.Attributes.InputLimit)
-	require.Equal(t, 200000, *second.Attributes.InputLimit)
-	require.Equal(t, []string{"text"}, *first.Attributes.InputModalities)
-	require.Equal(t, []string{"low", "xhigh"}, first.Attributes.Efforts())
-	require.NotEqual(t, firstTarget.Key(), secondTarget.Key())
-	cloned := first.Clone()
-	cloned.Target.QoderModel.Efforts[0] = "max"
-	require.Equal(t, "low", first.Target.QoderModel.Efforts[0])
-	unknown := catalog.View().Resolve(Target{Platform: "qoder", Model: "ultimate"}, Attributes{})
-	require.Equal(t, 200000, *unknown.Attributes.InputLimit)
-	require.Nil(t, unknown.Attributes.Context)
-	require.Nil(t, unknown.Attributes.ReasoningOptions)
-}
-
 // TestViewServiceIdentityAndPublicSupplements uses Google resource paths and
 // supplemented public TypeSafe metadata. Vertex service limits and outbound
 // spellings must remain intact, while a returned context mutation leaves
@@ -207,19 +179,11 @@ func TestViewPlatformRulesDoNotInferFutureModels(t *testing.T) {
 }
 
 // TestViewAdapterLimitsIntersectOverrides supplies broad or cleared modalities
-// before selecting converter routes. Qoder, text, image, and batch restrictions
+// before selecting converter routes. Text, image, and batch restrictions
 // must narrow those values, and OAuth image input fidelity remains disabled
 // after an administrator override.
 func TestViewAdapterLimitsIntersectOverrides(t *testing.T) {
 	view := View{}
-	for _, modalities := range [][]string{{"text", "image"}, {"image"}, {}} {
-		result := view.Resolve(Target{Platform: "qoder", Model: "auto"}, Attributes{InputModalities: &modalities})
-		want := []string{}
-		if len(modalities) > 0 && modalities[0] == "text" {
-			want = []string{"text"}
-		}
-		require.Equal(t, want, *result.Attributes.InputModalities)
-	}
 	modalities := []string{"text", "image", "audio", "video", "pdf"}
 	bridge := view.Resolve(Target{Platform: "gemini", Model: "custom", ClientProtocol: "anthropic_messages", UpstreamProtocol: "gemini_generate_content"}, Attributes{InputModalities: &modalities, OutputModalities: &modalities})
 	require.Equal(t, []string{"text", "image"}, *bridge.Attributes.InputModalities)

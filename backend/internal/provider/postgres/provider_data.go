@@ -527,7 +527,7 @@ func RecordFromEntity(m *dbent.Provider) *provider.Record {
 
 	rateMultiplier := m.RateMultiplier
 
-	return &provider.Record{
+	record := &provider.Record{
 		ID:                      m.ID,
 		Name:                    m.Name,
 		Notes:                   m.Notes,
@@ -560,6 +560,8 @@ func RecordFromEntity(m *dbent.Provider) *provider.Record {
 		ParentProviderID:        m.ParentProviderID,
 		QuotaDimension:          string(m.QuotaDimension),
 	}
+	record.PrepareQoderCatalog()
+	return record
 }
 
 // translatePersistenceError attaches matching database failures to the

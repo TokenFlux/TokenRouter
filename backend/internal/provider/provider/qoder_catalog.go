@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
@@ -18,8 +18,8 @@ import (
 // QoderCatalogFetcher returns authenticated model discovery for saved accounts.
 // Missing session or transport dependencies are reported when invoked, and
 // each call resolves its site before constructing the native query client.
-func QoderCatalogFetcher(tokens *QoderTokenProvider, transport QoderTransport, profiles *egressprovider.TLSProfiles) func(context.Context, *provider.Record) ([]modelcatalog.QoderModel, error) {
-	return func(ctx context.Context, record *provider.Record) ([]modelcatalog.QoderModel, error) {
+func QoderCatalogFetcher(tokens *QoderTokenProvider, transport QoderTransport, profiles *egressprovider.TLSProfiles) func(context.Context, *provider.Record) ([]qodermodel.Model, error) {
+	return func(ctx context.Context, record *provider.Record) ([]qodermodel.Model, error) {
 		if tokens == nil || transport == nil {
 			return nil, errors.New("Qoder model transport is not configured")
 		}

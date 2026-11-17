@@ -20,6 +20,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
@@ -128,7 +129,7 @@ func desktopInputs(t *testing.T) map[string]desktopTestInput {
 // Supplied in-memory records avoid another Keychain prompt. Userinfo and plan
 // metadata are queried through the same production OpenAPI implementation used
 // by desktop authorization, and returned clients belong to this test suite.
-func desktopAccount(t *testing.T, site qoder.Site, inputs map[string]desktopTestInput) (*qoder.SessionContext, *qoder.Client, []modelcatalog.QoderModel) {
+func desktopAccount(t *testing.T, site qoder.Site, inputs map[string]desktopTestInput) (*qoder.SessionContext, *qoder.Client, []qodermodel.Model) {
 	t.Helper()
 	var info *qoder.AuthInfo
 	var err error
@@ -172,13 +173,13 @@ func (s *desktopProbeSink) Emit(event upstream.OutputEvent) error {
 // desktopInference sends a minimal synthetic request through the native executor.
 // The observed account model controls request defaults; entitlement failures are
 // reported separately from protocol errors, and no prompt contains project data.
-func desktopInference(t *testing.T, model modelcatalog.QoderModel, site qoder.Site, session *qoder.SessionContext, client *qoder.Client) {
+func desktopInference(t *testing.T, model qodermodel.Model, site qoder.Site, session *qoder.SessionContext, client *qoder.Client) {
 	t.Helper()
 	client.HTTPClient.Timeout = 75 * time.Second
 	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
 	defer cancel()
 	var catalog modelcatalog.Catalog
-	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, QoderModel: &model, ClientProtocol: "openai_chat_completions"}, modelcatalog.Attributes{})
+	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: "openai_chat_completions"}, modelcatalog.Attributes{})
 	body, err := json.Marshal(map[string]any{"model": model.Key, "messages": []map[string]string{{"role": "user", "content": "Write a Python function add(a, b) that returns a + b. Output only the function."}}, "max_tokens": 256, "stream": true})
 	require.NoError(t, err)
 	target := &qoder.Target{
@@ -217,7 +218,7 @@ func TestDesktopProtocolScenarios(t *testing.T) {
 	for _, site := range []qoder.Site{qoder.SiteGlobal, qoder.SiteCN} {
 		t.Run(string(site), func(t *testing.T) {
 			session, client, models := desktopAccount(t, site, inputs)
-			var model modelcatalog.QoderModel
+			var model qodermodel.Model
 			for _, entry := range models {
 				if entry.Key == "qfmodel" {
 					model = entry
@@ -273,12 +274,12 @@ func desktopProtocolBody(wire protocol.ProtocolID, model string, stream bool, pr
 // Account entitlement and quota errors produce an explicit skipped scenario;
 // other failures fail the test. The supplied executor can retain conversation
 // identity across a tool continuation, while each call owns its output buffer.
-func desktopProtocolCall(t *testing.T, executor *qoder.Executor, model modelcatalog.QoderModel, site qoder.Site, session *qoder.SessionContext, client *qoder.Client, wire protocol.ProtocolID, body map[string]any) []byte {
+func desktopProtocolCall(t *testing.T, executor *qoder.Executor, model qodermodel.Model, site qoder.Site, session *qoder.SessionContext, client *qoder.Client, wire protocol.ProtocolID, body map[string]any) []byte {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
 	defer cancel()
 	var catalog modelcatalog.Catalog
-	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, QoderModel: &model, ClientProtocol: string(wire)}, modelcatalog.Attributes{})
+	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: string(wire)}, modelcatalog.Attributes{})
 	target := &qoder.Target{ProviderID: 1, Site: site, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }, Attributes: func(context.Context, string, protocol.ProtocolID) (modelcatalog.Resolution, error) {
 		return resolution, nil
 	}}
@@ -305,7 +306,7 @@ func desktopProtocolCall(t *testing.T, executor *qoder.Executor, model modelcata
 // results in the same public protocol. Distinct nonempty IDs and valid argument
 // objects are required before continuing, and no real tool or project file is
 // accessed. The final response must contain the requested programming result.
-func desktopToolContinuation(t *testing.T, model modelcatalog.QoderModel, site qoder.Site, session *qoder.SessionContext, client *qoder.Client, wire protocol.ProtocolID, stream bool) {
+func desktopToolContinuation(t *testing.T, model qodermodel.Model, site qoder.Site, session *qoder.SessionContext, client *qoder.Client, wire protocol.ProtocolID, stream bool) {
 	t.Helper()
 	prompt := "Before writing a Python function concat(), call diagnostic_echo twice in parallel, with value left and value right. After both tool results, write a Python function that returns their concatenation."
 	body := desktopProtocolBody(wire, model.Key, stream, prompt)

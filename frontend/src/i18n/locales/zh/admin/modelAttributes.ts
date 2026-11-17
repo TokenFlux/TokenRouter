@@ -69,7 +69,9 @@ export default {
       video: '视频',
       pdf: 'PDF',
     },
+    beforeAdapter: '应用转换器限制前的属性',
     sources: {
+      provider: '提供商',
       'models.dev': 'models.dev',
       local_supplement: '本地补充',
       rule_supplement: '规则补充',

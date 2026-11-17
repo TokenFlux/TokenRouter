@@ -22,6 +22,7 @@ import (
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	openaiws "github.com/TokenFlux/TokenRouter/internal/upstream/openai/ws"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
@@ -110,11 +111,14 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 		if route.UpstreamProtocol != "" {
 			protocol = string(route.UpstreamProtocol)
 		}
-		target := value.ModelAttributeTarget(model, protocol)
-		target.ClientProtocol = protocol
-		if route.ClientProtocol != "" {
-			target.ClientProtocol = string(route.ClientProtocol)
+		clientProtocol := string(route.ClientProtocol)
+		if clientProtocol == "" {
+			clientProtocol = protocol
+			if value.IsQoderCosy() {
+				clientProtocol = string(capability.ProtocolOpenAIChatCompletions)
+			}
 		}
+		target := value.ModelAttributeRoute(model, clientProtocol, protocol)
 		session := routing.ModelAttributesFromContext(ctx)
 		if session == nil {
 			session = modelAttributes.NewSession()

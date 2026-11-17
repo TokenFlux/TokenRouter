@@ -62,7 +62,10 @@ function properties(model: QoderCatalogModel): string[][] {
     ])
   if (model.default_context)
     fields.push([t('admin.providers.qoder.defaultWindow'), n(model.default_context)])
-  fields.push([t('admin.modelAttributes.fields.reasoning'), model.reasoning ? yes : no])
+  fields.push([
+    t('admin.modelAttributes.fields.reasoning'),
+    model.reasoning === undefined ? unknown : model.reasoning ? yes : no,
+  ])
   if (model.reasoning) {
     fields.push([
       t('admin.providers.qoder.defaultThinking'),
@@ -70,9 +73,15 @@ function properties(model: QoderCatalogModel): string[][] {
     ])
     if (model.efforts?.length)
       fields.push([t('admin.providers.qoder.efforts'), model.efforts.join(' / ')])
-    fields.push([t('admin.providers.qoder.canDisable'), model.can_disable ? yes : no])
+    fields.push([
+      t('admin.providers.qoder.canDisable'),
+      model.can_disable === undefined ? unknown : model.can_disable ? yes : no,
+    ])
   }
-  fields.push([t('admin.providers.qoder.upstreamVision'), model.vision ? yes : no])
+  fields.push([
+    t('admin.providers.qoder.upstreamVision'),
+    model.vision === undefined ? unknown : model.vision ? yes : no,
+  ])
   return fields
 }
 </script>

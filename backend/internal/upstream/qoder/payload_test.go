@@ -11,6 +11,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // Payload fixtures compare protocol history with Qoder's scalar content,
@@ -50,7 +51,8 @@ func TestQoderHighestContextFlowsThroughAllProtocols(t *testing.T) {
 			require.NoError(t, err)
 			request.Site = SiteGlobal
 			request.Capabilities = observedPayloadModel(t, SiteGlobal, request.Model)
-			payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+			payload, modelKey, buildErr := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+			require.NoError(t, buildErr)
 
 			require.Equal(t, "qmodel_38max", modelKey)
 			assertQoderContextCapabilityForTest(t, payload, 1000000, true)
@@ -65,7 +67,8 @@ func TestQoderDesktopPayloadUsesCanonicalContent(t *testing.T) {
 	request, err := ParseQoderChatCompletionsPayload([]byte(`{"model":"cmodel","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	request.Capabilities = observedPayloadModel(t, SiteGlobal, request.Model)
-	payload, model := BuildQoderPayloadWithOptions(request, "fixture", request.Messages, true, true)
+	payload, model, buildErr := BuildQoderPayloadWithOptions(request, "fixture", request.Messages, true, true)
+	require.NoError(t, buildErr)
 	require.Equal(t, "cmodel", model)
 	config := qoderFixtureValue[map[string]any](t, payload["model_config"])
 	require.Equal(t, "Cantus", config["display_name"])
@@ -104,7 +107,8 @@ func TestQoderContextCapabilityUsesSiteAndRouteFallback(t *testing.T) {
 		request, err := ParseQoderChatCompletionsPayload([]byte(`{"model":"` + test.model + `","messages":[{"role":"user","content":"hello"}]}`))
 		require.NoError(t, err)
 		request.Capabilities = observedPayloadModel(t, SiteGlobal, test.model)
-		payload, _ := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+		payload, _, buildErr := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+		require.NoError(t, buildErr)
 		assertQoderContextCapabilityForTest(t, payload, test.limit, test.selectable)
 	}
 }
@@ -116,7 +120,8 @@ func TestQoderContextCapabilityMergesWithThinkingOverride(t *testing.T) {
 	request, err := ParseQoderChatCompletionsPayload([]byte(`{"model":"deepseek-v4-pro","reasoning_effort":"high","messages":[{"role":"user","content":"hello"}]}`))
 	require.NoError(t, err)
 	request.Capabilities = observedPayloadModel(t, SiteGlobal, request.Model)
-	payload, _ := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+	payload, _, buildErr := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+	require.NoError(t, buildErr)
 	assertQoderContextCapabilityForTest(t, payload, 1000000, true)
 
 	parameters := requireQoderPayloadMapForTest(t, payload["parameters"], "parameters")
@@ -236,7 +241,8 @@ func TestBuildQoderPayloadUsesCNModelAndClientVersion(t *testing.T) {
 	require.NoError(t, err)
 	request.Site = SiteCN
 	request.Capabilities = observedPayloadModel(t, SiteCN, request.Model)
-	payload, modelKey := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+	payload, modelKey, buildErr := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+	require.NoError(t, buildErr)
 
 	require.NoError(t, err)
 	require.Equal(t, "qfmodel", modelKey)
@@ -979,7 +985,8 @@ func TestBuildQoderThinkingPayloadBySiteAndModelCapability(t *testing.T) {
 			require.NoError(t, err)
 			request.Site = site
 			request.Capabilities = observedPayloadModel(t, site, test.model)
-			payload, _ := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+			payload, _, buildErr := BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+			require.NoError(t, buildErr)
 			assertQoderThinkingPayload(t, payload, test.enabled, test.effort, true)
 		}
 	}
@@ -994,14 +1001,13 @@ func observedPayloadModel(t *testing.T, site Site, model string) *modelcatalog.R
 	require.NoError(t, err)
 	models, err := ParseModelCatalog(raw)
 	require.NoError(t, err)
-	for _, entry := range models {
-		if entry.Matches(model) {
-			var catalog modelcatalog.Catalog
-			resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: entry.Key, QoderModel: &entry}, modelcatalog.Attributes{})
-			return &resolution
-		}
+	index := qodermodel.NewCatalog(string(site), models)
+	entry, found := index.Lookup(model)
+	if !found {
+		return nil
 	}
-	return nil
+	resolution := modelcatalog.View{}.Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: entry.Key, ProviderModels: index}, modelcatalog.Attributes{})
+	return &resolution
 }
 
 // TestBuildQoderThinkingPayloadKeepsGlobalOnlyModelIsolated requests max effort

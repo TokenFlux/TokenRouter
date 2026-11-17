@@ -4,23 +4,31 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
+	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // provider_testing_integration_test.go verifies persisted credentials and dispatch through
@@ -288,5 +296,59 @@ func TestProviderTestAssemblyExecutesGroupProtocolRoutes(t *testing.T) {
 			require.Contains(t, result.ErrorMessage, "MODEL_ATTRIBUTES_UNAVAILABLE")
 			require.Empty(t, transport.requests)
 		})
+	}
+}
+
+// TestQoderAttributeRoutesAcrossPreviewProbeAndGateway loads one saved account and
+// sends its readable alias through the assembled probe and gateway. The signed
+// native payloads must carry the same model key and protocol-scoped input limit
+// shown in the group preview, including requests entering through Responses.
+func TestQoderAttributeRoutesAcrossPreviewProbeAndGateway(t *testing.T) {
+	f := newDatabaseFixture(t)
+	store := providerpostgres.NewProviderStore(f.client, f.db, providerpostgres.ProviderStoreOptions{})
+	credentials := map[string]any{"site": "cn", "uid": "fixture", "machine_id": "fixture-machine", "security_oauth_token": "fixture-token", "organization_id": "fixture-org"}
+	identity := provider.QoderCatalogIdentity(&provider.Record{Platform: "qoder", Type: "cosy", Credentials: credentials})
+	row, err := f.client.Provider.Create().SetName("catalog-route").SetPlatform("qoder").SetType("cosy").SetCredentials(credentials).SetExtra(map[string]any{
+		provider.QoderCatalogExtraKey: map[string]any{"identity": identity, "version": "publication", "fetched_at": time.Now(), "models": []map[string]any{{"key": "native", "name": "Account Model", "alias": "public-name", "enabled": true, "input_limit": 1000000, "context_windows": []int{200000, 1000000}}}},
+	}).Save(t.Context())
+	require.NoError(t, err)
+	record, err := store.GetByID(t.Context(), row.ID)
+	require.NoError(t, err)
+	rule := routing.ModelAttributeRule{Models: []string{"native"}, Match: &routing.ModelAttributeMatch{ClientProtocol: "openai_responses", UpstreamProtocol: "qoder_chat"}, Attributes: modelcatalog.Attributes{InputLimit: new(128000)}}
+	profile := &routing.ModelAttributeConfig{Status: "active", Rules: []routing.ModelAttributeRule{rule}}
+	attrs := &routing.ModelAttributeService{Repo: &probeAttributeRepository{config: profile}, Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}}
+	const groupID = 59
+	ctx := requeststate.WithGroup(t.Context(), &routing.Group{ID: groupID})
+	target := record.ModelAttributeRoute("public-name", "openai_responses", "qoder_chat")
+	preview, err := attrs.Preview(ctx, groupID, []modelcatalog.Target{target}, profile)
+	require.NoError(t, err)
+	require.Len(t, preview, 1)
+	require.Equal(t, new(128000), preview[0].Attributes.InputLimit)
+	transport := &nativeProviderTestTransport{body: "data: " + `{"body":"{\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}"}` + "\n\ndata: [DONE]\n\n"}
+	manager := lifecycle.New()
+	t.Cleanup(func() { require.NoError(t, manager.Stop(context.Background())) })
+	probes := provideProviderTests(store, nil, nil, nil, nil, transport, &config.Config{}, nil, nil, nil, nil, manager, nil, attrs, nil)
+	recorder := httptest.NewRecorder()
+	err = probes.Test(ctx, provider.TestRequest{ProviderID: row.ID, GroupID: groupID, Model: "public-name", Prompt: "test", ProtocolRoute: provider.TestProtocolRoute{ClientProtocol: protocol.ProtocolOpenAIResponses, UpstreamProtocol: protocol.ProtocolQoderChat}}, providerhttp.NewTestEventSink(recorder))
+	require.NoError(t, err, recorder.Body.String())
+	tokens := provideradapter.NewQoderTokenProvider(qoder.SessionBuilder{})
+	tokens.SetHTTPUpstream(transport, nil)
+	t.Cleanup(func() { require.NoError(t, tokens.StopContext(context.Background())) })
+	runtime := gatewayprovider.NewQoderRuntime(gatewayprovider.QoderRuntimeOptions{Attributes: attrs, Transport: transport, Tokens: tokens})
+	body, err := json.Marshal(map[string]any{"model": "public-name", "input": "test"})
+	require.NoError(t, err)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(ctx)
+	_, err = gatewayhttp.ForwardQoderAttempt(ctx, c, runtime, record, body, protocol.ProtocolOpenAIResponses)
+	require.NoError(t, err)
+	require.Len(t, transport.requests, 2)
+	for _, request := range transport.requests {
+		raw, err := io.ReadAll(request.Body)
+		require.NoError(t, err)
+		payload, err := qoder.Decode(string(raw))
+		require.NoError(t, err)
+		require.Equal(t, preview[0].Target.Model, gjson.GetBytes(payload, "model_config.key").String())
+		require.EqualValues(t, *preview[0].Attributes.InputLimit, gjson.GetBytes(payload, "model_config.max_input_tokens").Int())
+		require.EqualValues(t, *preview[0].Attributes.InputLimit, gjson.GetBytes(payload, "parameters.context_length").Int())
 	}
 }

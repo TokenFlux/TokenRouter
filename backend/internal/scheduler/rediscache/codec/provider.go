@@ -301,6 +301,7 @@ func recordFromWire(value *providerWire) *provider.Record {
 			out.ProviderGroups[i] = provider.GroupMembership{ProviderID: g.ProviderID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Provider: recordFromWire(g.Provider), Group: decodeGroup(g.Group)}
 		}
 	}
+	out.PrepareQoderCatalog()
 	return out
 }
 

@@ -296,7 +296,7 @@ const syncedQoderModels = ref<string[]>()
 // unobservedQoderSelections identifies saved names missing from the latest account
 // response; explicit custom routes remain editable and are not silently removed.
 const unobservedQoderSelections = computed(() => {
-  if (!normalizedPlatforms.value.includes('qoder')) return []
+  if (!props.providerId || !normalizedPlatforms.value.includes('qoder')) return []
   const models = syncedQoderModels.value ?? props.models
   if (!models) return []
   const known = new Set(models.map((model) => model.toLowerCase()))
@@ -382,7 +382,7 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined
 // loading. Successful pages deduplicate IDs and leave the selected model array untouched;
 // failures retain any already displayed suggestions for retry.
 const loadCatalog = async (append = false) => {
-  if (props.models !== undefined || normalizedPlatforms.value.includes('qoder')) return
+  if (props.models !== undefined) return
   const version = ++queryVersion
   const page = append ? catalogPage.value + 1 : 1
   loadingCatalog.value = true
@@ -424,11 +424,7 @@ watch([showDropdown, searchQuery, () => props.models], () => {
   catalogFailed.value = false
   catalogModels.value = []
   catalogTotal.value = 0
-  if (
-    showDropdown.value &&
-    props.models === undefined &&
-    !normalizedPlatforms.value.includes('qoder')
-  ) {
+  if (showDropdown.value && props.models === undefined) {
     searchTimer = setTimeout(() => {
       void loadCatalog()
     }, SEARCH_DEBOUNCE_MS)
@@ -467,9 +463,7 @@ const filteredModels = computed(() => {
     syncedQoderModels.value !== undefined
       ? syncedQoderModels.value.filter((id) => id.toLowerCase().includes(query))
       : props.models === undefined
-        ? normalizedPlatforms.value.includes('qoder')
-          ? []
-          : catalogModels.value
+        ? catalogModels.value
         : props.models.filter((id) => id.toLowerCase().includes(query))
   return [...new Set(ids)].map((id) => ({ value: id, label: id }))
 })

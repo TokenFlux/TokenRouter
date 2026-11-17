@@ -262,7 +262,6 @@ func (b *qoderCompatibleAttemptBridge) Canceled(retry bool, err error) {
 // failure eligible for the text loop’s remaining provider allowance.
 func (b *qoderCompatibleAttemptBridge) Failure(out textflow.QoderCompatibleOutcome) bool {
 	if status, kind, message, ok := b.h.qoderGatewayErrorDetails(b.c, out.Err); ok {
-		SetOpsUpstreamError(b.c, b.h.options.Errors.Describe(out.Err).SourceStatus, message, "")
 		b.h.streamingAwareError(b.c, status, kind, message, out.OutputChanged, b.endpoint)
 		return true
 	}

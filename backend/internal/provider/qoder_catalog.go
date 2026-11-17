@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // qoder_catalog.go maintains account-scoped Qoder model observations and
@@ -37,7 +37,7 @@ const (
 	qoderCatalogConcurrency = 4
 )
 
-// ErrQoderCatalogUnavailable identifies an missing, invalid, or replaced account
+// ErrQoderCatalogUnavailable identifies a missing, invalid, or replaced account
 // observation. Callers must not substitute the retired site-wide model table.
 var ErrQoderCatalogUnavailable = errors.New("qoder model catalog is unavailable; synchronize the provider models")
 
@@ -53,15 +53,15 @@ type QoderCatalogSnapshot struct {
 	FetchedAt      time.Time `json:"fetched_at"`                // last successful observation
 	// Models is nil before the first successful query and nonnil after success.
 	// An empty nonnil collection intentionally represents an account without routes.
-	Models []modelcatalog.QoderModel `json:"models"`
+	Models []qodermodel.Model `json:"models"`
 }
 
 // QoderCatalogOptions binds discovery to provider persistence and transport.
 type QoderCatalogOptions struct {
-	Read   func(context.Context, int64) (*Record, error)                     // current provider lookup
-	Fetch  func(context.Context, *Record) ([]modelcatalog.QoderModel, error) // authenticated metadata query
-	Writer UsageExtraWriter                                                  // identity-checked snapshot persistence
-	Now    func() time.Time                                                  // injectable observation clock
+	Read   func(context.Context, int64) (*Record, error)              // current provider lookup
+	Fetch  func(context.Context, *Record) ([]qodermodel.Model, error) // authenticated metadata query
+	Writer UsageExtraWriter                                           // identity-checked snapshot persistence
+	Now    func() time.Time                                           // injectable observation clock
 }
 
 // QoderCatalogService owns concurrent administrator-requested model queries.
@@ -72,6 +72,13 @@ type QoderCatalogService struct {
 	options  QoderCatalogOptions // immutable synchronization dependencies
 	probes   ProbeRuntime        // shared query and shutdown owner
 	slots    chan struct{}       // bounded upstream query admission
+}
+
+// preparedQoderCatalog holds the persisted snapshot and its immutable lookup index.
+// Embedding the snapshot preserves its JSON form across Redis and database writes.
+type preparedQoderCatalog struct {
+	*QoderCatalogSnapshot
+	index *qodermodel.Catalog // immutable account route index
 }
 
 // NewQoderCatalogService binds model discovery without starting network work.
@@ -172,7 +179,7 @@ func (s *QoderCatalogService) refresh(ctx context.Context, record *Record) (*Qod
 		return nil, err
 	}
 	if models == nil {
-		models = []modelcatalog.QoderModel{}
+		models = []qodermodel.Model{}
 	}
 	encoded, err := json.Marshal(models)
 	if err != nil {
@@ -204,14 +211,33 @@ func (s *QoderCatalogService) refresh(ctx context.Context, record *Record) (*Qod
 	return snapshot, nil
 }
 
-// parseQoderCatalog decodes independently owned maintenance data from a record.
-// Invalid or absent snapshots return nil. Timestamps and identity are validated
-// by the consuming read or synchronization operation.
-func parseQoderCatalog(record *Record) *QoderCatalogSnapshot {
-	if record == nil || record.Extra[QoderCatalogExtraKey] == nil {
+// PrepareQoderCatalog decodes a freshly hydrated provider's account observation once.
+// Database and Redis readers call it before publishing a record. Replacing the
+// Extra entry ties the lifetime of the index to the data it represents.
+func (r *Record) PrepareQoderCatalog() {
+	if r == nil || r.Platform != PlatformQoder {
+		return
+	}
+	if catalog := parseQoderCatalog(r); catalog != nil {
+		r.Extra[QoderCatalogExtraKey] = catalog
+	}
+}
+
+// parseQoderCatalog shares prepared publications and decodes raw storage values.
+// Callers reading a shared record never write to it. Malformed or missing
+// snapshots return nil so admission cannot discover models from partial data.
+func parseQoderCatalog(record *Record) *preparedQoderCatalog {
+	if record == nil {
 		return nil
 	}
-	raw, err := json.Marshal(record.Extra[QoderCatalogExtraKey])
+	value := record.Extra[QoderCatalogExtraKey]
+	if prepared, ok := value.(*preparedQoderCatalog); ok {
+		return prepared
+	}
+	if value == nil {
+		return nil
+	}
+	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil
 	}
@@ -219,7 +245,8 @@ func parseQoderCatalog(record *Record) *QoderCatalogSnapshot {
 	if json.Unmarshal(raw, &snapshot) != nil {
 		return nil
 	}
-	return &snapshot
+	version := fmt.Sprintf("%d:%s:%s", record.ID, snapshot.Identity, snapshot.Version)
+	return &preparedQoderCatalog{QoderCatalogSnapshot: &snapshot, index: qodermodel.NewCatalog(version, snapshot.Models)}
 }
 
 // QoderCatalogIdentity identifies authentication inputs without routing policy.
@@ -240,7 +267,7 @@ func QoderCatalogIdentity(record *Record) string {
 	if record.QoderCatalogIdentityHint != "" {
 		return record.QoderCatalogIdentityHint
 	}
-	credentials := maps.Clone(record.Credentials)
+	var credentials map[string]any
 	if record.GetCredential("uid") != "" || record.GetCredential("aid") != "" {
 		site := record.GetCredential("site")
 		if site == "" {
@@ -254,6 +281,7 @@ func QoderCatalogIdentity(record *Record) string {
 			"pat":             record.GetCredential("pat"),
 		}
 	} else {
+		credentials = maps.Clone(record.Credentials)
 		delete(credentials, "model_mapping")
 		delete(credentials, "model_whitelist")
 	}
@@ -265,12 +293,39 @@ func QoderCatalogIdentity(record *Record) string {
 // or an account change. Older snapshots can contain automatic retry timestamps;
 // those fields have no effect on manual catalog availability.
 func (r *Record) QoderCatalog(now time.Time) (*QoderCatalogSnapshot, error) {
+	prepared, err := r.qoderPublication(now)
+	if err != nil {
+		return nil, err
+	}
+	snapshot := *prepared.QoderCatalogSnapshot
+	snapshot.Models = make([]qodermodel.Model, len(prepared.Models))
+	for i, model := range prepared.Models {
+		snapshot.Models[i] = model.Clone()
+	}
+	return &snapshot, nil
+}
+
+// qoderPublication checks current credentials before returning the immutable model
+// index. An account replacement invalidates the publication even when a caller
+// copied the old Extra map onto a newly authorized record.
+func (r *Record) qoderPublication(now time.Time) (*preparedQoderCatalog, error) {
 	snapshot := parseQoderCatalog(r)
-	if snapshot == nil || snapshot.Identity != QoderCatalogIdentity(r) || snapshot.Models == nil ||
+	if snapshot == nil || snapshot.Version == "" || snapshot.Identity == "" || snapshot.Identity != QoderCatalogIdentity(r) || snapshot.Models == nil ||
 		snapshot.FetchedAt.IsZero() || snapshot.FetchedAt.After(now.Add(time.Minute)) {
 		return nil, ErrQoderCatalogUnavailable
 	}
 	return snapshot, nil
+}
+
+// QoderModelIndex pins the validated account catalog for repeated route lookups.
+// Callers retain it only while using the same provider record. An unavailable
+// snapshot returns an error distinct from a successful empty publication.
+func (r *Record) QoderModelIndex() (*qodermodel.Catalog, error) {
+	snapshot, err := r.qoderPublication(time.Now())
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.index, nil
 }
 
 // QoderCatalogStatus returns the saved catalog for the provider editor.
@@ -296,31 +351,15 @@ func (snapshot *QoderCatalogSnapshot) adminStatus() map[string]any {
 	}
 }
 
-// QoderModel resolves a current service key or alias for this account.
-// Disabled entries remain identifiable, allowing callers to distinguish an
-// account restriction from an unknown explicitly configured custom route.
-func (r *Record) QoderModel(model string) (modelcatalog.QoderModel, bool) {
-	snapshot, err := r.QoderCatalog(time.Now())
-	if err != nil {
-		return modelcatalog.QoderModel{}, false
-	}
-	for _, entry := range snapshot.Models {
-		if entry.Matches(model) {
-			return entry.Clone(), true
-		}
-	}
-	return modelcatalog.QoderModel{}, false
-}
-
 // QoderRequestModelIDs returns enabled service keys and current public aliases.
 // An unavailable observation yields no automatic candidates; explicit mappings
 // remain separately owned by the provider configuration.
 func (r *Record) QoderRequestModelIDs() []string {
-	snapshot, err := r.QoderCatalog(time.Now())
+	snapshot, err := r.qoderPublication(time.Now())
 	if err != nil {
 		return nil
 	}
-	return qoderCatalogModelIDs(snapshot)
+	return qoderCatalogModelIDs(snapshot.QoderCatalogSnapshot)
 }
 
 // qoderCatalogModelIDs returns enabled keys and aliases from a validated snapshot.
@@ -343,48 +382,41 @@ func qoderCatalogModelIDs(snapshot *QoderCatalogSnapshot) []string {
 // NormalizeQoderModel resolves only aliases observed for this exact account.
 // Unknown model names retain their trimmed spelling for explicit custom routes.
 func (r *Record) NormalizeQoderModel(model string) string {
-	if entry, found := r.QoderModel(model); found {
-		return entry.Key
+	index, err := r.QoderModelIndex()
+	if err == nil {
+		return index.RouteKey(model)
 	}
 	return strings.TrimSpace(model)
 }
 
-// QoderModelCompatible checks account eligibility after explicit model mapping.
-// Unknown routes require an explicit mapping target or concrete whitelist entry;
-// a wildcard alone cannot revive a model removed from the account catalog.
+// QoderModelRules binds eligibility and alias resolution to the same publication.
+// A successful empty observation removes automatic candidates. Explicit mapping
+// targets allow custom routes, but a saved whitelist alone cannot reintroduce a
+// retired model. Callers rebuild these rules when replacing the provider record.
 //
-// Known disabled entries are rejected before custom routing is considered.
-// Callers pass an already mapped final model, and this method never applies
-// another mapping step. Examining configured targets only establishes explicit
-// administrator intent for an otherwise unknown raw route; normal whitelist
-// filtering remains a separate part of provider admission.
-func (r *Record) QoderModelCompatible(model string) bool {
-	if _, err := r.QoderCatalog(time.Now()); err != nil {
-		return false
+// The callbacks retain the validated index and a private copy of the mapping.
+// This keeps one candidate check from decoding metadata or picking up changes
+// made after a prepared scheduling policy selected its provider version.
+func (r *Record) QoderModelRules() ModelPlatformRules {
+	// Missing catalogs still supply a normalizer for presentation. The eligibility
+	// callback rejects every candidate until this account has synchronized successfully.
+	index, _ := r.QoderModelIndex()
+	mapping := ResolveModelMapping(r, ModelMappingDefaults{})
+	return ModelPlatformRules{
+		NormalizeQoder: index.RouteKey,
+		QoderCompatible: func(model string) bool {
+			if index == nil {
+				return false
+			}
+			if enabled, found := index.Enabled(model); found {
+				return enabled
+			}
+			for _, target := range mapping {
+				if strings.EqualFold(strings.TrimSpace(target), strings.TrimSpace(model)) {
+					return true
+				}
+			}
+			return false
+		},
 	}
-	if entry, found := r.QoderModel(model); found {
-		return entry.Enabled
-	}
-	for _, target := range ResolveModelMapping(r, ModelMappingDefaults{}) {
-		if strings.EqualFold(strings.TrimSpace(target), strings.TrimSpace(model)) {
-			return true
-		}
-	}
-	for entry := range ExtractExplicitFinalModelWhitelist(r.Credentials["model_whitelist"]) {
-		if !strings.Contains(entry, "*") && strings.EqualFold(strings.TrimSpace(entry), strings.TrimSpace(model)) {
-			return true
-		}
-	}
-	return false
-}
-
-// QoderCatalogVersion scopes attribute caches to the provider and observation.
-// Missing observations return a provider-specific unavailable marker, preventing
-// fallback attributes from sharing another account's successful resolution.
-func (r *Record) QoderCatalogVersion() string {
-	snapshot, err := r.QoderCatalog(time.Now())
-	if err != nil {
-		return fmt.Sprintf("%d:unavailable", r.ID)
-	}
-	return fmt.Sprintf("%d:%s:%s", r.ID, snapshot.Identity, snapshot.Version)
 }

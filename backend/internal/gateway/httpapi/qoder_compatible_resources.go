@@ -304,7 +304,6 @@ func (h *QoderCompatibleRuntime) writeQoderFailoverExhaustedError(c *gin.Context
 		return false
 	}
 	if status, errType, message, ok := h.qoderGatewayErrorDetails(c, err); ok {
-		SetOpsUpstreamError(c, h.options.Errors.Describe(err).SourceStatus, message, "")
 		h.streamingAwareError(c, status, errType, message, streamStarted, endpoint)
 		return true
 	}

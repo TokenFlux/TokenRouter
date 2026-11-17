@@ -21,7 +21,7 @@ import (
 // billing, and scheduling.
 // A model request can have a group-mapped billing name and a different
 // provider-specific outbound name. Provider mapping executes one hop, while
-// Bedrock regions, Anthropic Vertex IDs, Qoder site aliases, and Antigravity
+// Bedrock regions, Anthropic Vertex IDs, Qoder account aliases, and Antigravity
 // thinking variants determine the final wire identity. Compact can select a
 // dedicated outbound mapping without replacing the ordinary billing name.
 //
@@ -331,11 +331,11 @@ func (p ModelPolicy) Supports(ctx context.Context, model string) bool {
 }
 
 // UpstreamModel resolves and registers the final outbound identity for the
-// request model trace. Nil records and rejected Bedrock or Qoder site
-// resolution return empty before registration.
+// request model trace. Nil records and rejected Bedrock routes
+// return empty before registration.
 //
 // Platform handling uses Bedrock routing, Antigravity thinking state, ordinary
-// OpenAI/Grok outbound mapping, or provider mapping followed by Qoder site
+// OpenAI/Grok outbound mapping, or provider mapping followed by Qoder account
 // aliases or Anthropic normalization. The result is trimmed before trace
 // registration. Callers keep the record stable and use this final identity for
 // execution while the earlier requested and billing names remain separate

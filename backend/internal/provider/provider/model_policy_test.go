@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	acct "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
@@ -1533,9 +1533,9 @@ func attachQoderModelPolicyFixture(value *acct.Record) {
 		return
 	}
 	value.Type = capability.ProviderTypeCosy
-	models := []modelcatalog.QoderModel{{Key: "auto", Alias: "auto", Enabled: true}, {Key: "qmodel_38max", Alias: "qwen3.8-max", Enabled: true}, {Key: "gmodel", Alias: "glm-5.3", Enabled: true}}
+	models := []qodermodel.Model{{Key: "auto", Alias: "auto", Enabled: true}, {Key: "qmodel_38max", Alias: "qwen3.8-max", Enabled: true}, {Key: "gmodel", Alias: "glm-5.3", Enabled: true}}
 	if value.GetCredential("site") != "cn" {
-		models = append(models, modelcatalog.QoderModel{Key: "ultimate", Alias: "ultimate", Enabled: true})
+		models = append(models, qodermodel.Model{Key: "ultimate", Alias: "ultimate", Enabled: true})
 	}
 	value.Extra = map[string]any{acct.QoderCatalogExtraKey: &acct.QoderCatalogSnapshot{Identity: acct.QoderCatalogIdentity(value), Version: "fixture", FetchedAt: time.Now(), Models: models}}
 }

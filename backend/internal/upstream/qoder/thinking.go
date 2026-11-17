@@ -1,10 +1,10 @@
 package qoder
 
 import (
-	"net/http"
 	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // thinking.go resolves client reasoning intent against an account model's
@@ -21,7 +21,7 @@ import (
 // account's model does not accept.
 
 // ResolveObservedThinking validates and projects one request onto observed
-// model controls. Missing observations leave the directive unchanged. An
+// model controls. Custom routes need configured controls to emit a directive. An
 // unsupported explicit disable returns a client parameter error before any
 // inference request is started, and supported controls preserve explicit intent.
 //
@@ -32,38 +32,42 @@ import (
 // intermediate levels cannot accidentally select a weaker level or collapse
 // xhigh into max before the model's own supported set is known.
 func ResolveObservedThinking(directive QoderThinkingDirective, resolution *modelcatalog.Resolution) (QoderThinkingDirective, error) {
-	model := effectiveQoderThinkingModel(resolution)
-	if model == nil {
-		return directive, nil
+	if resolution == nil {
+		return QoderThinkingDirective{}, nil
 	}
-	specified := directive.Specified || directive.Enabled || directive.Effort != ""
-	if resolution.Target.QoderModel == nil && !specified {
-		return directive, nil
-	}
-	if !specified {
+	model, observed := observedModel(resolution)
+	attrs := resolution.Attributes
+	explicit := directive.Specified || directive.Enabled || directive.Effort != ""
+	if !explicit {
+		if !observed || model.Reasoning == nil {
+			return QoderThinkingDirective{}, nil
+		}
 		directive.Enabled, directive.Effort = model.DefaultThinking, model.DefaultEffort
 	}
-	if !directive.Enabled {
-		if specified && model.Reasoning && !model.CanDisable {
-			return directive, &APIError{StatusCode: http.StatusBadRequest, Code: "invalid_reasoning_parameter", Message: "The selected Qoder model does not support disabling reasoning"}
-		}
-		directive.Effort = ""
-		if len(model.Efforts) > 0 {
-			directive.Effort = "none"
-		}
-		return directive, nil
+	// A group may narrow configurable controls. Actual mandatory reasoning remains
+	// a wire constraint even when the profile removes every advertised option.
+	reasoning := attrs.Reasoning != nil && *attrs.Reasoning
+	toggle := attrs.HasReasoningOption("toggle")
+	disallowDisable := model.RequiresThinking() || reasoning && attrs.ReasoningOptions != nil && !toggle
+	if explicit && !directive.Enabled && disallowDisable {
+		return directive, &RequestError{Code: "invalid_reasoning_parameter", Message: "The selected Qoder model does not support disabling reasoning"}
 	}
-	if resolution.Attributes.Reasoning != nil && !*resolution.Attributes.Reasoning && model.CanDisable {
+	if attrs.Reasoning != nil && !*attrs.Reasoning {
 		directive.Enabled = false
+	}
+	efforts := attrs.Efforts()
+	if !directive.Enabled {
 		directive.Effort = ""
-		if len(model.Efforts) > 0 {
+		if len(efforts) > 0 || observed && model.CanDisable != nil && *model.CanDisable && len(model.Efforts) > 0 {
 			directive.Effort = "none"
 		}
-		return directive, nil
-	}
-	efforts := model.Efforts
-	if len(efforts) == 0 {
+	} else if len(efforts) == 0 {
 		directive.Effort = ""
+	}
+	// Only emit switches for an observed reasoning control or a configured custom
+	// route. Unspecified controls on unknown models retain the wire defaults.
+	directive.Specified = toggle || len(efforts) > 0 || reasoning || model.Reasoning != nil && *model.Reasoning
+	if !directive.Enabled || len(efforts) == 0 {
 		return directive, nil
 	}
 	if directive.Effort == "" {
@@ -97,21 +101,11 @@ func ResolveObservedThinking(directive QoderThinkingDirective, resolution *model
 	return directive, nil
 }
 
-// applyObservedThinking writes a previously validated directive into payload.
-// Executor validates explicit unsupported controls before constructing this
-// payload; direct callers must follow the same validation contract.
-func applyObservedThinking(payload map[string]any, directive QoderThinkingDirective, resolution *modelcatalog.Resolution) {
-	model := effectiveQoderThinkingModel(resolution)
-	if model == nil || resolution.Target.QoderModel == nil && !directive.Specified && !directive.Enabled && directive.Effort == "" {
-		return
-	}
-	if !model.Reasoning && !model.CanDisable && len(model.Efforts) == 0 {
-		return
-	}
-	resolved, err := ResolveObservedThinking(directive, resolution)
-	if err != nil {
-		// Validation belongs before transport and payload construction. Leave the
-		// unvalidated low-level payload unchanged instead of encoding forbidden intent.
+// applyObservedThinking mirrors one validated directive into the native payload.
+// An absent directive leaves the payload's defaults intact. Callers resolve
+// profile limits and upstream constraints before invoking this wire writer.
+func applyObservedThinking(payload map[string]any, resolved QoderThinkingDirective) {
+	if !resolved.Specified {
 		return
 	}
 	parameters, _ := payload["parameters"].(map[string]any)
@@ -135,30 +129,14 @@ func applyObservedThinking(payload map[string]any, directive QoderThinkingDirect
 	}
 }
 
-// effectiveQoderThinkingModel combines captured defaults with effective controls.
-// Administrator attributes replace the advertised toggle and effort set, while
-// observed upstream defaults remain available for ordinary requests. Explicit
-// custom routes can use configured controls without receiving invented defaults.
-//
-// Known models provide their defaults here, and copied attributes supply the
-// final option set. A missing observation remains distinct from a model whose
-// controls are explicitly empty. This prevents a custom route from acquiring
-// another route's thinking policy while allowing an administrator to describe
-// controls for a newly introduced raw route.
-func effectiveQoderThinkingModel(resolution *modelcatalog.Resolution) *modelcatalog.QoderModel {
-	if resolution == nil || resolution.Target.QoderModel == nil && resolution.Attributes.ReasoningOptions == nil {
-		return nil
+// observedModel reads the execution model from the attempt's pinned publication.
+// After profile reference resolution the target still names the actual wire
+// route, whose defaults and native settings govern payload encoding.
+func observedModel(resolution *modelcatalog.Resolution) (qodermodel.Model, bool) {
+	if resolution != nil {
+		if index, ok := resolution.Target.ProviderModels.(*qodermodel.Catalog); ok {
+			return index.Lookup(resolution.Target.Model)
+		}
 	}
-	model := modelcatalog.QoderModel{}
-	if resolution.Target.QoderModel != nil {
-		model = resolution.Target.QoderModel.Clone()
-	}
-	model.Efforts = resolution.Attributes.Efforts()
-	model.CanDisable = resolution.Attributes.HasReasoningOption("toggle")
-	if resolution.Attributes.Reasoning != nil {
-		model.Reasoning = *resolution.Attributes.Reasoning
-	} else {
-		model.Reasoning = model.CanDisable || len(model.Efforts) > 0
-	}
-	return &model
+	return qodermodel.Model{}, false
 }

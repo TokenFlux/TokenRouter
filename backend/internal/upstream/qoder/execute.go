@@ -133,13 +133,16 @@ func NewExecutor(options ExecuteOptions) *Executor {
 // selection. Responses continuation input is restored before this call, so every
 // request sends complete history. The caller publishes acceptance and completion
 // after transport and output outcomes are known.
-func (e *Executor) PrepareConversation(target *Target, wireProtocol protocol.ProtocolID, request QoderPayloadRequest) (map[string]any, string, *QoderConversationPlan) {
+func (e *Executor) PrepareConversation(target *Target, wireProtocol protocol.ProtocolID, request QoderPayloadRequest) (map[string]any, string, *QoderConversationPlan, error) {
 	request.Site = target.Site
 	key, source := QoderConversationKey(target.Metadata, target.ProviderID, string(wireProtocol), request)
 	plan := e.conversations.Plan(key, request.System, request.Tools, request.Messages)
-	payload, model := BuildQoderPayloadWithOptions(request, plan.SessionID, plan.MessagesToSend, plan.IncludeSystem, plan.IncludeTools)
+	payload, model, err := BuildQoderPayloadWithOptions(request, plan.SessionID, plan.MessagesToSend, plan.IncludeSystem, plan.IncludeTools)
+	if err != nil {
+		return nil, "", nil, err
+	}
 	plan.Log(target.Metadata, target.ProviderID, string(wireProtocol), request.Model, source, request, payload)
-	return payload, model, plan
+	return payload, model, plan, nil
 }
 
 // Execute serves one Qoder attempt and returns observed service and usage
@@ -178,6 +181,8 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		}
 		if executionErr != nil {
 			switch {
+			case isRequestError(executionErr):
+				result.FailureClass = "invalid_request"
 			case errors.Is(executionErr, context.Canceled):
 				result.FailureClass = "cancelled"
 			case errors.Is(executionErr, context.DeadlineExceeded):
@@ -231,11 +236,8 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 			return upstream.AttemptResult{}, resolveErr
 		}
 		request.Capabilities = &attributes
-		if attributes.Target.QoderModel != nil {
-			request.Model = attributes.Target.QoderModel.Key
-		}
-		if _, err := ResolveObservedThinking(request.Thinking, &attributes); err != nil {
-			return upstream.AttemptResult{}, err
+		if attributes.Target.Model != "" {
+			request.Model = attributes.Target.Model
 		}
 	}
 	if input.Protocol == protocol.ProtocolOpenAIResponses {
@@ -244,7 +246,10 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 			return upstream.AttemptResult{}, err
 		}
 	}
-	payload, model, plan := e.PrepareConversation(target, input.Protocol, request)
+	payload, model, plan, err := e.PrepareConversation(target, input.Protocol, request)
+	if err != nil {
+		return upstream.AttemptResult{}, err
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return upstream.AttemptResult{}, fmt.Errorf("marshal qoder payload: %w", err)
@@ -375,7 +380,7 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 	// Responses IDs resolve to the provider-scoped conversation selected above.
 	// Register the returned ID after output handling so later previous_response_id
 	// requests can find that session.
-	if input.Protocol == protocol.ProtocolOpenAIResponses && request.ResponseID != "" {
+	if input.Protocol == protocol.ProtocolOpenAIResponses && request.ResponseID != "" && !request.DisableResponseStorage {
 		// Replay storage is bounded and optional after a successful response.
 		// Evicted or oversized histories produce an explicit continuation error later;
 		// they do not turn already completed inference into a failed chargeable attempt.

@@ -125,11 +125,14 @@ func (m *ModelAttributeMatch) Validate() error {
 }
 
 // view returns the service's current catalogue View when its provider is
-// configured. A nil service or absent View callback produces a zero view for
-// local platform resolution.
+// configured. A single-model reader can supply the base layer instead. Nil
+// services retain a zero view for local platform resolution.
 func (s *ModelAttributeService) view() modelcatalog.View {
 	if s != nil && s.Catalog.View != nil {
 		return s.Catalog.View()
+	}
+	if s != nil {
+		return modelcatalog.ViewFromLookup(s.Catalog.Lookup)
 	}
 	return modelcatalog.View{}
 }
@@ -253,9 +256,8 @@ func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, targ
 // against the same route and restores the actual outbound identity afterward.
 // Inactive or absent profiles supply no override.
 //
-// Production resolves platform and adapter rules through the pinned View. A
-// service configured with Lookup and no View replaces the resulting attributes
-// with that callback's merged values, supporting injected single-model lookups.
+// Full publications and single-model readers supply the same base layer.
+// Provider observations and group rules are applied by the retained View.
 // The resolution retains the outbound route identity while rule matching can
 // expand equivalent resource spellings; callers choose whether returned values
 // need additional cloning.
@@ -268,9 +270,11 @@ func (s *ModelAttributeService) resolve(view modelcatalog.View, config *ModelAtt
 		rule := config.matchRule(target.Model, candidates, target)
 		if rule != nil && rule.ReferenceModel != "" {
 			reference = rule.ReferenceModel
-			target.Model = reference
-			target.AttributeModel = ""
-			rule = config.matchRule(reference, candidates, target)
+			target = target.ForReference(reference)
+			rule = config.matchRule(target.Model, candidates, target)
+			if rule == nil && target.Model != reference {
+				rule = config.matchRule(reference, candidates, target)
+			}
 			if rule != nil && rule.ReferenceModel != "" {
 				// Invalid persisted chains remain unknown; using either source or target
 				// defaults would hide a configuration that the save API rejects.
@@ -281,21 +285,10 @@ func (s *ModelAttributeService) resolve(view modelcatalog.View, config *ModelAtt
 			override = rule.Attributes
 		}
 	}
-	result := view.Resolve(target, override)
-	// An injected single-model reader supplies attributes when no catalogue View
-	// callback exists. Production retains the View result and its adapter-resolved
-	// values.
-	if s.Catalog.View == nil && s.Catalog.Lookup != nil {
-		result.Attributes = modelcatalog.Merge(s.Catalog.Lookup(target.Model), override)
-	}
 	if reference != "" {
-		// Keep the target's canonical attribute identity for request-time conditions;
-		// the outbound model and authentication still belong to the actual route.
-		original.AttributeModel = result.Target.AttributeModel
-		result.Target = original
-		result.ReferenceModel = reference
+		return view.ResolveReference(original, reference, override)
 	}
-	return result
+	return view.Resolve(target, override)
 }
 
 // Preview applies a draft or stored profile to already enumerated configured

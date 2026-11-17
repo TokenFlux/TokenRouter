@@ -2,7 +2,6 @@ package qoder
 
 import (
 	"encoding/json"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -74,7 +73,7 @@ func (s *QoderConversationStore) RestoreResponseHistory(metadata RequestMetadata
 			complete = complete || message.Role == "assistant"
 		}
 		if request.RequiresPreviousResponse || !complete {
-			return request, &APIError{StatusCode: http.StatusBadRequest, Code: "previous_response_unavailable", Message: "The previous Qoder response is unavailable; include the complete conversation history"}
+			return request, &RequestError{Code: "previous_response_unavailable", Message: "The previous Qoder response is unavailable; include the complete conversation history"}
 		}
 		return request, nil
 	}
@@ -100,15 +99,15 @@ func (s *QoderConversationStore) RestoreResponseHistory(metadata RequestMetadata
 }
 
 // SaveResponseHistory publishes a completed response's immutable replay context.
-// Empty output is valid, but malformed output or oversized serialized history
-// is not cached. The response still remains successful for its current caller.
+// An explicit storage opt-out skips serialization. Empty output is valid,
+// while malformed output and oversized histories cannot enter the cache. The response still remains successful for its current caller.
 //
 // Serialization precedes the mutex so large user histories do not block reads.
 // Publication prunes expired entries and evicts oldest contexts until both
 // bounds admit the new value. Existing response IDs are never replaced, keeping
 // forks stable even if a caller accidentally attempts duplicate publication.
 func (s *QoderConversationStore) SaveResponseHistory(metadata RequestMetadata, request QoderPayloadRequest, output json.RawMessage) {
-	if s == nil || request.ResponseID == "" {
+	if s == nil || request.DisableResponseStorage || request.ResponseID == "" {
 		return
 	}
 	if len(output) == 0 {

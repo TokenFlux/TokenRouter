@@ -1,8 +1,12 @@
 package provider
 
 import (
+	"strconv"
+
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // model_attributes.go builds model catalogue targets from provider identity and
@@ -20,22 +24,19 @@ import (
 // reads configuration in memory and leaves the record unchanged so catalogue
 // lookup can reuse it safely within the caller's snapshot.
 
-// ModelAttributeTarget derives the catalogue lookup target for a model and
-// upstream protocol. Nil records retain just those supplied route fields;
-// nonnil records add platform, authentication type, endpoint, and site.
-//
-// Kimi, Zhipu, and DeepSeek endpoint selection follows the upstream protocol
-// and provider mode, while an enabled Anthropic custom URL replaces its normal
-// endpoint. Qoder defaults an empty site to global. OpenAI API Key Chat routes
-// recognize Ollama by endpoint or saved usage markers and attach its output
-// cap; with no supplied protocol, the legacy text-route selection determines
-// whether this Chat handling applies.
-//
-// WithServiceIdentity normalizes the resulting catalogue service context. The
-// helper performs no lookup or persistence and callers keep the input record
-// stable during these reads.
+// ModelAttributeTarget builds an attribute route when no client protocol was selected.
+// Protocol-aware consumers use ModelAttributeRoute so scoped group rules also
+// receive the client's entry protocol before matching the final provider route.
 func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelcatalog.Target {
-	target := modelcatalog.Target{Model: model, UpstreamProtocol: upstreamProtocol}
+	return r.ModelAttributeRoute(model, "", upstreamProtocol)
+}
+
+// ModelAttributeRoute builds the shared lookup target for preview, probes and
+// execution. The client protocol stays attached to the request, while the
+// selected provider supplies its upstream protocol and final route key. This
+// makes scoped rules match identically for raw names and account aliases.
+func (r *Record) ModelAttributeRoute(model, clientProtocol, upstreamProtocol string) modelcatalog.Target {
+	target := modelcatalog.Target{Model: model, ClientProtocol: clientProtocol, UpstreamProtocol: upstreamProtocol}
 	if r == nil {
 		return target
 	}
@@ -63,11 +64,15 @@ func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelcatal
 		target.Site = "global"
 	}
 	if target.Platform == "qoder" {
-		target.QoderVersion = r.QoderCatalogVersion()
-		if observed, found := r.QoderModel(model); found {
-			target.QoderModel = &observed
-			target.AttributeModel = observed.Identity
+		index, err := r.QoderModelIndex()
+		if err != nil {
+			// Preview can describe configured custom routes before synchronization.
+			// A blank index still applies Qoder's text converter constraints.
+			index = qodermodel.NewCatalog(strconv.FormatInt(r.ID, 10)+":unavailable", nil)
 		}
+		target.Model = index.RouteKey(model)
+		target.ProviderModels = index
+		target.UpstreamProtocol = string(protocol.ProtocolQoderChat)
 	}
 	chat := upstreamProtocol == "openai_chat_completions"
 	// Callers without an upstream protocol still use the legacy text route

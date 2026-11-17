@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
 // qoderCatalogStore models identity-checked persistence for catalog tests.
@@ -75,9 +75,9 @@ func newQoderCatalogStore() *qoderCatalogStore {
 func TestQoderCatalogManualReplacement(t *testing.T) {
 	store := newQoderCatalogStore()
 	now := time.Now().UTC()
-	models := []modelcatalog.QoderModel{{Key: "route", Alias: "new-model", Enabled: true, InputLimit: 1000000}}
+	models := []qodermodel.Model{{Key: "route", Alias: "new-model", Enabled: true, InputLimit: 1000000}}
 	var fetchErr error
-	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Now: func() time.Time { return now }, Fetch: func(context.Context, *Record) ([]modelcatalog.QoderModel, error) { return models, fetchErr }})
+	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Now: func() time.Time { return now }, Fetch: func(context.Context, *Record) ([]qodermodel.Model, error) { return models, fetchErr }})
 	t.Cleanup(func() { require.NoError(t, service.StopContext(context.Background())) })
 	first, err := service.Refresh(t.Context(), 7)
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestQoderCatalogManualReplacement(t *testing.T) {
 	require.Equal(t, first.FetchedAt, retained.FetchedAt)
 	require.Equal(t, first.Version, retained.Version)
 	require.Equal(t, models, row.QoderCatalogStatus(now)["model_details"])
-	models, fetchErr = []modelcatalog.QoderModel{}, nil
+	models, fetchErr = []qodermodel.Model{}, nil
 	_, err = service.Refresh(t.Context(), 7)
 	require.NoError(t, err)
 	row, err = store.read(t.Context(), 7)
@@ -116,10 +116,10 @@ func TestQoderCatalogManualReplacement(t *testing.T) {
 func TestQoderCatalogRejectsLateAccountResult(t *testing.T) {
 	store := newQoderCatalogStore()
 	started, release := make(chan struct{}), make(chan struct{})
-	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Fetch: func(context.Context, *Record) ([]modelcatalog.QoderModel, error) {
+	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Fetch: func(context.Context, *Record) ([]qodermodel.Model, error) {
 		close(started)
 		<-release
-		return []modelcatalog.QoderModel{{Key: "old-route", Enabled: true}}, nil
+		return []qodermodel.Model{{Key: "old-route", Enabled: true}}, nil
 	}})
 	result := make(chan error, 1)
 	go func() {
@@ -146,12 +146,12 @@ func TestQoderCatalogQuerySurvivesWaiterCancellation(t *testing.T) {
 	store.committed = make(chan struct{}, 1)
 	started, release := make(chan struct{}), make(chan struct{})
 	var calls atomic.Int32
-	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Fetch: func(ctx context.Context, _ *Record) ([]modelcatalog.QoderModel, error) {
+	service := NewQoderCatalogService(QoderCatalogOptions{Read: store.read, Writer: store, Fetch: func(ctx context.Context, _ *Record) ([]qodermodel.Model, error) {
 		calls.Add(1)
 		close(started)
 		select {
 		case <-release:
-			return []modelcatalog.QoderModel{{Key: "route", Enabled: true}}, nil
+			return []qodermodel.Model{{Key: "route", Enabled: true}}, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -194,7 +194,7 @@ func TestQoderCatalogLimitsConcurrentAccountsAndCancelsQueuedWork(t *testing.T) 
 			return record, err
 		},
 		Writer: store,
-		Fetch: func(ctx context.Context, record *Record) ([]modelcatalog.QoderModel, error) {
+		Fetch: func(ctx context.Context, record *Record) ([]qodermodel.Model, error) {
 			entered <- record.ID
 			<-ctx.Done()
 			transportExited <- struct{}{}
@@ -234,4 +234,36 @@ func TestQoderCatalogLimitsConcurrentAccountsAndCancelsQueuedWork(t *testing.T) 
 	}
 	require.Len(t, transportExited, 4)
 	require.Empty(t, store.row.Extra)
+}
+
+// TestQoderCatalogIndexPublication keeps a hydrated account stable across record
+// copies and denies stale whitelist entries after replacement. Explicit mappings
+// can still introduce a custom route, and replacing credentials invalidates it.
+func TestQoderCatalogIndexPublication(t *testing.T) {
+	row := newQoderCatalogStore().row
+	row.Credentials["model_whitelist"] = []string{"old-key", "old-alias"}
+	snap := QoderCatalogSnapshot{Identity: QoderCatalogIdentity(row), Version: "first", FetchedAt: time.Now(), Models: []qodermodel.Model{{Key: "old-key", Alias: "old-alias", Enabled: true}}}
+	row.Extra = map[string]any{QoderCatalogExtraKey: snap}
+	row.PrepareQoderCatalog()
+	first, err := row.QoderModelIndex()
+	require.NoError(t, err)
+	clone := CloneRecord(row)
+	copyIndex, err := clone.QoderModelIndex()
+	require.NoError(t, err)
+	require.Same(t, first, copyIndex)
+	snap.Version = "second"
+	snap.Models = []qodermodel.Model{}
+	row.Extra[QoderCatalogExtraKey] = snap
+	row.PrepareQoderCatalog()
+	second, err := row.QoderModelIndex()
+	require.NoError(t, err)
+	require.NotEqual(t, first.Version(), second.Version())
+	require.False(t, row.QoderModelRules().QoderCompatible("old-key"))
+	require.False(t, row.QoderModelRules().QoderCompatible("old-alias"))
+	require.True(t, clone.QoderModelRules().QoderCompatible("old-alias"))
+	row.Credentials["model_mapping"] = map[string]any{"custom": "new-key"}
+	require.True(t, row.QoderModelRules().QoderCompatible("new-key"))
+	row.Credentials["uid"] = "another-user"
+	_, err = row.QoderModelIndex()
+	require.ErrorIs(t, err, ErrQoderCatalogUnavailable)
 }

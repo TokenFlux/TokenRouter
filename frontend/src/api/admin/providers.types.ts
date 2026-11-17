@@ -146,8 +146,8 @@ export interface QoderCatalogModel {
   identity?: string // Qualified catalog model name.
   enabled: boolean // Account eligibility.
   default: boolean // Preferred account route.
-  reasoning: boolean // Upstream reasoning support.
-  can_disable: boolean // Whether callers may disable reasoning.
+  reasoning?: boolean // Absent when the upstream leaves support unspecified.
+  can_disable?: boolean // Whether callers may disable reasoning.
   default_thinking: boolean // Default reasoning switch.
   default_effort?: string // Default reasoning intensity.
   efforts: string[] | null // Available reasoning intensities.
@@ -155,7 +155,7 @@ export interface QoderCatalogModel {
   output_limit?: number // Output token limit.
   context_windows: number[] | null // Selectable context windows in tokens.
   default_context?: number // Default context window in tokens.
-  vision: boolean // Visual input support reported by the upstream.
+  vision?: boolean // Visual input support reported by the upstream.
 }
 
 /** QoderModelCatalogStatus carries a saved account observation without credentials. */

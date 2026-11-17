@@ -1327,7 +1327,7 @@ func TestGatewayModels_OpenAIEmptyListKeepsOpenAIResponseShape(t *testing.T) {
 
 // TestGatewayModels_QoderCustomModelsListFiltersConfiguredModels supplies three
 // whitelisted Qoder names and the same custom order. It checks the local
-// response returns those configured choices in that exact order.
+// response lists only the route still enabled in the account observation.
 func TestGatewayModels_QoderCustomModelsListFiltersConfiguredModels(t *testing.T) {
 	groupID := int64(29)
 	qoderProvider := provider.Record{ID: 1, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Credentials: map[string]any{}}
@@ -1362,7 +1362,7 @@ func TestGatewayModels_QoderCustomModelsListFiltersConfiguredModels(t *testing.T
 
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Equal(t, []string{"deepseek-v4-pro", "claude-sonnet-4-6", "lite"}, modelIDsForTest(got.Data))
+	require.Equal(t, []string{"deepseek-v4-pro"}, modelIDsForTest(got.Data))
 }
 
 // TestGatewayModels_GroupRestrictionEmptyDoesNotFallBackToDefaults combines an

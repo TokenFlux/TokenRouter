@@ -50,10 +50,15 @@ type QoderErrorPresenter struct {
 // Passthrough message extraction can replace the classified message when the
 // body supplies one; otherwise that message remains. Monitoring suppression
 // updates Gin only when a context exists, keeping rule-selected client output
-// distinct from the source status later recorded by callers.
+// distinct from the observed upstream status recorded here.
 func (p QoderErrorPresenter) Details(c *gin.Context, err error) (int, string, string, bool) {
 	value := p.Describe(err)
 	status, errType, message, ok := value.Status, value.Kind, value.Message, value.Recognized
+	if ok && value.SourceStatus > 0 {
+		// Rules can replace the diagnostic below. Record the final message only
+		// when an upstream actually supplied the status used for this presentation.
+		defer func() { SetOpsUpstreamError(c, value.SourceStatus, message, "") }()
+	}
 	if !ok || p.Rules == nil || value.SourceStatus <= 0 {
 		return status, errType, message, ok
 	}
@@ -143,7 +148,6 @@ func (p QoderErrorPresenter) Failure(c *gin.Context, err error) *HTTPFailure {
 			result.Status = status
 			result.Type = kind
 			result.Message = message
-			SetOpsUpstreamError(c, p.Describe(failure.Cause).SourceStatus, message, "")
 		} else if failure.Stage == gateway.FailureExhausted {
 			result.Message = "All available providers exhausted"
 		}

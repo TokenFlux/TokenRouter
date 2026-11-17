@@ -8,9 +8,9 @@ import (
 	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
@@ -144,12 +144,12 @@ func NewDefaultQoderFixture() (*provider.Record, *QoderFixture, *QoderClient) {
 // that fixture identity. These values exercise conversion independently of
 // account entitlements or live upstream discovery.
 func SetQoderCatalog(value *provider.Record) {
-	models := []modelcatalog.QoderModel{
+	models := []qodermodel.Model{
 		{Key: "auto", Alias: "auto", Enabled: true, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
-		{Key: "ultimate", Alias: "ultimate", Enabled: true, Reasoning: true, DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "medium", "high", "xhigh", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
-		{Key: "qmodel_38max", Alias: "qwen3.8-max", Enabled: true, Reasoning: true, CanDisable: true, DefaultThinking: true, DefaultEffort: "medium", Efforts: []string{"low", "medium", "xhigh"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
-		{Key: "dmodel", Alias: "deepseek-v4-pro", Enabled: true, Reasoning: true, CanDisable: true, DefaultThinking: true, DefaultEffort: "max", Efforts: []string{"high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
-		{Key: "gmodel", Alias: "glm-5.3", Enabled: true, Reasoning: true, DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "ultimate", Alias: "ultimate", Enabled: true, Reasoning: new(true), DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "medium", "high", "xhigh", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "qmodel_38max", Alias: "qwen3.8-max", Enabled: true, Reasoning: new(true), CanDisable: new(true), DefaultThinking: true, DefaultEffort: "medium", Efforts: []string{"low", "medium", "xhigh"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "dmodel", Alias: "deepseek-v4-pro", Enabled: true, Reasoning: new(true), CanDisable: new(true), DefaultThinking: true, DefaultEffort: "max", Efforts: []string{"high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
+		{Key: "gmodel", Alias: "glm-5.3", Enabled: true, Reasoning: new(true), DefaultThinking: true, DefaultEffort: "high", Efforts: []string{"low", "high", "max"}, InputLimit: 1000000, ContextWindows: []int{200000, 1000000}},
 	}
 	if value.Extra == nil {
 		value.Extra = map[string]any{}

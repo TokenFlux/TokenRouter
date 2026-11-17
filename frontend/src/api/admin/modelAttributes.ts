@@ -55,6 +55,7 @@ export interface ResolvedAttributes {
    * This mapping names the source of resolved attribute values so preview
    * consumers can explain which configuration supplied them.
    */
+  configured_attributes?: ModelAttributes // Profile values before converter restrictions.
   sources: Record<string, string> // Attribute source mapping.
   rules: Record<string, unknown> // Configured matching rules.
   version: string // Reported version identifier.

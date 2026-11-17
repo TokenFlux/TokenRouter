@@ -180,20 +180,25 @@ func (s *QoderProviderTest) Execute(c *TestRun, value *providercore.Record, mode
 		return (TestStreamOutput{}).Error(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
 	}
 	request.Site = site
-	target := value.ModelAttributeTarget(request.Model, "qoder_chat")
-	var catalog modelcatalog.Catalog
-	resolution := catalog.View().Resolve(target, modelcatalog.Attributes{})
+	var resolution modelcatalog.Resolution
 	if s.Attributes != nil {
-		resolution, err = s.Attributes(ctx, value, c.GroupID, request.Model, "qoder_chat")
+		resolution, err = s.Attributes(ctx, value, c.GroupID, request.Model, string(capability.ProtocolQoderChat))
 		if err != nil {
 			return (TestStreamOutput{}).Error(c, err.Error())
 		}
+	} else {
+		client := c.ProtocolRoute.ClientProtocol
+		if client == "" {
+			client = capability.ProtocolOpenAIChatCompletions
+		}
+		target := value.ModelAttributeRoute(request.Model, string(client), string(capability.ProtocolQoderChat))
+		resolution = modelcatalog.View{}.Resolve(target, modelcatalog.Attributes{})
 	}
 	request.Capabilities = &resolution
-	if _, err := qoder.ResolveObservedThinking(request.Thinking, &resolution); err != nil {
+	payload, modelKey, err := qoder.BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
+	if err != nil {
 		return (TestStreamOutput{}).Error(c, err.Error())
 	}
-	payload, modelKey := qoder.BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 	payloadBody, err := json.Marshal(payload)
 	if err != nil {
 		return (TestStreamOutput{}).Error(c, "Failed to encode Qoder test payload")

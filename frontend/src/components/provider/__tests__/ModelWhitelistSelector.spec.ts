@@ -308,6 +308,19 @@ describe('ModelWhitelistSelector', () => {
     wrapper.unmount()
   })
 
+  // Bulk editing can select Qoder alongside another platform without supplying a
+  // single account catalog. Shared catalog suggestions must still be searchable.
+  it('loads catalog suggestions for a mixed Qoder and OpenAI bulk selection', async () => {
+    vi.useFakeTimers()
+    catalogDefaults.mockResolvedValue({ items: [{ model: 'gpt-example' }], total: 1 })
+    const wrapper = mountSelector({ models: undefined, platforms: ['qoder', 'openai'] })
+    await wrapper.get('div.cursor-pointer').trigger('click')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    expect(wrapper.get('[data-testid="model-option"]').text()).toBe('gpt-example')
+    wrapper.unmount()
+  })
+
   // A search changes while the previous catalog request remains unresolved, then another
   // page is loaded. Only current results may populate suggestions while the saved
   // selected ID remains untouched.

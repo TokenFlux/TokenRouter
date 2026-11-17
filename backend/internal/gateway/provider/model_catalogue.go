@@ -48,9 +48,7 @@ func (v catalogueRules) AttributeTarget(requested, model string, source, target 
 	if source == capability.ProtocolResponsesCompact && v.policy.Record.IsOpenAI() {
 		_, model = v.policy.ForwardMappedModels(requested, true)
 	}
-	value := v.policy.Record.ModelAttributeTarget(model, string(target))
-	value.ClientProtocol, value.UpstreamProtocol = string(source), string(target)
-	return value
+	return v.policy.Record.ModelAttributeRoute(model, string(source), string(target))
 }
 
 // ConfiguredModels returns concrete request model candidates from the prepared

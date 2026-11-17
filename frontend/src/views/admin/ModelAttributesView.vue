@@ -387,6 +387,12 @@
                   >{{ route.target.model }} → {{ route.reference_model }}</p
                 >
                 <ModelAttributesSummary :attributes="route.attributes" />
+                <ModelAttributeDisclosure
+                  v-if="route.configured_attributes"
+                  :title="t('admin.modelAttributes.beforeAdapter')"
+                >
+                  <ModelAttributesSummary :attributes="route.configured_attributes" />
+                </ModelAttributeDisclosure>
                 <ModelAttributeDisclosure :title="t('admin.modelAttributes.fieldSource')">
                   <dl class="space-y-2 text-sm">
                     <div

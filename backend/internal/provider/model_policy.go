@@ -24,8 +24,8 @@ type ModelPlatformRules struct {
 	// NormalizeQoder compares route aliases on Qoder records. A nil callback leaves
 	// whitelist matching to exact case-folded names and terminal wildcard prefixes.
 	NormalizeQoder func(string) string
-	// QoderCompatible checks site eligibility for Qoder records. When nil, model
-	// admission does not impose an additional site check through this rule.
+	// QoderCompatible checks account eligibility for Qoder records. When nil, model
+	// admission does not impose an additional account check through this rule.
 	QoderCompatible func(string) bool
 	// OpenAIOAuthServable adds account-model eligibility for OpenAI OAuth records.
 	// A nil callback leaves that check to other callers or admission layers.
@@ -37,7 +37,7 @@ type ModelPlatformRules struct {
 // so an alias is tested through its target rather than its request spelling.
 //
 // The effective scope distinguishes ordinary explicit whitelists from finite
-// OpenAI shadow models. Qoder site compatibility and OpenAI OAuth eligibility
+// OpenAI shadow models. Qoder account eligibility and OpenAI OAuth eligibility
 // apply to the mapped target after membership succeeds. Supplied callbacks can
 // read live record state, so callers keep configuration stable during a check.
 func (r *Record) IsModelSupported(requestedModel string, defaults ModelMappingDefaults, rules ModelPlatformRules) bool {
@@ -55,7 +55,7 @@ func (r *Record) IsModelSupported(requestedModel string, defaults ModelMappingDe
 
 // modelPlatformAllows reports whether a final model passes supplied platform
 // callbacks for a nonnil record. A record with per-model protocol declarations
-// requires the model to be declared; Qoder site and OpenAI OAuth checks use
+// requires the model to be declared; Qoder account and OpenAI OAuth checks use
 // their supplied callbacks. Missing callbacks leave those checks to callers.
 func (r *Record) modelPlatformAllows(model string, rules ModelPlatformRules) bool {
 	if protocols := r.ModelProtocols(); protocols != nil {
@@ -72,7 +72,7 @@ func (r *Record) modelPlatformAllows(model string, rules ModelPlatformRules) boo
 	return true
 }
 
-// FinalModelWhitelisted checks effective whitelist membership and Qoder site
+// FinalModelWhitelisted checks effective whitelist membership and Qoder account
 // eligibility for an already selected final model. Nil records are rejected and
 // model is used directly, so callers perform their intended mapping beforehand.
 //
