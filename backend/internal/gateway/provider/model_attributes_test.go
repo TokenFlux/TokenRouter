@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
@@ -37,19 +38,19 @@ func TestApplyModelAttributeParameters(t *testing.T) {
 	cases := []struct {
 		name string // parameter policy scenario label
 		// final route attribute identity
-		target modelcatalog.Target
+		target modelrules.Target
 		// body: input request JSON. expected: rewritten request JSON.
 		body, expected string
 	}{
-		{"gpt sampling none", modelcatalog.Target{Platform: "openai", Model: "gpt-5.4"}, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`},
-		{"gpt sampling high", modelcatalog.Target{Platform: "openai", Model: "gpt-5.4"}, `{"reasoning":{"effort":"high"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"high"}}`},
-		{"compact max", modelcatalog.Target{Platform: "openai", ProviderType: "oauth", Model: "gpt-5.6-sol", Endpoint: "compact"}, `{"reasoning":{"effort":"max","summary":"auto"},"max_output_tokens":4096,"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"xhigh","summary":"auto"}}`},
-		{"standard max", modelcatalog.Target{Platform: "openai", ProviderType: "apikey", Model: "gpt-5.6-sol"}, `{"reasoning":{"effort":"max"}}`, `{"reasoning":{"effort":"max"}}`},
-		{"glm high", modelcatalog.Target{Platform: "zhipu", Model: "glm-5.2"}, `{"reasoning_effort":"low"}`, `{"reasoning_effort":"high"}`},
-		{"glm max", modelcatalog.Target{Platform: "zhipu", Model: "glm-5.3"}, `{"reasoning_effort":"xhigh"}`, `{"reasoning_effort":"max"}`},
-		{"deepseek thinking", modelcatalog.Target{Platform: "deepseek", Model: "deepseek-v4-pro"}, `{"thinking":{"type":"enabled"},"temperature":0.4,"top_p":0.98}`, `{"thinking":{"type":"enabled"},"top_p":0.98}`},
-		{"deepseek disabled", modelcatalog.Target{Platform: "deepseek", Model: "deepseek-v4-flash"}, `{"thinking":{"type":"disabled"},"temperature":0.4,"top_p":0.98}`, `{"thinking":{"type":"disabled"},"temperature":0.4}`},
-		{"unknown", modelcatalog.Target{Platform: "openai", Model: "company-latest", BaseURL: "https://relay.example/v1"}, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`},
+		{"gpt sampling none", modelrules.Target{Platform: "openai", Model: "gpt-5.4"}, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`},
+		{"gpt sampling high", modelrules.Target{Platform: "openai", Model: "gpt-5.4"}, `{"reasoning":{"effort":"high"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"high"}}`},
+		{"compact max", modelrules.Target{Platform: "openai", ProviderType: "oauth", Model: "gpt-5.6-sol", Endpoint: "compact"}, `{"reasoning":{"effort":"max","summary":"auto"},"max_output_tokens":4096,"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"xhigh","summary":"auto"}}`},
+		{"standard max", modelrules.Target{Platform: "openai", ProviderType: "apikey", Model: "gpt-5.6-sol"}, `{"reasoning":{"effort":"max"}}`, `{"reasoning":{"effort":"max"}}`},
+		{"glm high", modelrules.Target{Platform: "zhipu", Model: "glm-5.2"}, `{"reasoning_effort":"low"}`, `{"reasoning_effort":"high"}`},
+		{"glm max", modelrules.Target{Platform: "zhipu", Model: "glm-5.3"}, `{"reasoning_effort":"xhigh"}`, `{"reasoning_effort":"max"}`},
+		{"deepseek thinking", modelrules.Target{Platform: "deepseek", Model: "deepseek-v4-pro"}, `{"thinking":{"type":"enabled"},"temperature":0.4,"top_p":0.98}`, `{"thinking":{"type":"enabled"},"top_p":0.98}`},
+		{"deepseek disabled", modelrules.Target{Platform: "deepseek", Model: "deepseek-v4-flash"}, `{"thinking":{"type":"disabled"},"temperature":0.4,"top_p":0.98}`, `{"thinking":{"type":"disabled"},"temperature":0.4}`},
+		{"unknown", modelrules.Target{Platform: "openai", Model: "company-latest", BaseURL: "https://relay.example/v1"}, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`, `{"reasoning":{"effort":"none"},"temperature":0.4,"top_p":0.8}`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestApplyModelAttributeParameters(t *testing.T) {
 // resolved attribute governs later clamping.
 func TestApplyModelAttributeParametersOllamaOverrides(t *testing.T) {
 	for _, cap := range []int{-1, 0, 32768, 65535} {
-		target := modelcatalog.Target{Platform: "openai", Model: "company-model", Ollama: true, OllamaOutputCap: &cap}
+		target := modelrules.Target{Platform: "openai", Model: "company-model", Ollama: true, OllamaOutputCap: &cap}
 		resolved := testkit.OfflineView().Resolve(target, modelcatalog.Attributes{})
 		body, err := ApplyModelAttributeParameters([]byte(`{"max_tokens":90000,"max_completion_tokens":100000}`), resolved)
 		require.NoError(t, err)
@@ -79,7 +80,7 @@ func TestApplyModelAttributeParametersOllamaOverrides(t *testing.T) {
 		}
 	}
 	cap := 80000
-	target := modelcatalog.Target{Platform: "openai", Model: "company-model", Ollama: true}
+	target := modelrules.Target{Platform: "openai", Model: "company-model", Ollama: true}
 	resolved := testkit.OfflineView().Resolve(target, modelcatalog.Attributes{OutputLimit: &cap})
 	body := ApplyOllamaCloudRawChatCompletionsRequest(ollamaCloudRawChatCompletionsTestProvider(), []byte(`{"max_tokens":100000}`))
 	body, err := ApplyModelAttributeParameters(body, resolved)
@@ -137,7 +138,7 @@ func TestGeminiThinkingDistinguishesUnknownAndEmptyOptions(t *testing.T) {
 		{"reasoning disabled", modelcatalog.Attributes{Reasoning: &no}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			result := testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "gemini", Model: "private-model"}, tc.attrs)
+			result := testkit.OfflineView().Resolve(modelrules.Target{Platform: "gemini", Model: "private-model"}, tc.attrs)
 			for _, control := range []struct {
 				// name: control scenario label. body: input
 				// request JSON. effort: expected thinking
@@ -191,7 +192,7 @@ func TestApplyModelAttributeParametersUsesGLMEffortOverrides(t *testing.T) {
 				values = append(values, &effort)
 			}
 			options := []modelcatalog.ReasoningOption{{Type: "effort", Values: values}}
-			result := testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "zhipu", Model: tc.model, UpstreamProtocol: tc.protocol}, modelcatalog.Attributes{ReasoningOptions: &options})
+			result := testkit.OfflineView().Resolve(modelrules.Target{Platform: "zhipu", Model: tc.model, UpstreamProtocol: tc.protocol}, modelcatalog.Attributes{ReasoningOptions: &options})
 			body, err := ApplyModelAttributeParameters([]byte(tc.body), result)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, gjson.GetBytes(body, tc.path).String())
@@ -264,7 +265,7 @@ func TestModelRequestStateFieldPrecedence(t *testing.T) {
 			for i := range body {
 				body[i] = 'x'
 			}
-			require.Equal(t, modelcatalog.RequestState{Effort: tc.effort, Thinking: tc.thinking}, state)
+			require.Equal(t, modelrules.RequestState{Effort: tc.effort, Thinking: tc.thinking}, state)
 		})
 	}
 }
@@ -388,7 +389,7 @@ func TestCanonicalModelParameterBodyParity(t *testing.T) {
 		{"apikey output controls", "openai", "gpt-5.6-sol", "openai/gpt-5.6-sol", "openai_responses", `{"reasoning":{"effort":"max"},"max_output_tokens":4096,"frequency_penalty":0.2,"presence_penalty":0.3}`, `{"reasoning":{"effort":"max"},"max_output_tokens":4096,"frequency_penalty":0.2,"presence_penalty":0.3}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			for _, target := range []modelcatalog.Target{
+			for _, target := range []modelrules.Target{
 				{Platform: test.platform, ProviderType: "apikey", Model: test.model, UpstreamProtocol: test.protocol},
 				{Platform: "opencode", ProviderType: "apikey", Model: "service-alias", AttributeModel: test.canonical, UpstreamProtocol: test.protocol},
 			} {
@@ -409,7 +410,7 @@ func TestCanonicalModelParameterBodyParity(t *testing.T) {
 func TestReferencedAttributesPreserveOutboundModel(t *testing.T) {
 	repo := &mediaAttributeRepo{config: &routing.ModelAttributeConfig{Status: routing.StatusActive, Rules: []routing.ModelAttributeRule{{Models: []string{"custom-*"}, ReferenceModel: "gpt-5.4"}}}}
 	service := &routing.ModelAttributeService{Repo: repo, Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}}
-	target := modelcatalog.Target{Model: "custom-openai", Platform: "openai", ProviderType: "apikey", ClientProtocol: "openai_chat_completions", UpstreamProtocol: "openai_chat_completions"}
+	target := modelrules.Target{Model: "custom-openai", Platform: "openai", ProviderType: "apikey", ClientProtocol: "openai_chat_completions", UpstreamProtocol: "openai_chat_completions"}
 	result, err := service.NewSession().Resolve(t.Context(), 7, target)
 	require.NoError(t, err)
 	require.Equal(t, "custom-openai", result.Target.Model)
@@ -439,7 +440,7 @@ func TestQoderPreviewAndRuntimeShareRoute(t *testing.T) {
 			rules, ok := CatalogueProvider(&row, requeststate.AttemptRoute{}).Rules.(catalogueRules)
 			require.True(t, ok)
 			target := rules.AttributeTarget(name, "native", wire, protocol.ProtocolQoderChat)
-			preview, err := service.Preview(ctx, 7, []modelcatalog.Target{target}, config)
+			preview, err := service.Preview(ctx, 7, []modelrules.Target{target}, config)
 			require.NoError(t, err)
 			actual, err := runtime.Target(qoder.RequestMetadata{}, &row).Attributes(ctx, name, wire)
 			require.NoError(t, err)

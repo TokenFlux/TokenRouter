@@ -83,9 +83,6 @@ type QoderMessage struct {
 // QoderStreamResult records output and latest usage evidence for one stream
 // attempt.
 type QoderStreamResult struct {
-	// ResponseOutput captures completed Responses items for bounded continuation
-	// history. Other client protocols leave it empty; partial streams never publish it.
-	ResponseOutput json.RawMessage // completed Responses output items
 	// HasUsage distinguishes a present zero-token payload from no observation.
 	// Usage and UsageDetails retain its latest snapshot. Chat streams additionally
 	// record TotalTokens; the other writers leave that field zero. HasOutput
@@ -1069,6 +1066,7 @@ func BuildQoderResponsesResponseWithID(model, responseID string, events []SSEEve
 	if strings.TrimSpace(responseID) != "" {
 		responsesResp.ID = strings.TrimSpace(responseID)
 	}
+	responsesResp.Store = new(false)
 	responsesResp.Model = model
 	return json.Marshal(responsesResp)
 }
@@ -1131,6 +1129,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *upstream.OutputCo
 		return writeEventFrame(protocolopenai.ResponsesStreamEvent{
 			Type: "response.created",
 			Response: &protocolopenai.ResponsesResponse{
+				Store:  new(false),
 				ID:     responseID,
 				Object: "response",
 				Model:  model,
@@ -1464,10 +1463,10 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *upstream.OutputCo
 			finalUsage = usageMapper(finalUsage)
 		}
 		completed := completedOutputList()
-		result.ResponseOutput, _ = json.Marshal(completed)
 		return writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type: "response.completed",
 			Response: &protocolopenai.ResponsesResponse{
+				Store:  new(false),
 				ID:     responseID,
 				Object: "response",
 				Model:  model,

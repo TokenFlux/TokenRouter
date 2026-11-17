@@ -20,6 +20,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
@@ -178,15 +179,14 @@ func desktopInference(t *testing.T, model qodermodel.Model, site qoder.Site, ses
 	client.HTTPClient.Timeout = 75 * time.Second
 	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
 	defer cancel()
-	var catalog modelcatalog.Catalog
-	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: "openai_chat_completions"}, modelcatalog.Attributes{})
+	resolution := modelrules.View{}.Resolve(modelrules.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: "openai_chat_completions"}, modelcatalog.Attributes{})
 	body, err := json.Marshal(map[string]any{"model": model.Key, "messages": []map[string]string{{"role": "user", "content": "Write a Python function add(a, b) that returns a + b. Output only the function."}}, "max_tokens": 256, "stream": true})
 	require.NoError(t, err)
 	target := &qoder.Target{
 		Site: site, ProviderID: 1,
 		Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil },
 		Client:  func() (qoder.StreamClient, error) { return client, nil },
-		Attributes: func(context.Context, string, protocol.ProtocolID) (modelcatalog.Resolution, error) {
+		Attributes: func(context.Context, string, protocol.ProtocolID) (modelrules.Resolution, error) {
 			return resolution, nil
 		},
 	}
@@ -278,9 +278,8 @@ func desktopProtocolCall(t *testing.T, executor *qoder.Executor, model qodermode
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
 	defer cancel()
-	var catalog modelcatalog.Catalog
-	resolution := catalog.View().Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: string(wire)}, modelcatalog.Attributes{})
-	target := &qoder.Target{ProviderID: 1, Site: site, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }, Attributes: func(context.Context, string, protocol.ProtocolID) (modelcatalog.Resolution, error) {
+	resolution := modelrules.View{}.Resolve(modelrules.Target{Platform: "qoder", Site: string(site), Model: model.Key, ProviderModels: qodermodel.NewCatalog(string(site), []qodermodel.Model{model}), ClientProtocol: string(wire)}, modelcatalog.Attributes{})
+	target := &qoder.Target{ProviderID: 1, Site: site, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }, Attributes: func(context.Context, string, protocol.ProtocolID) (modelrules.Resolution, error) {
 		return resolution, nil
 	}}
 	raw, err := json.Marshal(body)
@@ -382,8 +381,8 @@ func desktopToolContinuation(t *testing.T, model qodermodel.Model, site qoder.Si
 			results = append(results, map[string]any{"type": "function_call_output", "call_id": id, "output": value["value"]})
 		}
 		require.Len(t, ids, 2)
-		body["previous_response_id"] = response["id"]
-		body["input"] = results
+		body["input"] = append(append(desktopFixtureValue[[]any](t, body["input"]), items...), results...)
+		body["store"] = false
 		body["tool_choice"] = "none"
 	case protocol.ProtocolAnthropicMessages:
 		items := desktopFixtureValue[[]any](t, response["content"])

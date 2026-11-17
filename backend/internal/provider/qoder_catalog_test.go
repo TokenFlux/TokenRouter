@@ -84,7 +84,7 @@ func TestQoderCatalogManualReplacement(t *testing.T) {
 	require.NotEmpty(t, first.Version)
 	row, err := store.read(t.Context(), 7)
 	require.NoError(t, err)
-	require.Equal(t, []string{"new-model", "route"}, row.QoderRequestModelIDs())
+	require.Equal(t, []string{"new-model"}, row.QoderRequestModelIDs())
 	fetchErr = errors.New("upstream failure with private body")
 	now = now.Add(30 * 24 * time.Hour)
 	_, err = service.Refresh(t.Context(), 7)
@@ -266,4 +266,25 @@ func TestQoderCatalogIndexPublication(t *testing.T) {
 	row.Credentials["uid"] = "another-user"
 	_, err = row.QoderModelIndex()
 	require.ErrorIs(t, err, ErrQoderCatalogUnavailable)
+}
+
+// TestOlderCatalogUsesDisplayIDAndNativeDefault reads a snapshot produced before
+// branded models received display IDs. Management, selection and the runtime
+// index must agree on both the public alias and the mandatory reasoning switch.
+func TestOlderCatalogUsesDisplayIDAndNativeDefault(t *testing.T) {
+	row := newQoderCatalogStore().row
+	row.Extra = map[string]any{QoderCatalogExtraKey: QoderCatalogSnapshot{Identity: QoderCatalogIdentity(row), Version: "older", FetchedAt: time.Now(), Models: []qodermodel.Model{{Key: "cmodel", Name: "Cantus", Enabled: true, Reasoning: new(true), CanDisable: new(false), DefaultEffort: "high", Efforts: []string{"high"}}}}}
+	row.PrepareQoderCatalog()
+	require.Equal(t, []string{"cantus"}, row.QoderRequestModelIDs())
+	index, err := row.QoderModelIndex()
+	require.NoError(t, err)
+	for _, id := range []string{"cantus", "cmodel"} {
+		model, ok := index.Lookup(id)
+		require.True(t, ok)
+		require.Equal(t, "cmodel", model.Key)
+		require.True(t, model.DefaultThinking)
+	}
+	observation, err := row.QoderCatalog(time.Now())
+	require.NoError(t, err)
+	require.True(t, observation.Models[0].DefaultThinking)
 }

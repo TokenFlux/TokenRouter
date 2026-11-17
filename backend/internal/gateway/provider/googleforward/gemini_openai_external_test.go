@@ -24,6 +24,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -665,7 +666,7 @@ func TestGeminiCompatibilityForwardsReasoningWithUnknownOptions(t *testing.T) {
 	require.NoError(t, err)
 	stub := &geminiCompatHTTPUpstreamStub{response: &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"candidates":[{"content":{"parts":[{"text":"answer"}]},"finishReason":"STOP"}]}`))}}
 	svc := newGeminiFixture(geminiDependencies{httpUpstream: stub, cfg: &googleforward.Options{}})
-	svc.Attributes = &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: catalog.View}}
+	svc.Attributes = &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: func() modelrules.View { return modelrules.NewView(catalog.Publication()) }}}
 	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{ID: 1, Platform: "gemini", Type: "apikey", Credentials: map[string]any{"api_key": "fixture"}}}
 	body := []byte(`{"model":"private-model","messages":[{"role":"user","content":"hi"}],"reasoning_effort":"high"}`)
 	recorder := httptest.NewRecorder()

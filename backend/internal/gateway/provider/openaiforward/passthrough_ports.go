@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -130,7 +130,7 @@ type PassthroughPorts interface {
 	// ModelAttributes resolves the final passthrough route and retains its
 	// capabilities for image billing. Lookup failures stop this attempt before
 	// permission checks or transport can use incomplete model information.
-	ModelAttributes(context.Context, string) (modelcatalog.Resolution, error)
+	ModelAttributes(context.Context, string) (modelrules.Resolution, error)
 	// ApplyFastPass applies provider fast-tier policy to the prepared outgoing
 	// body and model.
 	ApplyFastPass(ctx context.Context, model string, body []byte) ([]byte, error)

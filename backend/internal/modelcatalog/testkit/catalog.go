@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // catalog.go provides an embedded catalog view and editable model fixtures for
@@ -17,7 +18,7 @@ import (
 
 // OfflineView returns a fixed test view built once from embedded catalog and
 // official attribute supplements, panicking on invalid inputs.
-var OfflineView = sync.OnceValue(func() modelcatalog.View {
+var OfflineView = sync.OnceValue(func() modelrules.View {
 	body, err := modelcatalog.Offline()
 	if err != nil {
 		panic(err)
@@ -45,7 +46,7 @@ var OfflineView = sync.OnceValue(func() modelcatalog.View {
 			}
 		}
 	}
-	return catalog.View()
+	return modelrules.NewView(catalog.Publication())
 })
 
 // Catalog supplies test entries and a replaceable version for catalog consumers.

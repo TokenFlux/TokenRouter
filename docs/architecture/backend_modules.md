@@ -25,6 +25,8 @@ backend/
 │   └── server/                                          服务器参数、版本信息与 app 启动
 ├── internal/                                            应用内部包；受 Go 导入范围约束
 │   ├── provider/                                         上游提供商、凭据、授权、健康和维护
+│   │   ├── modelrules/                                  内置提供商的路由身份、型号属性、执行约束和分组合并解析
+│   │   ├── qodermodel/                                  Qoder 账号模型别名、快照索引和原生约束
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
 │   │   │   └── dto/                                     HTTP 展示值、请求值及脱敏映射
 │   │   ├── postgres/                                    PostgreSQL 持久化及事务适配
@@ -203,7 +205,7 @@ backend/
 │   │   ├── openai/                                      Responses、Chat、媒体、WS、Codex 与用量报文
 │   │   ├── systemone/                                   SystemOne 请求、答案与用量的纯校验
 │   │   └── wirejson/                                    保持报文结构的 JSON 读取与修改
-│   ├── modelcatalog/                                    models.dev 目录、内嵌官方补充、供应商身份索引、路线能力解析与平台执行规则
+│   ├── modelcatalog/                                    models.dev 目录、内嵌官方补充、供应商身份索引、目录查表和属性合并
 │   │   └── provider/                                   统一目录加载、条件同步、内嵌与自定义补充、价格和属性原子快照
 │   ├── routing/                                         分组、价格配置、模型目录和请求路线
 │   │   ├── accessview/                                  分组访问、能力、模型和调度配置的只读视图

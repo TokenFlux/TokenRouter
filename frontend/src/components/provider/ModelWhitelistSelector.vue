@@ -249,6 +249,8 @@ const props = defineProps<{
   // Explicit candidates override catalog lookup, including an empty array that
   // intentionally supplies no suggestions.
   models?: string[]
+  // Previously saved raw IDs can identify current routes without being offered as suggestions.
+  knownRouteKeys?: string[]
   // Saved provider identifier; when present, upstream synchronization uses it before any
   // preview credentials.
   providerId?: number
@@ -299,7 +301,9 @@ const unobservedQoderSelections = computed(() => {
   if (!props.providerId || !normalizedPlatforms.value.includes('qoder')) return []
   const models = syncedQoderModels.value ?? props.models
   if (!models) return []
-  const known = new Set(models.map((model) => model.toLowerCase()))
+  const known = new Set(
+    [...models, ...(props.knownRouteKeys ?? [])].map((model) => model.toLowerCase()),
+  )
   return props.modelValue.filter((model) => !model.includes('*') && !known.has(model.toLowerCase()))
 })
 // normalizedPlatforms trims and deduplicates the preferred platform list for determining
@@ -557,17 +561,25 @@ const syncUpstreamModels = async () => {
     emit('synced', result)
 
     const upstreamModels = result.models.map((model) => model.trim()).filter(Boolean)
+    let newModels = [...props.modelValue]
     if (normalizedPlatforms.value.includes('qoder')) {
-      // Retain the account candidates for search and validation, then merge
-      // their enabled IDs into the draft using the shared whitelist behavior.
+      // Older drafts can contain both representations of the same route. Normalize
+      // the current account's enabled keys on manual sync and preserve custom entries.
       syncedQoderModels.value = upstreamModels
+      const displayIds = new Map<string, string>()
+      for (const model of result.sync_status?.model_details ?? []) {
+        if (model.enabled && model.alias) {
+          displayIds.set(model.key.toLowerCase(), model.alias)
+          displayIds.set(model.alias.toLowerCase(), model.alias)
+        }
+      }
+      newModels = [...new Set(newModels.map((id) => displayIds.get(id.trim().toLowerCase()) ?? id))]
     }
     if (upstreamModels.length === 0) {
       appStore.showInfo(t('admin.providers.syncUpstreamModelsEmpty'))
       return
     }
 
-    const newModels = [...props.modelValue]
     let addedCount = 0
     for (const model of upstreamModels) {
       if (!newModels.includes(model)) {

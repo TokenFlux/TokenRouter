@@ -167,6 +167,9 @@ type ResponsesTool struct {
 // ResponsesResponse represents the typed buffered response and lifecycle
 // snapshot consumed by converters.
 type ResponsesResponse struct {
+	// Store reports the storage policy when the adapter knows it. Nil omits
+	// the field for responses whose upstream storage behavior is unspecified.
+	Store  *bool  `json:"store,omitempty"`
 	ID     string `json:"id"`     // upstream response object identity
 	Object string `json:"object"` // response object kind label
 	// CreatedAt remains present even when zero. The Responses event fixtures

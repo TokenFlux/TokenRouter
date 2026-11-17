@@ -8,8 +8,8 @@ import (
 	"github.com/tidwall/gjson"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -33,7 +33,7 @@ func (s *OpenAITextExecutor) modelAttributes() *routing.ModelAttributeService {
 // serialized request parameters. It uses the HTTP context when available,
 // otherwise background context. Successful resolution updates the execution
 // provider before serialization, which can still fail.
-func (p *openAIMessagesExecutionAdapter) modelResolution(model string, request any, protocol string) (modelcatalog.Resolution, error) {
+func (p *openAIMessagesExecutionAdapter) modelResolution(model string, request any, protocol string) (modelrules.Resolution, error) {
 	// Adapters without an HTTP request still resolve catalog attributes; a
 	// background context gives those direct execution paths a usable lookup
 	// context.
@@ -43,14 +43,14 @@ func (p *openAIMessagesExecutionAdapter) modelResolution(model string, request a
 	}
 	result, err := gatewayprovider.ResolveModelAttributes(ctx, p.provider, model, p.s.modelAttributes(), protocol)
 	if err != nil {
-		return modelcatalog.Resolution{}, err
+		return modelrules.Resolution{}, err
 	}
 	if p.provider != nil {
 		p.provider.Capabilities = &result
 	}
 	body, err := json.Marshal(request)
 	if err != nil {
-		return modelcatalog.Resolution{}, err
+		return modelrules.Resolution{}, err
 	}
 	return result.ForRequest(gatewayprovider.ModelRequestState(body)), nil
 }

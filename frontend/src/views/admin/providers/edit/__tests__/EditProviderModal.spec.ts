@@ -1847,7 +1847,7 @@ describe('EditProviderModal', () => {
     expect(wrapper.text()).toContain('common.disabled')
     const selector = wrapper.findComponent(ModelWhitelistSelectorStub)
     selector.vm.$emit('synced', {
-      models: ['qmodel_latest'],
+      models: ['qwen4-max'],
       sync_status: {
         state: 'fresh',
         model_details: [
@@ -1855,6 +1855,7 @@ describe('EditProviderModal', () => {
             ...previous,
             key: 'qmodel_latest',
             name: 'Qwen4-Max',
+            alias: 'qwen4-max',
             enabled: true,
             reasoning: true,
             default_thinking: true,
@@ -1867,7 +1868,7 @@ describe('EditProviderModal', () => {
         ],
       },
     })
-    selector.vm.$emit('update:modelValue', ['qmodel_latest'])
+    selector.vm.$emit('update:modelValue', ['qwen4-max'])
     await flushPromises()
     expect(wrapper.text()).not.toContain('Previous model')
     expect(wrapper.text()).toContain('Qwen4-Max')
@@ -1877,7 +1878,7 @@ describe('EditProviderModal', () => {
     await wrapper.get('form#edit-provider-form').trigger('submit.prevent')
     await flushPromises()
     expect(updateProviderMock.mock.calls[0]?.[1]?.credentials.model_whitelist).toEqual([
-      'qmodel_latest',
+      'qwen4-max',
     ])
     wrapper.unmount()
   })

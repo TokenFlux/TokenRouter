@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/batchimage"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
@@ -123,7 +123,7 @@ func (r *Candidates) Project(value *provider.Record) *batchimage.Candidate {
 	// checks, so callers keep those inputs stable with this captured configuration.
 	snapshot := value.RoutingSnapshot()
 	result := &batchimage.Candidate{ID: value.ID, Priority: value.Priority, CandidateRules: candidateRules{Record: value, models: models}}
-	result.AttributeTarget = func(model string) modelcatalog.Target {
+	result.AttributeTarget = func(model string) modelrules.Target {
 		// Attribute lookup uses the resolved upstream protocol field independently
 		// of route admission. CanSubmit performs the availability check when the
 		// candidate is tested for the batch route.

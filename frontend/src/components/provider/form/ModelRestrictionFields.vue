@@ -17,6 +17,7 @@
         :platforms="platforms"
         :provider-id="providerId"
         :models="models"
+        :known-route-keys="knownRouteKeys"
         :sync-credentials="syncCredentials"
         @update:model-value="allowedModels = $event"
         @synced="emit('synced', $event)"
@@ -68,6 +69,7 @@ defineProps<{
   // Explicit candidates override catalog lookup, including an empty array that
   // intentionally supplies no suggestions.
   models?: string[]
+  knownRouteKeys?: string[] // Current upstream keys accepted by existing whitelists.
   // Unsaved credentials used for preview synchronization when a saved provider identifier
   // is unavailable.
   syncCredentials?: SyncUpstreamPreviewParams

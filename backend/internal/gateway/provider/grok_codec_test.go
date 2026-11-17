@@ -14,6 +14,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -770,7 +771,7 @@ func TestSanitizeGrokCompactionReplayBodyPreservesVisibleSummary(t *testing.T) {
 func grokAttributeCodec() grok.BodyCodec {
 	codec := GrokBodyCodec()
 	codec.Attributes = func(model string) modelcatalog.Attributes {
-		return testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
+		return testkit.OfflineView().Resolve(modelrules.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
 	}
 	return codec
 }

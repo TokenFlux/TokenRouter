@@ -122,33 +122,26 @@ func TestQoderDoesNotReportSynthesizedModel(t *testing.T) {
 	}
 }
 
-// TestResponseStoragePreference exercises both response writers with an explicit
-// opt-out. A successful first turn remains billable and its identifier cannot
-// recover submitted text or assistant output on a later partial continuation.
-func TestResponseStoragePreference(t *testing.T) {
-	for _, stream := range []bool{false, true} {
-		for _, store := range []bool{false, true} {
-			executor := NewExecutor(ExecuteOptions{})
-			target := &Target{
-				ProviderID: 1, Metadata: RequestMetadata{APIKeyID: 7},
-				Session: func(context.Context) (*SessionContext, error) { return &SessionContext{}, nil },
-				Client:  func() (StreamClient, error) { return modelTestClient{}, nil },
-			}
-			body, err := json.Marshal(map[string]any{"model": "auto", "input": "first turn", "store": store, "stream": stream})
-			require.NoError(t, err)
-			result, err := executor.Execute(t.Context(), upstream.AttemptInput{Target: target, Protocol: protocol.ProtocolOpenAIResponses, Body: body, Stream: stream}, &modelTestSink{})
-			require.NoError(t, err)
-			require.True(t, result.Served)
-			require.NotEmpty(t, result.RequestID)
-			restored, err := executor.conversations.RestoreResponseHistory(target.Metadata, QoderPayloadRequest{PreviousResponseID: result.RequestID, Messages: []QoderMessage{{Role: "user", Text: "next"}}})
-			if store {
+// TestStatelessResponsesRequests rejects storage and continuation before dispatch.
+// Both output modes accept omitted storage and explicit false for independent
+// requests whose complete conversation is present in the submitted input.
+func TestStatelessResponsesRequests(t *testing.T) {
+	executor := NewExecutor(ExecuteOptions{})
+	for _, stream := range []bool{true, false} {
+		target := &Target{ProviderID: 1, Session: func(context.Context) (*SessionContext, error) { return &SessionContext{}, nil }, Client: func() (StreamClient, error) { return modelTestClient{}, nil }}
+		for _, field := range []string{"", `,"store":false`, `,"store":true`, `,"previous_response_id":"resp_test"`, `,"conversation":"conv_test"`} {
+			body := []byte(`{"model":"auto","input":"hello"` + field + "}")
+			sink := &modelTestSink{}
+			result, err := executor.Execute(t.Context(), upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIResponses, Target: target, Body: body, Stream: stream}, sink)
+			if field == "" || field == `,"store":false` {
 				require.NoError(t, err)
-				require.Equal(t, "first turn", restored.Messages[0].Text)
+				require.NotEmpty(t, result.RequestID)
+				require.Contains(t, sink.String(), `"store":false`)
+				require.Empty(t, executor.conversations.Items)
 			} else {
 				var invalid *RequestError
 				require.ErrorAs(t, err, &invalid)
-				require.Equal(t, "previous_response_unavailable", invalid.Code)
-				require.Zero(t, executor.conversations.responseHistoryBytes)
+				require.False(t, result.Served)
 			}
 		}
 	}

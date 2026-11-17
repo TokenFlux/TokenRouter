@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // test_targets_test.go checks capability admission for automatic and explicit
@@ -45,11 +45,11 @@ func TestResolveProbeTypeUsesEndpointAttributes(t *testing.T) {
 		} {
 			t.Run(target.platform+"/"+target.kind+"/"+tc.name, func(t *testing.T) {
 				var protocols []string
-				lookup := func(_ context.Context, _ *provider.Record, groupID int64, model, protocol string) (modelcatalog.Resolution, error) {
+				lookup := func(_ context.Context, _ *provider.Record, groupID int64, model, protocol string) (modelrules.Resolution, error) {
 					require.Equal(t, int64(59), groupID)
 					require.Equal(t, "mapped-model", model)
 					protocols = append(protocols, protocol)
-					result := modelcatalog.Resolution{}
+					result := modelrules.Resolution{}
 					if outputs, ok := tc.outputs[protocol]; ok {
 						result.Attributes.OutputModalities = &outputs
 					}
@@ -74,9 +74,9 @@ func TestResolveProbeTypeUsesEndpointAttributes(t *testing.T) {
 func TestResolveProbeTypeStopsOnProfileFailure(t *testing.T) {
 	failed := errors.New("profile unavailable")
 	calls := 0
-	lookup := func(context.Context, *provider.Record, int64, string, string) (modelcatalog.Resolution, error) {
+	lookup := func(context.Context, *provider.Record, int64, string, string) (modelrules.Resolution, error) {
 		calls++
-		return modelcatalog.Resolution{}, failed
+		return modelrules.Resolution{}, failed
 	}
 	kind, err := resolveProbeType(t.Context(), lookup, &provider.Record{Platform: "openai", Type: "apikey"}, 59, "mapped-model", "openai_responses")
 	require.ErrorIs(t, err, failed)

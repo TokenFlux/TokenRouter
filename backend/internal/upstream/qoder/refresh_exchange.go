@@ -147,20 +147,17 @@ func (r *RefreshExchange) refreshIdentity(
 		if err != nil {
 			return nil, time.Time{}, err
 		}
-		user, err := client.GetUserInfo(ctx, token.AccessTokenValue())
-		if err != nil {
-			return nil, time.Time{}, err
-		}
-		identity := BuildIdentityFromDeviceToken(user, token)
-		// A missing subscription field in userinfo must not reset an existing
-		// account classification during routine token rotation.
-		identity.UserType = FirstNonEmptyQoder(user.UserType, provider.GetCredential("user_type"), identity.UserType)
-		if accountType, err := client.GetAccountType(ctx, token.AccessTokenValue()); err == nil && accountType != "" {
-			identity.UserType = accountType
-		}
-		if previous := provider.GetCredential("uid"); previous != "" && previous != identity.UID {
+		// Rotation authenticates the already-bound refresh grant. Keep its saved
+		// identity so an auxiliary profile outage cannot discard a newly rotated
+		// credential after the upstream has invalidated its predecessor.
+		uid := FirstNonEmptyQoder(provider.Uid, provider.Aid)
+		if returned := strings.TrimSpace(token.UserID); returned != "" && uid != "" && returned != uid {
 			return nil, time.Time{}, errors.New("qoder: refreshed device token belongs to another account")
 		}
+		identity := BuildIdentityFromDeviceToken(nil, token)
+		identity.UID = FirstNonEmptyQoder(uid, identity.UID)
+		identity.AID = FirstNonEmptyQoder(provider.Aid, identity.UID)
+		identity.UserType = FirstNonEmptyQoder(provider.UserType, identity.UserType)
 		return identity, token.ExpiryTime(time.Now()), nil
 	}
 	if refreshMode == RefreshModeQoderCN20 {

@@ -11,9 +11,9 @@ import (
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -54,11 +54,11 @@ type openAIForwardTransformAdapter struct {
 // this body's request state. Lookup failures leave this method's capability
 // publication untouched; callers use the returned resolution to drive
 // conversion before sending.
-func (p openAIForwardTransformAdapter) ModelAttributes(ctx context.Context, model string, body []byte, compact bool) (modelcatalog.Resolution, error) {
+func (p openAIForwardTransformAdapter) ModelAttributes(ctx context.Context, model string, body []byte, compact bool) (modelrules.Resolution, error) {
 	result, err := gatewayadapter.ResolveModelAttributes(ctx, p.provider, model, p.s.Text.modelAttributes(), "openai_responses")
 	if err != nil {
 		WriteOpenAIModelAttributeError(p.c, err, p.c.Writer.Written())
-		return modelcatalog.Resolution{}, err
+		return modelrules.Resolution{}, err
 	}
 	// Compact capabilities use a distinct endpoint target. Resolve that target
 	// under the current group/session before publishing attributes for later transforms.
@@ -78,7 +78,7 @@ func (p openAIForwardTransformAdapter) ModelAttributes(ctx context.Context, mode
 		result, err = session.Resolve(ctx, groupID, target)
 		if err != nil {
 			WriteOpenAIModelAttributeError(p.c, err, p.c.Writer.Written())
-			return modelcatalog.Resolution{}, err
+			return modelrules.Resolution{}, err
 		}
 	}
 	if p.provider != nil {

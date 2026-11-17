@@ -13,9 +13,9 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -256,7 +256,7 @@ func (r *Runtime) bedrockOptions(ctx context.Context, output HTTPBoundary, state
 // body. The resolved token set is checked again for blocks before filtering, so
 // a body-implied feature receives the same policy check as a header feature and
 // the final removal set applies to platform spelling.
-func (r *Runtime) bedrockBetaTokens(ctx context.Context, target *gatewayprovider.ExecutionProvider, header string, body []byte, model string, rules ...modelcatalog.ExecutionRules) ([]string, error) {
+func (r *Runtime) bedrockBetaTokens(ctx context.Context, target *gatewayprovider.ExecutionProvider, header string, body []byte, model string, rules ...modelrules.ExecutionRules) ([]string, error) {
 	policy := r.evaluateBeta(ctx, target, header, model)
 	if policy.BlockErr != nil {
 		return nil, policy.BlockErr

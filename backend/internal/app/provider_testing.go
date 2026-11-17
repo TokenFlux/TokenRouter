@@ -15,10 +15,10 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	catalogprovider "github.com/TokenFlux/TokenRouter/internal/modelcatalog/provider"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -104,9 +104,9 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 	// Assemblies that supply only a catalogue still resolve default capabilities.
 	// Production supplies the profile service so tests can load their selected group.
 	if modelAttributes == nil && catalog != nil {
-		modelAttributes = &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: catalog.CapabilityView}}
+		modelAttributes = &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: func() modelrules.View { return modelrules.NewView(catalog.Publication()) }}}
 	}
-	probeAttributes := func(ctx context.Context, value *provider.Record, groupID int64, model, protocol string) (modelcatalog.Resolution, error) {
+	probeAttributes := func(ctx context.Context, value *provider.Record, groupID int64, model, protocol string) (modelrules.Resolution, error) {
 		route := provider.TestProtocolRouteFromContext(ctx)
 		if route.UpstreamProtocol != "" {
 			protocol = string(route.UpstreamProtocol)

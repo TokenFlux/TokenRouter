@@ -8,10 +8,10 @@ import (
 
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -138,9 +138,9 @@ func (r *QoderRuntime) Target(metadata qoder.RequestMetadata, value *provider.Re
 	}
 	return &qoder.Target{
 		ProviderID: id, Site: site, Metadata: metadata,
-		Attributes: func(ctx context.Context, model string, wire protocol.ProtocolID) (modelcatalog.Resolution, error) {
+		Attributes: func(ctx context.Context, model string, wire protocol.ProtocolID) (modelrules.Resolution, error) {
 			if _, err := value.QoderModelIndex(); err != nil {
-				return modelcatalog.Resolution{}, &qoder.APIError{StatusCode: 503, Code: "model_catalog_unavailable", Message: err.Error()}
+				return modelrules.Resolution{}, &qoder.APIError{StatusCode: 503, Code: "model_catalog_unavailable", Message: err.Error()}
 			}
 			target := value.ModelAttributeRoute(model, string(wire), string(protocol.ProtocolQoderChat))
 			session := routing.ModelAttributesFromContext(ctx)

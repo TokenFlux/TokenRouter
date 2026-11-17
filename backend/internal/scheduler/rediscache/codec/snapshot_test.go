@@ -39,7 +39,7 @@ func TestProviderCodecQoderCatalogSurvivesCredentialFiltering(t *testing.T) {
 	for _, payload := range [][]byte{full, metadata} {
 		decoded, err := UnmarshalProviderRecord(payload)
 		require.NoError(t, err)
-		require.ElementsMatch(t, []string{"qmodel", "qwen-test"}, decoded.QoderRequestModelIDs())
+		require.ElementsMatch(t, []string{"qwen-test"}, decoded.QoderRequestModelIDs())
 		require.Equal(t, "cn", decoded.ModelAttributeTarget("qmodel", "qoder_chat").Site)
 		public, err := json.Marshal(decoded)
 		require.NoError(t, err)

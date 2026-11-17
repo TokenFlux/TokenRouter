@@ -191,6 +191,33 @@ func validUsageBrowserURL(value string) bool {
 	return err == nil && parsed.Scheme == "https" && parsed.Hostname() != "" && parsed.User == nil && !strings.ContainsAny(value, "\r\n\x00")
 }
 
+// UnmarshalJSON normalizes the optional dedicated balance and utilization fields.
+// An explicit zero is authoritative. When the service omits remaining it can
+// be derived from this package alone; its balance never joins general credits.
+func (p *DedicatedQuota) UnmarshalJSON(data []byte) error {
+	type quota DedicatedQuota
+	var value quota
+	fields := struct {
+		*quota
+		Remaining  *float64 `json:"remaining"`
+		Percentage *float64 `json:"percentage"`
+	}{quota: &value}
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	value.Remaining = max(value.Total-value.Used, 0)
+	if fields.Remaining != nil {
+		value.Remaining = *fields.Remaining
+	}
+	if fields.Percentage != nil {
+		value.Percentage = *fields.Percentage
+	} else if value.Total > 0 {
+		value.Percentage = value.Used / value.Total
+	}
+	*p = DedicatedQuota(value)
+	return nil
+}
+
 // UnmarshalJSON decodes quota values and records which derivation inputs were
 // present. The receiver is replaced with the decoded value before checking raw
 // field presence. A JSON null field counts as absent, while a supplied numeric

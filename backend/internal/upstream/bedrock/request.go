@@ -12,8 +12,8 @@ import (
 	"github.com/tidwall/sjson"
 
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	claude "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // request.go adapts Anthropic request bodies and model URLs for Bedrock Invoke
@@ -195,7 +195,7 @@ func PrepareBedrockRequestBody(body []byte, modelID string, betaHeader string) (
 // every optional cleanup succeeded. The first supplied model rule controls
 // catalogue-driven helpers, and callers retain responsibility for matching
 // those rules with the selected model.
-func PrepareBedrockRequestBodyWithTokens(body []byte, modelID string, betaTokens []string, ccCompat bool, rules ...modelcatalog.ExecutionRules) ([]byte, error) {
+func PrepareBedrockRequestBodyWithTokens(body []byte, modelID string, betaTokens []string, ccCompat bool, rules ...modelrules.ExecutionRules) ([]byte, error) {
 	var err error
 
 	betaTokens = FilterBedrockBetaTokens(betaTokens)
@@ -275,7 +275,7 @@ func PrepareBedrockRequestBodyWithTokens(body []byte, modelID string, betaTokens
 // injection and filters the resulting list. The first supplied execution rule
 // overrides catalogue capability for feature detection; the returned list uses
 // the Invoke allowlist and translations.
-func ResolveBedrockBetaTokens(betaHeader string, body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []string {
+func ResolveBedrockBetaTokens(betaHeader string, body []byte, modelID string, rules ...modelrules.ExecutionRules) []string {
 	betaTokens := ParseAnthropicBetaHeader(betaHeader)
 	betaTokens = AutoInjectBedrockBetaTokens(betaTokens, body, modelID, rules...)
 	return FilterBedrockBetaTokens(betaTokens)
@@ -380,14 +380,14 @@ func RemoveCustomFieldFromTools(body []byte) []byte {
 // IsBedrockClaude45OrNewer reports whether the resolved catalogue rules
 // contain cache TTL entries.
 func IsBedrockClaude45OrNewer(modelID string) bool {
-	return len(modelcatalog.BedrockExecutionRules(modelID).CacheTTL) > 0
+	return len(modelrules.BedrockExecutionRules(modelID).CacheTTL) > 0
 }
 
 // SanitizeBedrockCacheControl removes scope and disallowed TTL fields from
 // object cache controls at top level and in system, tool, and message blocks.
 // The first rule override or catalogue determines whether 5m/1h can remain;
 // cleanup edit errors are discarded.
-func SanitizeBedrockCacheControl(body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []byte {
+func SanitizeBedrockCacheControl(body []byte, modelID string, rules ...modelrules.ExecutionRules) []byte {
 	isClaude45 := len(bedrockExecutionRules(modelID, rules).CacheTTL) > 0
 
 	if topCC := gjson.GetBytes(body, "cache_control"); topCC.Exists() && topCC.IsObject() {
@@ -492,7 +492,7 @@ func ParseAnthropicBetaHeader(header string) []string { return claude.ParseAnthr
 // selects its Invoke token directly. Detection recognizes both top-level and
 // nested function feature fields; thinking alone adds no beta. The caller
 // subsequently translates, allowlists, and deduplicates the combined values.
-func AutoInjectBedrockBetaTokens(tokens []string, body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []string {
+func AutoInjectBedrockBetaTokens(tokens []string, body []byte, modelID string, rules ...modelrules.ExecutionRules) []string {
 	seen := make(map[string]bool, len(tokens))
 	for _, t := range tokens {
 		seen[t] = true
@@ -593,7 +593,7 @@ func ContainsStringInJSONArray(result gjson.Result, target string) bool {
 // BedrockModelSupportsToolSearch reports a present true catalogue tool-search
 // capability for modelID.
 func BedrockModelSupportsToolSearch(modelID string) bool {
-	rules := modelcatalog.BedrockExecutionRules(modelID)
+	rules := modelrules.BedrockExecutionRules(modelID)
 	return rules.ToolSearch != nil && *rules.ToolSearch
 }
 
@@ -671,13 +671,13 @@ func ContainsAnyBedrockBetaToken(tokens []string, targets ...string) bool {
 // IsBedrockOpus47OrNewer combines catalogue adaptive-thinking mode with an
 // Opus substring in modelID.
 func IsBedrockOpus47OrNewer(modelID string) bool {
-	return modelcatalog.BedrockExecutionRules(modelID).ThinkingMode == "adaptive" && strings.Contains(strings.ToLower(modelID), "opus")
+	return modelrules.BedrockExecutionRules(modelID).ThinkingMode == "adaptive" && strings.Contains(strings.ToLower(modelID), "opus")
 }
 
 // IsBedrockFable5 combines catalogue adaptive-thinking mode with a Fable
 // substring in modelID.
 func IsBedrockFable5(modelID string) bool {
-	return modelcatalog.BedrockExecutionRules(modelID).ThinkingMode == "adaptive" && strings.Contains(strings.ToLower(modelID), "fable")
+	return modelrules.BedrockExecutionRules(modelID).ThinkingMode == "adaptive" && strings.Contains(strings.ToLower(modelID), "fable")
 }
 
 // SanitizeBedrockThinking adjusts existing object-valued thinking for the
@@ -691,7 +691,7 @@ func IsBedrockFable5(modelID string) bool {
 // absent, so an explicit zero remains present. The first supplied rule
 // overrides the main thinking-mode lookup, while the Fable predicate still
 // uses catalogue resolution.
-func SanitizeBedrockThinking(body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []byte {
+func SanitizeBedrockThinking(body []byte, modelID string, rules ...modelrules.ExecutionRules) []byte {
 	thinking := gjson.GetBytes(body, "thinking")
 	if !thinking.Exists() || !thinking.IsObject() {
 		return body
@@ -811,7 +811,7 @@ func SanitizeBedrockCCFields(body []byte) []byte {
 // values, then an empty result removes the body field and a nonempty result
 // replaces it. Those byte-edit errors are discarded, and the first supplied
 // execution rule controls feature capability lookup.
-func SanitizeBedrockCCBetaTokens(body []byte, modelID string, rules ...modelcatalog.ExecutionRules) []byte {
+func SanitizeBedrockCCBetaTokens(body []byte, modelID string, rules ...modelrules.ExecutionRules) []byte {
 	betaField := gjson.GetBytes(body, "anthropic_beta")
 	if !betaField.Exists() {
 		return body
@@ -855,9 +855,9 @@ func SanitizeBedrockCCBetaTokens(body []byte, modelID string, rules ...modelcata
 // zero-valued. An absent override resolves catalogue rules for model; later
 // slice entries are ignored so callers choose one authoritative rule
 // observation.
-func bedrockExecutionRules(model string, rules []modelcatalog.ExecutionRules) modelcatalog.ExecutionRules {
+func bedrockExecutionRules(model string, rules []modelrules.ExecutionRules) modelrules.ExecutionRules {
 	if len(rules) > 0 {
 		return rules[0]
 	}
-	return modelcatalog.BedrockExecutionRules(model)
+	return modelrules.BedrockExecutionRules(model)
 }

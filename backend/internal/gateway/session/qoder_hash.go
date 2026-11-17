@@ -15,7 +15,7 @@ import (
 // wins; requests lacking one derive a session from parsed content and source
 // identity, then apply a Qoder namespace so the scheduler receives a
 // platform-specific sticky hash. Canonical MIME header names are read before
-// body session, conversation, previous-response, and prompt-cache fields.
+// body session, conversation and prompt-cache fields.
 //
 // The content path parses the caller's declared wire format and binds the
 // supplied SessionContext before using the shared generator. Its intermediate
@@ -36,7 +36,7 @@ func QoderExplicitSessionSeed(headers map[string][]string, body []byte) string {
 			}
 		}
 	}
-	for _, path := range []string{"session_id", "conversation_id", "previous_response_id", "prompt_cache_key"} {
+	for _, path := range []string{"session_id", "conversation_id", "prompt_cache_key"} {
 		if value := strings.TrimSpace(gjson.GetBytes(body, path).String()); value != "" {
 			return value
 		}

@@ -4,7 +4,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // max_tokens.go resolves Ollama output caps and clamps supplied numeric token
@@ -18,9 +18,9 @@ import (
 // model catalog's shared output-limit configuration and execution default.
 const (
 	// MaxTokensCapExtraKey: provider cap setting key.
-	MaxTokensCapExtraKey = modelcatalog.OllamaOutputCapExtraKey
+	MaxTokensCapExtraKey = modelrules.OllamaOutputCapExtraKey
 	// DefaultMaxTokensCap: default output token count.
-	DefaultMaxTokensCap = modelcatalog.OllamaDefaultOutputLimit
+	DefaultMaxTokensCap = modelrules.OllamaDefaultOutputLimit
 )
 
 // MaxTokensCap resolves provider output-cap configuration through modelcatalog.
@@ -29,7 +29,7 @@ const (
 // float64 values use Go's int64 conversion, truncating fractions toward zero
 // when representable and performing no range validation here.
 func MaxTokensCap(value any, present bool) int64 {
-	return modelcatalog.OllamaOutputCap(value, present)
+	return modelrules.OllamaOutputCap(value, present)
 }
 
 // ClampMaxTokens lowers numeric max_tokens and max_completion_tokens fields

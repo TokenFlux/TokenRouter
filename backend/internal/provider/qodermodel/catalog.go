@@ -1,6 +1,7 @@
 package qodermodel
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
@@ -19,6 +20,9 @@ import (
 // mutable option slices before a request or administrator override changes
 // them. Unknown catalog identities remain empty and cannot inherit a different
 // model's price through a reused route key.
+
+// displayIDSyntax restricts generated request aliases to ordinary portable model ID characters.
+var displayIDSyntax = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
 // Model records one account's service route and observed model controls.
 type Model struct {
@@ -50,6 +54,55 @@ type Model struct {
 type Catalog struct {
 	version string           // provider-scoped observation version
 	models  map[string]Model // normalized keys and aliases
+}
+
+// DisplayAlias converts a usable upstream label into its public request spelling.
+// Unknown model families can have a readable alias without receiving a public
+// author identity or catalog prices. Empty or unsupported labels yield no alias.
+func DisplayAlias(name string) string {
+	id := strings.ToLower(strings.Join(strings.Fields(name), "-"))
+	if !displayIDSyntax.MatchString(id) {
+		return ""
+	}
+	return id
+}
+
+// NormalizeModels applies native defaults and upgrades aliases in stored observations.
+// Raw route keys remain reserved. Two names that generate the same public ID
+// keep their original routes so reordering an upstream list cannot redirect a
+// request. Run this on exclusively owned models before publishing the index.
+func NormalizeModels(models []Model) {
+	keys := make(map[string]bool, len(models))
+	counts := make(map[string]int, len(models))
+	for i := range models {
+		m := &models[i]
+		// Older observations can mark reasoning mandatory while omitting its default
+		// switch. Resolve the contradiction identically on sync and on database reload.
+		if m.RequiresThinking() {
+			m.DefaultThinking = true
+		}
+		keys[strings.ToLower(m.Key)] = true
+		if m.Alias == "" {
+			m.Alias = DisplayAlias(m.Name)
+		}
+		counts[strings.ToLower(m.Alias)]++
+	}
+	for i := range models {
+		m := &models[i]
+		id := strings.ToLower(m.Alias)
+		if counts[id] > 1 || keys[id] && !strings.EqualFold(id, m.Key) {
+			m.Alias = ""
+		}
+	}
+}
+
+// RequestID chooses the readable account alias when the snapshot supplies one.
+// Routes without a unique display alias remain addressable through their key.
+func (m Model) RequestID() string {
+	if m.Alias != "" {
+		return m.Alias
+	}
+	return m.Key
 }
 
 // Clone returns a model observation with independently owned capability slices.

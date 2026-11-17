@@ -675,3 +675,18 @@ func (f *blockingQoderOAuthClient) GetUserInfo(ctx context.Context, token string
 func (f *blockingQoderOAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 	return nil, nil
 }
+
+// TestDesktopAuthorizationAcceptsAccessOnly grants a usable access token while
+// omitting refresh data or the expiry. Completion retains the verified account
+// and preserves just the optional renewal fields actually supplied upstream.
+func TestDesktopAuthorizationAcceptsAccessOnly(t *testing.T) {
+	for _, token := range []*qoder.DeviceTokenResponse{{Token: "fixture", ExpiresIn: 3600}, {Token: "fixture", RefreshToken: "renew"}, {Token: "fixture"}} {
+		client := &fakeQoderOAuthClient{ready: true, token: token, userInfo: &qoder.UserInfo{ID: "user", OrganizationID: "org"}}
+		result, pending, err := qoder.CompleteAuthorization(t.Context(), &qoder.AuthorizationFlow{Site: qoder.SiteGlobal}, func(qoder.Profile, string) (qoder.OAuthClientPort, error) { return client, nil })
+		require.NoError(t, err)
+		require.False(t, pending)
+		require.Equal(t, "user", result.UID)
+		require.Equal(t, token.RefreshToken, result.RefreshToken)
+		require.Equal(t, token.ExpiresIn > 0, result.ExpiresAt != "")
+	}
+}

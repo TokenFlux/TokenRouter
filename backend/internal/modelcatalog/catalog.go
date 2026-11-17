@@ -94,14 +94,20 @@ type Entry struct {
 	subscriptionEndpoint bool
 }
 
+// Offering records a service model's declared SDK, operation and public identity.
+type Offering struct {
+	SDK              string // declared service SDK
+	Operation        string // model operation type
+	CanonicalModelID string // public attribute identity
+}
+
 // Catalog holds a parsed catalog version. Apply supplements before publishing
 // it to readers.
 type Catalog struct {
 	Version string // published content version fingerprint
-	// OpenCodeOfferings retains each service mode's protocol suggestions and
-	// canonical metadata references for this publication. Readers treat the
-	// mode tables as immutable.
-	OpenCodeOfferings map[string]map[string]OpenCodeOffering
+	// Offerings preserves service-specific SDK and author declarations before price
+	// filtering. A provider can interpret its wire protocol without changing catalog prices.
+	Offerings map[string]map[string]Offering
 	// Entries, Providers, Ambiguous, attributeFallbacks, and publicEntries are
 	// prepared before publication. Existing views retain these maps, so callers
 	// finish supplement mutations before sharing a catalog with readers.
@@ -118,8 +124,10 @@ type Catalog struct {
 
 // sourceModel decodes the attributes and source-unit prices of one catalog record.
 type sourceModel struct {
-	Name      string `json:"name"`               // catalog model display name
-	Canonical string `json:"canonical_model_id"` // declared public author identity
+	Operation json.RawMessage `json:"type"`               // optional operation metadata
+	Provider  json.RawMessage `json:"provider"`           // optional model-specific SDK declaration
+	Name      string          `json:"name"`               // catalog model display name
+	Canonical string          `json:"canonical_model_id"` // declared public author identity
 	// Reasoning, ReasoningOptions, Interleaved, ToolCall, StructuredOutput,
 	// Temperature, and Attachment retain supplied false values and empty choices.
 	// Nil means the catalog has no declaration for that capability.
@@ -155,6 +163,46 @@ type sourceModel struct {
 	// Experimental carries optional mode pricing as raw JSON. entry reads Fast
 	// prices from object values and leaves other representations unconsumed.
 	Experimental json.RawMessage `json:"experimental"`
+}
+
+// Publication retains a complete catalog for read-only lookups across a request.
+// Replacing the loader's current catalog leaves this publication intact.
+type Publication struct{ catalog *Catalog }
+
+// offering reads optional protocol metadata without invalidating otherwise usable
+// model prices or attributes. An omitted model SDK inherits the service SDK;
+// an unreadable model override supplies no protocol evidence. Explicit author
+// references take precedence over a unique same-name public model.
+func (m sourceModel) offering(serviceSDK, publicIdentity string) Offering {
+	sdk := serviceSDK
+	if len(m.Provider) > 0 && string(m.Provider) != "null" {
+		var override struct {
+			NPM json.RawMessage `json:"npm"`
+		}
+		if err := json.Unmarshal(m.Provider, &override); err != nil {
+			sdk = ""
+		} else if len(override.NPM) > 0 {
+			sdk = optionalCatalogString(override.NPM)
+			if string(override.NPM) == `""` || string(override.NPM) == "null" {
+				sdk = serviceSDK
+			}
+		}
+	}
+	if m.Canonical != "" {
+		publicIdentity = m.Canonical
+	}
+	return Offering{SDK: sdk, Operation: optionalCatalogString(m.Operation), CanonicalModelID: publicIdentity}
+}
+
+// optionalCatalogString reads catalog extension metadata when its value is text.
+// Other shapes carry no known operation or SDK and leave prices unaffected.
+func optionalCatalogString(raw json.RawMessage) string {
+	if len(raw) == 0 || raw[0] != '"' {
+		return ""
+	}
+	var text string
+	_ = json.Unmarshal(raw, &text)
+	return text
 }
 
 // Supplements returns a fresh byte slice containing official supplement JSON.
@@ -197,6 +245,7 @@ func Offline() ([]byte, error) {
 func Parse(body []byte) (*Catalog, error) {
 	var source struct {
 		Providers map[string]struct {
+			NPM    json.RawMessage        `json:"npm"`    // default service SDK
 			Models map[string]sourceModel `json:"models"` // provider model identity records
 		} `json:"providers"` // catalog provider model collections
 		Models map[string]sourceModel `json:"models"` // public canonical model metadata
@@ -208,19 +257,31 @@ func Parse(body []byte) (*Catalog, error) {
 		return nil, fmt.Errorf("expected models.dev catalog with providers; legacy pricing JSON is only supported as a local supplement or override")
 	}
 	hash := sha256.Sum256(body)
-	catalog := &Catalog{OpenCodeOfferings: ParseOpenCodeOfferings(body), Version: hex.EncodeToString(hash[:]), Entries: map[string]Entry{}, Providers: map[string]bool{}, Ambiguous: map[string]bool{}}
+	catalog := &Catalog{Offerings: make(map[string]map[string]Offering, len(source.Providers)), Version: hex.EncodeToString(hash[:]), Entries: map[string]Entry{}, Providers: map[string]bool{}, Ambiguous: map[string]bool{}}
 	bare := map[string][]Entry{}
 	publicIdentities := make(map[string]bool, len(source.Models))
+	publicNames := make(map[string]string, len(source.Models))
 	for id := range source.Models {
 		lab, model, ok := strings.Cut(id, "/")
 		if !ok || lab == "" || model == "" {
 			return nil, fmt.Errorf("invalid canonical model ID: %s", id)
 		}
 		publicIdentities[normalize(id)] = true
+		// Only a unique exact author model name can fill an omitted service
+		// reference. Duplicate names across authors leave that identity unresolved.
+		if _, seen := publicNames[model]; seen {
+			publicNames[model] = ""
+		} else {
+			publicNames[model] = id
+		}
 	}
 	for provider, models := range source.Providers {
 		catalog.Providers[provider] = true
+		sdk := optionalCatalogString(models.NPM)
+		offers := make(map[string]Offering, len(models.Models))
+		catalog.Offerings[provider] = offers
 		for id, model := range models.Models {
+			offers[id] = model.offering(sdk, publicNames[id])
 			entry, err := model.entry(id, provider)
 			if err != nil {
 				return nil, fmt.Errorf("%s/%s: %w", provider, id, err)
@@ -571,4 +632,80 @@ func (c *Catalog) RequiresExact(model string) bool {
 	}
 	prefix, _, qualified := strings.Cut(normalize(model), "/")
 	return c.Ambiguous[normalize(model)] || qualified && c.Providers[prefix]
+}
+
+// Publication returns a read-only handle to the catalog supplied by the loader.
+func (c *Catalog) Publication() Publication { return Publication{catalog: c} }
+
+// Version identifies the pinned publication, or returns empty before loading.
+func (v Publication) Version() string {
+	if v.catalog == nil {
+		return ""
+	}
+	return v.catalog.Version
+}
+
+// Offering retrieves one exact service declaration without exposing catalog maps.
+func (v Publication) Offering(service, model string) Offering {
+	if v.catalog == nil {
+		return Offering{}
+	}
+	return v.catalog.Offerings[service][model]
+}
+
+// ServiceOfferings returns a caller-owned copy of a service's model declarations.
+// An unloaded publication yields nil. A loaded catalog with no such service
+// yields an empty table so callers can distinguish it from unavailable data.
+func (v Publication) ServiceOfferings(service string) map[string]Offering {
+	if v.catalog == nil {
+		return nil
+	}
+	result := make(map[string]Offering, len(v.catalog.Offerings[service]))
+	maps.Copy(result, v.catalog.Offerings[service])
+	return result
+}
+
+// LookupRoute retrieves attributes for a service, an optional public author and
+// a normalized model identity. A provider-qualified name stays scoped to that
+// provider. Missing service entries can use public metadata for the named author.
+// Returned entries borrow the catalog publication and must be cloned before editing.
+func (v Publication) LookupRoute(service, author, model string) Entry {
+	c := v.catalog
+	if c == nil || model == "" {
+		return Entry{}
+	}
+	model = normalize(model)
+	if prefix, _, qualified := strings.Cut(model, "/"); qualified && c.Providers[prefix] {
+		if entry, found := c.Lookup([]string{model}); found && entry.Provider == prefix {
+			return entry
+		}
+		return c.publicEntries[model]
+	}
+	if service == "" {
+		if entry, found := c.Lookup([]string{model}); found {
+			return entry
+		}
+		attrs, _ := c.LookupAttributes(model, nil)
+		return Entry{Attributes: attrs}
+	}
+	if !c.Providers[service] {
+		if entry, exists := c.publicEntries[service+"/"+model]; exists {
+			return entry
+		}
+	}
+	if entry, exists := c.Lookup([]string{service + "/" + model}); exists && entry.Provider == service {
+		return entry
+	}
+	// This service has no exact record for the model. Read public author
+	// metadata so limits from another provider's service cannot become this
+	// route's capabilities.
+	for _, identity := range []string{model, author + "/" + model} {
+		if entry, found := c.publicEntries[identity]; found {
+			return entry
+		}
+	}
+	if entry, found := c.Lookup([]string{model}); found && entry.Provider == service {
+		return entry
+	}
+	return Entry{}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/provider"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
@@ -1094,8 +1095,8 @@ func (s *marketplaceSettingRepoStub) GetMultiple(_ context.Context, keys []strin
 func TestMarketplaceUsesRouteAttributes(t *testing.T) {
 	attrs := &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}}
 	service := routing.NewMarketplace(nil, nil, nil, routing.RequestableResolver{}, nil, nil, nil, routing.MarketplaceOptions{Attributes: attrs.ResolveMarketplaceGroups})
-	target := modelcatalog.Target{Model: "gpt-5.3-codex-spark", Platform: "openai", ProviderType: "oauth", ClientProtocol: "openai_responses", UpstreamProtocol: "openai_responses"}
-	result := service.BuildPublicModels(context.Background(), &routing.Group{ID: 1}, []routing.MarketplaceModelDef{{ID: "alias", UpstreamModels: []string{target.Model}, AttributeTargets: []modelcatalog.Target{target}}})
+	target := modelrules.Target{Model: "gpt-5.3-codex-spark", Platform: "openai", ProviderType: "oauth", ClientProtocol: "openai_responses", UpstreamProtocol: "openai_responses"}
+	result := service.BuildPublicModels(context.Background(), &routing.Group{ID: 1}, []routing.MarketplaceModelDef{{ID: "alias", UpstreamModels: []string{target.Model}, AttributeTargets: []modelrules.Target{target}}})
 	require.Len(t, result, 1)
 	require.NotNil(t, result[0].Attributes)
 	require.Equal(t, []string{"text"}, *result[0].Attributes.InputModalities)

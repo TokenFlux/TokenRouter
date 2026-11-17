@@ -11,6 +11,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // Attribute sessions hold one catalogue and group profile across repeated route
@@ -47,10 +48,10 @@ func TestModelAttributeSessionSnapshotAndConcurrentReads(t *testing.T) {
 	limit := 100
 	repo := &attributeSessionRepo{config: &ModelAttributeConfig{Status: StatusActive, Rules: []ModelAttributeRule{{Models: []string{"model"}, Attributes: modelcatalog.Attributes{OutputLimit: &limit}}}}}
 	reads := 0
-	service := &ModelAttributeService{Repo: repo, Catalog: ModelAttributeCatalog{View: func() modelcatalog.View { reads++; return modelcatalog.View{} }}}
+	service := &ModelAttributeService{Repo: repo, Catalog: ModelAttributeCatalog{View: func() modelrules.View { reads++; return modelrules.View{} }}}
 	ctx = WithModelAttributes(ctx, service)
 	session := ModelAttributesFromContext(ctx)
-	target := modelcatalog.Target{Model: "model", Platform: "openai"}
+	target := modelrules.Target{Model: "model", Platform: "openai"}
 	first, err := session.Resolve(ctx, 1, target)
 	require.NoError(t, err)
 	require.Equal(t, 100, *first.Attributes.OutputLimit)
@@ -91,7 +92,7 @@ func TestModelAttributeSessionCachesReadFailure(t *testing.T) {
 	repo := &attributeSessionRepo{err: errors.New("database offline")}
 	session := (&ModelAttributeService{Repo: repo}).NewSession()
 	for range 2 {
-		_, err := session.Resolve(context.Background(), 1, modelcatalog.Target{Model: "unknown"})
+		_, err := session.Resolve(context.Background(), 1, modelrules.Target{Model: "unknown"})
 		require.ErrorContains(t, err, "model attribute configuration is unavailable")
 	}
 	require.EqualValues(t, 1, repo.calls.Load())
@@ -110,7 +111,7 @@ func TestModelAttributeSessionCachesRouteValues(t *testing.T) {
 	}}}
 	session := service.NewSession()
 	cap := 100
-	target := modelcatalog.Target{Model: "private", Platform: "openai", Ollama: true, OllamaOutputCap: &cap, UpstreamProtocol: "openai_chat_completions"}
+	target := modelrules.Target{Model: "private", Platform: "openai", Ollama: true, OllamaOutputCap: &cap, UpstreamProtocol: "openai_chat_completions"}
 	first, err := session.Resolve(context.Background(), 1, target)
 	require.NoError(t, err)
 	*first.Attributes.OutputLimit = 900
@@ -140,8 +141,8 @@ func TestAttributeReferencesRetainRouteAndSnapshot(t *testing.T) {
 		{Models: []string{"target"}, Match: &ModelAttributeMatch{Platform: "openai"}, Attributes: modelcatalog.Attributes{OutputLimit: &limit, ToolCall: &disabled, OutputModalities: &empty}},
 	}}
 	repo := &attributeSessionRepo{config: profile}
-	service := &ModelAttributeService{Repo: repo, Catalog: ModelAttributeCatalog{View: func() modelcatalog.View { return modelcatalog.View{} }}}
-	target := modelcatalog.Target{Model: "custom-image", Platform: "openai", ProviderType: "apikey", ClientProtocol: "openai_images_generations", UpstreamProtocol: "openai_images_generations"}
+	service := &ModelAttributeService{Repo: repo, Catalog: ModelAttributeCatalog{View: func() modelrules.View { return modelrules.View{} }}}
+	target := modelrules.Target{Model: "custom-image", Platform: "openai", ProviderType: "apikey", ClientProtocol: "openai_images_generations", UpstreamProtocol: "openai_images_generations"}
 	session := service.NewSession()
 	actual, err := session.Resolve(t.Context(), 7, target)
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestAttributeReferencesRetainRouteAndSnapshot(t *testing.T) {
 	require.Equal(t, 100, *actual.Attributes.OutputLimit)
 	require.False(t, *actual.Attributes.ToolCall)
 	require.Empty(t, *actual.Attributes.OutputModalities)
-	preview, err := service.Preview(t.Context(), 7, []modelcatalog.Target{target}, profile)
+	preview, err := service.Preview(t.Context(), 7, []modelrules.Target{target}, profile)
 	require.NoError(t, err)
 	require.Equal(t, actual, preview[0])
 	limit = 200
@@ -173,8 +174,8 @@ func TestAttributeReferencesRetainRouteAndSnapshot(t *testing.T) {
 func TestAttributeReferencesReplaceSourceCatalogData(t *testing.T) {
 	view := testkit.OfflineView()
 	profile := &ModelAttributeConfig{Status: StatusActive, Rules: []ModelAttributeRule{{Models: []string{"gpt-5.4"}, ReferenceModel: "gpt-image-2"}}}
-	service := &ModelAttributeService{Repo: &attributeRepoFixture{config: profile}, Catalog: ModelAttributeCatalog{View: func() modelcatalog.View { return view }}}
-	target := modelcatalog.Target{Model: "gpt-5.4", Platform: "openai", ProviderType: "apikey"}
+	service := &ModelAttributeService{Repo: &attributeRepoFixture{config: profile}, Catalog: ModelAttributeCatalog{View: func() modelrules.View { return view }}}
+	target := modelrules.Target{Model: "gpt-5.4", Platform: "openai", ProviderType: "apikey"}
 	actual, err := service.NewSession().Resolve(t.Context(), 1, target)
 	require.NoError(t, err)
 	lookup := target

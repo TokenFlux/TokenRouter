@@ -214,6 +214,16 @@ func (r *DeviceTokenResponse) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
+	// Desktop versions use both casing conventions. Preserve the canonical wire
+	// field when both spellings are supplied, including an explicit zero expiry.
+	for alias, key := range map[string]string{"userId": "user_id", "refreshToken": "refresh_token", "expiresAt": "expires_at", "expiresIn": "expires_in"} {
+		if _, present := fields[key]; !present && fields[alias] != nil {
+			fields[key] = fields[alias]
+		}
+	}
+	if fields["user_id"] == nil && fields["uid"] != nil {
+		fields["user_id"] = fields["uid"]
+	}
 	rawExpiresAt, hasExpiresAt := fields["expires_at"]
 	delete(fields, "expires_at")
 
@@ -292,6 +302,9 @@ func parseFlexibleExpiresAt(data []byte) (FlexibleInt64, error) {
 // previous receiver available to the caller.
 func (u *UserInfo) UnmarshalJSON(data []byte) error {
 	var raw struct {
+		UID                   string `json:"uid"`               // desktop OpenAPI user identifier
+		OrgID                 string `json:"orgId"`             // desktop organization identifier
+		OrgName               string `json:"orgName"`           // desktop organization name
 		ID                    string `json:"id"`                // alternate user identifier
 		UserID                string `json:"user_id"`           // OpenAPI user identifier
 		Name                  string `json:"name"`              // user display name
@@ -311,14 +324,14 @@ func (u *UserInfo) UnmarshalJSON(data []byte) error {
 	}
 	*u = UserInfo{
 		ID:               raw.ID,
-		UserID:           raw.UserID,
+		UserID:           firstNonEmpty(raw.UserID, raw.UID),
 		Name:             raw.Name,
 		UserName:         raw.UserName,
 		UserType:         firstNonEmpty(raw.UserType, raw.UserTypeSnake),
 		Email:            raw.Email,
 		AvatarURL:        firstNonEmpty(raw.AvatarURL, raw.AvatarURLCamel),
-		OrganizationID:   firstNonEmpty(raw.OrganizationID, raw.OrganizationIDCamel),
-		OrganizationName: firstNonEmpty(raw.OrganizationName, raw.OrganizationNameCamel),
+		OrganizationID:   firstNonEmpty(raw.OrganizationID, raw.OrganizationIDCamel, raw.OrgID),
+		OrganizationName: firstNonEmpty(raw.OrganizationName, raw.OrganizationNameCamel, raw.OrgName),
 	}
 	return nil
 }
@@ -654,7 +667,7 @@ func (c *OAuthClient) ExchangeQoderCN20PAT(ctx context.Context, pat string) (*De
 	if err != nil {
 		return nil, fmt.Errorf("qoder: encode PAT exchange request: %w", err)
 	}
-	return c.postTokenRequest(ctx, JobTokenExchangePath, body, "PAT exchange")
+	return c.postCN20TokenRequest(ctx, JobTokenExchangePath, body, "PAT exchange")
 }
 
 // RefreshQoderCN20Token exchanges a trimmed nonempty CN refresh token for
@@ -670,7 +683,7 @@ func (c *OAuthClient) RefreshQoderCN20Token(ctx context.Context, refreshToken st
 	if err != nil {
 		return nil, fmt.Errorf("qoder: encode token refresh request: %w", err)
 	}
-	return c.postTokenRequest(ctx, DeviceTokenRefreshPath, body, "token refresh")
+	return c.postCN20TokenRequest(ctx, DeviceTokenRefreshPath, body, "token refresh")
 }
 
 // CompleteQoderCN20Identity delegates Gateway completion using this client's
@@ -686,10 +699,23 @@ func (c *OAuthClient) CompleteQoderCN20Identity(
 	return CompleteQoderCN20IdentityContext(ctx, c.profile(), token, user, machine, c.do)
 }
 
-// postTokenRequest posts one CN token operation and validates the returned
-// credentials. Nil client selects CN defaults. The response body is consumed and
-// closed here, HTTP failures become redacted OpenAPIError, and successful JSON
-// still requires the CN token pair and nonzero interpreted expiry.
+// postCN20TokenRequest validates the complete token pair and expiration required
+// by the legacy CN exchange. Desktop device rotation has a separate response
+// contract and can retain the saved refresh token when its replacement is absent.
+func (c *OAuthClient) postCN20TokenRequest(ctx context.Context, path string, body []byte, operation string) (*DeviceTokenResponse, error) {
+	token, err := c.postTokenRequest(ctx, path, body, operation)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := token.ValidateQoderCN20(time.Now()); err != nil {
+		return nil, fmt.Errorf("qoder: invalid %s response: %w", operation, err)
+	}
+	return token, nil
+}
+
+// postTokenRequest exchanges a token and checks the access credential needed for
+// inference. The caller validates any additional fields required by its grant.
+// Error diagnostics contain a bounded and redacted fragment of the upstream reply.
 func (c *OAuthClient) postTokenRequest(ctx context.Context, path string, body []byte, operation string) (*DeviceTokenResponse, error) {
 	if c == nil {
 		c = NewOAuthClientForProfile(MustProfileForSite(SiteCN), nil)
@@ -726,8 +752,8 @@ func (c *OAuthClient) postTokenRequest(ctx context.Context, path string, body []
 	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
 		return nil, fmt.Errorf("qoder: parse %s response: %w", operation, err)
 	}
-	if _, err := token.ValidateQoderCN20(time.Now()); err != nil {
-		return nil, fmt.Errorf("qoder: invalid %s response: %w", operation, err)
+	if token.AccessTokenValue() == "" {
+		return nil, fmt.Errorf("qoder: invalid %s response: access token is missing", operation)
 	}
 	return &token, nil
 }

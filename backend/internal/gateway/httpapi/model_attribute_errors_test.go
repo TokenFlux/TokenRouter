@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -42,7 +42,7 @@ func TestModelAttributeFailureHTTPProtocols(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := routing.WithModelAttributes(context.Background(), &routing.ModelAttributeService{Repo: unavailableAttributeRepo{}})
-			_, err := routing.ModelAttributesFromContext(ctx).Resolve(ctx, 1, modelcatalog.Target{Model: "unknown"})
+			_, err := routing.ModelAttributesFromContext(ctx).Resolve(ctx, 1, modelrules.Target{Model: "unknown"})
 			require.Error(t, err)
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)

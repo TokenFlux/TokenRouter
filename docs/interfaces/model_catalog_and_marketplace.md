@@ -213,7 +213,9 @@ token 报价的单价对应价格配置分时规则的 1x 时段和非 `max` 档
 
 属性配置保存在 `model_attribute_configs`，包括名称、描述、启用状态和有序的规则；分组关联表用 `group_id` 唯一约束，保证每个分组最多关联一份配置，一份配置可以供多个分组使用。规则和关联在同一个事务里保存，名称或分组冲突时整体回滚。属性配置和价格配置相互独立，停用、删除或解除关联后，恢复默认属性。
 
-`modelcatalog.View.Resolve` 为每条路线合并属性，顺序是实际服务的目录数据及本地补充、提供商声明的字段、分组配置显式覆盖的字段。省略字段继承下层值，显式 false 和空数组保留。转换器再检查这组属性能否编码；提供商约束与配置冲突时，预览同时展示配置值和可执行值。`Resolution` 同时返回字段来源和执行规则，协议适配器使用其中的采样条件、推理选项、预算和媒体参数。价格继续由计费解析器查询。模型属性查询读取内存里的目录，不发网络请求。
+`modelcatalog` 提供目录条目和通用属性操作，`provider/modelrules` 按平台维护硬编码型号、认证变体、协议和媒体限制。预览、导出、探测与网关执行共用同一套规则。
+
+`modelrules.View.Resolve` 为每条路线合并属性，顺序是实际服务的目录数据及本地补充、提供商声明的字段、分组配置显式覆盖的字段。省略字段继承下层值，显式 false 和空数组保留。转换器再检查这组属性能否编码；提供商约束与配置冲突时，预览同时展示配置值和可执行值。`Resolution` 同时返回字段来源和执行规则，协议适配器使用其中的采样条件、推理选项、预算和媒体参数。价格继续由计费解析器查询。模型属性查询读取内存里的目录，不发网络请求。
 
 服务身份由平台、认证类型、`provider_mode`、站点和已识别的官方地址确定。Bedrock 按出站区域 ID 查询 `amazon-bedrock`，Anthropic Vertex 按转换后的日期 ID 查询 `google-vertex-anthropic`，Gemini Vertex 使用 `google-vertex`。Kimi 区分国内、国际、PayG 和 Coding，GLM 区分 `zhipuai`、`zai` 及各自的 Coding 服务。自定义中继使用完整型号查询与可靠的公共资料。供应商前缀、日期与档位后缀参与身份匹配；已识别的 Google 资源路径在查询时规范化，出站 ID 保持实际路由结果。
 
@@ -240,12 +242,12 @@ OpenCode 导出显示名、附件、推理、温度、工具调用、模态和�
 ### 平台执行规则
 
 - OpenAI 使用目录的 effort 集合。GPT-5.2/5.4 的采样参数在 effort 为 none 时可用；GPT-6 的 Chat 工具能力依型号与 effort 设置条件。Codex OAuth 禁用采样与输出参数字段，模型的输出容量仍保留。Spark 的当前接入为文本输入。GPT-5.6 Sol/Terra/Luna 的 OAuth Compact 将 max 编码成 xhigh，规则在最终型号确定后执行。
-- Claude thinking 的预算、开关和档位来自服务条目。温度按 thinking 状态处理，adaptive、手动 budget 与 Sonnet 5.5 的 between_tools 分别表达。Bedrock 已登记型号的缓存 TTL、tool search 与 adaptive 编码在 `modelcatalog/bedrock.go`，新增型号需同时修改固定清单和报文测试。
+- Claude thinking 的预算、开关和档位来自服务条目。温度按 thinking 状态处理，adaptive、手动 budget 与 Sonnet 5.5 的 between_tools 分别表达。Bedrock 已登记型号的缓存 TTL、tool search 与 adaptive 编码在 `provider/modelrules/bedrock.go`，新增型号需同时修改固定清单和报文测试。
 - Grok 4.7 读取 xhigh，Build 0.1 等会推理但没有可调选项的型号显示空集合。Composer 的 reasoning 参数清理和 4.20 系列的 logprobs 规则单独执行。GLM-5.2/5.3 使用叠加管理员覆盖后的档位集合，已允许的档位按请求值发送，兼容别名在最终集合内转换。Messages 的字段编码在读取这份能力后执行。DeepSeek 的 temperature 与 top_p 分别按 thinking 状态处理。
 - Qoder 的路由与能力来自账号模型快照。`provider/qodermodel` 将原始路由和别名索引到同一项，提供已确认的目录身份、已观察的属性和原生报文限制，提供商和快照版本参与缓存隔离；同一个路由键可以在不同账号上拥有不同名称和限制。动态档位不绑定固定厂商身份，所有属性来源均未提供输入上限时，编码器在出站报文中使用 200000。转换器仍只声明文本与工具交互能力。
 - Antigravity 的 Messages Claude 路线限制输出 64000，其他 Messages 转换限制 65000，Chat 转换限制 64000，并取目录更小值。Gemini 直通入口使用其本身的能力。已登记 Opus 4.6/4.7/4.8 adaptive 请求使用 24576 预算；指定 Gemini 私有路由的采样、stop 与 toolConfig 处理单独保存。
 - Gemini 转换按最终模型的控制集合发送互斥的 thinkingLevel 或 thinkingBudget。客户端控制来自转换前的请求，预算会按目录与当前转换的输出空间处理。已知不允许关闭 thinking 的型号不会被显示为可关闭。
-- 媒体尺寸、参考图数量与细分参数在 `modelcatalog/media.go`。创作台与批量图片按最终路线检查这些值。Responses 的图片工具在请求构造末尾读取工具型号的属性，HTTP 与 WebSocket 共用处理。OAuth 图片接口的构造器不发送 input_fidelity，该路线将此参数标为不可用。Ollama Cloud 的输出参数 clamp 使用解析后的输出上限；提供商配置为非正数时关闭 clamp。
+- 媒体尺寸、参考图数量与细分参数在 `provider/modelrules/media.go`。创作台与批量图片按最终路线检查这些值。Responses 的图片工具在请求构造末尾读取工具型号的属性，HTTP 与 WebSocket 共用处理。OAuth 图片接口的构造器不发送 input_fidelity，该路线将此参数标为不可用。Ollama Cloud 的输出参数 clamp 使用解析后的输出上限；提供商配置为非正数时关闭 clamp。
 
 规则依据包括 [OpenAI 模型指南](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.4)、[部署检查](https://developers.openai.com/api/docs/guides/deployment-checklist)、[Claude 协议](https://platform.claude.com/docs/en/claude_api_primer)、[Grok 推理](https://docs.x.ai/developers/model-capabilities/text/reasoning)、[GLM-5.3](https://docs.z.ai/guides/llm/glm-5.3)、[DeepSeek thinking](https://api-docs.deepseek.com/guides/thinking_mode/)、[Gemini GenerateContent thinking](https://ai.google.dev/gemini-api/docs/generate-content/thinking)和 [Kimi Coding 型号](https://www.kimi.com/code/docs/en/kimi-code/models)。Qoder 的实现以账号实时目录及当前客户端协议为准，见 [Qoder 原生上游](qoder_upstream.md)。
 

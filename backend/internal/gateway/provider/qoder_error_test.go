@@ -87,7 +87,7 @@ func qoderErrorDetailsForContract(err error) (int, string, string, bool) {
 // from remote HTTP failures. Neither recovery path should retry these requests
 // or attribute the diagnostic to a response from the provider.
 func TestLocalQoderValidationPreservesClientStatus(t *testing.T) {
-	for _, code := range []string{"invalid_reasoning_parameter", "previous_response_unavailable"} {
+	for _, code := range []string{"invalid_reasoning_parameter", "unsupported_response_state"} {
 		err := fmt.Errorf("prepare: %w", &qoder.RequestError{Code: code, Message: "invalid request"})
 		view := DescribeQoderError(err)
 		require.True(t, view.Recognized)

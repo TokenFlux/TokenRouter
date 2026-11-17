@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
@@ -16,7 +16,7 @@ import (
 // Qoder's default site can each select a different catalogue identity for the
 // same requested model.
 //
-// The record is translated into a modelcatalog.Target for the actual upstream
+// The record is translated into a modelrules.Target for the actual upstream
 // protocol, then WithServiceIdentity resolves its service and endpoint context.
 // OpenAI API Key Chat routes additionally recognize Ollama through their
 // address or saved usage markers, and attach the provider's output cap for
@@ -27,7 +27,7 @@ import (
 // ModelAttributeTarget builds an attribute route when no client protocol was selected.
 // Protocol-aware consumers use ModelAttributeRoute so scoped group rules also
 // receive the client's entry protocol before matching the final provider route.
-func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelcatalog.Target {
+func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelrules.Target {
 	return r.ModelAttributeRoute(model, "", upstreamProtocol)
 }
 
@@ -35,8 +35,8 @@ func (r *Record) ModelAttributeTarget(model, upstreamProtocol string) modelcatal
 // execution. The client protocol stays attached to the request, while the
 // selected provider supplies its upstream protocol and final route key. This
 // makes scoped rules match identically for raw names and account aliases.
-func (r *Record) ModelAttributeRoute(model, clientProtocol, upstreamProtocol string) modelcatalog.Target {
-	target := modelcatalog.Target{Model: model, ClientProtocol: clientProtocol, UpstreamProtocol: upstreamProtocol}
+func (r *Record) ModelAttributeRoute(model, clientProtocol, upstreamProtocol string) modelrules.Target {
+	target := modelrules.Target{Model: model, ClientProtocol: clientProtocol, UpstreamProtocol: upstreamProtocol}
 	if r == nil {
 		return target
 	}
@@ -92,8 +92,8 @@ func (r *Record) ModelAttributeRoute(model, clientProtocol, upstreamProtocol str
 			}
 		}
 		if target.Ollama {
-			value, present := r.Extra[modelcatalog.OllamaOutputCapExtraKey]
-			limit := int(modelcatalog.OllamaOutputCap(value, present))
+			value, present := r.Extra[modelrules.OllamaOutputCapExtraKey]
+			limit := int(modelrules.OllamaOutputCap(value, present))
 			target.OllamaOutputCap = &limit
 		}
 	}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // requestable_catalogue.go loads provider configuration and delegates
@@ -86,7 +86,7 @@ func (c *RequestableCatalogue) ResolveSelectedModels(ctx context.Context, groupI
 // It applies provider, group, and protocol eligibility while leaving capability
 // evaluation to the supplied preview draft, allowing unknown models to acquire
 // capabilities before their first successful media request.
-func (c *RequestableCatalogue) AttributeTargets(ctx context.Context, groupID int64, model, clientProtocol string) ([]modelcatalog.Target, error) {
+func (c *RequestableCatalogue) AttributeTargets(ctx context.Context, groupID int64, model, clientProtocol string) ([]modelrules.Target, error) {
 	if c == nil || c.Read == nil {
 		return nil, apperror.ServiceUnavailable("MODEL_ATTRIBUTES_UNAVAILABLE", "model catalogue is unavailable")
 	}
@@ -101,13 +101,13 @@ func (c *RequestableCatalogue) AttributeTargets(ctx context.Context, groupID int
 	query.attributes = nil
 	query.preview = true
 	if !slices.Contains(query.candidates, model) {
-		return []modelcatalog.Target{}, nil
+		return []modelrules.Target{}, nil
 	}
 	resolved, _ := query.resolve(ctx, model)
 	if query.err != nil {
 		return nil, query.err
 	}
-	targets := make([]modelcatalog.Target, 0, len(resolved.AttributeTargets))
+	targets := make([]modelrules.Target, 0, len(resolved.AttributeTargets))
 	for _, target := range resolved.AttributeTargets {
 		if clientProtocol == "" || target.ClientProtocol == clientProtocol {
 			targets = append(targets, target)

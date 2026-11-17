@@ -17,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
@@ -42,7 +43,7 @@ import (
 // group, and current client/upstream protocols. The first optional protocol
 // overrides the attempt route; request sessions are reused, otherwise
 // service.NewSession supplies one for the lookup.
-func ResolveModelAttributes(ctx context.Context, value *ExecutionProvider, model string, service *routing.ModelAttributeService, protocols ...string) (modelcatalog.Resolution, error) {
+func ResolveModelAttributes(ctx context.Context, value *ExecutionProvider, model string, service *routing.ModelAttributeService, protocols ...string) (modelrules.Resolution, error) {
 	upstreamProtocol := ""
 	if value != nil {
 		upstreamProtocol = string(value.Route.Protocol())
@@ -82,7 +83,7 @@ func ExecutionModelAttributes(value *ExecutionProvider, model string) modelcatal
 // ModelConversionOptions supplies known sampling restrictions and max-effort
 // support to protocol conversion. Unknown temperature/top_p remain allowed,
 // and unknown max support also permits the converter to retain that effort.
-func ModelConversionOptions(result modelcatalog.Resolution) bridge.RequestOptions {
+func ModelConversionOptions(result modelrules.Resolution) bridge.RequestOptions {
 	attrs := result.Attributes
 	max := attrs.EffortSupport("max")
 	return bridge.RequestOptions{
@@ -96,7 +97,7 @@ func ModelConversionOptions(result modelcatalog.Resolution) bridge.RequestOption
 // client thinking controls. The bridge resolves toggle, effort, budget bounds,
 // output space, and Antigravity Claude force-budget behavior into its
 // configuration or validation error.
-func GeminiThinking(result modelcatalog.Resolution, body []byte) (*bridge.GeminiThinkingConfig, error) {
+func GeminiThinking(result modelrules.Resolution, body []byte) (*bridge.GeminiThinkingConfig, error) {
 	attrs := result.Attributes
 	minimum, maximum := attrs.ReasoningBudget()
 	options := bridge.GeminiThinkingOptions{
@@ -122,7 +123,7 @@ func GeminiThinking(result modelcatalog.Resolution, body []byte) (*bridge.Gemini
 // with these same resolved attributes. Field-edit errors can return nil, while
 // final adaptive edits can return partial bytes with an error; callers adopt
 // the result only when successful.
-func ApplyModelAttributeParameters(body []byte, result modelcatalog.Resolution) ([]byte, error) {
+func ApplyModelAttributeParameters(body []byte, result modelrules.Resolution) ([]byte, error) {
 	result = result.ForRequest(ModelRequestState(body))
 	remove := append([]string(nil), result.Rules.DropFields...)
 	if value := result.Attributes.Temperature; value != nil && !*value {
@@ -213,7 +214,7 @@ func ApplyModelAttributeParameters(body []byte, result modelcatalog.Resolution) 
 // budget meaning disabled. Effort strings are copied away from parsed body
 // storage. Parsing is lenient and does not validate the full request, so
 // ingress validation remains the caller's responsibility.
-func ModelRequestState(body []byte) modelcatalog.RequestState {
+func ModelRequestState(body []byte) modelrules.RequestState {
 	var reasoning, effort, output, thinking, camelConfig, snakeConfig gjson.Result
 	// Read the controls in one pass so large inputs are skipped once. Each
 	// path keeps its first match, including null, as gjson.GetBytes does.
@@ -238,7 +239,7 @@ func ModelRequestState(body []byte) modelcatalog.RequestState {
 		}
 		return true
 	})
-	state := modelcatalog.RequestState{}
+	state := modelrules.RequestState{}
 	for _, value := range []gjson.Result{reasoning, effort, output} {
 		if value.Type == gjson.String && strings.TrimSpace(value.String()) != "" {
 			effort := strings.Clone(strings.ToLower(strings.TrimSpace(value.String())))

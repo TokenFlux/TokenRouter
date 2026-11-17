@@ -5,8 +5,8 @@ import (
 	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -42,7 +42,7 @@ type catalogueRules struct {
 // Target.UpstreamProtocol then record their separate values, allowing
 // catalogue attributes to distinguish converter capabilities from the
 // provider's selected wire protocol.
-func (v catalogueRules) AttributeTarget(requested, model string, source, target capability.ProtocolID) modelcatalog.Target {
+func (v catalogueRules) AttributeTarget(requested, model string, source, target capability.ProtocolID) modelrules.Target {
 	// Compact can send a model selected by its own mapping. Look up attributes
 	// under that final model while retaining both protocol identities on the target.
 	if source == capability.ProtocolResponsesCompact && v.policy.Record.IsOpenAI() {

@@ -1,8 +1,10 @@
-package modelcatalog
+package modelrules
 
 import (
 	"slices"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 )
 
 // encoding.go selects model payload constraints from a model's author identity
@@ -28,7 +30,7 @@ import (
 // This method keeps authentication and endpoint policies outside the model rule
 // selection, so a canonical OpenAI identity cannot acquire Codex OAuth field
 // removal or Compact effort aliases through an intermediary.
-func (r *Resolution) applyModelEncoding(patch *Attributes, conditions ParameterConditions) {
+func (r *Resolution) applyModelEncoding(patch *modelcatalog.Attributes, conditions modelcatalog.ParameterConditions) {
 	t := r.Target
 	author, model := t.modelEncodingIdentity()
 	// Intermediary encodings are selected explicitly; model constraints cannot be
@@ -38,75 +40,11 @@ func (r *Resolution) applyModelEncoding(patch *Attributes, conditions ParameterC
 	}
 	switch author {
 	case "openai":
-		// OpenAI rules describe Chat and Responses payloads. A Messages route has
-		// no registered representation for these model controls.
-		if t.UpstreamProtocol == "anthropic_messages" {
-			return
-		}
-		switch model {
-		case "gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-2024-05-13", "gpt-4o-2024-08-06", "gpt-4o-2024-11-20", "gpt-4o-mini", "gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5.1-codex-max", "gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.2-pro", "gpt-5.2-codex":
-			// These registered identities declare verbosity unavailable. The
-			// OpenAI forwarding transformer reads this flag when removing
-			// text.verbosity from their request bodies.
-			r.Rules.Verbosity = valuePointer(false)
-		}
-		if (t.ServiceID() == "openai" || t.usesCanonicalIdentity()) && r.Attributes.Temperature != nil && !*r.Attributes.Temperature {
-			// OpenAI model metadata with unavailable temperature also restricts
-			// top_p. Both author routes and qualified intermediary identities
-			// therefore remove the same sampling fields from their requests.
-			patch.TopP = valuePointer(false)
-		}
-		if (t.ServiceID() == "openai" || t.usesCanonicalIdentity()) && slices.Contains([]string{"gpt-5.2", "gpt-5.4"}, model) {
-			// These registered sampling controls depend on none effort. Keep
-			// their request condition so ForRequest evaluates the same model
-			// with each supplied reasoning state.
-			conditions["temperature"] = ParameterCondition{Efforts: []string{"none"}}
-			conditions["top_p"] = ParameterCondition{Efforts: []string{"none"}}
-			patch.TopP = valuePointer(true)
-		}
-		if t.UpstreamProtocol == "openai_chat_completions" && (t.ServiceID() == "openai" || t.usesCanonicalIdentity()) {
-			// Tool capability can differ between Chat and Responses for one
-			// model. Apply the registered Chat restriction here so route
-			// attributes retain that protocol distinction.
-			switch model {
-			case "gpt-6-astra", "gpt-6.1-sol":
-				patch.ToolCall = valuePointer(false)
-			case "gpt-6-sol", "gpt-6-luna":
-				conditions["tool_call"] = ParameterCondition{Efforts: []string{"none"}}
-			}
-		}
+		r.applyOpenAIEncoding(model, patch, conditions)
 	case "grok":
-		// Grok field restrictions are registered for OpenAI-shaped requests; a
-		// Messages route does not establish the same payload field ownership.
-		if t.UpstreamProtocol == "anthropic_messages" {
-			return
-		}
-		// Grok model-specific removals accompany its control declarations. The
-		// forwarding parameter pass consumes DropFields even when the base
-		// catalog contains other capability metadata.
-		if slices.Contains([]string{"grok-composer", "grok-composer-2.5-fast", "composer-2.5"}, model) {
-			patch.ReasoningOptions = valuePointer([]ReasoningOption{})
-		}
-		if strings.HasPrefix(model, "grok-4.20") {
-			r.Rules.DropFields = append(r.Rules.DropFields, "logprobs", "top_logprobs")
-		}
-		if model == "grok-4.5" {
-			r.Rules.DropFields = append(r.Rules.DropFields, "presence_penalty", "presencePenalty", "frequency_penalty", "frequencyPenalty", "stop")
-		}
+		r.applyGrokEncoding(model, patch)
 	case "deepseek":
-		// DeepSeek sampling rules cover Chat and Messages requests. Responses
-		// overrides lack a registered model encoding for these conditional controls.
-		if t.usesCanonicalIdentity() && t.UpstreamProtocol == "openai_responses" {
-			return
-		}
-		if slices.Contains([]string{"deepseek-v4-pro", "deepseek-v4-flash", "deepseek-flash", "deepseek-v4-flash-vision-exp"}, model) {
-			// These sampling controls select opposite thinking states. Keep
-			// both conditions so ForRequest disables whichever parameter
-			// conflicts with the request's evaluated thinking choice.
-			conditions["temperature"] = ParameterCondition{Thinking: valuePointer(false)}
-			conditions["top_p"] = ParameterCondition{Thinking: valuePointer(true)}
-			patch.TopP = valuePointer(true)
-		}
+		r.applyDeepSeekEncoding(model, patch, conditions)
 	}
 }
 
@@ -117,7 +55,7 @@ func (r *Resolution) applyModelEncoding(patch *Attributes, conditions ParameterC
 // remains the canonical name throughout these checks, so an intermediary alias
 // cannot lose the author model's adaptive mode. Service rules run first because
 // compatible Messages encoding may refine their default thinking representation.
-func (r *Resolution) applyMessagesEncoding(conditions ParameterConditions) {
+func (r *Resolution) applyMessagesEncoding(conditions modelcatalog.ParameterConditions) {
 	t := r.Target
 	if t.UpstreamProtocol != "anthropic_messages" {
 		return
@@ -141,7 +79,7 @@ func (r *Resolution) applyMessagesEncoding(conditions ParameterConditions) {
 	// Claude sampling and adaptive thinking belong to its Messages encoding;
 	// intermediaries carrying that model need the same payload constraints as author endpoints.
 	if strings.HasPrefix(model, "claude-") {
-		conditions["temperature"] = ParameterCondition{Thinking: valuePointer(false)}
+		conditions["temperature"] = modelcatalog.ParameterCondition{Thinking: new(false)}
 		r.Rules.ThinkingMode = claudeThinkingMode(model, r.Attributes)
 	}
 	if signature != "" {
@@ -157,7 +95,7 @@ func (r *Resolution) applyMessagesEncoding(conditions ParameterConditions) {
 // modelEncodingIdentity returns the author family and model used for payload
 // rules and request defaults. Targets whose rules come from canonical references
 // use the qualified AttributeModel; unknown authors and missing qualifications
-// return empty values.
+// empty values.
 //
 // Native routes retain service-based selection, Google resource normalization,
 // and service-prefix removal. Qualification is interpreted locally and never
@@ -183,4 +121,21 @@ func (t Target) modelEncodingIdentity() (string, string) {
 		model = strings.TrimPrefix(model, t.ServiceID()+"/")
 	}
 	return t.servicePlatform(), model
+}
+
+// thinkingSignatureMode selects signature handling for registered Messages
+// model families. Passback families retain their thinking payloads, Claude
+// names use Anthropic signatures, and unrecognized identities return no
+// protocol-specific choice.
+func thinkingSignatureMode(model string) string {
+	switch {
+	case strings.HasPrefix(model, "deepseek-"), strings.HasPrefix(model, "kimi-"), strings.HasPrefix(model, "moonshot-"), strings.HasPrefix(model, "glm-"), model == "k3", model == "k3-256k", strings.HasPrefix(model, "minimax-m"):
+		return "passback"
+	case strings.Contains(model, "-thinking") && (strings.HasPrefix(model, "qwen-") || strings.HasPrefix(model, "qwen2-") || strings.HasPrefix(model, "qwen3-") || strings.HasPrefix(model, "qwen4-")):
+		return "passback"
+	case strings.HasPrefix(model, "claude-"), strings.HasPrefix(model, "opus-"), strings.HasPrefix(model, "sonnet-"), strings.HasPrefix(model, "haiku-"):
+		return "anthropic"
+	default:
+		return ""
+	}
 }

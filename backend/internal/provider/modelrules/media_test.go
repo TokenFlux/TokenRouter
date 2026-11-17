@@ -1,4 +1,4 @@
-package modelcatalog
+package modelrules
 
 import (
 	"testing"
@@ -43,7 +43,7 @@ func TestMediaForModelRegisteredParameters(t *testing.T) {
 		})
 	}
 	require.Equal(t, []string{"low", "medium"}, MediaForModel("grok", "grok-imagine-image-2.0").Qualities)
-	require.Equal(t, valuePointer(false), MediaForModel("openai", "gpt-image-2").InputFidelity)
+	require.Equal(t, new(false), MediaForModel("openai", "gpt-image-2").InputFidelity)
 	require.Equal(t, []string{"generate", "edit", "extend"}, MediaForModel("grok", "grok-imagine-video-1.5").VideoOperations)
 	require.Nil(t, MediaForModel("gemini", "gemini-3-pro-image-future"))
 	require.Nil(t, MediaForModel("grok", "grok-imagine-image-future"))

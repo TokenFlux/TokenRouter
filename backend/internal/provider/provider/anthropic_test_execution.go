@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
@@ -453,7 +454,7 @@ func (s *AnthropicProviderTest) applyModelAttributes(ctx context.Context, value 
 			return err
 		}
 	}
-	resolved := modelcatalog.View{}.Resolve(value.ModelAttributeTarget(model, "anthropic_messages"), modelcatalog.Attributes{})
+	resolved := modelrules.View{}.Resolve(value.ModelAttributeTarget(model, "anthropic_messages"), modelcatalog.Attributes{})
 	if s.Attributes != nil {
 		var err error
 		resolved, err = s.Attributes(ctx, value, groupID, model, "anthropic_messages")
@@ -461,7 +462,7 @@ func (s *AnthropicProviderTest) applyModelAttributes(ctx context.Context, value 
 			return err
 		}
 	}
-	resolved = resolved.ForRequest(modelcatalog.RequestState{})
+	resolved = resolved.ForRequest(modelrules.RequestState{})
 	// The selected service model supplies these sampling permissions. Remove
 	// explicitly disallowed fields while unknown flags retain the probe builder's
 	// defaults for that target.

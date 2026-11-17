@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
@@ -99,7 +100,7 @@ func TestParseModelCatalogPreservesUnknownModels(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, models, 1)
 	require.Equal(t, "future-route", models[0].Key)
-	require.Empty(t, models[0].Alias)
+	require.Equal(t, "new-model", models[0].Alias)
 	require.Equal(t, "New Model", models[0].Name)
 	require.Empty(t, models[0].Identity)
 	require.Equal(t, []string{"low", "xhigh"}, models[0].Efforts)
@@ -124,16 +125,61 @@ func TestSparseAccountMetadataInheritsCatalogFields(t *testing.T) {
 	}
 	catalog, err := modelcatalog.Parse([]byte(`{"models":{"openai/gpt-5":{"reasoning":true,"limit":{"input":64000}}},"providers":{"openai":{"models":{"gpt-5":{"canonical_model_id":"openai/gpt-5","reasoning":true,"limit":{"input":64000},"cost":{"input":1}}}}}}`))
 	require.NoError(t, err)
-	target := modelcatalog.Target{Platform: "qoder", Model: "route", ProviderModels: index}
-	base := catalog.View().Resolve(target, modelcatalog.Attributes{})
+	target := modelrules.Target{Platform: "qoder", Model: "route", ProviderModels: index}
+	base := modelrules.NewView(catalog.Publication()).Resolve(target, modelcatalog.Attributes{})
 	require.Equal(t, new(64000), base.Attributes.InputLimit)
 	require.Equal(t, new(true), base.Attributes.Reasoning)
 	require.Equal(t, new(500), base.Attributes.OutputLimit)
 	require.Equal(t, "provider", base.Sources["output_limit"])
-	effective := catalog.View().Resolve(target, modelcatalog.Attributes{OutputLimit: new(250)})
+	effective := modelrules.NewView(catalog.Publication()).Resolve(target, modelcatalog.Attributes{OutputLimit: new(250)})
 	require.Equal(t, new(250), effective.Attributes.OutputLimit)
 	require.Equal(t, "config", effective.Sources["output_limit"])
 	payload, _, err := BuildQoderPayloadWithOptions(QoderPayloadRequest{Model: "route", Capabilities: &effective}, "", nil, true, true)
 	require.NoError(t, err)
 	require.Equal(t, 64000, qoderFixtureValue[map[string]any](t, payload["model_config"])["max_input_tokens"])
+}
+
+// TestCatalogPublicIDsMatchCurrentDesktopLabels checks both sanitized account catalogs.
+// Each enabled model contributes a single display ID that resolves to its wire
+// route. Opaque branded names stay usable without assuming an author identity.
+func TestCatalogPublicIDsMatchCurrentDesktopLabels(t *testing.T) {
+	for _, site := range []string{"global", "cn"} {
+		raw, err := os.ReadFile("testdata/models_" + site + ".json")
+		require.NoError(t, err)
+		models, err := ParseModelCatalog(raw)
+		require.NoError(t, err)
+		index := qodermodel.NewCatalog(site, models)
+		public := map[string]bool{}
+		for _, model := range models {
+			if !model.Enabled {
+				continue
+			}
+			require.False(t, public[model.RequestID()])
+			public[model.RequestID()] = true
+			require.Equal(t, model.Key, index.RouteKey(model.RequestID()))
+		}
+		require.NotContains(t, public, "qfmodel")
+		if site == "global" {
+			require.Len(t, public, 17)
+			require.Contains(t, public, "cantus")
+			require.NotContains(t, public, "cmodel")
+		} else {
+			require.Len(t, public, 1)
+		}
+	}
+}
+
+// TestMandatoryDefaultWithSparseThinkingMetadata supplies just an effort table,
+// default and disable restriction. An omitted client control must produce an
+// enabled native switch and the declared effort on every mirrored wire field.
+func TestMandatoryDefaultWithSparseThinkingMetadata(t *testing.T) {
+	models, err := ParseModelCatalog([]byte(`[{"key":"x","efforts":["low","high"],"default_effort":"high","supports_disabled":false}]`))
+	require.NoError(t, err)
+	idx := qodermodel.NewCatalog("test", models)
+	res := modelrules.View{}.Resolve(modelrules.Target{Platform: "qoder", Model: "x", ProviderModels: idx}, modelcatalog.Attributes{})
+	payload, _, err := BuildQoderPayloadWithOptions(QoderPayloadRequest{Model: "x", Capabilities: &res}, "", nil, true, true)
+	require.NoError(t, err)
+	params := qoderFixtureValue[map[string]any](t, payload["parameters"])
+	require.Equal(t, true, params["enable_thinking"])
+	require.Equal(t, "high", params["reasoning_effort"])
 }

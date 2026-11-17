@@ -11,6 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // Model display attributes combine saved profile overrides with final upstream
@@ -229,8 +230,8 @@ func TestAttributeRulesSeparateRoutesAndStableIDs(t *testing.T) {
 	}}
 	require.NoError(t, (&ModelAttributeService{Repo: &attributeRepoFixture{}}).Save(context.Background(), config))
 	require.NotEqual(t, config.Rules[0].ID, config.Rules[1].ID)
-	require.Equal(t, one, *config.matchRule("model", nil, modelcatalog.Target{Platform: "openai"}).Attributes.OutputLimit)
-	require.Equal(t, two, *config.matchRule("model", nil, modelcatalog.Target{Platform: "grok"}).Attributes.OutputLimit)
+	require.Equal(t, one, *config.matchRule("model", nil, modelrules.Target{Platform: "openai"}).Attributes.OutputLimit)
+	require.Equal(t, two, *config.matchRule("model", nil, modelrules.Target{Platform: "grok"}).Attributes.OutputLimit)
 	config.Rules[0].Match = nil
 	config.Rules[1].Match = &ModelAttributeMatch{}
 	require.Error(t, (&ModelAttributeService{Repo: &attributeRepoFixture{}}).Save(context.Background(), config))
@@ -243,13 +244,13 @@ func BenchmarkModelAttributeRoutes(b *testing.B) {
 	view := testkit.OfflineView()
 	for _, count := range []int{1, 65} {
 		b.Run(fmt.Sprint(count), func(b *testing.B) {
-			svc := &ModelAttributeService{Catalog: ModelAttributeCatalog{View: func() modelcatalog.View { return view }}}
+			svc := &ModelAttributeService{Catalog: ModelAttributeCatalog{View: func() modelrules.View { return view }}}
 			models := make([]RequestableModel, 186)
 			for i := range models {
 				models[i].ID = fmt.Sprint("alias-", i)
 				for range count {
 					for _, wire := range []string{"openai_responses", "openai_chat_completions", "anthropic_messages"} {
-						models[i].AttributeTargets = append(models[i].AttributeTargets, modelcatalog.Target{Platform: "openai", ProviderType: "apikey", Model: "gpt-5.4", ClientProtocol: wire, UpstreamProtocol: "openai_responses"})
+						models[i].AttributeTargets = append(models[i].AttributeTargets, modelrules.Target{Platform: "openai", ProviderType: "apikey", Model: "gpt-5.4", ClientProtocol: wire, UpstreamProtocol: "openai_responses"})
 					}
 				}
 			}
@@ -274,17 +275,17 @@ func TestModelAttributesReuseEquivalentRelays(t *testing.T) {
 		lookups++
 		return modelcatalog.Attributes{DisplayNameLocalization: &locale.Update[string]{Content: locale.Original("Model")}}
 	}}}
-	first := modelcatalog.Target{Platform: "openai", ProviderType: "apikey", Model: "model", BaseURL: "https://relay-a.example/v1"}
+	first := modelrules.Target{Platform: "openai", ProviderType: "apikey", Model: "model", BaseURL: "https://relay-a.example/v1"}
 	second := first
 	second.BaseURL = "https://relay-b.example/v1"
-	models := []RequestableModel{{ID: "alias", AttributeTargets: []modelcatalog.Target{first, second, first}}}
+	models := []RequestableModel{{ID: "alias", AttributeTargets: []modelrules.Target{first, second, first}}}
 	result, err := svc.ResolveModels(context.Background(), 1, models)
 	require.NoError(t, err)
 	require.Equal(t, 1, lookups)
 	require.Equal(t, "Model", *result["alias"].DisplayName)
 	require.Equal(t, []string{"Model", "Model"}, result["alias"].SearchTerms)
 	require.False(t, result["alias"].RouteDifferences)
-	require.Equal(t, []modelcatalog.Target{first, second, first}, models[0].AttributeTargets)
+	require.Equal(t, []modelrules.Target{first, second, first}, models[0].AttributeTargets)
 
 	official := first
 	official.BaseURL = "https://api.openai.com/v1"
@@ -314,7 +315,7 @@ func BenchmarkModelAttributeDistinctRoutes(b *testing.B) {
 						baseURL = fmt.Sprintf("https://relay-%d.example/v1", provider)
 					}
 					for _, wire := range []string{"openai_responses", "openai_chat_completions", "anthropic_messages"} {
-						models[i].AttributeTargets = append(models[i].AttributeTargets, modelcatalog.Target{Platform: "openai", ProviderType: "apikey", Model: models[i].ID, BaseURL: baseURL, ClientProtocol: wire, UpstreamProtocol: "openai_responses"})
+						models[i].AttributeTargets = append(models[i].AttributeTargets, modelrules.Target{Platform: "openai", ProviderType: "apikey", Model: models[i].ID, BaseURL: baseURL, ClientProtocol: wire, UpstreamProtocol: "openai_responses"})
 					}
 				}
 			}

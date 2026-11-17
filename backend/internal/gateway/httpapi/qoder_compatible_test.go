@@ -157,20 +157,6 @@ func TestQoderCompatibleNativeHTTPCompletionBoundary(t *testing.T) {
 	}
 }
 
-// TestQoderGatewaySessionHashUsesPreviousResponseID supplies a Responses
-// continuation ID without configured execution. Its sticky hash must equal the
-// shared Qoder hash for that explicit response identity.
-func TestQoderGatewaySessionHashUsesPreviousResponseID(t *testing.T) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-
-	h := &QoderCompatibleRuntime{}
-	body := []byte(`{"model":"deepseek-v4-pro","previous_response_id":"resp_qoder_123","input":"next"}`)
-
-	require.Equal(t, qoderStickySessionHashFromSeed("resp_qoder_123"), h.qoderSessionHash(c, QoderResponses, body, 42))
-}
-
 // TestQoderGatewaySessionHashHeaderPrecedence supplies both a session header
 // and body prompt-cache key. The resulting sticky hash must use the header
 // identity rather than the competing body seed.

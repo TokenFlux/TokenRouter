@@ -1225,3 +1225,39 @@ func (u *qoderObservationIdentityUpstream) DoWithTLS(req *http.Request, proxy st
 func (u *qoderObservationIdentityUpstream) Do(req *http.Request, proxy string, id int64, n int) (*http.Response, error) {
 	return u.DoWithTLS(req, proxy, id, n, nil)
 }
+
+// TestDedicatedCreditsKeepEligibleProviderSchedulable exercises omitted and explicit
+// zero balances. The displayed package and the scheduler must use the same
+// normalized value, while general credits stay exhausted in both cases.
+func TestDedicatedCreditsKeepEligibleProviderSchedulable(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		extra   string
+		balance float64
+		limited bool
+	}{{"", 80, false}, {`,"remaining":0`, 0, true}} {
+		raw := fmt.Sprintf(`{"displayMode":"qoder","qoderUsage":{"userId":"user","userType":"teams","usageType":"credits","isQuotaExceeded":true,"expiresAt":%d,"userQuota":{"total":100,"remaining":0},"dedicatedResourcePackages":[{"id":"scoped","available":true,"total":100,"used":20%s}]}}`, now.Add(time.Hour).Unix(), tc.extra)
+		response, err := qoder.ParseUsagePresentation([]byte(raw))
+		require.NoError(t, err)
+		info := qoderQuotaInfoFromResponse(response, now, false)
+		require.Equal(t, tc.balance, info.Dedicated[0].Remaining)
+		require.Equal(t, 20.0, info.Dedicated[0].Percentage)
+		_, limited := providercore.QoderQuotaRateLimitResetAt(info, now)
+		require.Equal(t, tc.limited, limited)
+	}
+}
+
+// TestImportedDeviceModeUsesOpenAPI exercises the same spelling accepted by
+// credential validation. Whitespace and case must not route quota queries to
+// the legacy Gateway when the saved grant is a desktop device token.
+func TestImportedDeviceModeUsesOpenAPI(t *testing.T) {
+	u := &qoderUsageHTTPUpstreamStub{body: `{"displayMode":"enterprise","enterpriseUsage":{"openMode":"externalBrowser","detailUrl":"https://qoder.com/usage"}}`}
+	creds := qoderUsageCredentials("fixture")
+	creds["refresh_mode"] = " DEVICE_TOKEN "
+	repo := &providerUsageCodexProbeRepo{usageRecordFixture: usageRecordFixture{providers: []providercore.Record{{ID: 1, Platform: "qoder", Type: "cosy", Credentials: creds}}}, updateExtraCh: make(chan map[string]any, 1)}
+	svc := newOAuthUsageFixture(oauthUsageFixtureOptions{providerRepo: repo, cache: providercore.NewOAuthUsageCache(), httpUpstream: u})
+	info, err := svc.GetUsage(t.Context(), 1)
+	require.NoError(t, err)
+	require.Equal(t, "enterprise", info.QoderQuota.DisplayMode)
+	require.Equal(t, "/sash/api/v2/me/usage", u.req.URL.Path)
+}

@@ -3,14 +3,11 @@
 //
 // Start here:
 //   - catalog.go parses publications and selects queryable model identities.
-//   - resolution.go combines catalog attributes with platform and route rules.
+//   - index.go indexes complete model identities and attribute sources.
 //   - reader.go defines the metadata access used by consumers.
 //
 // File groups:
 //   - catalog.go, index.go, and origins.go organize model identity and authorship.
 //   - attributes*.go and capabilities.go validate and combine model declarations.
-//   - encoding.go selects model payload rules by author identity and protocol.
-//   - platform.go, bedrock.go, and ollama.go describe service rules.
-//   - opencode.go indexes service-specific model protocols independently of prices.
-//   - media.go supplies known media-generation attributes for supported routes.
+//   - catalog.go retains service SDK declarations independently of price eligibility.
 package modelcatalog

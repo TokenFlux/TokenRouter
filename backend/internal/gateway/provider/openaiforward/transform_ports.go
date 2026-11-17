@@ -3,7 +3,7 @@ package openaiforward
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -21,7 +21,7 @@ type TransformPorts interface {
 	// Compact mode. The installed adapter publishes endpoint capabilities before
 	// returning request-adjusted resolution, and errors stop transformation before
 	// further policy edits.
-	ModelAttributes(context.Context, string, []byte, bool) (modelcatalog.Resolution, error)
+	ModelAttributes(context.Context, string, []byte, bool) (modelrules.Resolution, error)
 	// Reject records requested diagnostics and writes the selected local request
 	// rejection.
 	Reject(Rejection)

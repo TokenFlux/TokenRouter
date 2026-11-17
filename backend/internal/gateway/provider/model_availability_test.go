@@ -470,9 +470,9 @@ func TestModelAvailabilityChecksProtocolWithoutTreatingCooldownAsMissingModel(t 
 func TestAvailableRequestModelsFromProvidersUsesQoderAccountSnapshots(t *testing.T) {
 	cn := qoderAvailabilityRecord(1, "cn", []map[string]any{{"key": "cn-route", "alias": "cn-model", "enabled": true}})
 	global := qoderAvailabilityRecord(2, "global", []map[string]any{{"key": "global-route", "alias": "global-model", "enabled": true}})
-	require.ElementsMatch(t, []string{"cn-route", "cn-model"}, rejectedModelsForContract([]providercore.Record{cn}, capability.PlatformQoder))
-	require.ElementsMatch(t, []string{"global-route", "global-model"}, rejectedModelsForContract([]providercore.Record{global}, capability.PlatformQoder))
-	require.ElementsMatch(t, []string{"cn-route", "cn-model", "global-route", "global-model"}, rejectedModelsForContract([]providercore.Record{cn, global}, capability.PlatformQoder))
+	require.ElementsMatch(t, []string{"cn-model"}, rejectedModelsForContract([]providercore.Record{cn}, capability.PlatformQoder))
+	require.ElementsMatch(t, []string{"global-model"}, rejectedModelsForContract([]providercore.Record{global}, capability.PlatformQoder))
+	require.ElementsMatch(t, []string{"cn-model", "global-model"}, rejectedModelsForContract([]providercore.Record{cn, global}, capability.PlatformQoder))
 	cn.Extra = nil
 	require.Empty(t, rejectedModelsForContract([]providercore.Record{cn}, capability.PlatformQoder))
 }

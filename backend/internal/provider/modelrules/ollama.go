@@ -1,4 +1,4 @@
-package modelcatalog
+package modelrules
 
 import "encoding/json"
 

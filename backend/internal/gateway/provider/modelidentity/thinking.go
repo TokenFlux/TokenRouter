@@ -1,6 +1,9 @@
 package modelidentity
 
-import "github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+import (
+	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
+)
 
 // thinking.go resolves model signature policy and gates Anthropic thinking
 // repair filters.
@@ -34,7 +37,7 @@ type ThinkingProtocol int
 // from the Anthropic body they filter. Unrecognized signature modes return
 // ThinkingProtocolUnknown.
 func ResolveThinkingProtocol(modelID string) ThinkingProtocol {
-	rules := (modelcatalog.View{}).Resolve(modelcatalog.Target{Model: modelID, UpstreamProtocol: "anthropic_messages"}, modelcatalog.Attributes{}).Rules
+	rules := (modelrules.View{}).Resolve(modelrules.Target{Model: modelID, UpstreamProtocol: "anthropic_messages"}, modelcatalog.Attributes{}).Rules
 	switch rules.SignatureMode {
 	case "passback":
 		return ThinkingProtocolPassbackRequired

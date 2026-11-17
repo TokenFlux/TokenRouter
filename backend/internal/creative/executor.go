@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -48,9 +48,9 @@ type Selection struct {
 	// publishing the execution target; callers keep this selection stable afterward.
 	// ResolveAttributes optionally resolves the selected model after admission;
 	// failures release the acquired slot and stop preparation with that error.
-	ResolveAttributes func(context.Context, string) (modelcatalog.Resolution, error)
+	ResolveAttributes func(context.Context, string) (modelrules.Resolution, error)
 	// resolved selected model attributes
-	attributes       *modelcatalog.Resolution
+	attributes       *modelrules.Resolution
 	attributeContext context.Context // captured model attribute session
 	// captured group request context callback
 	configureContext func(context.Context) context.Context

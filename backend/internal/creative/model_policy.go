@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -234,12 +235,12 @@ func (q *creativeModelQuery) resolve(ctx context.Context, model string, display 
 				if !provider.AllowsProtocol(OperationProtocol(platform, operation), q.group.ProtocolFallbacks) {
 					continue
 				}
-				target := modelcatalog.Target{Platform: platform, Model: finalModel}
+				target := modelrules.Target{Platform: platform, Model: finalModel}
 				if aware, ok := provider.(interface {
 					// AttributeTarget supplies
 					// provider-specific identity for
 					// selected model attributes.
-					AttributeTarget(string) modelcatalog.Target
+					AttributeTarget(string) modelrules.Target
 				}); ok {
 					target = aware.AttributeTarget(finalModel)
 				}

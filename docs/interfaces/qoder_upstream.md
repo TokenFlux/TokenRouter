@@ -26,7 +26,7 @@ TokenRouter 通过 Qoder COSY 网关路径，支持 Qoder 原生的上游提供�
 - `credentials.refresh_mode` 记录令牌的来源。没有时按 `cosy` 处理；新版桌面授权在两个站点都使用 `device_token`；旧中国站 OAuth 的 `qodercn20` 继续保留。
 - 手工导入可以只提供 `pat`，也可以提供一组现有的 COSY 令牌。
 - 现有的 COSY 令牌凭据包括 `security_oauth_token`、`refresh_token`、`machine_id`、`machine_token`、`machine_type`、`uid` 或 `aid`，以及可选的组织元数据。
-- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`，并重新查询 userinfo；首次授权还查询 account plan 补齐账号类型。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
+- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`，。轮换沿用已授权账号和组织，响应中携带的用户 ID 必须与绑定身份一致；首次授权通过 userinfo 和 account plan 补齐账号信息。轮询返回有效访问令牌即可完成授权；未返回刷新令牌时，到期后需要重新授权。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
 - 中国站支持标准 QODER_PAT 和新版桌面设备授权，旧 QoderCN20 凭据仍可刷新。企业专属域名的 `PERSONAL_TOKEN`、组织选择、AK/SK 和区域发现都不支持。
 
 ## 客户端协议
@@ -40,13 +40,13 @@ Qoder Cosy 的原生协议只有 `qoder_chat`；对外的 Messages、Responses �
 
 模型来自所选账号的 Gateway `/api/v2/model/list`，只读取桌面客户端的 `app` 场景。响应中的 `enable` 决定该路由是否进入账号候选，推理时上游还会检查权益；BYOK 模型不进入 COSY 账号目录。
 
-原始路由键是稳定的请求 ID。可以识别公共型号时，网关同时提供当前型号的可读别名。未识别的型号使用原始路由键，并保留上游显示名。别名冲突时保留原始路由键。明确命名的模型可以关联统一目录的公共身份；Auto、Ultimate、Fast、Sonus、Cantus 等档位或品牌名不被固定解释为某个厂商型号。路由键保持不变而显示名升级时，旧名称不会继续指向新型号。
+手动同步和默认模型清单为每个启用模型提供一个请求 ID。优先使用由显示名生成的唯一别名，例如 `cantus`；缺少可用显示名或名称冲突时使用原始路由键。账号快照同时记录服务端路由键，网关用它发出推理请求。已保存的原始键继续可用于显式映射。显示名和可确认的公共型号身份分别保存，动态档位不会由别名推算价格。
 
 管理员在已保存提供商的「模型」页点击「同步上游支持的模型」时，网关会查询该账号，把成功结果存入 `provider.extra.qoder_model_catalog`。查询最多四个并发，同账号的并发请求合并，单次上游查询预算十五秒。快照跨重启保留，持续使用至下一次手动同步成功或账号身份改变。
 
 有效空目录会清空自动候选；网络错误、认证失败和非法响应不会清空最近成功目录。快照记录站点、已知账号和组织。更换站点、账号、组织或 PAT 后旧观察失效。同一已识别账号轮换访问令牌时仍可使用有效快照；缺少账号标识时以凭据摘要区分。写入还比较查询前的完整提供商配置，拒绝迟到结果。正常提供商快照和 outbox 传播已接受的目录更新。
 
-模型页将返回的可用 ID 去重并加入白名单草稿，保留已有项；点击「更新」后白名单生效。下方展示上游返回的所有模型，包括禁用项、推理档位、输入输出限制及上下文选项。管理端、公开目录、调度与请求转换共用账号快照。管理接口的 `qoder_model_catalog_status` 和同步接口的 `sync_status` 都包含 `model_details`。
+模型页将可用展示 ID 去重后加入白名单草稿，并把已有的对应内部键收敛为展示 ID，保留自定义项和通配项；点击「更新」后白名单生效。下方展示上游返回的所有模型，包括禁用项、推理档位、输入输出限制及上下文选项。管理端、公开目录、调度与请求转换共用账号快照。管理接口的 `qoder_model_catalog_status` 和同步接口的 `sync_status` 都包含 `model_details`。
 
 已移除模型不再提供自动候选或旧别名，管理员保存的配置不被自动改写。白名单筛选账号可用的路由。上游移除路由或别名后，已保存的白名单项保留并提示缺失。管理员可以通过显式提供商映射指定自定义上游路由。手动映射到当前可用路由仍然有效；已观察到但被账号禁用的路由不会被手动映射解禁。
 
@@ -79,9 +79,7 @@ TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Resp
 
 `provider/qodermodel` 保存每个账号的模型索引和原生能力约束。预览、探测和推理按最终路由键、客户端协议和原生上游协议 `qoder_chat` 匹配分组属性。属性引用可以借用其他型号的字段，出站使用原模型的路由键、默认设置和协议限制。`upstream/qoder` 实现桌面协议、站点、签名、报文转换和会话历史。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
 
-三个入口都向上游发送完整历史。Responses 调用方可用 `previous_response_id` 只发送新输入或工具结果。网关按 API Key 和响应 ID 读取已完成的请求和回答，将工具结果与原调用配对。切换提供商时可以重放同一份历史，上游会话 ID 仍按提供商隔离。从较早的响应分支时只使用该响应的历史。
-
-请求传入 `store:false` 时，网关跳过该响应的原文回放存储。允许存储的历史保存在当前网关进程内，默认保留两小时。整个进程最多保留 128 条、共 128 MiB，单条上限 32 MiB。重启、过期、容量淘汰或请求落到其他实例后，仅凭响应 ID 无法续接。此时返回 HTTP 400 参数错误，调用方可以提交完整历史重试。
+三个入口均由客户端提交完整历史。Qoder Responses 支持省略 `store` 或传 `store:false`。请求使用 `store:true`、`previous_response_id`、`conversation` 或 `item_reference` 时返回 HTTP 400。多轮工具调用需在本轮 `input` 中同时提供原始消息、函数调用及其结果。响应 ID 用于标识本次输出和使用记录，网关只为原生会话匹配保留指纹和用量。
 
 只用于手动导入和 opt-in 测试的本地凭据读取隔离在 `upstream/qoder/localauth`。macOS 桌面导入读取对应站点的 `auth.v1.dat`、`auth.machine-id` 和系统 Keychain，验证存储版本与站点；旧 CLI 文件仍可显式导入。凭据只在内存中解密，正常服务不会读取本机客户端登录资料。
 

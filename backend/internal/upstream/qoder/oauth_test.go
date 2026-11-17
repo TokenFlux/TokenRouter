@@ -523,3 +523,40 @@ func TestBuildIdentityFromDeviceTokenCopiesOrganizationFromUserInfo(t *testing.T
 	require.Equal(t, "org-1", identity.OrganizationID)
 	require.Equal(t, "Org 1", identity.OrganizationName)
 }
+
+// TestDeviceRotationRetainsBoundIdentity performs one successful token rotation
+// per site. A profile service outage cannot lose the replacement because this
+// operation uses the identity already associated with the authenticated grant.
+func TestDeviceRotationRetainsBoundIdentity(t *testing.T) {
+	for _, site := range []Site{SiteGlobal, SiteCN} {
+		calls := 0
+		exchange := RefreshExchange{Doer: func(req *http.Request) (*http.Response, error) {
+			calls++
+			require.Equal(t, DeviceTokenRefreshPath, req.URL.Path)
+			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"device_token":"next","refresh_token":"rotated","uid":"user","expires_in":3600}`))}, nil
+		}}
+		result, err := exchange.Refresh(t.Context(), &CredentialInput{Site: string(site), Uid: "user", Aid: "account", OrganizationId: "org", UserType: "teams", MachineId: "machine", RefreshMode: RefreshModeDeviceToken, RefreshToken: "old"})
+		require.NoError(t, err)
+		require.Equal(t, 1, calls)
+		require.Equal(t, "next", result.Identity.SecurityOauthToken)
+		require.Equal(t, "rotated", result.Identity.RefreshToken)
+		require.Equal(t, "account", result.Identity.AID)
+		require.Equal(t, "teams", result.Identity.UserType)
+		require.Equal(t, "org", result.Identity.OrganizationID)
+	}
+}
+
+// TestDeviceRotationRejectsChangedUser checks an explicit account assertion in
+// the exchange response. A mismatched uid must never install replacement credentials.
+func TestDeviceRotationRejectsChangedUser(t *testing.T) {
+	exchange := RefreshExchange{Doer: func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"device_token":"next","uid":"another"}`))}, nil
+	}}
+	result, err := exchange.Refresh(t.Context(), &CredentialInput{Uid: "bound", MachineId: "machine", RefreshMode: RefreshModeDeviceToken, RefreshToken: "old"})
+	require.ErrorContains(t, err, "another account")
+	require.Nil(t, result)
+	var user UserInfo
+	require.NoError(t, json.Unmarshal([]byte(`{"uid":"bound","orgId":"org"}`), &user))
+	require.Equal(t, "bound", user.UserID)
+	require.Equal(t, "org", user.OrganizationID)
+}

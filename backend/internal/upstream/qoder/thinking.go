@@ -3,7 +3,7 @@ package qoder
 import (
 	"slices"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
@@ -31,7 +31,7 @@ import (
 // selected intensity is projected through the canonical order so absent
 // intermediate levels cannot accidentally select a weaker level or collapse
 // xhigh into max before the model's own supported set is known.
-func ResolveObservedThinking(directive QoderThinkingDirective, resolution *modelcatalog.Resolution) (QoderThinkingDirective, error) {
+func ResolveObservedThinking(directive QoderThinkingDirective, resolution *modelrules.Resolution) (QoderThinkingDirective, error) {
 	if resolution == nil {
 		return QoderThinkingDirective{}, nil
 	}
@@ -132,7 +132,7 @@ func applyObservedThinking(payload map[string]any, resolved QoderThinkingDirecti
 // observedModel reads the execution model from the attempt's pinned publication.
 // After profile reference resolution the target still names the actual wire
 // route, whose defaults and native settings govern payload encoding.
-func observedModel(resolution *modelcatalog.Resolution) (qodermodel.Model, bool) {
+func observedModel(resolution *modelrules.Resolution) (qodermodel.Model, bool) {
 	if resolution != nil {
 		if index, ok := resolution.Target.ProviderModels.(*qodermodel.Catalog); ok {
 			return index.Lookup(resolution.Target.Model)

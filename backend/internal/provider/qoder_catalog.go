@@ -245,6 +245,7 @@ func parseQoderCatalog(record *Record) *preparedQoderCatalog {
 	if json.Unmarshal(raw, &snapshot) != nil {
 		return nil
 	}
+	qodermodel.NormalizeModels(snapshot.Models)
 	version := fmt.Sprintf("%d:%s:%s", record.ID, snapshot.Identity, snapshot.Version)
 	return &preparedQoderCatalog{QoderCatalogSnapshot: &snapshot, index: qodermodel.NewCatalog(version, snapshot.Models)}
 }
@@ -351,7 +352,7 @@ func (snapshot *QoderCatalogSnapshot) adminStatus() map[string]any {
 	}
 }
 
-// QoderRequestModelIDs returns enabled service keys and current public aliases.
+// QoderRequestModelIDs returns one public request ID per enabled account route.
 // An unavailable observation yields no automatic candidates; explicit mappings
 // remain separately owned by the provider configuration.
 func (r *Record) QoderRequestModelIDs() []string {
@@ -362,17 +363,14 @@ func (r *Record) QoderRequestModelIDs() []string {
 	return qoderCatalogModelIDs(snapshot.QoderCatalogSnapshot)
 }
 
-// qoderCatalogModelIDs returns enabled keys and aliases from a validated snapshot.
+// qoderCatalogModelIDs returns one preferred ID per enabled model from a validated snapshot.
 // Callers validate the saved observation and identity before invoking it; the returned
 // slice is independent and retains a nonnil empty list for empty catalogs.
 func qoderCatalogModelIDs(snapshot *QoderCatalogSnapshot) []string {
 	ids := []string{}
 	for _, model := range snapshot.Models {
 		if model.Enabled {
-			ids = append(ids, model.Key)
-			if model.Alias != "" {
-				ids = append(ids, model.Alias)
-			}
+			ids = append(ids, model.RequestID())
 		}
 	}
 	slices.Sort(ids)

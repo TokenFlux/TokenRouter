@@ -3,9 +3,9 @@ package provider
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/deepseek"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/kimi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/zhipu"
@@ -47,7 +47,7 @@ type TestTargets struct {
 // Routed probes retain the client entry in context for protocol-scoped profile matching.
 // The result retains target identity and conditional rules for sampling checks.
 // Profile failures propagate before the executor sends its upstream request.
-type ModelAttributeLookup func(context.Context, *provider.Record, int64, string, string) (modelcatalog.Resolution, error)
+type ModelAttributeLookup func(context.Context, *provider.Record, int64, string, string) (modelrules.Resolution, error)
 
 // LoadTestTarget reads the requested provider and returns its platform-bound
 // test handle. Read errors propagate; successful reads supply a nonnil record,
@@ -100,7 +100,7 @@ func (t *TestTargets) LoadTestTarget(ctx context.Context, request provider.TestR
 func resolveProbeType(ctx context.Context, lookup ModelAttributeLookup, value *provider.Record, groupID int64, model, protocol string, testTypes ...string) (string, error) {
 	kind, explicit := provider.ProviderTestTypeFromArgs(testTypes...)
 	if route := provider.TestProtocolRouteFromContext(ctx); route.ClientProtocol != "" {
-		resolved := modelcatalog.Resolution{}
+		resolved := modelrules.Resolution{}
 		if lookup != nil {
 			var err error
 			resolved, err = lookup(ctx, value, groupID, model, string(route.UpstreamProtocol))
@@ -136,7 +136,7 @@ func resolveProbeType(ctx context.Context, lookup ModelAttributeLookup, value *p
 	if value.Platform == provider.PlatformGrok || (value.Platform == provider.PlatformOpenAI && value.Type == provider.ProviderTypeAPIKey) {
 		imageProtocol = "openai_images_generations"
 	}
-	resolved := modelcatalog.Resolution{}
+	resolved := modelrules.Resolution{}
 	if lookup != nil {
 		var err error
 		resolved, err = lookup(ctx, value, groupID, model, imageProtocol)
@@ -180,7 +180,7 @@ func applyProbeSampling(run *TestRun, lookup ModelAttributeLookup, value *provid
 	if err != nil {
 		return err
 	}
-	resolved = resolved.ForRequest(modelcatalog.RequestState{})
+	resolved = resolved.ForRequest(modelrules.RequestState{})
 	if resolved.Attributes.Temperature != nil && !*resolved.Attributes.Temperature {
 		delete(payload, "temperature")
 	}

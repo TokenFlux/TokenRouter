@@ -146,11 +146,11 @@ func mergeMedia(base, patch *MediaCapabilities) *MediaCapabilities {
 	return &result
 }
 
-// fieldNames returns populated attribute JSON names for supplement precedence
+// FieldNames returns populated attribute JSON names for supplement precedence
 // and resolution source tracking. Every non-nil field pointer contributes a
 // name, including pointers to nil collections, while nil fields inherit their
 // existing values and sources.
-func (a Attributes) fieldNames() []string {
+func (a Attributes) FieldNames() []string {
 	var names []string
 	if a.DisplayNameLocalization != nil {
 		names = append(names, "display_name_localization")
@@ -206,10 +206,10 @@ func (a Attributes) fieldNames() []string {
 	return names
 }
 
-// fieldNames returns populated media JSON names for per-field source tracking.
+// FieldNames returns populated media JSON names for per-field source tracking.
 // Empty slices contribute their names because they clear capabilities, while
 // nil slices and pointers leave the inherited media fields unchanged.
-func (m MediaCapabilities) fieldNames() []string {
+func (m MediaCapabilities) FieldNames() []string {
 	var names []string
 	if m.VideoOperations != nil {
 		names = append(names, "video_operations")

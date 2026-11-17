@@ -260,9 +260,9 @@ func TestResolveRequestableModels_QoderAccountUnion(t *testing.T) {
 		result := svc.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformQoder)
 		return routing.RequestableModelIDs(result.Models)
 	}
-	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "cmodel", "cantus"}, resolve(global))
-	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "jmodel", "step-5-preview"}, resolve(cn))
-	require.ElementsMatch(t, []string{"qfmodel", "qwen3.8-flash", "cmodel", "cantus", "jmodel", "step-5-preview"}, resolve(global, cn))
+	require.ElementsMatch(t, []string{"qwen3.8-flash", "cantus"}, resolve(global))
+	require.ElementsMatch(t, []string{"qwen3.8-flash", "step-5-preview"}, resolve(cn))
+	require.ElementsMatch(t, []string{"qwen3.8-flash", "cantus", "step-5-preview"}, resolve(global, cn))
 	cn.Credentials["model_mapping"] = map[string]any{"disabled-alias": "dmodel"}
 	require.NotContains(t, resolve(cn), "disabled-alias")
 }

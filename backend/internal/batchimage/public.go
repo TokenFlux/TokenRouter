@@ -16,8 +16,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -132,10 +132,10 @@ type Candidate struct {
 	// AttributeTarget optionally replaces the default Gemini catalogue target.
 	// modelAttributeTarget still assigns the image_batches client protocol after
 	// that callback returns.
-	AttributeTarget func(string) modelcatalog.Target // final model attribute target builder
-	ID              int64                            // database record identity
-	Priority        int                              // provider selection priority
-	CandidateRules                                   // prepared provider selection rules
+	AttributeTarget func(string) modelrules.Target // final model attribute target builder
+	ID              int64                          // database record identity
+	Priority        int                            // provider selection priority
+	CandidateRules                                 // prepared provider selection rules
 	// CanSubmit, ResolveUpstream and Bind are supplied together by candidate
 	// preparation. Catalogue and submission share protocol, credential and storage
 	// admission before resolving models or binding the selected backend.

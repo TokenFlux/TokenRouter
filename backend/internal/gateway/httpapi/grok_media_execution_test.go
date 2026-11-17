@@ -30,6 +30,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -1710,7 +1711,7 @@ func grokMediaFixtureAttributes() *routing.ModelAttributeService {
 			image := []string{"image"}
 			return modelcatalog.Attributes{OutputModalities: &image}
 		default:
-			return testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
+			return testkit.OfflineView().Resolve(modelrules.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
 		}
 	}}}
 }

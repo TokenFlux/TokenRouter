@@ -14,8 +14,8 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -66,7 +66,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 		}
 		value := result.Provider
 		selection := &creative.Selection{ProviderID: value.Record.ID, Platform: value.Record.Platform, Acquired: result.Acquired, Waiting: result.WaitPlan != nil, Release: result.ReleaseFunc}
-		selection.ResolveAttributes = func(ctx context.Context, model string) (modelcatalog.Resolution, error) {
+		selection.ResolveAttributes = func(ctx context.Context, model string) (modelrules.Resolution, error) {
 			return gatewayprovider.ResolveModelAttributes(ctx, value, model, attributes)
 		}
 		selection.ResolveModel = func(ctx context.Context, model string) string {

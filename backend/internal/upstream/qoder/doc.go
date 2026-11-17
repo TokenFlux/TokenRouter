@@ -13,7 +13,8 @@
 // and request encoding use session.go, signature.go, and encoding.go. Site and
 // model controls use site.go, model_catalog.go, and thinking.go; models.go
 // represents opt-in imported identities. Conversation fingerprints and rollback
-// use conversation.go; response_history.go retains bounded Responses replay data. stream_tool_text.go recognizes text-encoded
+// use conversation.go. Responses callers supply their full history.
+// stream_tool_text.go recognizes text-encoded
 // invocations, while stream_conversion.go and output_observation.go retain output
 // and usage evidence. Quota metadata uses quota_usage.go; the localauth package
 // isolates manual import and opt-in local tests.

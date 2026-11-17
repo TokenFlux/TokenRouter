@@ -10,6 +10,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -19,7 +20,7 @@ import (
 // accurately describe the image entry's empty output list.
 func TestResolveMarketplaceGroupsGrokModalities(t *testing.T) {
 	service := ModelAttributeService{Catalog: ModelAttributeCatalog{View: testkit.OfflineView}}
-	models := map[int64][]RequestableModel{1: {{ID: "alias", AttributeTargets: []modelcatalog.Target{
+	models := map[int64][]RequestableModel{1: {{ID: "alias", AttributeTargets: []modelrules.Target{
 		{Platform: "grok", ProviderType: "apikey", Model: "grok-4.7", ClientProtocol: "openai_responses", UpstreamProtocol: "openai_responses", BaseURL: "https://private.example/secret"},
 		{Platform: "grok", ProviderType: "apikey", Model: "grok-4.7", ClientProtocol: "openai_images_generations", UpstreamProtocol: "openai_images_generations", BaseURL: "https://private.example/secret"},
 	}}}}
@@ -55,14 +56,14 @@ func TestResolveMarketplaceGroupsBatchAndProtocolUnions(t *testing.T) {
 		}
 		return modelcatalog.Attributes{OutputLimit: &large, ToolCall: &yes}
 	}}}
-	target := modelcatalog.Target{Model: "final", ClientProtocol: "openai_chat_completions", UpstreamProtocol: "openai_chat_completions", BaseURL: "https://relay-a.example"}
+	target := modelrules.Target{Model: "final", ClientProtocol: "openai_chat_completions", UpstreamProtocol: "openai_chat_completions", BaseURL: "https://relay-a.example"}
 	other := target
 	other.BaseURL = "https://relay-b.example"
 	response := target
 	response.ClientProtocol = "openai_responses"
 	alternate := target
 	alternate.Model = "alternate"
-	models := map[int64][]RequestableModel{1: {{ID: "alias", AttributeTargets: []modelcatalog.Target{target, other, target, response, alternate}}}, 2: {{ID: "final"}}, 3: {}}
+	models := map[int64][]RequestableModel{1: {{ID: "alias", AttributeTargets: []modelrules.Target{target, other, target, response, alternate}}}, 2: {{ID: "final"}}, 3: {}}
 	got, err := service.ResolveMarketplaceGroups(context.Background(), models)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
@@ -76,7 +77,7 @@ func TestResolveMarketplaceGroupsBatchAndProtocolUnions(t *testing.T) {
 	require.False(t, *got[1]["alias"].Protocols[capability.ProtocolID("openai_responses")].ToolCall)
 	require.True(t, *got[1]["alias"].Presentation.ToolCall)
 	require.Empty(t, got[2]["final"].Protocols)
-	published := ModelAttributeService{Catalog: ModelAttributeCatalog{View: func() modelcatalog.View { views++; return testkit.OfflineView() }}}
+	published := ModelAttributeService{Catalog: ModelAttributeCatalog{View: func() modelrules.View { views++; return testkit.OfflineView() }}}
 	_, err = published.ResolveMarketplaceGroups(context.Background(), models)
 	require.NoError(t, err)
 	require.Equal(t, 1, views)

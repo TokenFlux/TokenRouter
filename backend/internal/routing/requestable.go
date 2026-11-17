@@ -8,6 +8,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -32,7 +33,7 @@ type RequestableModel struct {
 	// AttributeTargets retains service, authentication, endpoint, and
 	// client/upstream protocol identity for attribute resolution. Compact adapters
 	// can select a different final model from UpstreamModels.
-	AttributeTargets []modelcatalog.Target
+	AttributeTargets []modelrules.Target
 	UpstreamModels   []string                // eligible final upstream names
 	Protocols        []capability.ProtocolID // supported client entry protocols
 	// NativeProtocols contains a client protocol when every provider contributing
@@ -419,7 +420,7 @@ func (q *requestableQuery) resolve(ctx context.Context, requestedModel string) (
 	}
 
 	upstreamModels := make([]string, 0, len(providers))
-	var attributeTargets []modelcatalog.Target
+	var attributeTargets []modelrules.Target
 	var protocols []capability.ProtocolID
 	// Each client entry combines all contributing provider routes. One converted
 	// route clears its native marker so display consumers do not infer universal
@@ -463,10 +464,10 @@ func (q *requestableQuery) resolve(ctx context.Context, requestedModel string) (
 			}
 			contributed := false
 			for _, source := range sources {
-				target := modelcatalog.Target{Platform: provider.Platform, ProviderType: provider.Type, Model: upstreamModel, ClientProtocol: string(source), UpstreamProtocol: string(targetProtocols[source])}
+				target := modelrules.Target{Platform: provider.Platform, ProviderType: provider.Type, Model: upstreamModel, ClientProtocol: string(source), UpstreamProtocol: string(targetProtocols[source])}
 				if aware, ok := provider.Rules.(interface {
 					// AttributeTarget supplies the full mapped route used for capability lookup.
-					AttributeTarget(string, string, capability.ProtocolID, capability.ProtocolID) modelcatalog.Target
+					AttributeTarget(string, string, capability.ProtocolID, capability.ProtocolID) modelrules.Target
 				}); ok {
 					target = aware.AttributeTarget(groupMappedModel, upstreamModel, source, targetProtocols[source])
 				}
@@ -571,7 +572,7 @@ func matchesCataloguePlatform(provider *CatalogueProvider, platform string) bool
 // modelSupportsClientProtocol checks declared output against the selected
 // entry. Image operations require positive evidence; unknown ordinary text
 // models remain requestable, and mixed text/image outputs retain text routes.
-func modelSupportsClientProtocol(target modelcatalog.Target, attrs modelcatalog.Attributes) bool {
+func modelSupportsClientProtocol(target modelrules.Target, attrs modelcatalog.Attributes) bool {
 	source := capability.ProtocolID(target.ClientProtocol)
 	if source == "" {
 		return true

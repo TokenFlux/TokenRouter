@@ -399,6 +399,7 @@
             v-model:mode="modelRestrictionMode"
             :allowed-models="allowedModels"
             :models="isQoderCosyProvider ? (qoderCatalogStatus?.models ?? []) : undefined"
+            :known-route-keys="qoderEnabledKeys"
             v-model:mappings="modelMappings"
             :platform="provider.type === 'bedrock' ? 'anthropic' : provider.platform"
             :provider-id="
@@ -1580,12 +1581,20 @@ const qoderSyncedStatus = ref<Provider['qoder_model_catalog_status']>()
 const qoderCatalogStatus = computed(
   () => qoderSyncedStatus.value ?? props.provider?.qoder_model_catalog_status,
 )
+// qoderEnabledKeys validates raw IDs in older whitelists and explicit mappings.
+// The selector offers the separate display ID list as its account suggestions.
+const qoderEnabledKeys = computed(() =>
+  qoderCatalogStatus.value?.model_details
+    ?.filter((model) => model.enabled)
+    .map((model) => model.key),
+)
 // unobservedQoderTargets compares explicit mapping targets with this account's
 // enabled routes. Keep custom targets editable when reporting missing names.
 const unobservedQoderTargets = computed(() => {
   const observed = qoderCatalogStatus.value?.models
   if (!isQoderCosyProvider.value || !observed || modelRestrictionMode.value !== 'mapping') return []
   const known = new Set(observed.map((id) => id.toLowerCase()))
+  for (const key of qoderEnabledKeys.value ?? []) known.add(key.toLowerCase())
   return [
     ...new Set(
       modelMappings.value

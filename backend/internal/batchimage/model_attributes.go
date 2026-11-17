@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -53,8 +53,8 @@ func (s *Public) validateModelAttributes(ctx context.Context, session *routing.M
 // modelAttributeTarget creates the catalogue target for the final upstream
 // model and image_batches client protocol. A configured AttributeTarget
 // replaces the default Gemini target before the client protocol is assigned.
-func (c *Candidate) modelAttributeTarget(model string) modelcatalog.Target {
-	target := modelcatalog.Target{Platform: "gemini", Model: model}
+func (c *Candidate) modelAttributeTarget(model string) modelrules.Target {
+	target := modelrules.Target{Platform: "gemini", Model: model}
 	if c.AttributeTarget != nil {
 		target = c.AttributeTarget(model)
 	}

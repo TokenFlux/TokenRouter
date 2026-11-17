@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // TestAccountPublicationsKeepIndependentControls resolves a reused key under two
@@ -17,8 +18,8 @@ func TestAccountPublicationsKeepIndependentControls(t *testing.T) {
 	a := NewCatalog("1:v1", []Model{first})
 	b := NewCatalog("2:v1", []Model{second})
 	updated := NewCatalog("1:v2", []Model{second})
-	target := modelcatalog.Target{Platform: "qoder", Model: a.RouteKey(" READABLE "), ProviderModels: a}
-	view := modelcatalog.View{}
+	target := modelrules.Target{Platform: "qoder", Model: a.RouteKey(" READABLE "), ProviderModels: a}
+	view := modelrules.View{}
 	result := view.Resolve(target, modelcatalog.Attributes{})
 	require.Equal(t, new(1000000), result.Attributes.InputLimit)
 	require.Equal(t, []string{"high", "max"}, result.Attributes.Efforts())
@@ -49,9 +50,9 @@ func TestNativeRestrictionsPreserveExplicitEmptyModalities(t *testing.T) {
 		{Key: "wire", CanDisable: new(false), Efforts: []string{"high"}},
 		{Key: "source", CanDisable: new(true), Efforts: []string{"low", "high", "max"}},
 	})
-	target := modelcatalog.Target{Model: "wire", ProviderModels: index}
+	target := modelrules.Target{Model: "wire", ProviderModels: index}
 	for _, modalities := range [][]string{{"text", "image"}, {"image"}, {}} {
-		resolution := modelcatalog.View{}.ResolveReference(target, "source", modelcatalog.Attributes{InputModalities: &modalities})
+		resolution := modelrules.View{}.ResolveReference(target, "source", modelcatalog.Attributes{InputModalities: &modalities})
 		if len(modalities) == 2 {
 			require.Equal(t, []string{"text"}, *resolution.Attributes.InputModalities)
 		} else {

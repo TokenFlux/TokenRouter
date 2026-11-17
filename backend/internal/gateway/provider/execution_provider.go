@@ -8,8 +8,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -36,7 +36,7 @@ import (
 type ExecutionProvider struct {
 	// Capabilities contains the resolution attached by request preparation;
 	// ExecutionModelAttributes reuses it when its target model matches.
-	Capabilities *modelcatalog.Resolution `json:"-"`
+	Capabilities *modelrules.Resolution `json:"-"`
 	// request provider configuration
 	Record provider.Record `json:"-"`
 	// request attempt route

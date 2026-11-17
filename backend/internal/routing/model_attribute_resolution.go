@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -56,14 +57,14 @@ type attributeGroupResult struct {
 	config *ModelAttributeConfig // retained copied group profile
 	err    error                 // retained profile loading failure
 	// detached resolutions by route value
-	resolutions map[modelcatalog.TargetKey]modelcatalog.Resolution
+	resolutions map[modelrules.TargetKey]modelrules.Resolution
 }
 
 // ModelAttributeSession pins a catalogue view and serializes group profile
 // loading across request attempts.
 type ModelAttributeSession struct {
 	service *ModelAttributeService // service creating this session
-	view    modelcatalog.View      // pinned catalogue publication view
+	view    modelrules.View        // pinned catalogue publication view
 	// mu protects groups, including repository reads and profile copying on the
 	// first access. Resolve serializes route computation under this same lock
 	// before publishing cache entries.
@@ -74,7 +75,7 @@ type ModelAttributeSession struct {
 // Matches reports whether every populated selector equals its target field
 // exactly. A nil receiver or empty selector matches all routes; callers supply
 // selector spellings consistent with the resolved target values.
-func (m *ModelAttributeMatch) Matches(target modelcatalog.Target) bool {
+func (m *ModelAttributeMatch) Matches(target modelrules.Target) bool {
 	if m == nil {
 		return true
 	}
@@ -127,20 +128,20 @@ func (m *ModelAttributeMatch) Validate() error {
 // view returns the service's current catalogue View when its provider is
 // configured. A single-model reader can supply the base layer instead. Nil
 // services retain a zero view for local platform resolution.
-func (s *ModelAttributeService) view() modelcatalog.View {
+func (s *ModelAttributeService) view() modelrules.View {
 	if s != nil && s.Catalog.View != nil {
 		return s.Catalog.View()
 	}
 	if s != nil {
-		return modelcatalog.ViewFromLookup(s.Catalog.Lookup)
+		return modelrules.ViewFromLookup(s.Catalog.Lookup)
 	}
-	return modelcatalog.View{}
+	return modelrules.View{}
 }
 
 // viewForContext reuses a context session's pinned View when that session
 // belongs to this service. Sessions from another service are ignored, and the
 // current View callback supplies a fresh view.
-func (s *ModelAttributeService) viewForContext(ctx context.Context) modelcatalog.View {
+func (s *ModelAttributeService) viewForContext(ctx context.Context) modelrules.View {
 	if session := ModelAttributesFromContext(ctx); session != nil && session.service == s {
 		return session.view
 	}
@@ -208,9 +209,9 @@ func CopyModelAttributes(target, source context.Context) context.Context {
 // cached as detached clones, and cache hits return another clone. The first
 // computed result can retain target's output-cap pointer, so its caller
 // controls that input's mutation.
-func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, target modelcatalog.Target) (modelcatalog.Resolution, error) {
+func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, target modelrules.Target) (modelrules.Resolution, error) {
 	if s == nil || s.service == nil {
-		return (modelcatalog.View{}).Resolve(target, modelcatalog.Attributes{}), nil
+		return (modelrules.View{}).Resolve(target, modelcatalog.Attributes{}), nil
 	}
 	// Serialize the first repository read with profile copying and route cache
 	// publication so simultaneous attempts cannot retain different inputs for one
@@ -219,7 +220,7 @@ func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, targ
 	defer s.mu.Unlock()
 	group, found := s.groups[groupID]
 	if !found {
-		group.resolutions = make(map[modelcatalog.TargetKey]modelcatalog.Resolution)
+		group.resolutions = make(map[modelrules.TargetKey]modelrules.Resolution)
 		if groupID > 0 && s.service.Repo != nil {
 			group.config, group.err = s.service.Repo.ForGroup(ctx, groupID)
 			if group.err == nil && group.config != nil {
@@ -238,7 +239,7 @@ func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, targ
 	if group.err != nil {
 		// The retained load or copy failed, so report configuration unavailability on
 		// every attempt instead of silently resolving against a different profile.
-		return modelcatalog.Resolution{}, apperror.ServiceUnavailable("MODEL_ATTRIBUTES_UNAVAILABLE", "model attribute configuration is unavailable")
+		return modelrules.Resolution{}, apperror.ServiceUnavailable("MODEL_ATTRIBUTES_UNAVAILABLE", "model attribute configuration is unavailable")
 	}
 	key := target.Key()
 	if result, ok := group.resolutions[key]; ok {
@@ -261,7 +262,7 @@ func (s *ModelAttributeSession) Resolve(ctx context.Context, groupID int64, targ
 // The resolution retains the outbound route identity while rule matching can
 // expand equivalent resource spellings; callers choose whether returned values
 // need additional cloning.
-func (s *ModelAttributeService) resolve(view modelcatalog.View, config *ModelAttributeConfig, target modelcatalog.Target, candidates func(string) []string) modelcatalog.Resolution {
+func (s *ModelAttributeService) resolve(view modelrules.View, config *ModelAttributeConfig, target modelrules.Target, candidates func(string) []string) modelrules.Resolution {
 	target = target.WithServiceIdentity()
 	original := target
 	reference := ""
@@ -278,7 +279,7 @@ func (s *ModelAttributeService) resolve(view modelcatalog.View, config *ModelAtt
 			if rule != nil && rule.ReferenceModel != "" {
 				// Invalid persisted chains remain unknown; using either source or target
 				// defaults would hide a configuration that the save API rejects.
-				return modelcatalog.Resolution{Target: original, ReferenceModel: reference, Version: view.Version(), Sources: map[string]string{}}
+				return modelrules.Resolution{Target: original, ReferenceModel: reference, Version: view.Version(), Sources: map[string]string{}}
 			}
 		}
 		if rule != nil {
@@ -294,7 +295,7 @@ func (s *ModelAttributeService) resolve(view modelcatalog.View, config *ModelAtt
 // Preview applies a draft or stored profile to already enumerated configured
 // routes. Route enumeration precedes capability filtering so a draft can add
 // a missing capability and show the same values used by subsequent requests.
-func (s *ModelAttributeService) Preview(ctx context.Context, groupID int64, targets []modelcatalog.Target, draft *ModelAttributeConfig) ([]modelcatalog.Resolution, error) {
+func (s *ModelAttributeService) Preview(ctx context.Context, groupID int64, targets []modelrules.Target, draft *ModelAttributeConfig) ([]modelrules.Resolution, error) {
 	config := draft
 	if draft != nil {
 		if err := draft.ValidateReferences(); err != nil {
@@ -308,7 +309,7 @@ func (s *ModelAttributeService) Preview(ctx context.Context, groupID int64, targ
 			return nil, err
 		}
 	}
-	result := make([]modelcatalog.Resolution, 0, len(targets))
+	result := make([]modelrules.Resolution, 0, len(targets))
 	view := s.viewForContext(ctx)
 	candidates := s.identityCandidates()
 	for _, target := range targets {

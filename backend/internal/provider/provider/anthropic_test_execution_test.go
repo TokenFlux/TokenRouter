@@ -9,6 +9,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // anthropic_test_execution_test.go checks sampling fields for the final probe
@@ -35,7 +36,7 @@ func TestAnthropicProbeUsesServiceSamplingCapabilities(t *testing.T) {
 	} {
 		t.Run(tc.kind+"/"+tc.model, func(t *testing.T) {
 			reads := 0
-			executor := AnthropicProviderTest{Attributes: func(_ context.Context, value *providercore.Record, groupID int64, model, protocol string) (modelcatalog.Resolution, error) {
+			executor := AnthropicProviderTest{Attributes: func(_ context.Context, value *providercore.Record, groupID int64, model, protocol string) (modelrules.Resolution, error) {
 				reads++
 				require.Equal(t, int64(59), groupID)
 				return testkit.OfflineView().Resolve(value.ModelAttributeTarget(model, protocol), modelcatalog.Attributes{}), nil

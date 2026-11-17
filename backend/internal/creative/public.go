@@ -25,6 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
@@ -767,7 +768,7 @@ func CreativeCapabilitiesForModel(platform, model string, attributes ...modelcat
 		media = attributes[0].Media
 		result.ThinkingLevels = attributes[0].Efforts()
 	} else {
-		media = modelcatalog.MediaForModel(platform, model)
+		media = modelrules.MediaForModel(platform, model)
 	}
 	if media == nil {
 		return result

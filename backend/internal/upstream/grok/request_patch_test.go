@@ -13,6 +13,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	groktestkit "github.com/TokenFlux/TokenRouter/internal/upstream/grok/testkit"
 )
 
@@ -515,7 +516,7 @@ func mustMarshalJSONForTest(t *testing.T, value string) []byte {
 // the full model and explicit high/xhigh effort values.
 func TestQualifiedGrokReasoningPreservesModel(t *testing.T) {
 	codec := BodyCodec{Attributes: func(model string) modelcatalog.Attributes {
-		return testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
+		return testkit.OfflineView().Resolve(modelrules.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
 	}}
 	for _, model := range []string{"grok-4.6", "xai/grok-4.6", "x-ai/grok-4.6", "grok/grok-4.6", "X-AI/GROK-4.6"} {
 		t.Run(model, func(t *testing.T) {
@@ -553,7 +554,7 @@ func TestQualifiedGrokReasoningKeepsCapabilityBounds(t *testing.T) {
 		if model == "xai/high-only-model" {
 			return modelcatalog.Attributes{ReasoningOptions: &limited}
 		}
-		return testkit.OfflineView().Resolve(modelcatalog.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
+		return testkit.OfflineView().Resolve(modelrules.Target{Platform: "grok", Model: model}, modelcatalog.Attributes{}).Attributes
 	}}
 	for _, tc := range []struct {
 		model string // qualified model fixture

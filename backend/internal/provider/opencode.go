@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -65,7 +65,7 @@ func (r *Record) ModelProtocols() map[string]capability.ProtocolID {
 	}
 	mode := r.OpenCodeMode()
 	result := make(map[string]capability.ProtocolID)
-	for id, value := range modelcatalog.OpenCodeProtocols(mode) {
+	for id, value := range modelrules.OpenCodeProtocols(mode) {
 		result[id] = capability.ProtocolID(value)
 	}
 	for _, key := range []string{OpenCodeCatalogProtocolsKey, OpenCodeModelProtocolsKey} {
@@ -97,7 +97,7 @@ func OpenCodeProtocolSuggestions(catalog func(string) map[string]string) func(*R
 		mode := value.OpenCodeMode()
 		// An unavailable live publication falls back to bundled model knowledge,
 		// while a published table replaces it even when that table is empty.
-		routes := modelcatalog.OpenCodeProtocols(mode)
+		routes := modelrules.OpenCodeProtocols(mode)
 		if catalog != nil {
 			if current := catalog(mode); current != nil {
 				routes = current

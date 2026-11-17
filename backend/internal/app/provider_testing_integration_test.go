@@ -25,6 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -320,7 +321,7 @@ func TestQoderAttributeRoutesAcrossPreviewProbeAndGateway(t *testing.T) {
 	const groupID = 59
 	ctx := requeststate.WithGroup(t.Context(), &routing.Group{ID: groupID})
 	target := record.ModelAttributeRoute("public-name", "openai_responses", "qoder_chat")
-	preview, err := attrs.Preview(ctx, groupID, []modelcatalog.Target{target}, profile)
+	preview, err := attrs.Preview(ctx, groupID, []modelrules.Target{target}, profile)
 	require.NoError(t, err)
 	require.Len(t, preview, 1)
 	require.Equal(t, new(128000), preview[0].Attributes.InputLimit)

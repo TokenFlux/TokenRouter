@@ -16,8 +16,8 @@ import (
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -558,7 +558,7 @@ func openAIResponsesRejectedFieldRetryStateForRequest(c *gin.Context, initialBod
 // ModelAttributes resolves final passthrough capabilities before permission
 // checks and billing. The selected provider retains the resolution for later
 // image-tool identity selection within the same request snapshot.
-func (p *openAIPassthroughExecutionAdapter) ModelAttributes(ctx context.Context, model string) (modelcatalog.Resolution, error) {
+func (p *openAIPassthroughExecutionAdapter) ModelAttributes(ctx context.Context, model string) (modelrules.Resolution, error) {
 	result, err := gatewayadapter.ResolveModelAttributes(ctx, p.provider, model, p.s.modelAttributes(), "openai_responses")
 	if err == nil {
 		p.provider.Capabilities = &result

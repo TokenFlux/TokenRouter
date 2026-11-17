@@ -327,7 +327,7 @@ func commonReasoningOptions(a, b *[]ReasoningOption) *[]ReasoningOption {
 				}
 			case "budget_tokens":
 				option.Min = maximum(left.Min, right.Min)
-				option.Max = minimum(left.Max, right.Max)
+				option.Max = MinimumLimit(left.Max, right.Max)
 				if option.Min != nil && option.Max != nil && *option.Min > *option.Max {
 					// Disjoint budget ranges offer no value executable on both
 					// routes. Omit this control so the common attributes cannot
@@ -409,8 +409,8 @@ func commonMedia(a, b *MediaCapabilities) *MediaCapabilities {
 		VideoOperations: commonStrings(a.VideoOperations, b.VideoOperations), VideoParameters: commonStrings(a.VideoParameters, b.VideoParameters),
 		ImageSizes: commonStrings(a.ImageSizes, b.ImageSizes), AspectRatios: commonStrings(a.AspectRatios, b.AspectRatios),
 		Qualities: commonStrings(a.Qualities, b.Qualities), BackgroundOptions: commonStrings(a.BackgroundOptions, b.BackgroundOptions),
-		OutputFormats: commonStrings(a.OutputFormats, b.OutputFormats), MaxReferenceImages: minimum(a.MaxReferenceImages, b.MaxReferenceImages),
-		MaxOutputCount: minimum(a.MaxOutputCount, b.MaxOutputCount), InputFidelity: commonBool(a.InputFidelity, b.InputFidelity),
+		OutputFormats: commonStrings(a.OutputFormats, b.OutputFormats), MaxReferenceImages: MinimumLimit(a.MaxReferenceImages, b.MaxReferenceImages),
+		MaxOutputCount: MinimumLimit(a.MaxOutputCount, b.MaxOutputCount), InputFidelity: commonBool(a.InputFidelity, b.InputFidelity),
 	}
 }
 
@@ -421,7 +421,7 @@ func commonStrings(a, b []string) []string {
 	if a == nil || b == nil {
 		return nil
 	}
-	return *intersection(&a, &b)
+	return *IntersectStrings(&a, &b)
 }
 
 // maximum selects the larger known endpoint, borrowing its input pointer.

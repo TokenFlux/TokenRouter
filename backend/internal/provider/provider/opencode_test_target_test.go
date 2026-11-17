@@ -17,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // opencode_test_target_test.go exercises OpenCode probe selection and captures
@@ -177,14 +178,14 @@ func TestOpenCodeProbeNativeProtocolsKeepOneMappedIdentity(t *testing.T) {
 						entry = protocol.ProtocolOpenAIChatCompletions
 					}
 					lookups := 0
-					executor := &NativeProtocolTest{Transport: transport, ValidateURL: func(raw string) (string, error) { return raw, nil }, Attributes: func(ctx context.Context, _ *provider.Record, group int64, model, endpoint string) (modelcatalog.Resolution, error) {
+					executor := &NativeProtocolTest{Transport: transport, ValidateURL: func(raw string) (string, error) { return raw, nil }, Attributes: func(ctx context.Context, _ *provider.Record, group int64, model, endpoint string) (modelrules.Resolution, error) {
 						lookups++
 						require.Equal(t, int64(17), group)
 						require.Equal(t, wire.model, model)
 						require.Equal(t, string(wire.id), endpoint)
 						require.Equal(t, entry, provider.TestProtocolRouteFromContext(ctx).ClientProtocol)
 						disabled := false
-						return modelcatalog.Resolution{Attributes: modelcatalog.Attributes{Temperature: &disabled}}, nil
+						return modelrules.Resolution{Attributes: modelcatalog.Attributes{Temperature: &disabled}}, nil
 					}}
 					request := provider.PreparedTestRequest{TestRequest: provider.TestRequest{Model: "alias-fast", Prompt: "hello", GroupID: 17, UserAgent: "caller-agent", Automatic: true}, TestType: provider.ProviderTestTypeText}
 					if routed {
@@ -316,8 +317,8 @@ func TestOpenCodeProbePreparationRejectsDisabledAndFailedAttributes(t *testing.T
 		if disabled {
 			record.Credentials[provider.UpstreamProtocolsKey] = []string{}
 		}
-		executor := &NativeProtocolTest{Transport: transport, ValidateURL: func(raw string) (string, error) { return raw, nil }, Attributes: func(context.Context, *provider.Record, int64, string, string) (modelcatalog.Resolution, error) {
-			return modelcatalog.Resolution{}, errors.New("profile unavailable")
+		executor := &NativeProtocolTest{Transport: transport, ValidateURL: func(raw string) (string, error) { return raw, nil }, Attributes: func(context.Context, *provider.Record, int64, string, string) (modelrules.Resolution, error) {
+			return modelrules.Resolution{}, errors.New("profile unavailable")
 		}}
 		target := openCodeTestTarget{record: record, executor: executor}
 		err := target.Execute(t.Context(), provider.PreparedTestRequest{TestRequest: provider.TestRequest{Model: "probe"}, TestType: provider.ProviderTestTypeText}, &openCodeProbeSink{})

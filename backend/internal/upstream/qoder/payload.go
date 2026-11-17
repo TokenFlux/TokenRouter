@@ -16,10 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // payload.go converts Chat, Responses, and Messages requests into Qoder
@@ -69,10 +69,10 @@ type QoderPayloadRequest struct {
 	// Capabilities supplies per-attempt resolved attributes and execution rules
 	// when present. Nil leaves only execution defaults for an explicitly
 	// configured custom route; no site-wide model table is consulted.
-	Capabilities *modelcatalog.Resolution // resolved route attributes
-	Model        string                   // client model name
-	Site         Site                     // selected credential site
-	System       string                   // normalized system text
+	Capabilities *modelrules.Resolution // resolved route attributes
+	Model        string                 // client model name
+	Site         Site                   // selected credential site
+	System       string                 // normalized system text
 	// Messages retains mutable raw and text-block maps used by conversion.
 	// Enrichment and cache-control insertion can mutate those maps before request
 	// dispatch.
@@ -91,20 +91,6 @@ type QoderPayloadRequest struct {
 	PromptCacheKey  string // stable prompt-cache identifier
 	MetadataUserID  string // Anthropic metadata identity
 	ResponseID      string // generated Responses identifier
-	// AutoResponseSession marks ExplicitSession generated from ResponseID.
-	// Conversation selection then considers stable cache, metadata, header, and
-	// Claude Code sources before that generated value.
-	AutoResponseSession bool // generated session marker
-	// PreviousResponseID identifies the prior response for local replay. The parser
-	// also uses it as an explicit session candidate after session_id and
-	// conversation_id.
-	PreviousResponseID string // Responses continuation identifier
-	// DisableResponseStorage prevents retaining text and tool data for subsequent
-	// requests when the Responses client supplied an explicit false store flag.
-	DisableResponseStorage bool
-	// RequiresPreviousResponse marks tool outputs whose calls are absent from
-	// this request. Execution must restore the matching API key’s saved history.
-	RequiresPreviousResponse bool // continuation-owned tool history
 }
 
 // BuildQoderPayloadFromChatCompletionsForSite parses Chat input and builds a
@@ -179,18 +165,10 @@ func BuildQoderPayloadFromAnthropicMessages(body []byte, _ string) (map[string]a
 	return BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 }
 
-// ParseQoderResponsesPayload normalizes Responses instructions, input items,
-// tools, and continuation identity. A nonempty model is required, and positive
-// max_output_tokens replaces the execution default. Instructions and
-// control-role input items combine into system text.
-//
-// Explicit session_id, conversation_id, and previous_response_id are selected
-// before generating a response ID. When none exists, the generated response ID
-// becomes an auto session that yields to stable cache/header keys later.
-// Standalone requests normalize function calls and outputs into paired history.
-// A previous_response_id request retains outputs belonging to earlier calls and
-// requires the saved response history for that API key before those outputs can be
-// forwarded. Full submitted call/result history remains available for replay.
+// ParseQoderResponsesPayload accepts a self-contained Responses turn. Clients
+// supply instructions, tools, calls and results for this request. Storage and
+// server-side continuation are rejected before constructing a native payload.
+// The generated response ID identifies the result in events and usage records.
 func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 	var req protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -200,17 +178,17 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 		return QoderPayloadRequest{}, errors.New("model is required")
 	}
 	rawReq := QoderRequestMap(body)
-	previousResponseID := QoderStringField(rawReq, "previous_response_id")
+	if strings.TrimSpace(req.PreviousResponseID) != "" || req.Store != nil && *req.Store || rawReq["conversation"] != nil {
+		return QoderPayloadRequest{}, &RequestError{Code: "unsupported_response_state", Message: "Qoder Responses requires stateless input. Set store to false, omit previous_response_id and conversation, and include the full history."}
+	}
 	messages, err := QoderMessagesFromResponsesInput(req.Input)
 	if err != nil {
 		return QoderPayloadRequest{}, err
 	}
-	requiresPrevious := previousResponseID != "" && qoderHasUnpairedToolOutputs(messages)
-	if previousResponseID == "" {
-		// Standalone input needs complete call/result pairs. A continuation instead
-		// restores its preceding calls from the locally retained response history.
-		messages = NormalizeQoderResponsesToolPairing(messages)
+	if qoderHasUnpairedToolOutputs(messages) {
+		return QoderPayloadRequest{}, &RequestError{Code: "missing_tool_call", Message: "Include the function_call for each function_call_output in the Responses input."}
 	}
+	messages = NormalizeQoderResponsesToolPairing(messages)
 	messages = EnrichQoderToolResultMessages(messages)
 
 	// Responses instructions and control-role items are separate inputs. Combine
@@ -227,6 +205,9 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 		var items []protocolopenai.ResponsesInputItem
 		if err := json.Unmarshal(req.Input, &items); err == nil {
 			for _, item := range items {
+				if item.Type == "item_reference" {
+					return QoderPayloadRequest{}, &RequestError{Code: "unsupported_response_state", Message: "Include the complete input item instead of an item_reference for Qoder Responses."}
+				}
 				if item.Role == "developer" || item.Role == "system" {
 					text := QoderResponsesContentText(item.Content)
 					if text != "" {
@@ -240,32 +221,22 @@ func ParseQoderResponsesPayload(body []byte) (QoderPayloadRequest, error) {
 
 	sessionID := QoderStringField(rawReq, "session_id")
 	conversationID := QoderStringField(rawReq, "conversation_id")
-	explicitSession := FirstNonEmptyQoder(sessionID, conversationID, previousResponseID)
-	responseID := QoderResponsesID()
-	autoResponseSession := explicitSession == ""
-	if explicitSession == "" {
-		explicitSession = responseID
-	}
 	maxTokens := QoderDefaultMaxTokens
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
 		maxTokens = *req.MaxOutputTokens
 	}
 	return QoderPayloadRequest{
-		Model:                    req.Model,
-		System:                   system,
-		Messages:                 messages,
-		Tools:                    QoderResponsesToolsToQoderTools(req.Tools),
-		ToolChoice:               QoderToolChoice(rawReq["tool_choice"]),
-		MaxTokens:                maxTokens,
-		Thinking:                 QoderThinkingDirectiveFromBody(body, "reasoning.effort", "reasoning_effort"),
-		ExplicitSession:          explicitSession,
-		PromptCacheKey:           QoderStringField(rawReq, "prompt_cache_key"),
-		MetadataUserID:           QoderMetadataUserID(rawReq["metadata"]),
-		ResponseID:               responseID,
-		AutoResponseSession:      autoResponseSession,
-		PreviousResponseID:       previousResponseID,
-		DisableResponseStorage:   req.Store != nil && !*req.Store,
-		RequiresPreviousResponse: requiresPrevious,
+		Model:           req.Model,
+		System:          system,
+		Messages:        messages,
+		Tools:           QoderResponsesToolsToQoderTools(req.Tools),
+		ToolChoice:      QoderToolChoice(rawReq["tool_choice"]),
+		MaxTokens:       maxTokens,
+		Thinking:        QoderThinkingDirectiveFromBody(body, "reasoning.effort", "reasoning_effort"),
+		ExplicitSession: FirstNonEmptyQoder(sessionID, conversationID),
+		PromptCacheKey:  QoderStringField(rawReq, "prompt_cache_key"),
+		MetadataUserID:  QoderMetadataUserID(rawReq["metadata"]),
+		ResponseID:      QoderResponsesID(),
 	}, nil
 }
 
@@ -587,7 +558,7 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 // applyContextCapability encodes the effective input limit in Qoder's nested fields.
 // The wire fallback applies only when every attribute source omitted the limit.
 // Selectable windows additionally require the runtime override and context length.
-func applyContextCapability(payload map[string]any, resolution *modelcatalog.Resolution, selectable bool) {
+func applyContextCapability(payload map[string]any, resolution *modelrules.Resolution, selectable bool) {
 	maxInput := FallbackMaxInputTokens
 	if resolution != nil && resolution.Attributes.InputLimit != nil {
 		maxInput = *resolution.Attributes.InputLimit
@@ -944,8 +915,8 @@ func QoderStripVolatileSystemText(text string) string {
 //
 // Consecutive function calls are collected into one assistant turn before the
 // next item is converted, so parallel calls remain grouped even when Responses
-// represents them as separate items. The request parser decides whether outputs
-// require standalone pairing or the authenticated caller’s saved response history.
+// represents them as separate items. The parser pairs each output with its
+// owning call from this request before constructing the native payload.
 func QoderMessagesFromResponsesInput(raw json.RawMessage) ([]QoderMessage, error) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
@@ -995,9 +966,9 @@ func QoderMessagesFromResponsesInput(raw json.RawMessage) ([]QoderMessage, error
 	return messages, nil
 }
 
-// qoderHasUnpairedToolOutputs identifies results that require preceding stored
-// calls. It compares call IDs rather than tool names, preserving parallel
-// invocations of the same function as separate conversation identities.
+// qoderHasUnpairedToolOutputs checks each result against the calls in the
+// submitted history. Parallel invocations of the same function have distinct
+// call IDs and must each carry the corresponding result.
 func qoderHasUnpairedToolOutputs(messages []QoderMessage) bool {
 	calls := map[string]bool{}
 	for _, message := range messages {

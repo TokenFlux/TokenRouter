@@ -7,7 +7,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -36,7 +36,7 @@ import (
 // both generation config and topP spellings. Converted Antigravity routes also
 // cap camelCase maxOutputTokens when their resolved output limit is exceeded,
 // while native Gemini input follows its own control handling.
-func applyGeminiModelParameters(body, controls []byte, resolution modelcatalog.Resolution, convertThinking bool) ([]byte, error) {
+func applyGeminiModelParameters(body, controls []byte, resolution modelrules.Resolution, convertThinking bool) ([]byte, error) {
 	result := resolution.ForRequest(gatewayprovider.ModelRequestState(controls))
 	var err error
 	if convertThinking {

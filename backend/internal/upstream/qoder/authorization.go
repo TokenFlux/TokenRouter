@@ -113,10 +113,10 @@ func CompleteAuthorization(ctx context.Context, session *AuthorizationFlow, fact
 	if !ready {
 		return nil, true, nil
 	}
-	expires := token.ExpiryTime(time.Now())
-	if token.AccessTokenValue() == "" || strings.TrimSpace(token.RefreshToken) == "" || expires.IsZero() {
-		return nil, false, errors.New("qoder: device authorization returned incomplete credentials")
+	if token == nil || token.AccessTokenValue() == "" {
+		return nil, false, errors.New("qoder: device authorization returned no access token")
 	}
+	expires := token.ExpiryTime(time.Now())
 	user, userErr := client.GetUserInfo(ctx, token.AccessTokenValue())
 	if userErr != nil {
 		// Global polling can supply the account ID even when its auxiliary lookup

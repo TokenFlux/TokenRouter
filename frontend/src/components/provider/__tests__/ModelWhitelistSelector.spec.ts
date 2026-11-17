@@ -201,20 +201,26 @@ describe('ModelWhitelistSelector', () => {
   // The accepted observation also reaches the parent for rendering account capabilities.
   it('merges manually synchronized Qoder candidates into the whitelist', async () => {
     const result = {
-      models: ['qwen4-max', 'qmodel_latest', 'qwen4-max'],
-      sync_status: { state: 'fresh' },
+      models: ['qwen4-max', 'cantus'],
+      sync_status: {
+        state: 'fresh',
+        model_details: [
+          { key: 'qmodel_latest', alias: 'qwen4-max', enabled: true },
+          { key: 'cmodel', alias: 'cantus', enabled: true },
+        ],
+      },
     }
     syncUpstreamModels.mockResolvedValue(result)
     const wrapper = mountSelector({
       platform: 'qoder',
       providerId: 8,
-      modelValue: ['retired-model', 'qwen4-max'],
+      modelValue: ['retired-model', 'qwen4-max', 'qmodel_latest'],
     })
     await syncButton(wrapper).trigger('click')
     await flushPromises()
     expect(syncUpstreamModels).toHaveBeenCalledWith(8, expect.any(AbortSignal))
     expect(wrapper.emitted('update:modelValue')).toEqual([
-      [['retired-model', 'qwen4-max', 'qmodel_latest']],
+      [['retired-model', 'qwen4-max', 'cantus']],
     ])
     expect(wrapper.emitted('synced')).toEqual([[result]])
     expect(wrapper.text()).toContain('admin.providers.qoder.modelsNotObserved')

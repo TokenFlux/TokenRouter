@@ -264,7 +264,7 @@ func TestCatalogFiltersProviderOfferings(t *testing.T) {
 	attrs, found := catalog.LookupAttributes("openrouter/original", []string{"original"})
 	require.False(t, found)
 	require.Nil(t, attrs.Context)
-	resolved := catalog.View().Resolve(Target{Model: "openrouter/public-only"}, Attributes{})
+	resolved := catalog.Publication().LookupRoute("", "", "openrouter/public-only")
 	require.Nil(t, resolved.Attributes.Context)
 	require.True(t, catalog.RequiresExact("openrouter/original"))
 	page := NewIndex(catalog).Search(AttributeQuery{})
@@ -346,7 +346,7 @@ func TestCatalogRetainsRuntimeServiceRecords(t *testing.T) {
 			require.False(t, *entry.Attributes.Temperature)
 			require.NotNil(t, entry.Attributes.InputModalities)
 			require.Empty(t, *entry.Attributes.InputModalities)
-			result := catalog.View().Resolve(Target{CatalogProvider: provider, Model: "runtime-model"}, Attributes{})
+			result := catalog.Publication().LookupRoute(provider, provider, "runtime-model")
 			require.Equal(t, 32, *result.Attributes.Context)
 			require.Equal(t, []string{"low", "high"}, result.Attributes.Efforts())
 			author, found := catalog.Lookup([]string{"runtime-model"})
@@ -567,4 +567,16 @@ func TestCatalogProtectsQualifiedAliases(t *testing.T) {
 		require.Equal(t, provider, entry.Provider)
 		require.Equal(t, 1.0, *entry.Cost.Input)
 	}
+}
+
+// TestUnknownServiceMetadataDoesNotInvalidatePrices supplies an unfamiliar SDK
+// declaration for one model. Pricing and public attributes remain readable,
+// while protocol selection receives no invented encoding for the service model.
+func TestUnknownServiceMetadataDoesNotInvalidatePrices(t *testing.T) {
+	catalog, err := Parse([]byte(`{"providers":{"openai":{"models":{"gpt-4":{"provider":"future-format","type":{"future":true},"cost":{"input":1},"limit":{"input":8192}}}}},"models":{"openai/gpt-4":{"name":"GPT-4"}}}`))
+	require.NoError(t, err)
+	entry, found := catalog.Lookup([]string{"openai/gpt-4"})
+	require.True(t, found)
+	require.Equal(t, new(8192), entry.Attributes.InputLimit)
+	require.Empty(t, catalog.Publication().Offering("openai", "gpt-4").SDK)
 }

@@ -130,7 +130,11 @@ func (s *QoderUsage) fetchQoderQuotaUsageWithProvider(ctx context.Context, provi
 	if err != nil {
 		return nil, err
 	}
-	if provider.GetCredential("refresh_mode") == qoder.RefreshModeDeviceToken {
+	mode, err := qoder.ParseRefreshMode(provider.GetCredential("refresh_mode"))
+	if err != nil {
+		return nil, err
+	}
+	if mode == qoder.RefreshModeDeviceToken && strings.TrimSpace(provider.GetCredential("pat")) == "" {
 		client := qoder.NewOAuthClientForProfile(profile, nil)
 		client.Doer = QoderRequestDoer(provider, s.Transport, s.Profiles)
 		return client.GetUsagePresentation(ctx, session.Identity.SecurityOauthToken)

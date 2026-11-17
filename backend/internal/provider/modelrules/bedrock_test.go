@@ -1,4 +1,4 @@
-package modelcatalog
+package modelrules
 
 import (
 	"testing"
@@ -30,7 +30,7 @@ func TestBedrockExecutionRules(t *testing.T) {
 		rules := BedrockExecutionRules(tc.model)
 		require.Equal(t, tc.mode, rules.ThinkingMode)
 		require.Equal(t, []string{"5m", "1h"}, rules.CacheTTL)
-		require.Equal(t, valuePointer(tc.toolSearch), rules.ToolSearch)
+		require.Equal(t, new(tc.toolSearch), rules.ToolSearch)
 	}
 	for _, unknown := range []string{"custom/anthropic.claude-opus-4-7", "anthropic.claude-opus-4-7-future", "anthropic.claude-opus-9", "anthropic.claude-fable-50"} {
 		require.Equal(t, ExecutionRules{}, BedrockExecutionRules(unknown))

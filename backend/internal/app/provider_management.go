@@ -23,6 +23,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerhttp "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -152,7 +153,9 @@ func provideProviderModelSync(catalog *catalogprovider.Service, store *providerp
 	}
 	core := provider.NewModelSyncService(queries.FetchUpstreamSupportedModels)
 	core.Qoder = qoderCatalog
-	core.Suggest = provider.OpenCodeProtocolSuggestions(catalog.OpenCodeProtocols)
+	core.Suggest = provider.OpenCodeProtocolSuggestions(func(mode string) map[string]string {
+		return modelrules.NewView(catalog.Publication()).OpenCodeProtocols(mode)
+	})
 	manager.Register(lifecycle.Hook{Name: "ProviderModelList", StopOrder: 26, Stop: core.StopContext})
 	return core
 }

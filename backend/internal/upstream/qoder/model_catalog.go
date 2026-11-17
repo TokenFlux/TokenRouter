@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -33,7 +32,6 @@ const ModelCatalogPath = "/api/v2/model/list"
 // Model-name syntax and effort order define public aliases and supported
 // parameter ordering without deriving identities from opaque route keys.
 var (
-	qoderAliasSyntax = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 	qoderEffortOrder = []string{"low", "medium", "high", "xhigh", "max"}
 )
 
@@ -126,18 +124,7 @@ func ParseModelCatalog(raw []byte) ([]qodermodel.Model, error) {
 		}
 		models = append(models, model)
 	}
-	aliasCounts := make(map[string]int, len(models))
-	for _, model := range models {
-		aliasCounts[model.Alias]++
-	}
-	for index := range models {
-		model := &models[index]
-		// Stable route keys remain authoritative when display aliases collide with
-		// another model name or key. Dropping the ambiguous alias avoids misrouting.
-		if aliasCounts[model.Alias] > 1 || !strings.EqualFold(model.Alias, model.Key) && seen[model.Alias] {
-			model.Alias = ""
-		}
-	}
+	qodermodel.NormalizeModels(models)
 	slices.SortFunc(models, func(a, b qodermodel.Model) int { return strings.Compare(a.Key, b.Key) })
 	return models, nil
 }
@@ -165,13 +152,8 @@ func (entry catalogModel) normalize() (qodermodel.Model, error) {
 		DefaultEffort:   entry.DefaultEffort,
 		DefaultContext:  entry.DefaultContext,
 	}
-	alias := strings.ToLower(strings.ReplaceAll(m.Name, " ", "-"))
-	if qoderAliasSyntax.MatchString(alias) {
-		m.Identity = qoderPublicIdentity(alias)
-		if m.Identity != "" || strings.EqualFold(m.Key, alias) {
-			m.Alias = alias
-		}
-	}
+	m.Alias = qodermodel.DisplayAlias(m.Name)
+	m.Identity = qoderPublicIdentity(m.Alias)
 	if m.InputLimit < 0 || m.OutputLimit < 0 {
 		return m, errors.New("negative token limit")
 	}

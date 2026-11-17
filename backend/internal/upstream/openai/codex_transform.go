@@ -11,6 +11,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // codex_transform.go normalizes Codex OAuth requests, tool history,
@@ -116,7 +117,7 @@ type CodexOAuthTransformOptions struct {
 	Attributes *modelcatalog.Attributes
 	// Rules replaces resolved model execution rules when supplied; a disabled
 	// image-tool rule selects the fixed Spark guidance and declaration cleanup.
-	Rules *modelcatalog.ExecutionRules
+	Rules *modelrules.ExecutionRules
 	// IsMessagesBridge identifies cache-key compatibility handling and is required
 	// when prompt_cache_key is a string; the gateway wrapper installs its detector.
 	IsMessagesBridge func(map[string]any) bool
@@ -379,7 +380,7 @@ func ApplyCodexOAuthTransformWithOptions(reqBody map[string]any, opts CodexOAuth
 	if !opts.SkipDefaultInstructions && ApplyInstructions(reqBody, opts.IsCodexCLI) {
 		result.Modified = true
 	}
-	rules := (modelcatalog.View{}).Resolve(modelcatalog.Target{Platform: "openai", ProviderType: "oauth", Model: normalizedModel}, modelcatalog.Attributes{}).Rules
+	rules := (modelrules.View{}).Resolve(modelrules.Target{Platform: "openai", ProviderType: "oauth", Model: normalizedModel}, modelcatalog.Attributes{}).Rules
 	if opts.Rules != nil {
 		rules = *opts.Rules
 	}

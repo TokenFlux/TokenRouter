@@ -11,7 +11,6 @@ import (
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -19,6 +18,7 @@ import (
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -53,7 +53,7 @@ const (
 type antigravityModelAttributes struct {
 	// Resolution is optional; absent input leaves capability application to
 	// the selected conversion defaults used by the platform body builder.
-	Resolution *modelcatalog.Resolution // final route attribute resolution
+	Resolution *modelrules.Resolution // final route attribute resolution
 	// Controls defaults to the Anthropic body when nil; a supplied slice
 	// retains the original client protocol controls for final attribute
 	// application.
@@ -439,7 +439,7 @@ func (s *Antigravity) buildAntigravityCompatGeminiBody(
 	mappedModel string,
 	inputs ...antigravityModelAttributes,
 ) ([]byte, error) {
-	var resolved *modelcatalog.Resolution
+	var resolved *modelrules.Resolution
 	controls := claudeBody
 	if len(inputs) > 0 {
 		resolved = inputs[0].Resolution

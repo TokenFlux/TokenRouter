@@ -11,6 +11,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 )
 
@@ -667,36 +668,14 @@ func TestQoderResponsesPayloadDropsUnansweredParallelFunctionCall(t *testing.T) 
 	require.Equal(t, "call_a", request.Messages[2].ToolCallID)
 }
 
-// TestQoderResponsesPayloadDropsOrphanFunctionCallOutput supplies user input and
-// an output lacking its owning call. It checks that normalized history retains
-// only the original user text.
-func TestQoderResponsesPayloadDropsOrphanFunctionCallOutput(t *testing.T) {
-	request, err := ParseQoderResponsesPayload([]byte(`{
-		"model":"deepseek-v4-pro",
-		"input":[
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]},
-			{"type":"function_call_output","call_id":"ghost","output":"stale output"}
-		]
-	}`))
-
-	require.NoError(t, err)
-	require.Len(t, request.Messages, 1)
-	require.Equal(t, "user", request.Messages[0].Role)
-	require.Equal(t, "hello", request.Messages[0].Text)
-}
-
-// TestQoderResponsesContinuationPreservesToolOutputs submits two results whose
-// calls belong to the previous response. Parsing retains both identities and
-// marks the request as requiring a reusable provider-scoped conversation.
-func TestQoderResponsesContinuationPreservesToolOutputs(t *testing.T) {
-	request, err := ParseQoderResponsesPayload([]byte(`{"model":"qfmodel","previous_response_id":"resp_previous","input":[{"type":"function_call_output","call_id":"left","output":"one"},{"type":"function_call_output","call_id":"right","output":"two"}]}`))
-	require.NoError(t, err)
-	require.True(t, request.RequiresPreviousResponse)
-	require.Len(t, request.Messages, 2)
-	require.Equal(t, "left", request.Messages[0].ToolCallID)
-	require.Equal(t, "right", request.Messages[1].ToolCallID)
-	require.Equal(t, "one", request.Messages[0].Text)
-	require.Equal(t, "two", request.Messages[1].Text)
+// TestQoderResponsesRejectsOrphanOutput requires an owning call in the current
+// request. Accepting an orphan would silently discard a client tool result
+// or send it without its corresponding assistant turn.
+func TestQoderResponsesRejectsOrphanOutput(t *testing.T) {
+	_, err := ParseQoderResponsesPayload([]byte(`{"model":"auto","input":[{"type":"function_call_output","call_id":"missing","output":"result"}]}`))
+	var invalid *RequestError
+	require.ErrorAs(t, err, &invalid)
+	require.Equal(t, "missing_tool_call", invalid.Code)
 }
 
 // TestQoderChatSystemTextPreservesDeveloperMessages supplies system, developer,
@@ -995,7 +974,7 @@ func TestBuildQoderThinkingPayloadBySiteAndModelCapability(t *testing.T) {
 // observedPayloadModel resolves sanitized desktop metadata for payload tests.
 // Unknown or retired names have no observation and therefore exercise the
 // execution fallback instead of reintroducing historical service-key aliases.
-func observedPayloadModel(t *testing.T, site Site, model string) *modelcatalog.Resolution {
+func observedPayloadModel(t *testing.T, site Site, model string) *modelrules.Resolution {
 	t.Helper()
 	raw, err := os.ReadFile("testdata/models_" + string(site) + ".json")
 	require.NoError(t, err)
@@ -1006,7 +985,7 @@ func observedPayloadModel(t *testing.T, site Site, model string) *modelcatalog.R
 	if !found {
 		return nil
 	}
-	resolution := modelcatalog.View{}.Resolve(modelcatalog.Target{Platform: "qoder", Site: string(site), Model: entry.Key, ProviderModels: index}, modelcatalog.Attributes{})
+	resolution := modelrules.View{}.Resolve(modelrules.Target{Platform: "qoder", Site: string(site), Model: entry.Key, ProviderModels: index}, modelcatalog.Attributes{})
 	return &resolution
 }
 

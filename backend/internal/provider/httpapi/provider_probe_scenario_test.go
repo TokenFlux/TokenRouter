@@ -30,6 +30,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
@@ -772,7 +773,7 @@ func TestProviderTestService_TestProviderConnection_GrokExplicitImageUsesMediaEn
 	}}
 	svc := &provideradapter.GrokProviderTest{
 		Store: repo, Transport: upstream, OperatorValidator: (egress.OperatorURLPolicy{}).Validate,
-		Attributes: func(_ context.Context, value *providercore.Record, _ int64, model, protocol string) (modelcatalog.Resolution, error) {
+		Attributes: func(_ context.Context, value *providercore.Record, _ int64, model, protocol string) (modelrules.Resolution, error) {
 			require.Equal(t, "custom-image-alias", model)
 			require.Equal(t, "openai_images_generations", protocol)
 			image := []string{"image"}
@@ -1539,9 +1540,9 @@ func TestProviderTestService_OpenAIExplicitImageTypeDoesNotInspectModelName(t *t
 		},
 	}
 	svc := &provideradapter.OpenAIProviderTest{
-		Attributes: func(context.Context, *providercore.Record, int64, string, string) (modelcatalog.Resolution, error) {
+		Attributes: func(context.Context, *providercore.Record, int64, string, string) (modelrules.Resolution, error) {
 			image := []string{"image"}
-			return modelcatalog.Resolution{Attributes: modelcatalog.Attributes{OutputModalities: &image}}, nil
+			return modelrules.Resolution{Attributes: modelcatalog.Attributes{OutputModalities: &image}}, nil
 		},
 		Transport:   upstream,
 		ValidateURL: (egress.OperatorURLPolicy{}).Validate,
@@ -3878,6 +3879,6 @@ func executeQoderTest(t *testing.T, output *qoderTestOutputFixture, executor *pr
 // probeModelAttributes resolves fixture provider models against the embedded
 // catalog. Probe tests keep authentication and transport stubs independent of
 // capability data while unknown identities retain an absent output declaration.
-func probeModelAttributes(_ context.Context, value *providercore.Record, _ int64, model, protocol string) (modelcatalog.Resolution, error) {
+func probeModelAttributes(_ context.Context, value *providercore.Record, _ int64, model, protocol string) (modelrules.Resolution, error) {
 	return testkit.OfflineView().Resolve(value.ModelAttributeTarget(model, protocol), modelcatalog.Attributes{}), nil
 }

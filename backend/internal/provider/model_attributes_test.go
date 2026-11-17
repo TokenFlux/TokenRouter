@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // An Ollama Chat route supplies its provider output cap to catalogue execution
@@ -22,7 +23,7 @@ func TestModelAttributeTargetOllamaLimits(t *testing.T) {
 		target := value.ModelAttributeTarget("custom", "openai_chat_completions")
 		require.True(t, target.Ollama)
 		require.Equal(t, limit, *target.OllamaOutputCap)
-		result := (modelcatalog.View{}).Resolve(target, modelcatalog.Attributes{})
+		result := (modelrules.View{}).Resolve(target, modelcatalog.Attributes{})
 		require.Equal(t, limit > 0, result.Rules.ClampOutput)
 		if limit > 0 {
 			require.Equal(t, limit, *result.Attributes.OutputLimit)

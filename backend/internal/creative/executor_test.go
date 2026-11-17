@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -34,8 +35,8 @@ func TestCreativeExecutorGroupPolicyUsesFinalModel(t *testing.T) {
 			selectProvider := func(_ context.Context, run CreativeRun) (*Selection, error) {
 				require.Equal(t, "draw", run.Model, "调度器仍从原始请求模型解析分组规则")
 				return &Selection{
-					ResolveAttributes: func(_ context.Context, model string) (modelcatalog.Resolution, error) {
-						return testkit.OfflineView().Resolve(modelcatalog.Target{Model: model}, modelcatalog.Attributes{}), nil
+					ResolveAttributes: func(_ context.Context, model string) (modelrules.Resolution, error) {
+						return testkit.OfflineView().Resolve(modelrules.Target{Model: model}, modelcatalog.Attributes{}), nil
 					},
 					ProviderID: 55, Platform: platform, Acquired: true,
 					ResolveModel: func(_ context.Context, model string) string {
@@ -102,8 +103,8 @@ func TestCreativeExecutorGroupPolicyRestrictionStages(t *testing.T) {
 				OpenAI: func(context.Context, CreativeRun) (*Selection, error) {
 					selected++
 					return &Selection{
-						ResolveAttributes: func(_ context.Context, model string) (modelcatalog.Resolution, error) {
-							return testkit.OfflineView().Resolve(modelcatalog.Target{Model: model}, modelcatalog.Attributes{}), nil
+						ResolveAttributes: func(_ context.Context, model string) (modelrules.Resolution, error) {
+							return testkit.OfflineView().Resolve(modelrules.Target{Model: model}, modelcatalog.Attributes{}), nil
 						},
 						Acquired: true, Platform: PlatformOpenAI,
 						Release: func() { released++ },

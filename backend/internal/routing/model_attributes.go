@@ -12,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -131,7 +132,7 @@ type ModelAttributeCatalog struct {
 	Index func() (modelcatalog.Index, ModelAttributeSnapshot)
 	// View supplies a retained catalogue publication for resolution. NewSession
 	// invokes it once so provider retries use the same metadata version.
-	View     func() modelcatalog.View
+	View     func() modelrules.View
 	Snapshot func() ModelAttributeSnapshot // administrative entry snapshot reader
 	// Lookup supplies attribute values when View is absent during resolution.
 	// Both readers feed the same resolution path. Production pins a complete
@@ -410,10 +411,10 @@ func (s *ModelAttributeService) ResolveGroups(ctx context.Context, groups map[in
 // Localization is resolved per route before modelcatalog.Common combines known
 // limits and shared capabilities. The result records route differences and
 // searchable translated text under each client request identity.
-func (s *ModelAttributeService) resolveModels(view modelcatalog.View, config *ModelAttributeConfig, models []RequestableModel, language string) map[string]EffectiveModelAttributes {
+func (s *ModelAttributeService) resolveModels(view modelrules.View, config *ModelAttributeConfig, models []RequestableModel, language string) map[string]EffectiveModelAttributes {
 	candidates := s.identityCandidates()
 	result := map[string]EffectiveModelAttributes{}
-	resolvedTargets := make(map[modelcatalog.TargetKey]modelcatalog.Attributes)
+	resolvedTargets := make(map[modelrules.TargetKey]modelcatalog.Attributes)
 	for _, model := range models {
 		resolved := s.resolveModelRoutes(view, config, model, language, candidates, resolvedTargets)
 		attrs, different := modelcatalog.Common(resolved.values)
@@ -431,7 +432,7 @@ func (s *ModelAttributeService) resolveModels(view modelcatalog.View, config *Mo
 // from upstream names or the request ID. Protocol buckets reference these same
 // localized values so their summaries cannot observe a different metadata version
 // or apply a different administrator override from the overall model summary.
-func (s *ModelAttributeService) resolveModelRoutes(view modelcatalog.View, config *ModelAttributeConfig, model RequestableModel, language string, candidates func(string) []string, resolvedTargets map[modelcatalog.TargetKey]modelcatalog.Attributes) resolvedModelAttributes {
+func (s *ModelAttributeService) resolveModelRoutes(view modelrules.View, config *ModelAttributeConfig, model RequestableModel, language string, candidates func(string) []string, resolvedTargets map[modelrules.TargetKey]modelcatalog.Attributes) resolvedModelAttributes {
 	routes := model.AttributeTargets
 	// Older callers can supply model names without route metadata. Derive
 	// name-only targets so those display queries still resolve their configured
@@ -445,13 +446,13 @@ func (s *ModelAttributeService) resolveModelRoutes(view modelcatalog.View, confi
 			names = []string{model.ID}
 		}
 		for _, name := range names {
-			routes = append(routes, modelcatalog.Target{Model: name})
+			routes = append(routes, modelrules.Target{Model: name})
 		}
 	}
 	resolved := resolvedModelAttributes{byProtocol: map[capability.ProtocolID][]modelcatalog.Attributes{}}
 	var searchTerms []string
 	var resolution *locale.Resolution
-	seen := make(map[modelcatalog.TargetKey]bool)
+	seen := make(map[modelrules.TargetKey]bool)
 	for _, target := range routes {
 		key := target.Key()
 		if seen[key] {
@@ -496,8 +497,8 @@ func (s *ModelAttributeService) resolveModelRoutes(view modelcatalog.View, confi
 // the supplied full identity to win over an expanded identity. Wildcard matching
 // traverses rules in saved order and accepts the first matching prefix across
 // candidate names. Route selectors apply in both phases; unmatched models return nil.
-func (c *ModelAttributeConfig) matchRule(model string, expand func(string) []string, targets ...modelcatalog.Target) *ModelAttributeRule {
-	var target modelcatalog.Target
+func (c *ModelAttributeConfig) matchRule(model string, expand func(string) []string, targets ...modelrules.Target) *ModelAttributeRule {
+	var target modelrules.Target
 	if len(targets) > 0 {
 		target = targets[0]
 	}

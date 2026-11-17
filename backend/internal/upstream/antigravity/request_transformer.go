@@ -18,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // request_transformer.go converts Claude requests into project-scoped Gemini
@@ -43,7 +44,7 @@ const (
 	// ClaudeAdaptiveHighThinkingBudgetTokens exposes the catalogue adaptive
 	// budget used by selected Claude model rules during internal generation
 	// conversion.
-	ClaudeAdaptiveHighThinkingBudgetTokens = modelcatalog.AntigravityAdaptiveBudget
+	ClaudeAdaptiveHighThinkingBudgetTokens = modelrules.AntigravityAdaptiveBudget
 
 	// antigravityIdentity supplies the built-in platform instruction when
 	// identity patching is enabled and no user identity marker is present.
@@ -73,7 +74,7 @@ This information may or may not be relevant to the coding task, it is up for you
 	// defaultMaxOutputTokens supplies the baseline converted-output allowance
 	// before catalogue limits and request-specific generation controls are
 	// applied.
-	defaultMaxOutputTokens = modelcatalog.AntigravityDefaultOutputLimit
+	defaultMaxOutputTokens = modelrules.AntigravityDefaultOutputLimit
 )
 
 // sessionRand and sessionRandMutex provide serialized pseudorandom session
@@ -99,7 +100,7 @@ type TransformOptions struct {
 	// generation limits and empty-tool configuration rules applied to the mapped
 	// model. Its nested pointers and slices remain shared, so callers keep the
 	// supplied resolution stable until conversion has finished.
-	Capabilities *modelcatalog.Resolution
+	Capabilities *modelrules.Resolution
 	// EnableIdentityPatch allows identity insertion when no user marker exists;
 	// its false value does not alone suppress the end marker.
 	EnableIdentityPatch bool
@@ -483,13 +484,13 @@ func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isT
 // are handled by the shared builder. Resolved rules control stop sequences,
 // temperature, top-p, top-k, budget padding and adaptive budget; diagnostics
 // are logged before returning the selected config.
-func buildGenerationConfig(req *ClaudeRequest, resolutions ...*modelcatalog.Resolution) *GeminiGenerationConfig {
-	resolved := (modelcatalog.View{}).Resolve(modelcatalog.Target{Platform: "antigravity", Model: req.Model}, modelcatalog.Attributes{})
+func buildGenerationConfig(req *ClaudeRequest, resolutions ...*modelrules.Resolution) *GeminiGenerationConfig {
+	resolved := (modelrules.View{}).Resolve(modelrules.Target{Platform: "antigravity", Model: req.Model}, modelcatalog.Attributes{})
 	if len(resolutions) > 0 && resolutions[0] != nil {
 		resolved = *resolutions[0]
 	}
 	thinking := req.Thinking != nil && (req.Thinking.Type == "enabled" || req.Thinking.Type == "adaptive")
-	resolved = resolved.ForRequest(modelcatalog.RequestState{Thinking: &thinking})
+	resolved = resolved.ForRequest(modelrules.RequestState{Thinking: &thinking})
 	// Apply request thinking to the chosen resolution before reading field and
 	// limit rules, because request-specific catalogue conditions can alter
 	// generation controls.
@@ -540,5 +541,5 @@ func buildTools(tools []ClaudeTool) []GeminiToolDeclaration {
 // for the supplied Antigravity model. It follows catalogue resolution for that
 // identity rather than inferring the rule from a name prefix.
 func IsGeminiReasoningModel(modelID string) bool {
-	return (modelcatalog.View{}).Resolve(modelcatalog.Target{Platform: "antigravity", Model: modelID}, modelcatalog.Attributes{}).Rules.OmitEmptyToolConfig
+	return (modelrules.View{}).Resolve(modelrules.Target{Platform: "antigravity", Model: modelID}, modelcatalog.Attributes{}).Rules.OmitEmptyToolConfig
 }

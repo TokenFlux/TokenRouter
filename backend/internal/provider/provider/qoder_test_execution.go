@@ -13,6 +13,7 @@ import (
 	egressadapter "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
@@ -180,7 +181,7 @@ func (s *QoderProviderTest) Execute(c *TestRun, value *providercore.Record, mode
 		return (TestStreamOutput{}).Error(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
 	}
 	request.Site = site
-	var resolution modelcatalog.Resolution
+	var resolution modelrules.Resolution
 	if s.Attributes != nil {
 		resolution, err = s.Attributes(ctx, value, c.GroupID, request.Model, string(capability.ProtocolQoderChat))
 		if err != nil {
@@ -192,7 +193,7 @@ func (s *QoderProviderTest) Execute(c *TestRun, value *providercore.Record, mode
 			client = capability.ProtocolOpenAIChatCompletions
 		}
 		target := value.ModelAttributeRoute(request.Model, string(client), string(capability.ProtocolQoderChat))
-		resolution = modelcatalog.View{}.Resolve(target, modelcatalog.Attributes{})
+		resolution = modelrules.View{}.Resolve(target, modelcatalog.Attributes{})
 	}
 	request.Capabilities = &resolution
 	payload, modelKey, err := qoder.BuildQoderPayloadWithOptions(request, "", request.Messages, true, true)

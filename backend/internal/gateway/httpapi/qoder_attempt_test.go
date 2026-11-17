@@ -565,221 +565,6 @@ func TestQoderGatewayResponsesMapsUpstreamToolNameToDeclaredFunctionCall(t *test
 	require.Equal(t, "bash", qoderFixtureValue[map[string]any](t, qoderFixtureValue[map[string]any](t, tools[0])["function"])["name"])
 }
 
-// TestQoderGatewayResponsesPreviousResponseIDReusesQoderSession continues
-// twice using generated previous-response IDs. The first two client IDs must
-// differ, while all three upstream payloads retain one session and the second
-// and third requests carry their respective continuation prompts.
-func TestQoderGatewayResponsesPreviousResponseIDReusesQoderSession(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-
-	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"instructions":"be terse",
-		"input":"hello",
-		"stream":false
-	}`))
-	firstID := gjson.Get(firstResponse, "id").String()
-	require.NotEmpty(t, firstID)
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	_, secondResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"next",
-		"stream":false
-	}`))
-	secondID := gjson.Get(secondResponse, "id").String()
-	require.NotEmpty(t, secondID)
-	require.NotEqual(t, firstID, secondID)
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
-
-	qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(secondID)+`,
-		"input":"third",
-		"stream":false
-	}`))
-	thirdPayload := qoderPayloadAtForTest(t, client, 2)
-	require.Equal(t, firstPayload["session_id"], thirdPayload["session_id"])
-	require.Equal(t, "third", qoderPayloadPromptForTest(t, thirdPayload))
-}
-
-// TestQoderGatewayResponsesPreviousResponseIDIsScopedByProvider reuses a
-// response ID while switching providers. The second provider must receive a
-// different upstream session, preventing a client response alias from crossing
-// provider ownership.
-func TestQoderGatewayResponsesPreviousResponseIDIsScopedByProvider(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-	provider2 := *provider
-	provider2.ID = provider.ID + 1
-	svc.Tokens.Core.Sessions[provider2.ID] = providercore.QoderSessionCacheEntry[*qoder.SessionContext]{
-		CredentialsHash: providercore.QoderCredentialsHash(provider2.Credentials),
-		Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token-2"}},
-	}
-
-	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"input":"hello",
-		"stream":false
-	}`))
-	firstID := gjson.Get(firstResponse, "id").String()
-	require.NotEmpty(t, firstID)
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	qoderForwardResponsesResultAndBodyForTest(t, svc, &provider2, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"next",
-		"stream":false
-	}`))
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.NotEqual(t, firstPayload["session_id"], secondPayload["session_id"], "Qoder upstream sessions are provider-scoped; a response id from one provider must not alias another provider's session")
-}
-
-// TestQoderGatewayResponsesPreviousResponseIDWithExplicitSessionAppendsToExistingSession
-// combines a previous-response ID with explicit session continuation. The next
-// prompt must append through the existing upstream session rather than create
-// a separate conversation.
-func TestQoderGatewayResponsesPreviousResponseIDWithExplicitSessionAppendsToExistingSession(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-
-	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"session_id":"responses-explicit-session",
-		"input":"hello",
-		"stream":false
-	}`))
-	firstID := gjson.Get(firstResponse, "id").String()
-	require.NotEmpty(t, firstID)
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"session_id":"responses-explicit-session",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"next",
-		"stream":false
-	}`))
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
-}
-
-// TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey mixes
-// a stable prompt-cache key with generated response aliases and a branch from
-// the first response. Linear requests reuse the session. A fork starts a new
-// session containing the exact original response and excludes the later turn.
-func TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-
-	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"prompt_cache_key":"responses-cache-session",
-		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}],
-		"stream":false
-	}`))
-	firstID := gjson.Get(firstResponse, "id").String()
-	require.NotEmpty(t, firstID)
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"prompt_cache_key":"responses-cache-session",
-		"input":[
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]},
-			{"type":"message","role":"user","content":[{"type":"input_text","text":"next"}]}
-		],
-		"stream":false
-	}`))
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-
-	qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"branch from first id",
-		"stream":false
-	}`))
-	thirdPayload := qoderPayloadAtForTest(t, client, 2)
-	require.NotEqual(t, secondPayload["session_id"], thirdPayload["session_id"])
-	messages := qoderFixtureValue[[]any](t, thirdPayload["messages"])
-	require.Len(t, messages, 3)
-	require.Equal(t, "hello", qoderPayloadMessageTextForTest(qoderFixtureValue[map[string]any](t, messages[0])))
-	require.Equal(t, "OK", qoderPayloadMessageTextForTest(qoderFixtureValue[map[string]any](t, messages[1])))
-	require.Equal(t, "branch from first id", qoderPayloadPromptForTest(t, thirdPayload))
-}
-
-// TestQoderGatewayResponsesStreamEmptyOutputAliasesResponseIDToStableSession
-// creates a streaming Responses identity without content output. Its generated
-// alias must still continue the stable upstream session and carry the next
-// request prompt.
-func TestQoderGatewayResponsesStreamEmptyOutputAliasesResponseIDToStableSession(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-	client.Body = "data: {\"body\":\"[DONE]\"}\n\n"
-
-	_, firstStream := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"prompt_cache_key":"responses-empty-stream-session",
-		"input":"hello",
-		"stream":true
-	}`))
-	firstID := qoderResponsesCompletedEventForTest(t, firstStream).Get("response.id").String()
-	require.NotEmpty(t, firstID)
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	client.Body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
-		map[string]any{"delta": map[string]any{"content": "OK"}},
-	}}) + "data: {\"body\":\"[DONE]\"}\n\n"
-	qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"next",
-		"stream":false
-	}`))
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
-}
-
-// TestQoderGatewayResponsesStreamPreviousResponseIDReusesQoderSession
-// continues a streaming Responses conversation by its created ID. Created and
-// completed identities must agree per response, while later client IDs change
-// and upstream session identity stays stable.
-func TestQoderGatewayResponsesStreamPreviousResponseIDReusesQoderSession(t *testing.T) {
-	provider, svc, client := gatewaytestkit.NewDefaultQoderFixture()
-
-	_, firstStream := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"instructions":"be terse",
-		"input":"hello",
-		"stream":true
-	}`))
-	firstCreated := qoderResponsesCreatedEventForTest(t, firstStream)
-	firstCompleted := qoderResponsesCompletedEventForTest(t, firstStream)
-	firstID := firstCreated.Get("response.id").String()
-	require.NotEmpty(t, firstID)
-	require.Equal(t, firstID, firstCompleted.Get("response.id").String())
-	firstPayload := qoderPayloadAtForTest(t, client, 0)
-
-	_, secondStream := qoderForwardResponsesResultAndBodyForTest(t, svc, provider, []byte(`{
-		"model":"deepseek-v4-pro",
-		"previous_response_id":`+strconv.Quote(firstID)+`,
-		"input":"next",
-		"stream":true
-	}`))
-	secondCreated := qoderResponsesCreatedEventForTest(t, secondStream)
-	secondCompleted := qoderResponsesCompletedEventForTest(t, secondStream)
-	secondID := secondCreated.Get("response.id").String()
-	require.NotEmpty(t, secondID)
-	require.NotEqual(t, firstID, secondID)
-	require.Equal(t, secondID, secondCompleted.Get("response.id").String())
-	secondPayload := qoderPayloadAtForTest(t, client, 1)
-	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
-}
-
 // TestQoderGatewayResponsesStreamsDeclaredFunctionCallEvents streams an
 // upstream tool under a declared lowercase name. Responses item and
 // argument-completion events must expose bash and valid JSON, beginning with
@@ -2206,21 +1991,6 @@ func qoderForwardResponsesResultAndBodyForTest(t *testing.T, svc *gatewaytestkit
 	return result, rec.Body.String()
 }
 
-// qoderResponsesCreatedEventForTest returns the first decoded response.created
-// fixture event. Missing creation fails the test after scanning supported
-// Responses data fields, preventing callers from silently comparing an absent
-// response identity.
-func qoderResponsesCreatedEventForTest(t *testing.T, body string) gjson.Result {
-	t.Helper()
-	for _, event := range qoderResponsesStreamEventsForTest(t, body) {
-		if event.Get("type").String() == "response.created" {
-			return event
-		}
-	}
-	t.Fatalf("response.created event not found in %s", body)
-	return gjson.Result{}
-}
-
 // qoderLastUpstreamPayloadForTest decodes the final recorded Qoder request
 // payload. A nil client or empty capture fails the test before indexed
 // reading; callers receive a decoded object from the fixture’s latest call.
@@ -2456,7 +2226,7 @@ func TestQoderConversationKeyPrefersExplicitSessionOverClaudeCodeStableSeed(t *t
 		Messages: []qoder.QoderMessage{{Role: "user", Text: "inspect"}},
 	}
 
-	key, source := qoder.QoderConversationKey(QoderRequestMetadata(c), 7, "anthropic_messages", request)
+	key, source := qoder.QoderConversationKey(QoderRequestMetadata(c), 7, request)
 
 	require.Equal(t, "header", source)
 	require.Equal(t, qoder.QoderProviderScopedConversationKey(7, "header:"+upstreamcore.IsolateSessionID(0, "header-session")), key)
@@ -2478,7 +2248,7 @@ func TestQoderConversationKeyPrefersMetadataOverClaudeCodeStableSeed(t *testing.
 		Messages:       []qoder.QoderMessage{{Role: "user", Text: "inspect"}},
 	}
 
-	key, source := qoder.QoderConversationKey(QoderRequestMetadata(c), 7, "anthropic_messages", request)
+	key, source := qoder.QoderConversationKey(QoderRequestMetadata(c), 7, request)
 
 	require.Equal(t, "metadata_user_id", source)
 	require.Equal(t, qoder.QoderProviderScopedConversationKey(7, "metadata_user_id:"+upstreamcore.IsolateSessionID(0, "session-123")), key)

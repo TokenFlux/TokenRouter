@@ -5,6 +5,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -62,7 +63,7 @@ func (s *ModelAttributeService) ResolveMarketplaceGroups(ctx context.Context, gr
 	language := locale.FromContext(ctx)
 	for _, id := range ids {
 		models := make(map[string]MarketplaceModelAttributes, len(groups[id]))
-		cache := make(map[modelcatalog.TargetKey]modelcatalog.Attributes)
+		cache := make(map[modelrules.TargetKey]modelcatalog.Attributes)
 		for _, model := range groups[id] {
 			resolved := s.resolveModelRoutes(view, configs[id], model, language, candidates, cache)
 			presentation := modelcatalog.Union(resolved.values)

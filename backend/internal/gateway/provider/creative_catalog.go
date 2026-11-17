@@ -5,8 +5,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
-	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 )
 
 // creative_catalog.go applies execution model rules to creative image
@@ -27,7 +27,7 @@ type creativeCatalogProvider struct {
 
 // AttributeTarget describes the supplied model for the provider's attribute
 // lookup service.
-func (a creativeCatalogProvider) AttributeTarget(model string) modelcatalog.Target {
+func (a creativeCatalogProvider) AttributeTarget(model string) modelrules.Target {
 	return a.policy.Record.ModelAttributeTarget(model, "")
 }
 
