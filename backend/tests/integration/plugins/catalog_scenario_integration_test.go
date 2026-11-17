@@ -117,7 +117,7 @@ func TestSignedCatalogInstallationAndFailedUpdate(t *testing.T) {
 	require.NoError(t, err)
 	configuration := plugin.NewConfiguration(cipher, true)
 	processes := provider.NewProcesses(plugin.RuntimeOptions{HostVersion: "0.6.0", InstanceID: "catalog-test", Timezone: "UTC"}, logger, nil)
-	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.6.0", StateRoot: filepath.Join(directory, "state")}, store, packages, processes, configuration, logger)
+	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 20, HostVersion: "0.6.0", StateRoot: filepath.Join(directory, "state")}, store, packages, processes, configuration, nil, logger)
 	catalog := plugin.NewCatalogService(plugin.CatalogOptions{Enabled: true, Host: manifest.HostInfo{Version: "0.6.0", APIVersions: []int{1}, Platform: platform, Permissions: manifest.Permissions()}}, store, store, fetcher, logger)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)

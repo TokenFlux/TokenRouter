@@ -76,7 +76,7 @@ func TestPackageRepairRestoresSameSizeCorruption(t *testing.T) {
 	processes := NewProcesses(plugin.RuntimeOptions{}, nil, nil)
 	manager := plugin.NewManager(
 		plugin.ManagerOptions{Enabled: true, MaxRunning: 1, HostVersion: "0.6.0"},
-		&repairInstallationStore{}, packages, processes, plugin.NewConfiguration(nil, false), nil,
+		&repairInstallationStore{}, packages, processes, plugin.NewConfiguration(nil, false), nil, nil,
 	)
 	// Cleanup gets its own deadline because the test context is canceled before
 	// cleanup callbacks run, while lifecycle shutdown must still finish its work.
@@ -130,7 +130,7 @@ func TestForcedSameVersionPackagesRetainIndependentRollbackBytes(t *testing.T) {
 	require.NoError(t, err)
 	processes := NewProcesses(plugin.RuntimeOptions{}, nil, nil)
 	manager := plugin.NewManager(plugin.ManagerOptions{Enabled: true, MaxRunning: 1, HostVersion: "0.6.0"},
-		&repairInstallationStore{}, packages, processes, plugin.NewConfiguration(nil, false), nil)
+		&repairInstallationStore{}, packages, processes, plugin.NewConfiguration(nil, false), nil, nil)
 	t.Cleanup(func() { require.NoError(t, manager.Stop(context.Background())) })
 	service := plugin.NewService(manager, packages, nil, nil)
 	first, err := packages.Preview(t.Context(), bytes.NewReader(packageArchive(t, "1.0.0")))

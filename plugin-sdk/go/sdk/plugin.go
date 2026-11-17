@@ -60,13 +60,19 @@ type Shutdowner interface {
 
 // Env holds process-generation identity, configuration, logging, and host capabilities.
 type Env struct {
-	PluginID        string   // publisher-qualified plugin identity
-	Version         string   // running plugin release version
-	PreviousVersion string   // previous running release version
-	HostVersion     string   // host release build version
-	InstanceID      string   // host process instance identity
-	StateDir        string   // disposable local cache directory
-	Permissions     []string // administrator-granted capability names
+	PluginID        string // publisher-qualified plugin identity
+	Version         string // running plugin release version
+	PreviousVersion string // previous running release version
+	HostVersion     string // host release build version
+	InstanceID      string // host process instance identity
+	StateDir        string // disposable local cache directory
+
+	// DataDir is the host-managed persistent directory for this plugin ID. It
+	// survives ordinary uninstall; older hosts leave it empty, so plugins using
+	// local business files must check availability before opening a database.
+	DataDir string
+
+	Permissions []string // administrator-granted capability names
 	// Config keeps a stable concurrent-read handle; the SDK publishes complete snapshots whenever the host applies new configuration.
 	Config Config
 	Host   *Host        // authenticated host capability client

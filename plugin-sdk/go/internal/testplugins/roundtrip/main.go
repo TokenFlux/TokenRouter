@@ -73,6 +73,7 @@ func (p *plugin) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		"balance":  wallet.BalanceAfter,
 		"amount":   p.env.Config.String("amount"),
 		"plugin":   p.env.PluginID,
+		"data_dir": p.env.DataDir,
 	})
 }
 

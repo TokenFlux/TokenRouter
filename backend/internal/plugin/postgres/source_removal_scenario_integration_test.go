@@ -99,7 +99,7 @@ func TestUpdateRestoresHistoryAfterSourceRemoval(t *testing.T) {
 	}
 	manager := plugin.NewManager(plugin.ManagerOptions{
 		Enabled: true, MaxRunning: 1, HostVersion: "0.5.4", StateRoot: t.TempDir(),
-	}, store, sourceRemovalPackages{}, processes, plugin.NewConfiguration(nil, false), logger)
+	}, store, sourceRemovalPackages{}, processes, plugin.NewConfiguration(nil, false), nil, logger)
 	require.NoError(t, manager.Sync(t.Context(), original.PluginID))
 	service := plugin.NewService(manager, nil, sourceRemovalResolver{target: candidate}, nil)
 	// Candidate replacement deletes its source after persistence, forcing recovery

@@ -477,7 +477,10 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	redeemCodes := providePluginRedeemCodes(writes, grants, plans, redeemService)
 	hostServices := providePluginHostServices(walletService, subscriptions, queries, emails, captchaVerifier, kv, redeemCodes, grants, auditLogService)
 	processes := providePluginProcesses(cfg, info, hostServices)
-	pluginManager := providePluginManager(cfg, info, devSource, configuration, packageFiles, processes)
+	pluginManager, err := providePluginManager(cfg, info, devSource, configuration, packageFiles, processes)
+	if err != nil {
+		return nil, err
+	}
 	catalogService, err := providePluginCatalog(cfg, info, store2, devSource)
 	if err != nil {
 		return nil, err

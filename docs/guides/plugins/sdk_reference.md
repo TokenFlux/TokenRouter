@@ -6,7 +6,7 @@ Go 入口是 `sdk.Serve(plugin)`，前端入口是 `definePlugin({pages})`。完
 
 | Go 接口 | 用途 |
 | --- | --- |
-| `Plugin.Init(ctx, env)` | 接收插件/宿主版本、配置、宿主客户端与状态目录；成功后才可接收调用 |
+| `Plugin.Init(ctx, env)` | 接收插件/宿主版本、配置、宿主客户端、缓存目录与持久数据目录；成功后才可接收调用 |
 | `HTTPPlugin.Handler()` | 提供 manifest 声明的 HTTP 处理器 |
 | `TaskPlugin.RunTask(ctx, name, scheduled)` | 处理宿主时区调度的任务；同名任务不重叠 |
 | `ConfigWatcher.ConfigChanged(ctx, cfg)` | 应用已保存的配置；未实现时宿主重启进程 |
@@ -38,6 +38,16 @@ Config 提供 String、Float、Int、Bool、Secret 等读取器。secret 在宿�
 资金、兑换、订阅和邮件操作需要稳定的幂等键。同一插件跨能力共享键空间，应使用 `capability:business-id` 等可区分格式；重试同一业务时保持键与业务参数不变。余额金额使用字符串并通过 `ParseAmount` 验证，不要先转换为浮点数再计算。
 
 `EMAIL_DELIVERY_UNKNOWN` 表示宿主无法确定投递结果。应向管理员展示待核对状态，不换新键自动再发。其他宿主哨兵错误可用 `errors.Is` 判断；HTTP 处理器可使用 `sdk.WriteJSON` 和 `sdk.WriteError`。
+
+## 本地持久存储
+
+`env.DataDir` 是宿主自动创建的插件专属持久目录。SQLite 插件引入自己的驱动后，将数据库路径设为 `filepath.Join(env.DataDir, "plugin.sqlite")` 即可，管理员无需配置连接地址。Init 应检查 DataDir 非空；Shutdown 应停止工作并关闭数据库连接。`env.StateDir` 用于缓存和临时文件。
+
+本地目录在普通卸载后保留，重装相同 ID 时复用。管理员可在插件目录的“本地数据”页查看占用、导出 ZIP、恢复空目录或清除已卸载数据。导出前先停用插件。插件负责数据格式版本与代码回滚的兼容检查。宿主分配目录，不提供 SQLite 驱动或跨存储事务。
+
+单元测试使用 `plugintest.New(t).Env`，其中的 `DataDir` 和 `StateDir` 是每个测试宿主独立的可写临时目录。插件完成测试后应关闭数据库和文件句柄，再由 Go testing 自动删除目录。该工具不模拟宿主更新、卸载、备份或恢复流程。
+
+PostgreSQL/MySQL 连接串及 S3/MinIO 密钥由插件在 manifest config 中声明，敏感字段使用 secret，再通过 `env.Config.Secret` 读取。插件使用自己的客户端建立连接，并在 network 中声明外部主机名。外部存储不随本地目录导出或清除。
 
 ## KV 与数据兼容
 

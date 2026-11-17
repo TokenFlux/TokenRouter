@@ -8,10 +8,61 @@ import (
 // management_operations.go registers plugin administration in the shared MCP
 // operation catalog. Executable changes and capability policy edits declare
 // step-up requirements, which the route registrar also enforces for direct HTTP.
-// Multipart upload uses a browser handoff because MCP requests carry JSON bodies.
+// File uploads use a browser handoff because MCP requests carry JSON bodies.
 
 // ManagementOperations owns stable permission identities and schemas for every installed-plugin administrative route mounted by this module's registrar.
 var ManagementOperations = map[string]*adminapi.Operation{
+	"plugins.data.list": adminapi.Define(adminapi.Operation{
+		ID:          "plugins.data.list",
+		Module:      "plugins",
+		Title:       "List retained plugin data",
+		Description: "List local plugin business directories, including uninstalled owners, with byte and file counts. Absolute paths and file contents are omitted.",
+		Method:      "GET",
+		Path:        "/api/v1/admin/plugins/data",
+		ReadOnly:    true,
+		BrowserPath: "/admin/plugins?view=data",
+		Input:       adminapi.Arguments("/api/v1/admin/plugins/data", nil, nil),
+		Output:      adminapi.JSONResponse((*[]plugin.DataUsage)(nil)),
+	}),
+	"plugins.data.delete": adminapi.Define(adminapi.Operation{
+		ID:          "plugins.data.delete",
+		Module:      "plugins",
+		Title:       "Purge retained plugin data",
+		Description: "Delete an uninstalled plugin's local business files and KV. A concurrent reinstall is excluded; financial and delivery ledgers remain retained.",
+		Method:      "DELETE",
+		Path:        "/api/v1/admin/plugins/:id/data",
+		Sensitive:   true,
+		StepUp:      true,
+		BrowserPath: "/admin/plugins?view=data",
+		Input:       adminapi.Arguments("/api/v1/admin/plugins/:id/data", nil, nil),
+	}),
+	"plugins.data.backup": adminapi.Define(adminapi.Operation{
+		ID:          "plugins.data.backup",
+		Module:      "plugins",
+		Title:       "Download plugin data backup",
+		Description: "Download a checksummed ZIP of local files for a disabled or uninstalled plugin. Host SQL, configuration, and external storage require separate backups.",
+		Method:      "GET",
+		Path:        "/api/v1/admin/plugins/:id/data/archive",
+		ReadOnly:    true,
+		Sensitive:   true,
+		StepUp:      true,
+		Response:    adminapi.ResponseFile,
+		BrowserPath: "/admin/plugins?view=data",
+		Input:       adminapi.Arguments("/api/v1/admin/plugins/:id/data/archive", nil, nil),
+	}),
+	"plugins.data.restore": adminapi.Define(adminapi.Operation{
+		ID:          "plugins.data.restore",
+		Module:      "plugins",
+		Title:       "Restore plugin data backup",
+		Description: "Upload a raw application/zip backup for its matching plugin ID while disabled or uninstalled. The destination must be absent or empty; nonempty data is never overwritten.",
+		Method:      "POST",
+		Path:        "/api/v1/admin/plugins/:id/data/archive",
+		Sensitive:   true,
+		StepUp:      true,
+		Response:    adminapi.ResponseBrowser,
+		BrowserPath: "/admin/plugins?view=data",
+		Input:       adminapi.Arguments("/api/v1/admin/plugins/:id/data/archive", nil, nil),
+	}),
 	"plugins.list": adminapi.Define(adminapi.Operation{
 		ID:          "plugins.list",
 		Module:      "plugins",
@@ -103,7 +154,7 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		ID:          "plugins.delete",
 		Module:      "plugins",
 		Title:       "Uninstall plugin",
-		Description: "Drain executable calls and host callbacks, then remove the installation. purge_data=true also deletes its KV data in the same transaction. Financial and delivery ledger history remains.",
+		Description: "Drain executable calls and host callbacks, then remove the installation. purge_data=true also deletes its KV in the same transaction and then removes local business files; failed file cleanup remains retryable. Financial and delivery ledger history remains.",
 		Method:      "DELETE",
 		Path:        "/api/v1/admin/plugins/:id",
 		Sensitive:   true,

@@ -140,7 +140,7 @@ Usage export 产物默认在任务完成后保留 24 小时（由 `usage.export_
 
 backup 使用 PostgreSQL dump，把产物流式写到本地或 S3 兼容存储；配置、记录、定时调度和恢复都受维护锁保护。默认的内容策略，会排除 `backupContentTableDataGroups` 里归类的 usage records、Ops logs、专项 audit history 和 runtime data，这四类都需要手动选择。提供商余额提醒的最近轮次和下次检查时间属于 `runtime_data`，配置仍保存在提供商 Extra 中；恢复时没有运行状态会在下一轮扫描重新检查。使用记录导出任务表 `usage_export_tasks` 也属于 `runtime_data`，对应的本地 `exports/usage` CSV 文件不在数据库 dump 中；恢复后缺失本地文件的已完成任务在下载时返回已过期。备份显示 completed，只说明已经写出了所选的内容，不代表这四类都在文件里。
 
-`plugin_indexes`、`plugin_installations`、`plugin_kv` 和 `plugin_ledger` 属于始终包含的业务数据。台账承载幂等执行证据，不能归入可排除的日志或 runtime_data。恢复数据库时也要恢复固定的 TOTP 加密密钥；本地安装包不在 dump 中，上传来源需要保留原归档，索引来源按已接受摘要重新下载。
+`plugin_indexes`、`plugin_installations`、`plugin_kv` 和 `plugin_ledger` 属于始终包含的业务数据。台账承载幂等执行证据，不能归入可排除的日志或 runtime_data。恢复数据库时也要恢复固定的 TOTP 加密密钥；本地安装包与 `plugins.dir/data/<id>/` 业务目录不在 dump 中，上传来源需要保留原归档，索引来源按已接受摘要重新下载。本地业务文件采用停用插件后的 ZIP 导出或停机数据卷备份，见[插件备份](plugin_operations.md#backup)。
 
 新建备份的文件名统一为 `tr_YYYYMMDD_HHMMSS.sql.gz`，前缀固定为 `tr`。本地和 S3 存储使用这个文件名生成对象路径，下载和恢复读取备份记录中保存的名称与对象键；已有的 `sub2api` 前缀备份继续按原记录访问。
 

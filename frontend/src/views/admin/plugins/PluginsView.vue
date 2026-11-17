@@ -15,6 +15,7 @@ import { pluginText } from '@/components/plugin/configurationFields'
 import { isStepUpCancelled } from '@/composables/useStepUp'
 import { usePluginsStore } from '@/stores/plugins'
 import InstalledPluginList from './InstalledPluginList.vue'
+import PluginDataPanel from './PluginDataPanel.vue'
 import PluginCatalogGrid from './PluginCatalogGrid.vue'
 import PluginUploadDialog from './PluginUploadDialog.vue'
 import { usePluginAdministration } from './usePluginAdministration'
@@ -22,10 +23,11 @@ import { usePluginCatalog } from './usePluginCatalog'
 import { pluginErrorMessage } from './pluginErrors'
 
 // PluginsView.vue is the plugin directory: installed plugins, plugins with offered
-// updates, and the catalog of source-qualified plugins to discover. The active view
+// updates, the source-qualified catalog, and durable local plugin data. The active view
 // lives in query.view so links and reloads keep it, and one search box filters
-// whichever view is visible. Every row and card opens the plugin detail page, which
-// owns configuration, logs, versions, and destructive actions.
+// installed and catalog entries. Installed rows and catalog cards open the detail
+// page for configuration, logs, and versions. The local-data view also manages
+// retained directories whose plugins have been uninstalled.
 //
 // Enablement stays editable from the list because it is the most frequent lifecycle
 // action. Writes pass through the shared administration controller, so step-up and
@@ -35,7 +37,7 @@ import { pluginErrorMessage } from './pluginErrors'
 // controls and new package installation.
 
 /** PluginView names the query-persisted directory views. */
-type PluginView = 'installed' | 'updates' | 'discover'
+type PluginView = 'installed' | 'updates' | 'discover' | 'data'
 
 // Route state, shared stores, and the two observation controllers feed the views.
 const { t, locale } = useI18n()
@@ -45,7 +47,7 @@ const discovery = usePluginsStore()
 const administration = usePluginAdministration()
 const { installations, loading, busy, error, stepUp } = administration
 const view = computed<PluginView>(() =>
-  route.query.view === 'updates' || route.query.view === 'discover'
+  route.query.view === 'updates' || route.query.view === 'discover' || route.query.view === 'data'
     ? route.query.view
     : 'installed',
 )
@@ -74,6 +76,7 @@ const views = computed(() => [
     count: updates.value.length,
   },
   { key: 'discover' as const, label: t('admin.plugins.directory.discover'), count: 0 },
+  { key: 'data' as const, label: t('admin.plugins.data.title'), count: 0 },
 ])
 const categories = computed(() => [
   { value: '', label: t('admin.plugins.market.allCategories') },
@@ -231,9 +234,13 @@ function installed(result: PluginChange): void {
       <SettingsNotice v-if="discovery.disabled" tone="warning">{{
         t('admin.plugins.disabledNotice')
       }}</SettingsNotice>
-      <SettingsNotice v-if="actionError || (error && view !== 'discover')" tone="error">{{
-        actionError || pluginErrorMessage(error, t('admin.plugins.loadFailed'))
-      }}</SettingsNotice>
+      <SettingsNotice
+        v-if="actionError || (error && view !== 'discover' && view !== 'data')"
+        tone="error"
+        >{{
+          actionError || pluginErrorMessage(error, t('admin.plugins.loadFailed'))
+        }}</SettingsNotice
+      >
       <SettingsNotice v-if="catalogError && view === 'discover'" tone="error">{{
         pluginErrorMessage(catalogError, t('admin.plugins.loadFailed'))
       }}</SettingsNotice>
@@ -245,7 +252,7 @@ function installed(result: PluginChange): void {
           }}</RouterLink></p
         >
       </SettingsNotice>
-      <div class="flex flex-wrap items-center gap-2">
+      <div v-if="view !== 'data'" class="flex flex-wrap items-center gap-2">
         <div class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-1">
           <SearchInput
             v-model="search"
@@ -291,7 +298,8 @@ function installed(result: PluginChange): void {
         </div>
       </div>
 
-      <template v-if="view !== 'discover'">
+      <PluginDataPanel v-if="view === 'data'" />
+      <template v-else-if="view !== 'discover'">
         <InstalledPluginList
           v-if="(loading && !installations.length) || visibleInstallations.length"
           :installations="visibleInstallations"

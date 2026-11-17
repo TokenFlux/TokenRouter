@@ -94,15 +94,20 @@ type LogReader interface {
 
 // ProcessSpec supplies immutable inputs for starting one plugin generation.
 type ProcessSpec struct {
-	PluginID        string   // publisher-qualified installation identifier
-	Version         string   // desired plugin release version
-	PreviousVersion string   // previously running release version
-	Executable      string   // absolute verified executable path
-	BinarySHA256    string   // expected executable SHA-256 digest
-	StateDir        string   // absolute disposable process state directory
-	ConfigJSON      []byte   // normalized decrypted configuration object
-	Permissions     []string // administrator-granted capability names
-	MemoryMiB       int      // advisory process memory limit
+	PluginID        string // publisher-qualified installation identifier
+	Version         string // desired plugin release version
+	PreviousVersion string // previously running release version
+	Executable      string // absolute verified executable path
+	BinarySHA256    string // expected executable SHA-256 digest
+	StateDir        string // absolute disposable process state directory
+
+	// DataDir identifies the host-created persistent directory for business files.
+	// Internal callers without local storage leave it empty; production supplies it.
+	DataDir string
+
+	ConfigJSON  []byte   // normalized decrypted configuration object
+	Permissions []string // administrator-granted capability names
+	MemoryMiB   int      // advisory process memory limit
 	// VerifyBinary is false only for trusted development directories; installed release executables require a matching digest before process launch.
 	VerifyBinary bool
 }

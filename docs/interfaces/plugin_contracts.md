@@ -53,7 +53,7 @@
 
 `/api/v1/admin/plugins` 提供已安装列表和安装操作；`/uploads` 接收 multipart 的 `file` 字段，返回 `upload_token`、过期时间、manifest、摘要和平台。上传安装使用 `{source: "upload", upload_token, accept_permissions, enable}`，索引安装使用 `{source: "index", index_id, plugin_id, version, accept_permissions, enable}`，响应包含 installation、needs_configuration 和 repaired。需要确认 manifest 中的全部权限。安装和更新都接受可选的 `ignore_host_version`、`force`，默认均为 false；前者仅跳过最低和最高网关版本要求，后者允许替换同 ID 的持久化安装，包括相同版本。安装接口启用 force 时可显式替换来源；更新接口的索引来源仍固定为当前来源。未开启 force 时，同版本上传仍只用于修复缺失或无效的已安装包。
 
-`/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV，缺省保留，台账始终保留。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
+`/:id` 返回详情或卸载；DELETE 的 `purge_data=true` 清除 KV 与本地持久文件，缺省保留，台账始终保留。KV 与安装记录先事务提交，再清理文件；清理失败可重试。`/:id/enable`、`disable`、`restart` 控制运行意图和本地进程；`/:id/logs` 返回最近 500 行。安装列表和详情的可选 `tasks` 字段返回已登记任务的内存状态及最近执行结果；`next_run_at` 为零值时表示暂停。状态字段见[定时任务](../architecture/plugin_system.md#task_scheduling)。所有路由登记到 adminapi，执行代码、配置和额度变更通过实际 HTTP step-up guard；multipart 上传在 MCP 中使用浏览器入口。
 
 `/:id/update` 接受 `{version, accept_permissions}` 或 `{upload_token, accept_permissions}`。索引更新只能来自当前安装的来源；上传更新可以替换当前分发来源。新增权限未确认时，`PLUGIN_PERMISSIONS_NOT_ACCEPTED` 的 metadata 同时包含完整 permissions 与 new_permissions。`ignore_host_version` 随当前及上一包快照保存，重启和回滚继续使用对应决定；新一次安装或更新缺省重新执行版本检查。安装 DTO 的同名字段返回当前决定。`force` 只作用于本次请求，不跳过完整性、协议、平台、权限确认或配置校验，也不能覆盖开发目录。`/:id/rollback` 交换完整版本快照；失败更新返回 `PLUGIN_UPDATE_FAILED`，metadata 包含 version、start_error、最多 50 行 logs，以及成功恢复时的 restored_version 或恢复失败时的 rollback_error。
 
@@ -62,6 +62,19 @@
 `/:id/config` 的 GET 和 PUT 使用 `{values: {...}}`。普通字段按提交内容替换并补默认值；secret 省略保留、空字符串清除，返回值为 `{set: boolean}`。`/:id/limits` 接受 wallet、redeem、subscription、email 分组，未给出的字段使用默认值，显式 0 禁止对应操作，null 和未知字段被拒绝。金额额度采用精确十进制 JSON 数字；浏览器可能输出的指数形式会先无损归一化，仍限制为最多七位整数和八位小数。能力 RPC 的金额字符串继续要求普通十进制形式。
 
 管理表单保留数值输入原文，提交前检查整数安全范围与金额的实际小数位，避免 JavaScript 舍入把无效输入变成可接受的值。文本长度按 Unicode 字符计数；RE2 pattern 只由服务器执行，字段失败通过 metadata.fields 中的结构化问题定位。停用安装可保存未填完整的必填项，启用前仍需通过完整验证。配置与额度是两个独立保存动作，界面明确报告部分成功，并在重试时跳过已经完成且未再修改的配置。
+
+本地数据管理接口如下，路径均位于 `/api/v1/admin/plugins`：
+
+| 方法和路径 | 行为 |
+| --- | --- |
+| `GET /data` | 返回持久目录的 plugin_id、bytes、files、installed、enabled，包含已卸载插件 |
+| `DELETE /:id/data` | 清除已卸载插件的 KV 和本地目录，已安装时返回冲突 |
+| `GET /:id/data/archive` | 导出已停用或已卸载插件的 ZIP 数据备份 |
+| `POST /:id/data/archive` | 接收原始 `application/zip`，恢复到匹配 ID 的空目录或新目录 |
+
+清除、导出和恢复均要求管理员 step-up。恢复通过浏览器文件上传，不接受 MCP JSON 代替文件内容。备份成功响应不缓存，并返回附件下载头。档案和解压数据各限 1 GiB，最多 10000 个条目。相对路径最多 512 字节、20 层。ZIP 包含版本为 1 的 `manifest.json` 和 `data/` 下的文件及目录，清单记录 plugin_id、相对路径、目录标记、字节数和 SHA-256。符号链接、特殊文件、重复路径及未声明条目被拒绝。档案不包含宿主配置、KV、台账或外部存储。
+
+`PLUGIN_DATA_REQUIRES_STOP` 要求先停用插件；`PLUGIN_DATA_EXISTS` 表示目标非空；`PLUGIN_DATA_NOT_FOUND` 表示没有本地目录；`PLUGIN_DATA_INVALID` 表示目录或档案校验失败；`PLUGIN_DATA_TOO_LARGE` 表示超过档案限制。普通插件 HTTP 的大小限制保持原值。
 
 <a id="http_contributions"></a>
 ## HTTP 贡献与公开资源
@@ -83,6 +96,8 @@
 
 `plugin-sdk/go/proto/tokenrouter/plugin/v1/plugin.proto` 是协议源，`make -C plugin-sdk/go proto` 用 go.mod 固定的工具生成 `pluginpb/v1`。Plugin 是必需服务，HTTPHandler 和 TaskRunner 对应可选贡献；Host 由宿主经 GRPCBroker 提供。
 
+`InitRequest.data_dir` 是宿主为该插件 ID 创建的持久目录，对应 Go `sdk.Env.DataDir`。`state_dir` 继续用于可丢弃缓存。旧宿主省略 `data_dir` 时字段为空；依赖本地业务文件的插件应在 Init 检查此值，并将正式支持该能力的宿主版本设为 `minHostVersion`。
+
 SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢复和父进程看门狗。HTTP 处理器 panic 返回 HTTP 500，生命周期 panic 转为 gRPC Internal；插件自行创建的 goroutine 需要自行处理 panic。忽略取消且仍未返回的 HTTP 或任务回调会让 SDK 健康检查失败。
 
 宿主能力按站点、用户、钱包、兑换码、订阅、用量、订单、模型、邮件、验证码和 KV 分组。金额使用十进制字符串，扣款和本人用量调用从 `Caller` 中取得私有 grant。SDK 将 ErrorInfo reason 映射为可用 `errors.Is` 判断的错误，包括投递结果不明的 `ErrEmailDeliveryUnknown`；该结果不得通过更换幂等键盲目重发邮件。
@@ -96,7 +111,7 @@ SDK 的 `Serve` 处理握手、日志、请求转换、配置更新、panic 恢�
 
 `VerifyCaptcha` 要求 `captcha.verify`。站点未启用验证码时返回 `enabled=false, success=true`；启用状态与验证使用同一份配置。Turnstile 与阿里云保留原始 token，腾讯使用包含 `ticket`、`randstr` 的 JSON 字符串。SDK 从 `Caller` 传递原 HTTP 请求的客户端 IP。现有验证服务判为失败的挑战返回 `success=false`；配置或未分类服务错误返回 `HOST_UNAVAILABLE`。原认证入口继续执行其启动配置中的必需验证码约束。
 
-`plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。它不替代宿主的权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
+`plugintest` 提供进程内 gRPC 假宿主、余额和 KV，可注入协议错误。`plugintest.New(t)` 为每个测试宿主提供独立、可写的 `Env.StateDir` 和 `Env.DataDir`，测试结束时自动清理；插件应先关闭数据库和文件句柄。临时目录支持本地文件测试，不替代真实宿主的卸载保留、备份恢复、权限、额度、审计及 PostgreSQL 事务测试。签到示例使用 pending 记录固定奖励金额，再调用钱包幂等加款，最后 CAS 标记完成，允许恢复在 KV 认领后失败的加款。
 
 <a id="kv_api"></a>
 ## KV 接口

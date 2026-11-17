@@ -10,6 +10,7 @@
 //   - index_client.go fetches bounded signed catalogs under explicit trust policies.
 //   - process_*.go handles child commands, platform process rules, resources, and bounded logs.
 //   - package_*.go handles uploads, downloads, verification, and development directories.
+//   - data_files.go and data_archives.go retain local business files and validate stopped-owner snapshots.
 //   - host_*.go binds capabilities, translates RPCs, observes writes, and tracks actual callback return.
 //   - grpc_plugin.go implements the go-plugin handshake and broker service connection.
 package provider

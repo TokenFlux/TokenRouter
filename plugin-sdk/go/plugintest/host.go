@@ -32,11 +32,13 @@ import (
 // the interceptor hook instead of fabricating production behavior.
 //
 // The fake host serializes its mutable records with one mutex and intentionally
-// omits production permission checks, quotas, persistence, and audit delivery.
+// omits production permission checks, quotas, durable host storage, and audit delivery.
 // Tests that need those failures inject their protocol errors explicitly.
 // Testing cleanup closes the client, server, and listener after author work
 // completes, while request helpers attach synthetic private caller metadata
 // through the same internal context representation used by the SDK adapter.
+// Separate temporary state and data directories let plugins exercise local
+// storage without sharing files between harnesses or retaining them after tests.
 
 // Harness holds the fake server, connected SDK client, and initialized environment.
 type Harness struct {
@@ -74,6 +76,8 @@ type ledgerEntry struct {
 // New creates a connected fake host and registers cleanup with the test.
 // The returned Env starts with empty configuration and a discarded logger.
 // Authors may replace its config before invoking their plugin's Init method.
+// Each harness receives separate, writable StateDir and DataDir directories;
+// testing cleanup removes both after the test and its subtests finish.
 func New(t testing.TB) *Harness {
 	t.Helper()
 	host := &Host{balances: make(map[int64]*big.Rat), records: make(map[string]record), ledger: make(map[string]ledgerEntry), failures: make(map[string]error)}
@@ -97,7 +101,19 @@ func New(t testing.TB) *Harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Harness{Server: host, Env: &sdk.Env{PluginID: "test.plugin", Version: "1.0.0", HostVersion: "0.0.0-dev", StateDir: t.TempDir(), Config: config, Host: sdk.NewHost(pluginpb.NewHostClient(connection)), Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}}
+	return &Harness{
+		Server: host,
+		Env: &sdk.Env{
+			PluginID:    "test.plugin",
+			Version:     "1.0.0",
+			HostVersion: "0.0.0-dev",
+			StateDir:    t.TempDir(),
+			DataDir:     t.TempDir(),
+			Config:      config,
+			Host:        sdk.NewHost(pluginpb.NewHostClient(connection)),
+			Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		},
+	}
 }
 
 // Request invokes an author's HTTP handler with synthetic host caller metadata.
