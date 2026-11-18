@@ -31,7 +31,9 @@ TokenRouter 通过 Qoder COSY 网关路径，支持 Qoder 原生的上游提供�
 
 ## 客户端协议
 
-Qoder Cosy 的原生协议只有 `qoder_chat`；对外的 Messages、Responses 和 Chat，由分组明确映射到这个协议。分组可以开放哪些入口，见[统一协议能力](protocol_capabilities.md#group_protocol_routes)。管理员关闭全部文本协议时，用户"使用 Key"的界面显示没有可用的文本协议，网关在提供商选择和计费之前，返回对应协议的 `403`。
+Qoder Cosy 的原生协议是 `qoder_chat`。分组开放 Messages、Responses 或 Chat 入口，且提供商启用了 `qoder_chat` 时，网关按分组的 `protocol_fallbacks` 选路。映射表里没有该入口时，网关自动匹配 `qoder_chat`。显式列出转换目标时，列表须包含 `qoder_chat` 才能选择 Qoder。将该入口设为 `[]` 时，只允许原生协议，Qoder 不参与该入口的调度。
+
+分组可以开放哪些入口，见[统一协议能力](protocol_capabilities.md#group_protocol_routes)。管理员关闭全部文本协议时，用户"使用 Key"的界面显示没有可用的文本协议，网关在提供商选择和计费之前，返回对应协议的 `403`。
 
 协议开关不影响 Qoder 的站点、模型路由、思考控制和提供商资格。Responses 子路径和 WebSocket 不属于 Qoder 的能力，启用 Responses 协议也不会开放它们。
 
