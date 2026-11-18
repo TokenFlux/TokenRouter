@@ -2,12 +2,8 @@ package qoder
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -60,7 +56,7 @@ type (
 	// expiry.
 	CNPATExchanger func(context.Context, string, *MachineIdentity) (*AuthIdentity, time.Time, error)
 	// OrganizationTagsGetter looks up optional organization metadata using an
-	// access token and UID.
+	// access token and organization ID.
 	OrganizationTagsGetter func(context.Context, string, string) (*OrganizationTags, error)
 )
 
@@ -263,88 +259,62 @@ func (p *SessionBuilder) defaultExchangeCNPAT(provider *CredentialInput) CNPATEx
 	}
 }
 
-// populateOrganizationFromAPI mutates an identity with optional organization
-// tags before session publication. Existing organization IDs and missing
-// token/user inputs skip lookup. Callback or transport lookup failures leave the
-// identity usable and are suppressed.
+// populateOrganizationFromAPI resolves optional organization metadata before session
+// publication. Device grants retain their authorized organization. Legacy credentials
+// without a stored organization can discover it from authenticated userinfo.
+// The tags endpoint accepts only an organization ID, including for PAT sessions.
 func (p *SessionBuilder) populateOrganizationFromAPI(ctx context.Context, provider *CredentialInput, identity *AuthIdentity) {
-	if p == nil || identity == nil {
+	if p == nil || identity == nil || identity.SecurityOauthToken == "" {
 		return
 	}
-	if strings.TrimSpace(identity.OrganizationID) != "" {
+	if identity.OrganizationID != "" && identity.OrganizationID == strings.TrimSpace(provider.OrganizationId) {
 		return
 	}
-	token := strings.TrimSpace(identity.SecurityOauthToken)
-	if token == "" {
-		return
+	if identity.OrganizationID == "" {
+		mode, _ := credentialRefreshMode(provider)
+		if mode == RefreshModeDeviceToken && strings.TrimSpace(provider.Pat) == "" {
+			return
+		}
+		profile, err := credentialProfile(provider)
+		if err != nil {
+			return
+		}
+		client := NewOAuthClientForProfile(profile, nil)
+		client.Doer = p.Doer
+		// Legacy credentials may predate persisted organization IDs. Use the grant's
+		// own profile before looking up tags so a user ID never selects an organization.
+		user, err := client.GetUserInfo(ctx, identity.SecurityOauthToken)
+		if err != nil || user.OrganizationID == "" {
+			return
+		}
+		uid := firstNonEmpty(user.UserID, user.ID)
+		if uid == "" || uid != identity.UID && uid != identity.AID {
+			return
+		}
+		identity.OrganizationID, identity.OrganizationName = user.OrganizationID, user.OrganizationName
 	}
-	uid := FirstNonEmptyQoder(identity.UID, identity.AID)
-	if uid == "" {
-		return
+	lookup := p.GetOrgTags
+	if lookup == nil {
+		lookup = func(ctx context.Context, token, organizationID string) (*OrganizationTags, error) {
+			return p.GetOrganizationTags(ctx, provider, token, organizationID)
+		}
 	}
-	var tags *OrganizationTags
-	var err error
-	if p.GetOrgTags != nil {
-		tags, err = p.GetOrgTags(ctx, token, uid)
-	} else {
-		tags, err = p.GetOrganizationTags(ctx, provider, token, uid)
-	}
-	// Organization metadata is optional for session construction. A failed or empty
-	// lookup leaves the authenticated identity usable before it is published to the
-	// cache.
-	if err != nil || tags == nil {
-		return
-	}
-	identity.OrganizationID = strings.TrimSpace(tags.OrganizationID)
-	identity.OrganizationName = strings.TrimSpace(tags.OrganizationName)
+	// A verified organization ID is sufficient for inference. Unavailable name
+	// enrichment must not discard the authorized account or prevent session use.
+	_ = enrichOrganizationName(ctx, identity, lookup)
 }
 
-// GetOrganizationTags fetches organization tags using the provider's site and
-// this builder's transport. A UID is required; a supplied doer controls the
-// request, otherwise the site's OAuth client performs the lookup. Response
-// bodies are consumed and closed here, and bounded HTTP failure text is
-// redacted.
-func (p *SessionBuilder) GetOrganizationTags(ctx context.Context, provider *CredentialInput, token, uid string) (*OrganizationTags, error) {
-	uid = strings.TrimSpace(uid)
-	if uid == "" {
-		return nil, fmt.Errorf("qoder: organization tags require uid")
-	}
+// GetOrganizationTags uses the site's OpenAPI reader and the provider transport.
+// The caller supplies an organization ID established by the authenticated profile.
+// Failed requests return bounded, redacted diagnostics through the shared client.
+func (p *SessionBuilder) GetOrganizationTags(ctx context.Context, provider *CredentialInput, token, organizationID string) (*OrganizationTags, error) {
 	profile, err := credentialProfile(provider)
 	if err != nil {
 		return nil, err
 	}
-	if doer := p.Doer; doer != nil {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, profile.OpenAPIBaseURL+OrganizationTagsPathPrefix+url.PathEscape(uid)+"/tags", nil)
-		if err != nil {
-			return nil, fmt.Errorf("qoder: create organization tags request: %w", err)
-		}
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
-		req.Header.Set("User-Agent", profile.OpenAPIUserAgent())
-
-		resp, err := doer(req)
-		if err != nil {
-			return nil, fmt.Errorf("qoder: organization tags request: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			// HTTP rejection remains the reported failure even when bounded diagnostic
-			// reading fails. Redact the captured fragment before it reaches the provider
-			// owner.
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, RedactSensitiveText(string(body)))
-		}
-
-		var tags OrganizationTags
-		if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
-			return nil, fmt.Errorf("qoder: parse organization tags response: %w", err)
-		}
-		return &tags, nil
-	}
-	// No provider doer is available on this path. Delegate metadata lookup to the
-	// site's OAuth client so its context and response cleanup rules still apply.
-	return NewOAuthClientForProfile(profile, nil).GetOrganizationTags(ctx, token, uid)
+	client := NewOAuthClientForProfile(profile, nil)
+	client.Doer = p.Doer
+	return client.GetOrganizationTags(ctx, token, organizationID)
 }
 
 // ApplyIdentityMetadata fills blank descriptive fields from saved provider
@@ -361,7 +331,7 @@ func ApplyIdentityMetadata(identity *AuthIdentity, provider *CredentialInput) {
 	if strings.TrimSpace(identity.OrganizationID) == "" {
 		identity.OrganizationID = provider.GetCredential("organization_id")
 	}
-	if strings.TrimSpace(identity.OrganizationName) == "" {
+	if strings.TrimSpace(identity.OrganizationName) == "" && identity.OrganizationID == provider.GetCredential("organization_id") {
 		identity.OrganizationName = provider.GetCredential("organization_name")
 	}
 }

@@ -132,12 +132,13 @@ func NewExecutor(options ExecuteOptions) *Executor {
 // after transport and output outcomes are known.
 func (e *Executor) PrepareConversation(target *Target, wireProtocol protocol.ProtocolID, request QoderPayloadRequest) (map[string]any, string, *QoderConversationPlan, error) {
 	request.Site = target.Site
-	key, source := QoderConversationKey(target.Metadata, target.ProviderID, request)
-	plan := e.conversations.Plan(key, request.System, request.Tools, request.Messages)
-	payload, model, err := BuildQoderPayloadWithOptions(request, plan.SessionID, plan.MessagesToSend, plan.IncludeSystem, plan.IncludeTools)
+	request, err := request.withEffectiveControls()
 	if err != nil {
 		return nil, "", nil, err
 	}
+	key, source := QoderConversationKey(target.Metadata, target.ProviderID, request)
+	plan := e.conversations.Plan(key, request.System, request.Tools, request.Messages)
+	payload, model := buildQoderPayload(request, plan.SessionID, plan.MessagesToSend, plan.IncludeSystem, plan.IncludeTools)
 	plan.Log(target.Metadata, target.ProviderID, string(wireProtocol), request.Model, source, request, payload)
 	return payload, model, plan, nil
 }
@@ -177,7 +178,7 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		}
 		if executionErr != nil {
 			switch {
-			case isRequestError(executionErr):
+			case IsRequestError(executionErr):
 				result.FailureClass = "invalid_request"
 			case errors.Is(executionErr, context.Canceled):
 				result.FailureClass = "cancelled"
@@ -220,6 +221,11 @@ func (e *Executor) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		return upstream.AttemptResult{}, errors.New("unsupported qoder client protocol")
 	}
 	if err != nil {
+		// Parser failures precede session acquisition and network dispatch. Preserve
+		// specific validation reasons and classify malformed client input the same way.
+		if !IsRequestError(err) {
+			err = &RequestError{Code: "invalid_request", Message: err.Error()}
+		}
 		return upstream.AttemptResult{}, err
 	}
 	responseModel := input.ResponseModel

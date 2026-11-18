@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -24,11 +23,9 @@ import (
 //
 // Active responses are converted to provider display values with normalized
 // progress and second-or-millisecond expiry handling. Failure display can
-// decode the provider's last snapshot while retaining the current error
-// classification and reauthorization hint. The JSON snapshot round trip
-// allocates display data for this result, allowing its snapshot marker and
-// missing timestamp repair without mutating the stored snapshot
-// representation.
+// load the current account's last snapshot while retaining the current error
+// classification and reauthorization hint. The provider core checks the saved
+// account identity and returns a private copy for display enrichment.
 
 // QoderUsage binds sessions and transport; the provider core owns usage
 // caching and conditional health writes.
@@ -299,13 +296,14 @@ func firstNonNilQoderQuotaProgress(values ...*qoder.QuotaProgress) *qoder.QuotaP
 // other typed statuses map to the network category.
 //
 // Remaining errors use the existing diagnostic string hints for those same
-// categories. A decodable provider snapshot is attached with its source marker,
+// categories. A matching account snapshot is attached with its source marker,
 // so the caller can show stale quota alongside the current failure. Snapshot
 // decode failures leave only the failure display and do not alter stored Extra.
 func buildQoderDegradedUsageAt(err error, provider *providercore.Record, now time.Time) *providercore.UsageInfo {
 	info := &providercore.UsageInfo{
-		UpdatedAt: &now,
-		Error:     fmt.Sprintf("usage API error: %v", err),
+		UpdatedAt:  &now,
+		QoderQuota: provider.SavedQoderQuota(),
+		Error:      fmt.Sprintf("usage API error: %v", err),
 	}
 	// Prefer typed status information over string hints so wrapped authentication
 	// and rate-limit failures retain their category beside a stale snapshot
@@ -320,10 +318,6 @@ func buildQoderDegradedUsageAt(err error, provider *providercore.Record, now tim
 				info.ErrorCode = providercore.ErrorCodeRateLimited
 			default:
 				info.ErrorCode = providercore.ErrorCodeNetworkError
-			}
-			if snapshot := qoderQuotaSnapshotFromExtra(provider); snapshot != nil {
-				snapshot.SnapshotFromProvider = true
-				info.QoderQuota = snapshot
 			}
 			return info
 		}
@@ -340,50 +334,5 @@ func buildQoderDegradedUsageAt(err error, provider *providercore.Record, now tim
 			info.ErrorCode = providercore.ErrorCodeNetworkError
 		}
 	}
-	if snapshot := qoderQuotaSnapshotFromExtra(provider); snapshot != nil {
-		snapshot.SnapshotFromProvider = true
-		info.QoderQuota = snapshot
-	}
 	return info
-}
-
-// qoderQuotaSnapshotFromExtra decodes the stored snapshot into a new display
-// object.
-// Absent provider data, missing snapshot or JSON encoding/decoding errors return
-// nil. A missing last-update field can be filled from the separate RFC3339
-// timestamp key; invalid legacy timing remains absent. The returned snapshot can
-// be marked or enriched without editing its stored JSON-shaped source.
-//
-// Present values that encode as JSON null or an empty object yield a zero-valued
-// snapshot. A separate valid timestamp can still populate that display object.
-func qoderQuotaSnapshotFromExtra(provider *providercore.Record) *providercore.QoderQuotaInfo {
-	if provider == nil || provider.Extra == nil {
-		return nil
-	}
-	raw, ok := provider.Extra[providercore.QoderUsageQuotaSnapshotExtraKey]
-	if !ok || raw == nil {
-		return nil
-	}
-	// Round-trip the accepted stored representation into a private display object.
-	// Unsupported JSON values or incompatible shapes discard this snapshot
-	// while preserving the query error.
-	data, err := json.Marshal(raw)
-	if err != nil {
-		return nil
-	}
-	var quota providercore.QoderQuotaInfo
-	if err := json.Unmarshal(data, &quota); err != nil {
-		return nil
-	}
-	// Older snapshots can keep timing in the separate Extra key. Repair only
-	// a missing display timestamp so the snapshot's own observed time keeps
-	// precedence.
-	if quota.LastUpdatedAt == nil {
-		if updatedRaw, ok := provider.Extra[providercore.QoderUsageQuotaUpdatedAtExtraKey].(string); ok {
-			if parsed, err := time.Parse(time.RFC3339, updatedRaw); err == nil {
-				quota.LastUpdatedAt = &parsed
-			}
-		}
-	}
-	return &quota
 }

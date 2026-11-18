@@ -132,6 +132,11 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 			}
 		}
 		selected.Observe = func(result upstream.AttemptResult, err error) {
+			// A pre-dispatch validation failure has no provider observation to contribute
+			// to the health store or to advanced scheduling success-rate samples.
+			if gatewayprovider.IsLocalQoderRejection(err) {
+				return
+			}
 			b.Qoder.ObserveQoderFailure(ctx, gatewayprovider.ExecutionRecord(provider), err)
 			var legacy *forwardcore.MessagesResult
 			if err == nil || result.Served && result.HasUsage {

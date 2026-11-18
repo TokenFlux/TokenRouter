@@ -126,13 +126,7 @@ func (e *UnifiedTextExecutor) checkPricing(c *gin.Context, target *gatewayprovid
 	}
 	err := CheckTextModelPricing(c.Request.Context(), e.Pricing, key, target, model, model, compact, source)
 	if reason := apperror.Reason(err); reason == "MODEL_CAPABILITY_UNKNOWN" || reason == "MODEL_CAPABILITY_UNSUPPORTED" || reason == "MODEL_ATTRIBUTES_UNAVAILABLE" {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-		failure := apperror.FromError(err)
-		if source == protocol.ProtocolAnthropicMessages {
-			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, int(failure.Code), "invalid_request_error", failure.Message, c.Writer.Written())
-		} else {
-			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, int(failure.Code), "invalid_request_error", reason, failure.Message, c.Writer.Written(), false)
-		}
+		writeLocalTextError(c, source, apperror.FromError(err), reason)
 		return err
 	}
 	if !errors.Is(err, admission.ErrModelPricingRejected) {
@@ -145,4 +139,20 @@ func (e *UnifiedTextExecutor) checkPricing(c *gin.Context, target *gatewayprovid
 		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusBadRequest, "invalid_request_error", "model_pricing_unavailable", admission.ModelPricingUnavailableMessage, c.Writer.Written(), false)
 	}
 	return err
+}
+
+// writeLocalTextError reports pre-dispatch validation once in the client protocol.
+// Request handlers can receive the same error after forwarding returns. The
+// handled marker prevents a second terminal response, including after keepalives.
+func writeLocalTextError(c *gin.Context, source protocol.ProtocolID, failure *apperror.ApplicationError, code string) {
+	if IsResponseCommitted(c) {
+		return
+	}
+	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	if source == protocol.ProtocolAnthropicMessages {
+		DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, int(failure.Code), "invalid_request_error", failure.Message, c.Writer.Written())
+	} else {
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, int(failure.Code), "invalid_request_error", code, failure.Message, c.Writer.Written(), false)
+	}
+	MarkResponseCommitted(c)
 }

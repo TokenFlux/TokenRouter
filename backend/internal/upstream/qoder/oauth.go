@@ -302,6 +302,14 @@ func parseFlexibleExpiresAt(data []byte) (FlexibleInt64, error) {
 // previous receiver available to the caller.
 func (u *UserInfo) UnmarshalJSON(data []byte) error {
 	var raw struct {
+		Organization struct {
+			ID           string `json:"id"`       // nested organization identifier
+			OrgID        string `json:"org_id"`   // nested canonical identifier
+			OrgIDCamel   string `json:"orgId"`    // nested desktop identifier
+			Name         string `json:"name"`     // nested organization name
+			OrgName      string `json:"org_name"` // nested canonical name
+			OrgNameCamel string `json:"orgName"`  // nested desktop name
+		} `json:"organization"` // desktop organization metadata
 		UID                   string `json:"uid"`               // desktop OpenAPI user identifier
 		OrgID                 string `json:"orgId"`             // desktop organization identifier
 		OrgName               string `json:"orgName"`           // desktop organization name
@@ -330,8 +338,8 @@ func (u *UserInfo) UnmarshalJSON(data []byte) error {
 		UserType:         firstNonEmpty(raw.UserType, raw.UserTypeSnake),
 		Email:            raw.Email,
 		AvatarURL:        firstNonEmpty(raw.AvatarURL, raw.AvatarURLCamel),
-		OrganizationID:   firstNonEmpty(raw.OrganizationID, raw.OrganizationIDCamel, raw.OrgID),
-		OrganizationName: firstNonEmpty(raw.OrganizationName, raw.OrganizationNameCamel, raw.OrgName),
+		OrganizationID:   firstNonEmpty(raw.OrganizationID, raw.OrganizationIDCamel, raw.OrgID, raw.Organization.OrgID, raw.Organization.OrgIDCamel, raw.Organization.ID),
+		OrganizationName: firstNonEmpty(raw.OrganizationName, raw.OrganizationNameCamel, raw.OrgName, raw.Organization.OrgName, raw.Organization.OrgNameCamel, raw.Organization.Name),
 	}
 	return nil
 }
@@ -611,19 +619,19 @@ func (c *OAuthClient) GetAccountType(ctx context.Context, token string) (string,
 	return firstNonEmpty(plan.UserType, plan.UserTypeCamel), nil
 }
 
-// GetOrganizationTags loads organization metadata for a required OpenAPI user
-// identifier. Nil client selects global defaults, UID is trimmed and
+// GetOrganizationTags loads organization metadata for a required OpenAPI organization
+// identifier. Nil client selects global defaults, The organization ID is trimmed and
 // path-escaped, and response bodies are consumed and closed here. HTTP failure
 // text is bounded and redacted.
-func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*OrganizationTags, error) {
+func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, organizationID string) (*OrganizationTags, error) {
 	if c == nil {
 		c = NewOAuthClient("", nil)
 	}
-	uid = strings.TrimSpace(uid)
-	if uid == "" {
-		return nil, fmt.Errorf("qoder: organization tags require uid")
+	organizationID = strings.TrimSpace(organizationID)
+	if organizationID == "" {
+		return nil, fmt.Errorf("qoder: organization tags require an organization ID")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+OrganizationTagsPathPrefix+url.PathEscape(uid)+"/tags", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+OrganizationTagsPathPrefix+url.PathEscape(organizationID)+"/tags", nil)
 	if err != nil {
 		return nil, fmt.Errorf("qoder: create organization tags request: %w", err)
 	}

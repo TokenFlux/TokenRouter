@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 )
 
@@ -156,33 +157,122 @@ func (c *OAuthClient) GetUsagePresentation(ctx context.Context, token string) (*
 // balances. Browser destinations must be HTTPS URLs without embedded credentials.
 func ParseUsagePresentation(body []byte) (*QuotaUsageResponse, error) {
 	var envelope struct {
-		Mode       string           `json:"displayMode"`
-		Quota      json.RawMessage  `json:"qoderUsage"`
-		Enterprise *EnterpriseUsage `json:"enterpriseUsage"`
+		Mode       string          `json:"displayMode"`
+		Quota      json.RawMessage `json:"qoderUsage"`
+		Enterprise json.RawMessage `json:"enterpriseUsage"`
 	}
 	if json.Unmarshal(body, &envelope) != nil {
 		return nil, errors.New("qoder: invalid usage presentation")
 	}
 	switch envelope.Mode {
 	case "qoder":
-		var quota QuotaUsageResponse
-		if envelope.Enterprise != nil || json.Unmarshal(envelope.Quota, &quota) != nil || quota.UserID == "" || quota.UserType == "" || quota.UsageType != "credits" {
-			return nil, errors.New("qoder: invalid credit usage presentation")
+		if envelope.Enterprise != nil {
+			return nil, errors.New("qoder: mixed usage presentation")
 		}
-		quota.DisplayMode = "qoder"
-		return &quota, nil
+		return parseCreditPresentation(envelope.Quota)
 	case "enterprise":
-		view := envelope.Enterprise
-		if view == nil || len(envelope.Quota) != 0 || view.OpenMode != "externalBrowser" && view.OpenMode != "systemDeepLink" {
+		var view EnterpriseUsage
+		if envelope.Quota != nil || json.Unmarshal(envelope.Enterprise, &view) != nil || view.DetailURL == "" {
 			return nil, errors.New("qoder: invalid enterprise usage presentation")
 		}
-		if view.OpenMode == "externalBrowser" && !validUsageBrowserURL(view.DetailURL) || view.FallbackURL != "" && !validUsageBrowserURL(view.FallbackURL) {
-			return nil, errors.New("qoder: invalid enterprise usage destination")
+		switch view.OpenMode {
+		case "externalBrowser":
+			if !validUsageBrowserURL(view.DetailURL) || view.FallbackURL != "" {
+				return nil, errors.New("qoder: invalid enterprise usage destination")
+			}
+		case "systemDeepLink":
+			destination, err := url.Parse(view.DetailURL)
+			if err != nil || destination.Scheme == "" || slices.Contains([]string{"http", "file", "javascript", "data"}, destination.Scheme) || view.FallbackURL != "" && !validUsageBrowserURL(view.FallbackURL) {
+				return nil, errors.New("qoder: invalid enterprise usage destination")
+			}
+		default:
+			return nil, errors.New("qoder: unknown enterprise usage navigation")
 		}
-		return &QuotaUsageResponse{DisplayMode: "enterprise", Enterprise: view}, nil
+		return &QuotaUsageResponse{DisplayMode: "enterprise", Enterprise: &view}, nil
 	default:
 		return nil, errors.New("qoder: unsupported usage presentation mode")
 	}
+}
+
+// parseCreditPresentation validates the full desktop observation before publication.
+// The legacy quota endpoint permits omitted flags. This endpoint requires explicit
+// exhaustion and proration booleans, since interpreting an absent flag as false
+// can release an active scheduling pause. Each supplied pool and dedicated
+// package also has to be usable before the response can replace a saved snapshot.
+//
+// Desktop amount and scope fields have two spellings. Normalize them together
+// before decoding the credit view so validation, display and scheduling use
+// the same source when upstream supplies both versions of an optional field.
+func parseCreditPresentation(raw json.RawMessage) (*QuotaUsageResponse, error) {
+	invalid := errors.New("qoder: invalid credit usage presentation")
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil || !quotaBoolean(fields["isQuotaExceeded"]) || !quotaBoolean(fields["isPlanQuotaProrated"]) {
+		return nil, invalid
+	}
+	for snake, camel := range map[string]string{
+		"user_quota":                  "userQuota",
+		"add_on_quota":                "addOnQuota",
+		"org_resource_package":        "orgResourcePackage",
+		"shared_quota":                "sharedQuota",
+		"dedicated_resource_packages": "dedicatedResourcePackages",
+		"total_usage_percentage":      "totalUsagePercentage",
+		"expires_at":                  "expiresAt",
+	} {
+		if value := fields[snake]; value != nil && string(value) != "null" {
+			fields[camel] = value
+		}
+		delete(fields, snake)
+	}
+	if !validQuotaFraction(fields["totalUsagePercentage"]) {
+		return nil, invalid
+	}
+	for _, name := range []string{"userQuota", "addOnQuota", "orgResourcePackage", "sharedQuota"} {
+		if bucket, present := fields[name]; present {
+			var metrics map[string]json.RawMessage
+			if json.Unmarshal(bucket, &metrics) != nil || metrics == nil || !validQuotaFraction(metrics["percentage"]) {
+				return nil, invalid
+			}
+		}
+	}
+	if packages, present := fields["dedicatedResourcePackages"]; present {
+		var items []map[string]json.RawMessage
+		if json.Unmarshal(packages, &items) != nil || items == nil {
+			return nil, invalid
+		}
+		for _, item := range items {
+			var id string
+			if json.Unmarshal(item["id"], &id) != nil || strings.TrimSpace(id) == "" || !quotaBoolean(item["available"]) || !validQuotaFraction(item["percentage"]) {
+				return nil, invalid
+			}
+		}
+	}
+	normalized, err := json.Marshal(fields)
+	if err != nil {
+		return nil, invalid
+	}
+	var quota QuotaUsageResponse
+	if json.Unmarshal(normalized, &quota) != nil || strings.TrimSpace(quota.UserID) == "" || strings.TrimSpace(quota.UserType) == "" || quota.UsageType != "credits" {
+		return nil, invalid
+	}
+	// Scheduling consumes the exact boolean fields validated above, including
+	// explicit false. Unknown case variants must not override those observations.
+	quota.IsQuotaExceeded = string(fields["isQuotaExceeded"]) == "true"
+	quota.IsPlanQuotaProrated = string(fields["isPlanQuotaProrated"]) == "true"
+	quota.DisplayMode = "qoder"
+	return &quota, nil
+}
+
+// quotaBoolean accepts an explicitly supplied JSON boolean, including false.
+func quotaBoolean(raw json.RawMessage) bool { return string(raw) == "true" || string(raw) == "false" }
+
+// validQuotaFraction accepts absent utilization or an observed fraction from zero to one.
+// Null, percentage strings and out-of-range numbers invalidate the desktop observation.
+func validQuotaFraction(raw json.RawMessage) bool {
+	if raw == nil {
+		return true
+	}
+	var fraction *float64
+	return json.Unmarshal(raw, &fraction) == nil && fraction != nil && *fraction >= 0 && *fraction <= 1
 }
 
 // validUsageBrowserURL accepts HTTPS navigation without userinfo or control bytes.
@@ -199,11 +289,19 @@ func (p *DedicatedQuota) UnmarshalJSON(data []byte) error {
 	var value quota
 	fields := struct {
 		*quota
-		Remaining  *float64 `json:"remaining"`
-		Percentage *float64 `json:"percentage"`
+		Remaining      *float64       `json:"remaining"`
+		Percentage     *float64       `json:"percentage"`
+		ExpiresAtSnake *FlexibleInt64 `json:"expires_at"`     // desktop expiration alias
+		LabelsSnake    *[]QuotaLabel  `json:"display_labels"` // desktop model scope alias
 	}{quota: &value}
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
+	}
+	if fields.ExpiresAtSnake != nil {
+		value.ExpiresAt = *fields.ExpiresAtSnake
+	}
+	if fields.LabelsSnake != nil {
+		value.Labels = *fields.LabelsSnake
 	}
 	value.Remaining = max(value.Total-value.Used, 0)
 	if fields.Remaining != nil {

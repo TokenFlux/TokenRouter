@@ -28,8 +28,8 @@ type (
 	// qoderCNPATExchanger exchanges CN PAT input and returns its token expiry.
 	qoderCNPATExchanger func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, time.Time, error)
 	// qoderOrganizationTagsGetter fetches organization metadata for a token
-	// and user.
-	qoderOrganizationTagsGetter func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error)
+	// and organization.
+	qoderOrganizationTagsGetter func(ctx context.Context, token, organizationID string) (*qoder.OrganizationTags, error)
 )
 
 // qoderSessionCacheEntry aliases the core cache entry holding a Qoder session

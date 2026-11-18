@@ -68,6 +68,19 @@ func TestProviderFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
 	require.Equal(t, "rt-secret", src.Credentials["refresh_token"])
 }
 
+// TestProviderFromRecordShallowOmitsRawQoderQuota checks the editable configuration
+// response after a provider changes organizations. Quota packages and account
+// digests can only reach the usage view after its account ownership check.
+func TestProviderFromRecordShallowOmitsRawQoderQuota(t *testing.T) {
+	src := &provider.Record{Platform: "qoder", Type: "cosy", Extra: map[string]any{
+		provider.QoderUsageQuotaSnapshotExtraKey:  map[string]any{"account_identity": "old-account", "user_id": "prior-user"},
+		provider.QoderUsageQuotaUpdatedAtExtraKey: "2026-11-18T01:00:00Z",
+		"ordinary": true,
+	}}
+	got := ProviderFromRecordShallow(src)
+	require.Equal(t, map[string]any{"ordinary": true}, got.Extra)
+}
+
 // TestProviderFromServiceShallow_RedactsOllamaCloudManagedExtra maps eligible
 // Ollama configuration with encrypted session and saved usage. Raw managed
 // Extra and credential secrets disappear from JSON, while the separate usage

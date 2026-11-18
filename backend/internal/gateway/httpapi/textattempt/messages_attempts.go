@@ -446,7 +446,11 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 	if b.providerReleaseFunc != nil {
 		b.providerReleaseFunc()
 	}
-	b.binding().reportSchedule(b.selection, b.provider.Record.ID, err == nil, b.result)
+	// Local capability checks may finish the request before transport, leaving
+	// no success or failure from this provider for the scheduler to sample.
+	if !routing.IsModelAttributeError(err) {
+		b.binding().reportSchedule(b.selection, b.provider.Record.ID, err == nil, b.result)
+	}
 
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: gatewayhttp.HeartbeatAdjustedWrittenSize(b.c) != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()

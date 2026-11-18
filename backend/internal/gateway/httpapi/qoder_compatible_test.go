@@ -107,6 +107,13 @@ type helperConcurrencyCacheStub struct {
 	apiKeyTrackIDs       []int64 // ordered tracked API-key identifiers
 }
 
+// localRejectionFixture records feedback from the real compatibility bridge.
+// The embedded contract supplies the unused selection methods for this path.
+type localRejectionFixture struct {
+	qoderRuntimeContract
+	reports []bool // observed scheduling results
+}
+
 // TestQoderCompatibleNativeHTTPCompletionBoundary runs successful and partial
 // native-compatible requests through Messages and Responses. Each path must
 // forward and record once, with release before feedback and sticky bindings
@@ -146,11 +153,7 @@ func TestQoderCompatibleNativeHTTPCompletionBoundary(t *testing.T) {
 					require.Contains(t, response.Body.String(), "partial")
 					require.Contains(t, response.Body.String(), "Upstream request failed")
 				} else {
-					expected := 1
-					if endpoint == QoderResponses {
-						expected = 2
-					}
-					require.Equal(t, expected, fixture.binds)
+					require.Equal(t, 1, fixture.binds)
 				}
 			})
 		}
@@ -171,10 +174,9 @@ func TestQoderGatewaySessionHashHeaderPrecedence(t *testing.T) {
 	require.Equal(t, qoderStickySessionHashFromSeed("header-session"), h.qoderSessionHash(c, QoderMessages, body, 42))
 }
 
-// TestQoderBindStickySessionsUsesDetachedContextAfterCancel cancels the parent
-// before request and response-alias bindings. The recorded calls must retain
-// group/provider identities, and the observation flags must report a deadline
-// with no canceled write context.
+// TestQoderBindStickySessionsUsesDetachedContextAfterCancel publishes one request
+// affinity after client cancellation. A blank request hash contributes no substitute
+// response-ID key, and the write retains its detached time budget.
 func TestQoderBindStickySessionsUsesDetachedContextAfterCancel(t *testing.T) {
 	parent, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -183,15 +185,13 @@ func TestQoderBindStickySessionsUsesDetachedContextAfterCancel(t *testing.T) {
 	h := &QoderCompatibleRuntime{options: QoderCompatibleOptions{Execution: &qoderStickyExecutionStub{cache: cache}}}
 	groupID := int64(12)
 
-	h.bindQoderStickySessions(parent, &groupID, "request-session-hash", 99, QoderResponses, &forwardcore.MessagesResult{
-		RequestID: "resp_qoder_bind",
-	}, nil)
+	h.bindQoderStickySession(parent, &groupID, "request-session-hash", 99, nil)
+	h.bindQoderStickySession(parent, &groupID, "", 99, nil)
 
 	require.False(t, cache.sawCanceledContext)
 	require.True(t, cache.sawDeadline)
-	require.Len(t, cache.calls, 2)
+	require.Len(t, cache.calls, 1)
 	require.Equal(t, qoderStickyBindCall{groupID: 12, sessionHash: "request-session-hash", providerID: 99}, cache.calls[0])
-	require.Equal(t, qoderStickyBindCall{groupID: 12, sessionHash: qoderStickySessionHashFromSeed("resp_qoder_bind"), providerID: 99}, cache.calls[1])
 }
 
 // TestQoderGatewayShouldRefreshProviderOnlyForUnwrittenAuthErrors covers
@@ -830,4 +830,38 @@ func (s *helperConcurrencyCacheStub) CleanupExpiredProviderSlotKeys(ctx context.
 // recovery outside the fixture’s scripted slot outcomes and call history.
 func (s *helperConcurrencyCacheStub) CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error {
 	return nil
+}
+
+// Forward returns the native parser's decision for this request without I/O.
+func (f *localRejectionFixture) Forward(_ context.Context, _ *gin.Context, b []byte, _ protocol.ProtocolID, _ string) (*forwardcore.MessagesResult, error) {
+	_, err := qoder.ParseQoderResponsesPayload(b)
+	return nil, err
+}
+
+// Report retains each sample that would enter the advanced scheduler.
+func (f *localRejectionFixture) Report(_ int64, success bool, _ *forwardcore.MessagesResult) {
+	f.reports = append(f.reports, success)
+}
+
+// TestLocalQoderRejectionSkipsProviderFeedback exercises the compatible Responses
+// attempt with a storage request. Releasing the provider slot is required even
+// though the local refusal supplies no health or success-rate sample.
+func TestLocalQoderRejectionSkipsProviderFeedback(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	fixture := &localRejectionFixture{}
+	released := false
+	bridge := qoderCompatibleAttemptBridge{
+		c:         c,
+		endpoint:  QoderResponses,
+		provider:  fixture,
+		selection: fixture,
+		release:   func() { released = true },
+		body:      []byte(`{"model":"route","input":"test","store":true}`),
+		h:         &QoderCompatibleRuntime{options: QoderCompatibleOptions{MaySwitch: qoder.MaySwitchCompatibleAttempt}},
+	}
+	out := bridge.Forward()
+	require.True(t, qoder.IsRequestError(out.Err))
+	require.True(t, released)
+	require.Empty(t, fixture.reports)
 }

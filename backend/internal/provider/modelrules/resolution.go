@@ -119,7 +119,7 @@ func (v View) Version() string {
 // source. modelcatalog.Attributes and source labels are independently mutable; the Target's
 // optional output-cap pointer can still belong to the input until Clone is used.
 func (v View) Resolve(target Target, override modelcatalog.Attributes) Resolution {
-	return v.resolve(target.WithServiceIdentity(), override, target.Model)
+	return v.resolve(target.WithServiceIdentity(), override, "")
 }
 
 // ResolveReference borrows attributes for a profile reference while retaining
@@ -127,19 +127,18 @@ func (v View) Resolve(target Target, override modelcatalog.Attributes) Resolutio
 // to this account, the public catalog, or neither. Conditions use the reference
 // identity and native encoders continue to receive the original route.
 func (v View) ResolveReference(route Target, reference string, override modelcatalog.Attributes) Resolution {
-	route = route.WithServiceIdentity()
-	target := route.ForReference(reference)
-	result := v.resolve(target, override, route.Model)
-	route.AttributeModel = result.Target.AttributeModel
-	result.Target, result.ReferenceModel = route, reference
-	return result
+	return v.resolve(route.WithServiceIdentity(), override, reference)
 }
 
 // resolve reads catalog metadata and merges populated provider and profile fields.
-// The lookup target can be a reference, while outboundModel selects constraints
-// imposed by the actual encoder. An explicit configuration stays available to
+// A reference changes the metadata lookup target, while the actual route
+// selects the native encoder constraints. An explicit configuration stays available to
 // preview when its merged values exceed the adapter's representation.
-func (v View) resolve(target Target, override modelcatalog.Attributes, outboundModel string) Resolution {
+func (v View) resolve(route Target, override modelcatalog.Attributes, reference string) Resolution {
+	target := route
+	if reference != "" {
+		target = route.ForReference(reference)
+	}
 	result := Resolution{Target: target, Sources: map[string]string{}, Version: v.Version()}
 	model := target.Model
 	if target.usesCanonicalIdentity() {
@@ -195,10 +194,17 @@ func (v View) resolve(target Target, override modelcatalog.Attributes, outboundM
 	configured := result.Attributes
 	result.applyAdapter()
 	if target.ProviderModels != nil {
-		result.patch(target.ProviderModels.AdapterRestrictions(outboundModel, result.Attributes), "adapter")
-		if len(override.FieldNames()) > 0 && !reflect.DeepEqual(modelcatalog.Merge(result.Attributes, override), result.Attributes) {
-			result.ConfiguredAttributes = &configured
-		}
+		result.patch(target.ProviderModels.AdapterRestrictions(route.Model, result.Attributes), "adapter")
+	}
+	// A reference explicitly borrows all its model fields. For direct overrides,
+	// a restriction on an unrelated inherited field should not produce a warning.
+	if (reference != "" || override != (modelcatalog.Attributes{})) && !reflect.DeepEqual(configured, result.Attributes) &&
+		(reference != "" || !reflect.DeepEqual(modelcatalog.Merge(result.Attributes, override), result.Attributes)) {
+		result.ConfiguredAttributes = &configured
+	}
+	if reference != "" {
+		route.AttributeModel = result.Target.AttributeModel
+		result.Target, result.ReferenceModel = route, reference
 	}
 	return result
 }

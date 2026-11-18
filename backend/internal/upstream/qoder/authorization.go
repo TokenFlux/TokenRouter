@@ -19,7 +19,7 @@ import (
 // Current desktop tokens use OpenAPI userinfo on both sites. Global login can
 // retain token-response identity when that auxiliary lookup is unavailable,
 // with auxiliary lookup failures represented by sanitized warnings. Organization
-// tags fill missing metadata using the OpenAPI user identifier. Older CN status
+// tags can supply a missing name for the organization selected in userinfo. Older CN status
 // completion remains available only to the legacy credential workflow. The stored flow keeps
 // the creation-time profile, machine, and proxy together across polls.
 
@@ -34,10 +34,9 @@ type OAuthClientPort interface {
 	// authorization caller decides whether a lookup failure aborts CN completion or
 	// becomes a warning for global login.
 	GetUserInfo(ctx context.Context, token string) (*UserInfo, error)
-	// GetOrganizationTags loads organization metadata for the supplied OpenAPI user
-	// identifier. The identifier can differ from a CN COSY account ID, so callers
-	// select the lookup identity before invoking this operation.
-	GetOrganizationTags(ctx context.Context, token, uid string) (*OrganizationTags, error)
+	// GetOrganizationTags reads metadata for the verified organization ID. The
+	// user and organization identifiers address different OpenAPI resources.
+	GetOrganizationTags(ctx context.Context, token, organizationID string) (*OrganizationTags, error)
 }
 
 // CN20OAuthCompleter turns validated CN OpenAPI tokens into an inference
@@ -139,51 +138,28 @@ func CompleteAuthorization(ctx context.Context, session *AuthorizationFlow, fact
 	if identity.UID == "" {
 		return nil, false, errors.New("qoder: device authorization returned no user identity")
 	}
-	orgErr := populateQoderOrganization(ctx, client, token.AccessTokenValue(), identity)
+	orgErr := enrichOrganizationName(ctx, identity, client.GetOrganizationTags)
 	return BuildAuthorizationTokenInfoForSite(identity, session.Machine, session.Site, RefreshModeDeviceToken, expires, userErr, orgErr), false, nil
 }
 
-// populateQoderOrganization fills missing organization metadata using the
-// identity UID or AID. A nil client or identity, an existing organization ID, or
-// missing lookup identity leaves the input unchanged; lookup failures return to
-// the authorization caller.
-func populateQoderOrganization(ctx context.Context, client OAuthClientPort, token string, identity *AuthIdentity) error {
-	return populateQoderOrganizationForUID(ctx, client, token, "", identity)
-}
-
-// populateQoderOrganizationForUID fills missing organization metadata from
-// OpenAPI organization tags. A supplied lookup UID wins over identity UID and
-// AID, allowing CN status identity to differ from OpenAPI identity.
+// enrichOrganizationName fills a missing name for an already identified organization.
+// The token's userinfo or the saved credentials establish its organization ID.
+// Personal accounts and fully described organizations require no metadata request.
 //
-// Existing organization IDs, nil inputs, and absent lookup IDs skip the request.
-// Lookup errors return before mutation; a returned tag record supplies trimmed
-// name and ID values together. The caller performs this mutation before building
-// the authorization response so its credential fields include the resolved metadata.
-func populateQoderOrganizationForUID(ctx context.Context, client OAuthClientPort, token, lookupUID string, identity *AuthIdentity) error {
-	if client == nil || identity == nil {
+// Tags provide descriptive data only. A conflicting ID leaves the bound identity
+// intact and produces an auxiliary warning for authorization callers. Session
+// builders can still use the verified identity when this optional lookup fails.
+func enrichOrganizationName(ctx context.Context, identity *AuthIdentity, lookup OrganizationTagsGetter) error {
+	if identity == nil || identity.OrganizationID == "" || identity.OrganizationName != "" || identity.SecurityOauthToken == "" {
 		return nil
 	}
-	if strings.TrimSpace(identity.OrganizationID) != "" {
-		return nil
-	}
-	uid := strings.TrimSpace(lookupUID)
-	if uid == "" {
-		uid = strings.TrimSpace(identity.UID)
-	}
-	if uid == "" {
-		uid = strings.TrimSpace(identity.AID)
-	}
-	if uid == "" {
-		return nil
-	}
-	tags, err := client.GetOrganizationTags(ctx, token, uid)
-	if err != nil {
+	tags, err := lookup(ctx, identity.SecurityOauthToken, identity.OrganizationID)
+	if err != nil || tags == nil {
 		return err
 	}
-	if tags == nil {
-		return nil
+	if id := strings.TrimSpace(tags.OrganizationID); id != "" && id != identity.OrganizationID {
+		return errors.New("qoder: organization metadata belongs to another organization")
 	}
-	identity.OrganizationID = strings.TrimSpace(tags.OrganizationID)
 	identity.OrganizationName = strings.TrimSpace(tags.OrganizationName)
 	return nil
 }

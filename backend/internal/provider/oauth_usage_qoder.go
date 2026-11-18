@@ -28,6 +28,9 @@ import (
 const (
 	QoderUsageQuotaSnapshotExtraKey  = "qoder_quota_snapshot"
 	QoderUsageQuotaUpdatedAtExtraKey = "qoder_quota_updated_at"
+
+	// qoderQuotaAccountKey binds saved quota to the same account scope as the model catalog.
+	qoderQuotaAccountKey = "account_identity"
 )
 
 // qoderUsageFlightResult ties shared display data to the credential identity
@@ -117,11 +120,10 @@ func (s *OAuthUsageService) GetQoderUsage(ctx context.Context, provider *Record,
 		}
 
 		s.options.Qoder.Enrich(usage, provider)
-		version := ObserveUsageVersion(provider)
 		// Persist the identity-associated snapshot before scheduling or caching.
 		// A clean comparison miss rejects this observation; an operational error
 		// retains the existing best-effort follow-up path.
-		applied, persistErr := s.persistQoderQuotaSnapshot(fetchCtx, version, usage.QoderQuota)
+		applied, persistErr := s.persistQoderQuotaSnapshot(fetchCtx, provider, usage.QoderQuota)
 		if persistErr == nil && !applied {
 			return nil, ErrUsageObservationChanged
 		}
@@ -143,9 +145,9 @@ func (s *OAuthUsageService) GetQoderUsage(ctx context.Context, provider *Record,
 }
 
 // persistQoderQuotaSnapshot conditionally stores a quota JSON object and UTC
-// timestamp for its observed identity. Nil service/store/quota and JSON
-// encode/decode failure return true with nil error, reporting skipped work
-// rather than durable storage.
+// timestamp for its observed account. The same record supplies the conditional
+// write version and the account digest checked when reading. A missing store or
+// quota, or a JSON conversion failure, skips persistence with a nil error.
 //
 // Usable data requires UsageObservationWriter, whose absence returns the
 // missing-writer error. A false successful comparison reports identity change
@@ -153,7 +155,7 @@ func (s *OAuthUsageService) GetQoderUsage(ctx context.Context, provider *Record,
 // are logged and returned, while the surrounding query still permits those
 // later best-effort actions. Keep the quota stable during JSON conversion and
 // provide reached Warn.
-func (s *OAuthUsageService) persistQoderQuotaSnapshot(ctx context.Context, version UsageObservationVersion, quota *QoderQuotaInfo) (bool, error) {
+func (s *OAuthUsageService) persistQoderQuotaSnapshot(ctx context.Context, provider *Record, quota *QoderQuotaInfo) (bool, error) {
 	if s == nil || s.providerRepo == nil || quota == nil {
 		return true, nil
 	}
@@ -168,6 +170,8 @@ func (s *OAuthUsageService) persistQoderQuotaSnapshot(ctx context.Context, versi
 	if err := json.Unmarshal(raw, &snapshot); err != nil {
 		return true, nil
 	}
+	snapshot[qoderQuotaAccountKey] = QoderCatalogIdentity(provider)
+	version := ObserveUsageVersion(provider)
 	writer, ok := s.providerRepo.(UsageObservationWriter)
 	if !ok {
 		return false, ErrUsageObservationWriterMissing
@@ -180,6 +184,41 @@ func (s *OAuthUsageService) persistQoderQuotaSnapshot(ctx context.Context, versi
 		s.options.Warn("failed to persist qoder quota snapshot", "provider_id", version.ID, "error", err)
 	}
 	return applied, err
+}
+
+// SavedQoderQuota returns an independently owned display of this account's last
+// successful query. An unbound legacy snapshot may belong to a previous account
+// on the same provider row, so only a successful query can make it available again.
+// The stable identity permits token rotation for a known account and organization.
+//
+// Persisted Extra contains ordinary JSON objects. Malformed data leaves the quota
+// absent. A separate observation timestamp fills an omitted last-update field,
+// and the source marker distinguishes these values from a live query.
+func (r *Record) SavedQoderQuota() *QoderQuotaInfo {
+	if r == nil {
+		return nil
+	}
+	snapshot, _ := r.Extra[QoderUsageQuotaSnapshotExtraKey].(map[string]any)
+	identity, _ := snapshot[qoderQuotaAccountKey].(string)
+	if identity == "" || identity != QoderCatalogIdentity(r) {
+		return nil
+	}
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil
+	}
+	var quota QoderQuotaInfo
+	if err := json.Unmarshal(raw, &quota); err != nil {
+		return nil
+	}
+	if quota.LastUpdatedAt == nil {
+		updated, _ := r.Extra[QoderUsageQuotaUpdatedAtExtraKey].(string)
+		if parsed, err := time.Parse(time.RFC3339, updated); err == nil {
+			quota.LastUpdatedAt = &parsed
+		}
+	}
+	quota.SnapshotFromProvider = true
+	return &quota
 }
 
 // applyQoderQuotaSchedulingSignal best-effort sets or clears the rate limit

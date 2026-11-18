@@ -131,6 +131,10 @@ func ParseQoderChatCompletionsPayload(body []byte) (QoderPayloadRequest, error) 
 	messages = EnrichQoderToolResultMessages(messages)
 
 	rawReq := QoderRequestMap(body)
+	choice := QoderToolChoice(rawReq["tool_choice"])
+	if rawReq["tool_choice"] == nil {
+		choice = QoderToolChoice(rawReq["function_call"])
+	}
 	maxTokens := QoderDefaultMaxTokens
 	// Chat clients can send both output-limit fields. Prefer the positive
 	// completion-specific value so legacy max_tokens cannot override the requested
@@ -145,7 +149,7 @@ func ParseQoderChatCompletionsPayload(body []byte) (QoderPayloadRequest, error) 
 		System:          QoderChatSystemText(req.Messages),
 		Messages:        messages,
 		Tools:           QoderChatCompletionsTools(req, rawReq),
-		ToolChoice:      QoderToolChoice(rawReq["tool_choice"]),
+		ToolChoice:      choice,
 		MaxTokens:       maxTokens,
 		Thinking:        QoderThinkingDirectiveFromBody(body, "reasoning_effort", "reasoning.effort"),
 		ExplicitSession: FirstNonEmptyQoder(QoderStringField(rawReq, "session_id"), QoderStringField(rawReq, "conversation_id")),
@@ -471,10 +475,66 @@ func QoderFingerprintAny(value any) string {
 // text-block maps; tool definitions remain shared references in the returned
 // payload and must stay stable until serialization finishes.
 func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string, messages []QoderMessage, includeSystem bool, includeTools bool) (map[string]any, string, error) {
-	thinking, err := ResolveObservedThinking(request.Thinking, request.Capabilities)
+	request, err := request.withEffectiveControls()
 	if err != nil {
 		return nil, "", err
 	}
+	payload, model := buildQoderPayload(request, sessionID, messages, includeSystem, includeTools)
+	return payload, model, nil
+}
+
+// withEffectiveControls projects client intent onto the selected route before
+// fingerprinting tools or preparing a request. The final thinking switch and
+// effort determine conditional tool support, including for clients that rely
+// on account defaults. A forced or named tool conflicts with disabled tools.
+//
+// Optional declarations are omitted from the outbound request when the route
+// disables calls. Prior tool calls and results remain part of the conversation
+// history. The returned request owns its control fields and leaves the supplied
+// draft available for other route attempts.
+func (request QoderPayloadRequest) withEffectiveControls() (QoderPayloadRequest, error) {
+	thinking, err := ResolveObservedThinking(request.Thinking, request.Capabilities)
+	if err != nil {
+		return request, err
+	}
+	request.Thinking = thinking
+	if choice, ok := request.ToolChoice.(map[string]any); ok && QoderStringField(choice, "type") == "allowed_tools" {
+		request.Tools, request.ToolChoice, err = restrictQoderFunctions(request.Tools, choice)
+		if err != nil {
+			return request, err
+		}
+	}
+	if request.Capabilities == nil || len(request.Tools) == 0 && request.ToolChoice == nil {
+		return request, nil
+	}
+	attrs := request.Capabilities.Attributes
+	if attrs.Conditions != nil {
+		state := modelrules.RequestState{Thinking: &thinking.Enabled}
+		if thinking.Effort != "" {
+			state.Effort = &thinking.Effort
+		}
+		attrs = request.Capabilities.ForRequest(state).Attributes
+	}
+	if attrs.ToolCall == nil || *attrs.ToolCall {
+		return request, nil
+	}
+	switch choice := request.ToolChoice.(type) {
+	case map[string]any:
+		return request, &RequestError{Code: "unsupported_tool_choice", Message: "This Qoder route does not support the selected tool."}
+	case string:
+		if choice == "required" {
+			return request, &RequestError{Code: "unsupported_tool_choice", Message: "This Qoder route does not support required tool calls."}
+		}
+	}
+	request.Tools = []any{}
+	request.ToolChoice = nil
+	return request, nil
+}
+
+// buildQoderPayload writes already validated controls and the planned transcript.
+// Conversation planning and this encoder receive the same effective tool list
+// so reused sessions cannot fingerprint tools that did not reach the wire.
+func buildQoderPayload(request QoderPayloadRequest, sessionID string, messages []QoderMessage, includeSystem, includeTools bool) (map[string]any, string) {
 	modelInfo := QoderModelInfo{Key: strings.TrimSpace(request.Model), Source: "system"}
 	observed, found := observedModel(request.Capabilities)
 	if found {
@@ -520,7 +580,7 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	extraModelConfig["key"] = modelInfo.Key
 	extraModelConfig["source"] = modelInfo.Source
 	applyContextCapability(payload, request.Capabilities, len(observed.ContextWindows) > 0)
-	applyObservedThinking(payload, thinking)
+	applyObservedThinking(payload, request.Thinking)
 	extra["originalContent"] = prompt
 	// Business name is limited to thirty runes while full prompt text remains in
 	// chat context and message history. Truncation affects this descriptive title
@@ -552,7 +612,7 @@ func BuildQoderPayloadWithOptions(request QoderPayloadRequest, sessionID string,
 	} else {
 		payload["tools"] = []any{}
 	}
-	return payload, modelInfo.Key, nil
+	return payload, modelInfo.Key
 }
 
 // applyContextCapability encodes the effective input limit in Qoder's nested fields.
@@ -1500,6 +1560,8 @@ func QoderToolChoice(value any) any {
 		return kind
 	case "any":
 		return "required"
+	case "allowed_tools":
+		return choice
 	}
 	name := QoderStringField(choice, "name")
 	if function, ok := choice["function"].(map[string]any); ok {
@@ -1509,6 +1571,56 @@ func QoderToolChoice(value any) any {
 		return map[string]any{"type": "function", "function": map[string]any{"name": name}}
 	}
 	return nil
+}
+
+// restrictQoderFunctions translates an explicit allowed-functions subset into
+// native tool declarations and the corresponding auto or required choice.
+// Chat nests the policy under allowed_tools; Responses places the same fields
+// beside type. Every selected name must match a declared function in this turn.
+//
+// Filtering before fingerprinting keeps the session's effective tool set equal
+// to the outgoing definitions. Preserve their original order and reject choices
+// that the function-only native adapter cannot encode rather than expanding an
+// unknown subset to every declared tool.
+func restrictQoderFunctions(tools []any, choice map[string]any) ([]any, any, error) {
+	invalid := &RequestError{Code: "unsupported_tool_choice", Message: "Select declared Qoder functions and an auto or required allowed_tools mode."}
+	if nested, present := choice["allowed_tools"]; present {
+		var ok bool
+		choice, ok = nested.(map[string]any)
+		if !ok {
+			return nil, nil, invalid
+		}
+	}
+	mode := QoderStringField(choice, "mode")
+	if mode != "auto" && mode != "required" {
+		return nil, nil, invalid
+	}
+	allowed := map[string]bool{}
+	for _, item := range QoderAnySlice(choice["tools"]) {
+		entry, ok := item.(map[string]any)
+		name := QoderDeclaredToolName(entry)
+		if !ok || name == "" || QoderStringField(entry, "type") != "function" {
+			return nil, nil, invalid
+		}
+		allowed[name] = true
+	}
+	if len(allowed) == 0 {
+		return nil, nil, invalid
+	}
+	selected := make([]any, 0, len(allowed))
+	for _, tool := range tools {
+		name := QoderDeclaredToolName(tool)
+		if _, ok := allowed[name]; ok {
+			selected = append(selected, tool)
+			allowed[name] = false
+		}
+	}
+	for _, missing := range allowed {
+		if missing {
+			return nil, nil, invalid
+		}
+	}
+	return selected, mode, nil
 }
 
 // QoderApplyChatToolChoice filters declared tools by a selected name or returns

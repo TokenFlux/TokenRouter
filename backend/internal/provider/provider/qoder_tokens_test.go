@@ -425,13 +425,14 @@ func TestQoderRefreshCredentialsHashTracksAuthenticationContext(t *testing.T) {
 }
 
 // TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI exchanges a
-// PAT without stored organization fields. It checks the exchanged token/user
+// PAT without stored organization fields. It checks the exchanged token and organization ID
 // passed to tag lookup and the organization metadata added to the resulting
 // session.
 func TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI(t *testing.T) {
 	tokenSource := NewQoderTokenProvider(qoder.SessionBuilder{})
 	tokenSource.exchangePAT = func(_ context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
 		return &qoder.AuthIdentity{
+			OrganizationID:     "org-from-api",
 			Name:               "PAT User",
 			UID:                "uid-1",
 			AID:                "aid-1",
@@ -441,7 +442,7 @@ func TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI(t *testing.T)
 	}
 	tokenSource.getOrgTags = func(_ context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 		require.Equal(t, "dt-from-pat", token)
-		require.Equal(t, "uid-1", uid)
+		require.Equal(t, "org-from-api", uid)
 		return &qoder.OrganizationTags{
 			OrganizationID:   "org-from-api",
 			OrganizationName: "Org From API",
@@ -1239,9 +1240,10 @@ func TestQoderTokenProviderUpdatesSnapshotForSameCredentials(t *testing.T) {
 // identity.
 func TestQoderTokenProviderDirectTokenPopulatesOrganizationFromAPI(t *testing.T) {
 	tokenSource := NewQoderTokenProvider(qoder.SessionBuilder{})
+	tokenSource.SetHTTPUpstream(&qoderCenterHTTPUpstreamStub{body: `{"user_id":"uid-1","organization":{"id":"org-from-api"}}`}, nil)
 	tokenSource.getOrgTags = func(_ context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 		require.Equal(t, "dt-token", token)
-		require.Equal(t, "uid-1", uid)
+		require.Equal(t, "org-from-api", uid)
 		return &qoder.OrganizationTags{
 			OrganizationID:   "org-from-api",
 			OrganizationName: "Org From API",
@@ -1303,6 +1305,7 @@ func TestQoderTokenProviderPATOrganizationTagsUsesProviderDoer(t *testing.T) {
 	tokenSource.SetHTTPUpstream(upstream, &egressadapter.TLSProfiles{})
 	tokenSource.exchangePAT = func(_ context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
 		return &qoder.AuthIdentity{
+			OrganizationID:     "org-via-upstream",
 			Name:               "PAT User",
 			UID:                "uid-1",
 			AID:                "uid-1",
@@ -1327,7 +1330,7 @@ func TestQoderTokenProviderPATOrganizationTagsUsesProviderDoer(t *testing.T) {
 	require.Equal(t, "org-via-upstream", session.Identity.OrganizationID)
 	require.Equal(t, "Org Via Upstream", session.Identity.OrganizationName)
 	require.Len(t, upstream.requests, 1)
-	require.Contains(t, upstream.requests[0].URL.Path, qoder.OrganizationTagsPathPrefix+"uid-1/tags")
+	require.Contains(t, upstream.requests[0].URL.Path, qoder.OrganizationTagsPathPrefix+"org-via-upstream/tags")
 	require.Equal(t, "http://proxy.example.com:8081", upstream.proxyURL)
 	require.Equal(t, int64(108), upstream.providerID)
 	require.Equal(t, 4, upstream.providerConcurrency)

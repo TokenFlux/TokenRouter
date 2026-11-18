@@ -340,6 +340,12 @@ func (b *openAIMessageAttemptBridge) Switching(failure *textflow.AttemptFailure,
 // suppress it. Diagnostics retain the selected fallback and communication
 // observations.
 func (b *openAIMessageAttemptBridge) OtherFailure(err error) {
+	// A mixed-platform native executor can already have delivered a local
+	// capability error. No provider failure or upstream warning follows that refusal.
+	if gatewayhttp.IsResponseCommitted(b.c) && routing.IsModelAttributeError(err) {
+		return
+	}
+
 	if b.result != nil && b.result.ClientDisconnect {
 		b.reqLog.Info("openai_messages.client_disconnected",
 			zap.Int64("provider_id", b.provider.Record.ID),

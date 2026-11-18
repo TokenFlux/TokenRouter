@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,6 +15,7 @@ import (
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
@@ -252,6 +254,13 @@ func (e *UnifiedTextExecutor) native(ctx context.Context, c *gin.Context, target
 				target.Record = *fresh
 				result, err = ForwardQoderAttempt(ctx, c, e.Qoder, &target.Record, body, source)
 			}
+		}
+		if local, ok := errors.AsType[*qoder.RequestError](err); ok {
+			// Mixed-platform attempts use the common capability rejection to suppress
+			// scheduling feedback. Keep the native reason for the client's error body.
+			failure := apperror.BadRequest("MODEL_CAPABILITY_UNSUPPORTED", local.Message).WithCause(err)
+			writeLocalTextError(c, source, failure, local.Code)
+			return nil, failure
 		}
 	default:
 		// A compatible platform can route a model through Gemini encoding; that

@@ -10,6 +10,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
@@ -195,7 +196,9 @@ func (b *qoderCompatibleAttemptBridge) Forward() textflow.QoderCompatibleOutcome
 		b.release()
 		b.release = nil
 	}
-	b.selection.Report(b.provider.Snapshot().ID, err == nil, b.result)
+	if !gatewayprovider.IsLocalQoderRejection(err) {
+		b.selection.Report(b.provider.Snapshot().ID, err == nil, b.result)
+	}
 	return textflow.QoderCompatibleOutcome{Err: err, OutputChanged: HeartbeatAdjustedWrittenSize(b.c) != b.writerSize, Partial: err != nil && b.result != nil, Canceled: err != nil && qoderRequestCanceled(b.Context(), err), CanRefresh: b.h.shouldRefreshQoderProvider(err, false), CanFailover: b.h.options.MaySwitch(err)}
 }
 
@@ -281,12 +284,12 @@ func (b *qoderCompatibleAttemptBridge) Exhausted(err error) {
 	b.h.errorResponse(b.c, http.StatusBadGateway, "upstream_error", "Upstream request failed", b.endpoint)
 }
 
-// Success binds request and applicable response sticky identities before
+// Success binds the request affinity before
 // recording completion. The text loop calls it only after a successful
 // forwarding result; binding failures are advisory and usage capture still
 // proceeds through the configured callback.
 func (b *qoderCompatibleAttemptBridge) Success() {
-	b.h.bindQoderStickySessions(b.Context(), b.key.GroupID, b.hash, b.provider.Snapshot().ID, b.endpoint, b.result, b.log)
+	b.h.bindQoderStickySession(b.Context(), b.key.GroupID, b.hash, b.provider.Snapshot().ID, b.log)
 	b.record(b.provider, b.result)
 }
 

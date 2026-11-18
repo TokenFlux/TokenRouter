@@ -47,13 +47,13 @@ type fakeQoderOAuthClient struct {
 	// for the site completion logic to interpret.
 	userInfo *qoder.UserInfo // configured user metadata result
 	userErr  error           // configured user query failure
-	// orgTags and orgErr describe organization lookup after its user argument and
+	// orgTags and orgErr describe organization lookup after its organization argument and
 	// call count are recorded. A nonnil orgErr suppresses the result; otherwise
 	// callers receive the configured orgTags pointer without copying.
 	orgTags     *qoder.OrganizationTags // configured organization tag result
 	orgErr      error                   // configured organization query failure
 	orgCalls    int                     // serial organization query count
-	gotOrgUID   string                  // last organization lookup user
+	gotOrgID    string                  // last looked-up organization ID
 	gotNonce    string                  // last polled authorization nonce
 	gotVerifier string                  // last polled PKCE verifier
 	// completedIdentity, completedExpiry and completionErr supply the CN20 status
@@ -191,10 +191,9 @@ func TestQoderOAuthServiceCNFreezesSiteAndIgnoresPollProxyOverride(t *testing.T)
 	require.NotContains(t, credentials, "machine_type")
 }
 
-// TestQoderOAuthServiceCNUsesOpenAPIOrganizationTags omits
-// organization from the login response. It checks completion fills the
-// organization from tags once using the OpenAPI user identity recorded by the
-// fixture.
+// TestQoderOAuthServiceCNUsesOpenAPIOrganizationTags supplies a selected organization
+// without a name. The optional tags lookup must address that organization,
+// preserve its ID and fill the missing name.
 func TestQoderOAuthServiceCNUsesOpenAPIOrganizationTags(t *testing.T) {
 	svc := NewQoderAuthorization(func(context.Context, *int64) (string, error) { return "", nil }, nil)
 	svc.Core.Start()
@@ -207,7 +206,7 @@ func TestQoderOAuthServiceCNUsesOpenAPIOrganizationTags(t *testing.T) {
 			UserID:       "user-1",
 			ExpiresIn:    3600,
 		},
-		userInfo: &qoder.UserInfo{UserID: "user-1", UserName: "CN User"},
+		userInfo: &qoder.UserInfo{UserID: "user-1", UserName: "CN User", OrganizationID: "tags-org"},
 		completedIdentity: &qoder.AuthIdentity{
 			UID:                "cosy-uid",
 			AID:                "cosy-aid",
@@ -231,7 +230,7 @@ func TestQoderOAuthServiceCNUsesOpenAPIOrganizationTags(t *testing.T) {
 	require.Equal(t, "tags-org", completed.TokenInfo.OrganizationID)
 	require.Equal(t, "Tags Org", completed.TokenInfo.OrganizationName)
 	require.Equal(t, 1, client.orgCalls)
-	require.Equal(t, "user-1", client.gotOrgUID)
+	require.Equal(t, "tags-org", client.gotOrgID)
 }
 
 // TestQoderOAuthServiceExchangeRejectsInvalidSessionState supplies a missing
@@ -305,9 +304,10 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 				ExpiresAt:    qoder.FlexibleInt64(expiresAt.Unix()),
 			},
 			userInfo: &qoder.UserInfo{
-				ID:       "user-from-info",
-				Name:     "Qoder User",
-				UserType: "personal_pro",
+				ID:             "user-from-info",
+				OrganizationID: "org-from-tags",
+				Name:           "Qoder User",
+				UserType:       "personal_pro",
 			},
 			orgTags: &qoder.OrganizationTags{
 				OrganizationID:   "org-from-tags",
@@ -392,8 +392,8 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 
 // TestQoderOAuthServicePollReturnsPendingAndCompleted changes the fixture from
 // pending to ready with metadata failures. It checks both poll states,
-// token/user fallback, machine identity and stable user-info/organization
-// warning objects.
+// token/user fallback, machine identity and a sanitized userinfo warning.
+// No organization lookup is possible without a selected organization ID.
 func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 	svc := NewQoderAuthorization(func(context.Context, *int64) (string, error) { return "", nil }, nil)
 	svc.Core.Start()
@@ -426,10 +426,8 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 		"code":    "userinfo_unavailable",
 		"message": "Qoder user info could not be loaded",
 	}, completed.TokenInfo.Extra["userinfo_warning"])
-	require.Equal(t, map[string]string{
-		"code":    "organization_unavailable",
-		"message": "Qoder organization info could not be loaded",
-	}, completed.TokenInfo.Extra["organization_warning"])
+	require.NotContains(t, completed.TokenInfo.Extra, "organization_warning")
+	require.Zero(t, client.orgCalls)
 }
 
 // TestQoderOAuthServiceCompletedSessionIsIdempotent polls to completion before
@@ -606,7 +604,7 @@ func (f *fakeQoderOAuthClient) GetUserInfo(ctx context.Context, token string) (*
 // this serial fixture.
 func (f *fakeQoderOAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 	f.orgCalls++
-	f.gotOrgUID = uid
+	f.gotOrgID = uid
 	if f.orgErr != nil {
 		return nil, f.orgErr
 	}
@@ -688,5 +686,36 @@ func TestDesktopAuthorizationAcceptsAccessOnly(t *testing.T) {
 		require.Equal(t, "user", result.UID)
 		require.Equal(t, token.RefreshToken, result.RefreshToken)
 		require.Equal(t, token.ExpiresIn > 0, result.ExpiresAt != "")
+	}
+}
+
+// TestQoderNestedOrganizationInvalidatesPriorCatalog authorizes the same user in
+// two workspaces. Each completion must retain the profile's organization, enrich
+// its name by organization ID, and reject the previous organization's snapshot.
+func TestQoderNestedOrganizationInvalidatesPriorCatalog(t *testing.T) {
+	for _, site := range []qoder.Site{qoder.SiteCN, qoder.SiteGlobal} {
+		row := &provider.Record{ID: 7, Platform: "qoder", Type: "cosy"}
+		for _, org := range []string{"org-a", "org-b"} {
+			var profile qoder.UserInfo
+			raw, err := json.Marshal(map[string]any{"uid": "shared-user", "organization": map[string]string{"id": org}})
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(raw, &profile))
+			client := &fakeQoderOAuthClient{ready: true, token: &qoder.DeviceTokenResponse{Token: "fixture", UserID: "shared-user"}, userInfo: &profile, orgTags: &qoder.OrganizationTags{OrganizationID: org, OrganizationName: "Workspace"}}
+			token, _, err := qoder.CompleteAuthorization(t.Context(), &qoder.AuthorizationFlow{Site: site}, func(qoder.Profile, string) (qoder.OAuthClientPort, error) { return client, nil })
+			require.NoError(t, err)
+			require.Equal(t, org, client.gotOrgID)
+			require.Equal(t, org, token.OrganizationID)
+			require.Equal(t, "Workspace", token.OrganizationName)
+			row.Credentials = map[string]any{"uid": token.UID, "site": token.Site, "organization_id": token.OrganizationID}
+			if row.Extra == nil {
+				row.Extra = map[string]any{provider.QoderCatalogExtraKey: map[string]any{"identity": provider.QoderCatalogIdentity(row), "version": "A", "fetched_at": time.Now(), "models": []any{}}}
+				row.PrepareQoderCatalog()
+				_, err = row.QoderModelIndex()
+				require.NoError(t, err)
+			} else {
+				_, err = row.QoderModelIndex()
+				require.ErrorIs(t, err, provider.ErrQoderCatalogUnavailable)
+			}
+		}
 	}
 }

@@ -309,8 +309,11 @@ type QoderSSEUsage struct {
 // Error returns the validation diagnostic for protocol-specific error presentation.
 func (e *RequestError) Error() string { return e.Message }
 
-// isRequestError identifies local validation failures through wrapping layers.
-func isRequestError(err error) bool { _, ok := errors.AsType[*RequestError](err); return ok }
+// IsRequestError identifies local validation failures through wrapping layers.
+func IsRequestError(err error) bool {
+	_, ok := errors.AsType[*RequestError](err)
+	return ok
+}
 
 // MayRefreshAttempt permits refresh for wrapped API errors with HTTP 401 or 403.
 // Agent-limit and entitlement failures return false, so retry policy does not
@@ -341,7 +344,7 @@ func MaySwitchCompatibleAttempt(err error) bool {
 // failures for failover. The unknown argument controls errors lacking APIError,
 // keeping Chat and compatible protocol retry decisions separate.
 func maySwitchAttempt(err error, unknown bool) bool {
-	if isRequestError(err) {
+	if IsRequestError(err) {
 		return false
 	}
 	var failure *APIError

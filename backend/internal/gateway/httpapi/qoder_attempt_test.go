@@ -19,11 +19,13 @@ import (
 	"github.com/tidwall/gjson"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -4464,4 +4466,23 @@ func assertQoderThinkingPayload(t *testing.T, payload map[string]any, enabled bo
 		}
 		require.False(t, gjson.GetBytes(raw, path).Exists(), path)
 	}
+}
+
+// TestMixedGroupQoderValidationRetainsClientError sends a stateful request through
+// the mixed-platform native dispatcher. The error must be presented once as a
+// local 400 and stay recognizable to scheduler feedback without invoking transport.
+func TestMixedGroupQoderValidationRetainsClientError(t *testing.T) {
+	row, fixture, client := gatewaytestkit.NewDefaultQoderFixture()
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	executor := UnifiedTextExecutor{Qoder: fixture.Runtime}
+	result, err := executor.native(t.Context(), c, gatewayprovider.NewExecutionProvider(row), []byte(`{"model":"ultimate","input":"test","store":true}`), protocolcore.ProtocolOpenAIResponses)
+	require.Nil(t, result)
+	require.True(t, routing.IsModelAttributeError(err))
+	require.True(t, qoder.IsRequestError(err))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "unsupported_response_state")
+	require.True(t, IsResponseCommitted(c))
+	require.Zero(t, client.BodyCount())
 }

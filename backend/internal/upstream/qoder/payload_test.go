@@ -10,6 +10,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
@@ -1002,4 +1003,109 @@ func TestBuildQoderThinkingPayloadKeepsGlobalOnlyModelIsolated(t *testing.T) {
 	payload, _, err := BuildQoderPayloadFromChatCompletionsForSite(body, "personal_standard", SiteGlobal)
 	require.NoError(t, err)
 	assertQoderThinkingPayload(t, payload, false, "", false)
+}
+
+// TestEffectiveToolPolicyAcrossTextProtocols exercises each public request shape.
+// A mandatory choice must fail before an upstream request and optional tools
+// are removed from both the native payload and the session tool fingerprint.
+func TestEffectiveToolPolicyAcrossTextProtocols(t *testing.T) {
+	res := modelrules.View{}.Resolve(modelrules.Target{Platform: "qoder", Model: "route"}, modelcatalog.Attributes{ToolCall: new(false)})
+	executor := NewExecutor(ExecuteOptions{})
+	for _, tc := range []struct {
+		wire  protocol.ProtocolID
+		parse func([]byte) (QoderPayloadRequest, error)
+		body  string
+		named string
+	}{
+		{protocol.ProtocolOpenAIChatCompletions, ParseQoderChatCompletionsPayload, `{"model":"route","messages":[{"role":"user","content":"test"}],"tools":[{"type":"function","function":{"name":"demo"}}]}`, `{"type":"function","function":{"name":"demo"}}`},
+		{protocol.ProtocolOpenAIResponses, ParseQoderResponsesPayload, `{"model":"route","input":"test","tools":[{"type":"function","name":"demo"}]}`, `{"type":"function","name":"demo"}`},
+		{protocol.ProtocolAnthropicMessages, ParseQoderAnthropicMessagesPayload, `{"model":"route","max_tokens":16,"messages":[{"role":"user","content":"test"}],"tools":[{"name":"demo","input_schema":{"type":"object"}}]}`, `{"type":"tool","name":"demo"}`},
+	} {
+		t.Run(string(tc.wire), func(t *testing.T) {
+			for _, choice := range []string{"", tc.named, `"required"`, `"auto"`, `"none"`} {
+				nativeChoice := choice
+				if tc.wire == protocol.ProtocolAnthropicMessages && choice != tc.named && choice != "" {
+					if choice == `"required"` {
+						nativeChoice = `{"type":"any"}`
+					} else {
+						nativeChoice = `{"type":` + choice + `}`
+					}
+				}
+				var body map[string]any
+				require.NoError(t, json.Unmarshal([]byte(tc.body), &body))
+				if nativeChoice != "" {
+					body["tool_choice"] = json.RawMessage(nativeChoice)
+				}
+				raw, err := json.Marshal(body)
+				require.NoError(t, err)
+				req, err := tc.parse(raw)
+				require.NoError(t, err)
+				req.Capabilities = &res
+				req.ExplicitSession = "fixture"
+				payload, _, plan, err := executor.PrepareConversation(&Target{ProviderID: 1}, tc.wire, req)
+				if choice == tc.named || choice == `"required"` {
+					var invalid *RequestError
+					require.ErrorAs(t, err, &invalid)
+					require.Equal(t, "unsupported_tool_choice", invalid.Code)
+					require.Nil(t, plan)
+				} else {
+					require.NoError(t, err)
+					require.Empty(t, payload["tools"])
+					require.NotContains(t, qoderFixtureValue[map[string]any](t, payload["parameters"]), "tool_choice")
+					require.Equal(t, QoderFingerprintAny([]any{}), plan.ToolsFingerprint)
+				}
+			}
+		})
+	}
+}
+
+// TestConditionalToolsUseNativeEffort verifies conditional tool policy after
+// effort projection. A missing intermediate level must use its supported higher
+// level both for the wire parameters and for deciding whether tools are allowed.
+func TestConditionalToolsUseNativeEffort(t *testing.T) {
+	model := qodermodel.Model{Key: "route", Reasoning: new(true), DefaultThinking: true, DefaultEffort: "low", Efforts: []string{"low", "high"}}
+	index := qodermodel.NewCatalog("fixture", []qodermodel.Model{model})
+	res := modelrules.View{}.Resolve(modelrules.Target{Model: model.Key, ProviderModels: index}, modelcatalog.Attributes{ToolCall: new(true), Conditions: new(modelcatalog.ParameterConditions{"tool_call": {Efforts: []string{"high"}}})})
+	request := QoderPayloadRequest{Model: model.Key, Capabilities: &res, Tools: []any{map[string]any{"type": "function", "function": map[string]any{"name": "demo"}}}}
+	disabled, _, err := BuildQoderPayloadWithOptions(request, "", nil, true, true)
+	require.NoError(t, err)
+	require.Empty(t, disabled["tools"])
+	request.Thinking = QoderThinkingDirective{Specified: true, Enabled: true, Effort: "medium"}
+	enabled, _, err := BuildQoderPayloadWithOptions(request, "", nil, true, true)
+	require.NoError(t, err)
+	require.Len(t, enabled["tools"], 1)
+	require.Equal(t, "high", qoderFixtureValue[map[string]any](t, enabled["parameters"])["reasoning_effort"])
+}
+
+// TestAllowedFunctionSubsetPreservesRequiredIntent checks flat and nested tool
+// selectors. Native requests should contain only the named functions, and an
+// explicit required subset must be rejected when the group disables tool calls.
+func TestAllowedFunctionSubsetPreservesRequiredIntent(t *testing.T) {
+	for _, tc := range []struct {
+		parse func([]byte) (QoderPayloadRequest, error)
+		body  string
+	}{
+		{ParseQoderChatCompletionsPayload, `{
+			"model":"x", "messages":[{"role":"user","content":"test"}],
+			"tools":[{"type":"function","function":{"name":"first"}},{"type":"function","function":{"name":"second"}}],
+			"tool_choice":{"type":"allowed_tools","allowed_tools":{"mode":"required","tools":[{"type":"function","function":{"name":"second"}}]}}
+		}`},
+		{ParseQoderResponsesPayload, `{
+			"model":"x", "input":"test",
+			"tools":[{"type":"function","name":"first"},{"type":"function","name":"second"}],
+			"tool_choice":{"type":"allowed_tools","mode":"required","tools":[{"type":"function","name":"second"}]}
+		}`},
+	} {
+		request, err := tc.parse([]byte(tc.body))
+		require.NoError(t, err)
+		out, _, err := BuildQoderPayloadWithOptions(request, "", nil, true, true)
+		require.NoError(t, err)
+		tools := QoderAnySlice(out["tools"])
+		require.Len(t, tools, 1)
+		require.Equal(t, "second", QoderDeclaredToolName(tools[0]))
+		require.Equal(t, "required", qoderFixtureValue[map[string]any](t, out["parameters"])["tool_choice"])
+		request.Capabilities = &modelrules.Resolution{Attributes: modelcatalog.Attributes{ToolCall: new(false)}}
+		_, _, err = BuildQoderPayloadWithOptions(request, "", nil, true, true)
+		require.True(t, IsRequestError(err))
+	}
 }

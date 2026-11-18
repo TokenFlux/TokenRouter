@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
@@ -24,8 +23,7 @@ import (
 // Qoder sticky selection first uses an explicit request identity, then a
 // parsed-content fallback when execution is configured. Fallback hashes
 // receive a seed prefix so the generated digest differs from the same text
-// supplied as an unprefixed explicit session. A Responses completion can bind both its
-// request session and returned response ID for later continuation.
+// supplied as an unprefixed explicit session. Successful requests bind only the affinity used during selection.
 //
 // Sticky writes run under a detached bounded context, retaining request values
 // while avoiding client cancellation after useful output. Binding errors
@@ -121,38 +119,18 @@ func qoderStickySessionHashFromSeed(seed string) string {
 	return gatewaysession.QoderHashFromSeed(seed)
 }
 
-// bindQoderStickySessions best-effort binds the request session and, for
-// Responses, the returned response ID to the successful provider. Missing
-// execution or a nonpositive provider identity skips binding; empty individual
-// keys are ignored.
-//
-// Both writes use one detached five-second context so client cancellation
-// after output does not cancel these continuation hints. The request session
-// is attempted first, then the response alias; failures are logged when a
-// logger exists and do not roll back another binding or prevent completion.
-// The caller therefore treats these associations as advisory rather than an
-// atomic pair.
-func (h *QoderCompatibleRuntime) bindQoderStickySessions(ctx context.Context, groupID *int64, sessionHash string, providerID int64, endpoint QoderEndpoint, result *forwardcore.MessagesResult, reqLog *zap.Logger) {
-	if h == nil || h.options.Execution == nil || providerID <= 0 {
+// bindQoderStickySession retains request affinity after successful output. Storage
+// uses a detached five-second budget so client cancellation does not interrupt
+// publication. An empty selection key produces no write, and a cache failure
+// leaves the completed response and its accounting intact.
+func (h *QoderCompatibleRuntime) bindQoderStickySession(ctx context.Context, groupID *int64, sessionHash string, providerID int64, reqLog *zap.Logger) {
+	if h == nil || h.options.Execution == nil || providerID <= 0 || sessionHash == "" {
 		return
 	}
-	// Detach these continuation hints from client cancellation after successful
-	// output, while bounding both session and response-alias writes with one deadline.
 	bindCtx, cancel := qoderDetachedTimeoutContext(ctx, 5*time.Second)
 	defer cancel()
-	bind := func(hash string) {
-		if hash == "" {
-			return
-		}
-		if err := h.options.Execution.BindStickySession(bindCtx, groupID, hash, providerID); err != nil && reqLog != nil {
-			reqLog.Warn("qoder.bind_sticky_session_failed", zap.Int64("provider_id", providerID), zap.Error(err))
-		}
-	}
-	// Attempt the request identity before the returned Responses alias; either
-	// failed write remains advisory and does not undo the other completed association.
-	bind(sessionHash)
-	if endpoint == QoderResponses && result != nil {
-		bind(qoderStickySessionHashFromSeed(result.RequestID))
+	if err := h.options.Execution.BindStickySession(bindCtx, groupID, sessionHash, providerID); err != nil && reqLog != nil {
+		reqLog.Warn("qoder.bind_sticky_session_failed", zap.Int64("provider_id", providerID), zap.Error(err))
 	}
 }
 

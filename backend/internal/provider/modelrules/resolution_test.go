@@ -327,3 +327,36 @@ func TestOpenCodeLiveCanonicalMetadataResolvesUnbundledOffering(t *testing.T) {
 	_, priced := catalog.Lookup([]string{"new-offering"})
 	require.False(t, priced)
 }
+
+// TestConfiguredAttributesExposeAdapterConflicts resolves profile overrides on
+// ordinary provider routes without an account model source. Effective values
+// keep wire restrictions and the preview retains the conflicting configuration.
+func TestConfiguredAttributesExposeAdapterConflicts(t *testing.T) {
+	target := Target{Platform: "openai", ProviderType: "oauth", Model: "gpt-image-2", ClientProtocol: "openai_images_edits", UpstreamProtocol: "openai_images_edits"}
+	for _, enabled := range []bool{false, true} {
+		result := View{}.Resolve(target, modelcatalog.Attributes{Media: &modelcatalog.MediaCapabilities{InputFidelity: new(enabled)}})
+		require.Equal(t, new(false), result.Attributes.Media.InputFidelity)
+		if enabled {
+			require.NotNil(t, result.ConfiguredAttributes)
+			require.Equal(t, new(true), result.ConfiguredAttributes.Media.InputFidelity)
+			copy := result.Clone()
+			*copy.ConfiguredAttributes.Media.InputFidelity = false
+			require.Equal(t, new(true), result.ConfiguredAttributes.Media.InputFidelity)
+		} else {
+			require.Nil(t, result.ConfiguredAttributes)
+		}
+	}
+	cross := View{}.Resolve(Target{Platform: "gemini", ClientProtocol: "anthropic_messages", UpstreamProtocol: "gemini_generate_content"}, modelcatalog.Attributes{InputModalities: new([]string{"text", "audio"})})
+	require.NotNil(t, cross.ConfiguredAttributes)
+	require.Equal(t, new([]string{"text", "audio"}), cross.ConfiguredAttributes.InputModalities)
+	require.Equal(t, new([]string{"text"}), cross.Attributes.InputModalities)
+	// The group explicitly borrowed all capabilities of the referenced model.
+	reader := ViewFromLookup(func(string) modelcatalog.Attributes {
+		return modelcatalog.Attributes{InputModalities: new([]string{"text", "audio"})}
+	})
+	ref := reader.ResolveReference(Target{Model: "alias", ClientProtocol: "anthropic_messages", UpstreamProtocol: "gemini_generate_content"}, "source", modelcatalog.Attributes{})
+	require.NotNil(t, ref.ConfiguredAttributes)
+	require.Equal(t, new([]string{"text", "audio"}), ref.ConfiguredAttributes.InputModalities)
+	require.Equal(t, new([]string{"text"}), ref.Attributes.InputModalities)
+	require.Equal(t, "alias", ref.Target.Model)
+}

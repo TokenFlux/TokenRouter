@@ -26,7 +26,7 @@ TokenRouter 通过 Qoder COSY 网关路径，支持 Qoder 原生的上游提供�
 - `credentials.refresh_mode` 记录令牌的来源。没有时按 `cosy` 处理；新版桌面授权在两个站点都使用 `device_token`；旧中国站 OAuth 的 `qodercn20` 继续保留。
 - 手工导入可以只提供 `pat`，也可以提供一组现有的 COSY 令牌。
 - 现有的 COSY 令牌凭据包括 `security_oauth_token`、`refresh_token`、`machine_id`、`machine_token`、`machine_type`、`uid` 或 `aid`，以及可选的组织元数据。
-- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`，。轮换沿用已授权账号和组织，响应中携带的用户 ID 必须与绑定身份一致；首次授权通过 userinfo 和 account plan 补齐账号信息。轮询返回有效访问令牌即可完成授权；未返回刷新令牌时，到期后需要重新授权。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
+- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`。轮换沿用已授权账号和组织，响应中携带的用户 ID 必须与绑定身份一致；首次授权从 userinfo 的顶层或嵌套 `organization` 读取组织 ID。需要补齐组织名称时，用该组织 ID 查询 tags。个人账号跳过 tags 请求。account plan 提供账号类型。轮询返回有效访问令牌即可完成授权；未返回刷新令牌时，到期后需要重新授权。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
 - 中国站支持标准 QODER_PAT 和新版桌面设备授权，旧 QoderCN20 凭据仍可刷新。企业专属域名的 `PERSONAL_TOKEN`、组织选择、AK/SK 和区域发现都不支持。
 
 ## 客户端协议
@@ -79,13 +79,15 @@ TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Resp
 
 `provider/qodermodel` 保存每个账号的模型索引和原生能力约束。预览、探测和推理按最终路由键、客户端协议和原生上游协议 `qoder_chat` 匹配分组属性。属性引用可以借用其他型号的字段，出站使用原模型的路由键、默认设置和协议限制。`upstream/qoder` 实现桌面协议、站点、签名、报文转换和会话历史。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
 
-三个入口均由客户端提交完整历史。Qoder Responses 支持省略 `store` 或传 `store:false`。请求使用 `store:true`、`previous_response_id`、`conversation` 或 `item_reference` 时返回 HTTP 400。多轮工具调用需在本轮 `input` 中同时提供原始消息、函数调用及其结果。响应 ID 用于标识本次输出和使用记录，网关只为原生会话匹配保留指纹和用量。
+三个入口均由客户端提交完整历史。Qoder Responses 支持省略 `store` 或传 `store:false`。请求使用 `store:true`、`previous_response_id`、`conversation` 或 `item_reference` 时返回 HTTP 400。多轮工具调用需在本轮 `input` 中同时提供原始消息、函数调用及其结果。响应 ID 用于标识本次输出和使用记录；Redis 粘性路由只绑定实际请求的会话键。网关只为原生会话匹配保留指纹和用量。
 
 只用于手动导入和 opt-in 测试的本地凭据读取隔离在 `upstream/qoder/localauth`。macOS 桌面导入读取对应站点的 `auth.v1.dat`、`auth.machine-id` 和系统 Keychain，验证存储版本与站点；旧 CLI 文件仍可显式导入。凭据只在内存中解密，正常服务不会读取本机客户端登录资料。
 
 推理报文使用新版客户端的规范 `content`：用户文本块放在 `content` 数组，工具结果保留字符串或文本块，文本请求不再生成旧的 `contents` 副本。`chat_context.text` 和 `originalContent` 使用字符串，旧 `aliyun_user_type` 提示保持空值；模型显示名及视觉标记来自本次账号观察。自动缓存标记写到输出副本，避免改变后续会话指纹使用的输入。
 
 实际的写入和 Flush 由 HTTP 适配器负责，转换器逐段输出，整条 SSE 不会被聚合。`gateway/httpapi.QoderRequestMetadata` 复制本次的请求头，并整理出原来的 Key ID 和客户端标记，平台的会话键计算只在 upstream 执行。HTTP 测试连接同一个输出 Writer 和平台流实现。
+
+工具能力取本轮实际生效的推理开关和档位。分组禁用工具调用时，三个文本入口都会移除可选工具声明并保留历史调用和结果；要求调用工具或指定函数会在联系上游前返回 HTTP 400。`allowed_tools` 指定的函数子集会按原声明顺序发往上游，`required` 也遵循同一检查。这些本地拒绝不参与提供商的成功率统计。
 
 客户端输出按[统一用量口径](protocol_capabilities.md#client_usage_cache)呈现已观察到的缓存读取与写入。OpenAI 输入总量包含全部输入桶，Messages 保持普通输入与缓存分离；`cacheable_tokens` 只表示可缓存量，不当作缓存写入。当前 Qoder 解析没有生成非零写入桶，序列化器仅保留调用方已经提供的真实计数。
 
@@ -126,7 +128,9 @@ Qoder 有独立的上游月度 Credits 配额。TokenRouter 只把它当作提�
 
 通用 Credits 余额只合计 `userQuota`、`addOnQuota` 和 `orgResourcePackage`。`dedicatedResourcePackages` 单独保留名称、余额、有效期和适用范围标签，不加入通用余额。存在仍可使用的专属 Credits 时，不因通用余额耗尽而停调整个提供商；具体路由资格继续由模型目录和实际请求错误决定。
 
-成功观察保存到 `provider.extra.qoder_quota_snapshot`，查询失败可显示缓存及降级错误。通用额度确已耗尽时沿用到 `expiresAt` 的调度冷却；`personal_standard` 的零配额占位结构不据此停调。请求错误码 `115`、`agentLimitResetTime` 或 HTTP 429 继续走正常限流处理。
+新接口的 Credits 视图要求显式提供布尔字段 `isQuotaExceeded` 和 `isPlanQuotaProrated`。额度包有效期和范围标签同时支持蛇形与驼峰拼写。缺失必填字段或结构无效时，服务保留已有快照和调度冷却。
+
+成功查询将额度及账号身份保存到 `provider.extra.qoder_quota_snapshot`。查询失败时，管理端仅在站点、账号与组织匹配时显示上次额度。同一已识别账号刷新令牌后仍可使用快照。升级前保存的额度缺少身份标记，首次成功查询后恢复降级展示。通用额度确已耗尽时沿用到 `expiresAt` 的调度冷却；`personal_standard` 的零配额占位结构不据此停调。请求错误码 `115`、`agentLimitResetTime` 或 HTTP 429 继续走正常限流处理。
 
 ## 运维
 

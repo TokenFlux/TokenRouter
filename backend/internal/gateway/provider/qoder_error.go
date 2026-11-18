@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
@@ -65,4 +66,11 @@ func DescribeQoderError(err error) forward.QoderErrorView {
 		errType = "rate_limit_error"
 	}
 	return forward.QoderErrorView{Recognized: true, Status: status, SourceStatus: apiErr.StatusCode, Kind: errType, Message: apiErr.Error(), Body: apiErr.Body}
+}
+
+// IsLocalQoderRejection identifies request or capability validation that failed
+// before inference. Native Chat and compatible entry points must release their
+// capacity but leave the selected provider's scheduling and health samples untouched.
+func IsLocalQoderRejection(err error) bool {
+	return qoder.IsRequestError(err) || routing.IsModelAttributeError(err)
 }

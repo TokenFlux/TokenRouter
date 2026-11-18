@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -120,9 +121,12 @@ func TestProviderUsageService_QoderUsageFetchesQuotaAndPersistsSnapshot(t *testi
 	// observation exposes the actual write attempt.
 	select {
 	case updates := <-repo.updateExtraCh:
-		if updates[providercore.QoderUsageQuotaSnapshotExtraKey] == nil {
-			t.Fatalf("expected qoder quota snapshot update: %#v", updates)
-		}
+		saved := providercore.CloneRecord(&repo.providers[0])
+		saved.Extra = updates
+		quota := saved.SavedQoderQuota()
+		require.NotNil(t, quota)
+		require.True(t, quota.SnapshotFromProvider)
+		require.Equal(t, usage.QoderQuota.UserQuota, quota.UserQuota)
 	case <-time.After(time.Second):
 		t.Fatal("expected UpdateExtra call")
 	}
@@ -925,6 +929,9 @@ func TestProviderUsageService_QoderUsageDegradedUsesLastKnownSnapshot(t *testing
 			},
 		}}},
 	}
+	snapshot, ok := repo.providers[0].Extra[providercore.QoderUsageQuotaSnapshotExtraKey].(map[string]any)
+	require.True(t, ok)
+	snapshot["account_identity"] = providercore.QoderCatalogIdentity(&repo.providers[0])
 	svc := newOAuthUsageFixture(oauthUsageFixtureOptions{
 		providerRepo: repo,
 		cache:        providercore.NewOAuthUsageCache(),
@@ -944,6 +951,47 @@ func TestProviderUsageService_QoderUsageDegradedUsesLastKnownSnapshot(t *testing
 	if usage.QoderQuota.UserQuota == nil || usage.QoderQuota.UserQuota.Used != 5 {
 		t.Fatalf("unexpected snapshot quota: %#v", usage.QoderQuota.UserQuota)
 	}
+}
+
+// TestQoderDegradedUsageAfterAccountChange checks a stored organization's
+// credits after a provider edit and a failed query. Token rotation preserves
+// the observation. Switching site, user or organization hides it, as does an
+// upgrade from an unbound snapshot written by a previous gateway version.
+func TestQoderDegradedUsageAfterAccountChange(t *testing.T) {
+	row := &providercore.Record{ID: 1, Platform: "qoder", Type: "cosy", Credentials: qoderUsageCredentials("first")}
+	snapshot := map[string]any{
+		"account_identity":   providercore.QoderCatalogIdentity(row),
+		"dedicated_packages": []any{map[string]any{"id": "org-a-only", "remaining": 48}},
+	}
+	row.Extra = map[string]any{providercore.QoderUsageQuotaSnapshotExtraKey: snapshot}
+	for _, tc := range []struct {
+		field     string
+		value     string
+		wantQuota bool
+	}{
+		{"security_oauth_token", "rotated", true},
+		{"organization_id", "org-b", false},
+		{"uid", "another-user", false},
+		{"site", "cn", false},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			changed, err := providercore.ApplyConfigurationChange(row, row, providercore.ConfigurationChange{
+				Fields:          providercore.ConfigCredentials,
+				CredentialPatch: map[string]any{tc.field: tc.value},
+			})
+			require.NoError(t, err)
+			view := buildQoderDegradedUsageAt(errors.New("offline"), changed, time.Now())
+			require.Equal(t, providercore.ErrorCodeNetworkError, view.ErrorCode)
+			if tc.wantQuota {
+				require.NotNil(t, view.QoderQuota)
+				require.Equal(t, "org-a-only", view.QoderQuota.Dedicated[0].ID)
+			} else {
+				require.Nil(t, view.QoderQuota)
+			}
+		})
+	}
+	delete(snapshot, "account_identity")
+	require.Nil(t, buildQoderDegradedUsageAt(errors.New("offline"), row, time.Now()).QoderQuota)
 }
 
 // TestProviderUsageService_QoderUsageDegradedDoesNotClearProviderError returns
@@ -1012,7 +1060,7 @@ func TestQoderUsageCacheDoesNotCrossCredentialIdentity(t *testing.T) {
 // identity comparison fails.
 func TestQoderObservationCannotWriteNewAdministratorIdentity(t *testing.T) {
 	repo := &qoderObservationIdentityRepo{current: &providercore.Record{ID: 917, Platform: capability.PlatformQoder, Type: capability.ProviderTypeCosy, Status: providercore.StatusActive, Credentials: qoderUsageCredentials("observed")}}
-	u := &qoderObservationIdentityUpstream{qoderUsageHTTPUpstreamStub: qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{"userType":"teams","usageType":"credits","isQuotaExceeded":true,"expiresAt":%d,"userQuota":{"total":100,"used":100,"remaining":0}}`, time.Now().Add(time.Hour).UnixMilli())}, beforeReturn: func() { repo.current.Credentials = qoderUsageCredentials("administrator") }}
+	u := &qoderObservationIdentityUpstream{qoderUsageHTTPUpstreamStub: qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{"userType":"teams","usageType":"credits","isQuotaExceeded":true,"isPlanQuotaProrated":false,"expiresAt":%d,"userQuota":{"total":100,"used":100,"remaining":0}}`, time.Now().Add(time.Hour).UnixMilli())}, beforeReturn: func() { repo.current.Credentials = qoderUsageCredentials("administrator") }}
 	svc := newOAuthUsageFixture(oauthUsageFixtureOptions{providerRepo: repo, cache: providercore.NewOAuthUsageCache(), httpUpstream: u})
 	// Discard the display/error result and inspect write count instead; the
 	// before-return administrator mutation targets persistence eligibility,
@@ -1236,7 +1284,7 @@ func TestDedicatedCreditsKeepEligibleProviderSchedulable(t *testing.T) {
 		balance float64
 		limited bool
 	}{{"", 80, false}, {`,"remaining":0`, 0, true}} {
-		raw := fmt.Sprintf(`{"displayMode":"qoder","qoderUsage":{"userId":"user","userType":"teams","usageType":"credits","isQuotaExceeded":true,"expiresAt":%d,"userQuota":{"total":100,"remaining":0},"dedicatedResourcePackages":[{"id":"scoped","available":true,"total":100,"used":20%s}]}}`, now.Add(time.Hour).Unix(), tc.extra)
+		raw := fmt.Sprintf(`{"displayMode":"qoder","qoderUsage":{"userId":"user","userType":"teams","usageType":"credits","isQuotaExceeded":true,"isPlanQuotaProrated":false,"expiresAt":%d,"userQuota":{"total":100,"remaining":0},"dedicatedResourcePackages":[{"id":"scoped","available":true,"total":100,"used":20%s}]}}`, now.Add(time.Hour).Unix(), tc.extra)
 		response, err := qoder.ParseUsagePresentation([]byte(raw))
 		require.NoError(t, err)
 		info := qoderQuotaInfoFromResponse(response, now, false)
@@ -1260,4 +1308,54 @@ func TestImportedDeviceModeUsesOpenAPI(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "enterprise", info.QoderQuota.DisplayMode)
 	require.Equal(t, "/sash/api/v2/me/usage", u.req.URL.Path)
+}
+
+// TestExpiredDedicatedPackageAliasesDriveSameScheduling applies both spellings of
+// a package's expiration and restrictions. Positive credits in an expired package
+// must not prevent an otherwise exhausted account from pausing until cycle end.
+func TestExpiredDedicatedPackageAliasesDriveSameScheduling(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	for _, aliases := range [][2]string{{"expires_at", "display_labels"}, {"expiresAt", "displayLabels"}} {
+		raw := fmt.Sprintf(`{"displayMode":"qoder","qoderUsage":{"userId":"u","userType":"teams","usageType":"credits","isQuotaExceeded":true,"isPlanQuotaProrated":false,"expiresAt":%d,"dedicatedResourcePackages":[{"id":"pack","available":true,"remaining":8,"%s":%d,"%s":[{"dimension":"model","value":"demo"}]}]}}`, now.Add(time.Hour).Unix(), aliases[0], now.Add(-time.Hour).UnixMilli(), aliases[1])
+		response, err := qoder.ParseUsagePresentation([]byte(raw))
+		require.NoError(t, err)
+		quota := qoderQuotaInfoFromResponse(response, now, false)
+		pack := quota.Dedicated[0]
+		require.NotNil(t, pack.ExpiresAt)
+		require.True(t, pack.ExpiresAt.Equal(now.Add(-time.Hour)))
+		require.Equal(t, []providercore.QoderQuotaLabel{{Dimension: "model", Value: "demo"}}, pack.Labels)
+		_, limited := providercore.QoderQuotaRateLimitResetAt(quota, now)
+		require.True(t, limited)
+	}
+}
+
+// TestIncompleteDesktopUsagePreservesCooldown feeds an incomplete live observation
+// after a verified exhaustion snapshot. The service may return a degraded display
+// but must leave both the saved snapshot and its scheduling pause intact.
+func TestIncompleteDesktopUsagePreservesCooldown(t *testing.T) {
+	expiry := time.Now().Add(time.Hour).Truncate(time.Second)
+	credentials := qoderUsageCredentials("fixture")
+	credentials["refresh_mode"] = "device_token"
+	up := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{"displayMode":"qoder","qoderUsage":{"userId":"u","userType":"teams","usageType":"credits","expiresAt":%d}}`, expiry.Unix())}
+	row := providercore.Record{ID: 1, Platform: "qoder", Type: "cosy", Credentials: credentials, RateLimitResetAt: &expiry}
+	row.Extra = map[string]any{providercore.QoderUsageQuotaSnapshotExtraKey: map[string]any{
+		"account_identity":  providercore.QoderCatalogIdentity(&row),
+		"is_quota_exceeded": true,
+		"expires_at":        expiry,
+	}}
+	repo := &providerUsageCodexProbeRepo{
+		usageRecordFixture: usageRecordFixture{providers: []providercore.Record{row}},
+		updateExtraCh:      make(chan map[string]any, 1),
+		clearLimitCh:       make(chan int64, 1),
+		rateLimitCh:        make(chan time.Time, 1),
+	}
+	svc := newOAuthUsageFixture(oauthUsageFixtureOptions{providerRepo: repo, cache: providercore.NewOAuthUsageCache(), httpUpstream: up})
+	info, err := svc.GetUsage(t.Context(), 1)
+	require.NoError(t, err)
+	require.NotEmpty(t, info.Error)
+	require.NotNil(t, info.QoderQuota)
+	require.True(t, info.QoderQuota.IsQuotaExceeded)
+	require.Empty(t, repo.updateExtraCh)
+	require.Empty(t, repo.clearLimitCh)
+	require.Empty(t, repo.rateLimitCh)
 }

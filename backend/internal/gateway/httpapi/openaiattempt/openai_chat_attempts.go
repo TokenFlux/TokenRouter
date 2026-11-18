@@ -16,6 +16,7 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
@@ -303,6 +304,12 @@ func (b *openAIChatAttemptBridge) Switching(failure *textflow.AttemptFailure, sw
 // output takes precedence over the general OpenAI fallback, and the chosen
 // output result is logged.
 func (b *openAIChatAttemptBridge) OtherFailure(err error) {
+	// A mixed-platform native executor can already have delivered a local
+	// capability error. No provider failure or upstream warning follows that refusal.
+	if gatewayhttp.IsResponseCommitted(b.c) && routing.IsModelAttributeError(err) {
+		return
+	}
+
 	statusCode := 0
 	if v, ok := GetContextInt64(b.c, gatewayhttp.OpsUpstreamStatusCodeKey); ok {
 		statusCode = int(v)
