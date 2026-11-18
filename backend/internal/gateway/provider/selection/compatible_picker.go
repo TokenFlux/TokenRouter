@@ -239,7 +239,8 @@ func (s *compatiblePicker) isProviderRequestCompatibleReason(ctx context.Context
 	if !providerSupportsOpenAICapabilities(ctx, provider, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
-	return true, ""
+	reason := s.service.chatToolEligibilityReason(ctx, provider, req.GroupID, requestRoutingModel(req), req.RequireCompact, chatToolRanked)
+	return reason == "", reason
 }
 
 // ReportResult delegates provider feedback using optional captured alphas and
@@ -494,6 +495,17 @@ func (s *Compatible) selectProviderWithSchedulerForRouting(
 	// Retain typed admission failures until candidate selection has exhausted the
 	// pool; a supported route leaves capacity errors under scheduler control.
 	defer func() {
+		if err == nil && selection != nil && selection.Provider != nil {
+			return
+		}
+		// Only ordinary pool exhaustion can become this request error. Storage
+		// failures remain authoritative even when an earlier candidate lacked tools.
+		if requeststate.ChatFunctionToolsRequired(ctx) && (err == nil || errors.Is(err, schedulercore.ErrNoAvailableProviders)) {
+			if failure := capabilities.chatToolFailure(); failure != nil {
+				err = failure
+				return
+			}
+		}
 		if err != nil {
 			if local := capabilities.failure(); local != nil {
 				err = local

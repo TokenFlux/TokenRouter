@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 )
 
@@ -27,6 +29,12 @@ import (
 // while keeping its parent context intact. Parent credential health for Spark
 // remains a separate lookup, and protocol-specific WS/Compact routes can
 // qualify without ordinary HTTP text support.
+
+const (
+	// NativeChatFunctionToolsUnsupported identifies local candidate exhaustion
+	// caused by the first-party Chat endpoint's function-tool restriction.
+	NativeChatFunctionToolsUnsupported = "OPENAI_CHAT_FUNCTION_TOOLS_UNSUPPORTED"
+)
 
 // AllowsCompatibleCompact permits Grok or provider-declared OpenAI Compact
 // execution targets. Nil targets fail, while the provider policy supplies the
@@ -115,6 +123,28 @@ func CompatibleEligibilityReason(ctx context.Context, provider *ExecutionProvide
 		return "compact_unsupported"
 	}
 	return ""
+}
+
+// CheckNativeChatFunctionTools rejects ordinary function tools on first-party
+// GPT-6.2 Chat. The caller supplies an already resolved attempt and its final
+// model. A conversion that was selected by group and provider policy is outside
+// this check, so skipping a native candidate cannot create a new conversion.
+func CheckNativeChatFunctionTools(ctx context.Context, target *ExecutionProvider, model string) error {
+	if !requeststate.ChatFunctionToolsRequired(ctx) || target == nil || !target.View().IsOpenAI() ||
+		target.Route.Protocol() != protocolcore.ProtocolOpenAIChatCompletions || !modelrules.OpenAIChatFunctionToolsUnsupported(model) {
+		return nil
+	}
+	// The same model ID can belong to a relay that implements Chat function
+	// tools itself. Use the selected endpoint's service identity for the check.
+	identity := modelrules.Target{
+		Platform:     target.Record.Platform,
+		ProviderType: target.Record.Type,
+		BaseURL:      ExecutionProtocolTarget(target).BaseURL(),
+	}
+	if identity.ServiceID() != "openai" {
+		return nil
+	}
+	return apperror.BadRequest(NativeChatFunctionToolsUnsupported, "Function tools are not supported for this model on /v1/chat/completions. Use /v1/responses instead.")
 }
 
 // OpenAIQuotaPause evaluates current OpenAI quota observations against

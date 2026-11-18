@@ -190,6 +190,10 @@ OpenAI 和其他平台一样，统一保存 `credentials.upstream_protocols`。A
 
 分组的 `allowed_protocols` 控制客户端入口，`protocol_fallbacks` 为每个源指定单步的目标。提供商已经启用原协议时直接转发，否则只使用分组配置的目标；运行时由协议集合决定目标，`openai_text_route_mode` 不再参与。OAuth Images、PAT Alpha Search 和 WebSocket HTTP bridge 按各自的适用条件执行。`extra.openai_responses_continuation_supported` 和两个压缩开关各自独立，会话能力不算文本协议。
 
+Chat 请求使用普通 `function` 工具或旧式 `functions` 时，网关在模型映射后跳过 `gpt-6.2-astra` 和 `gpt-6.2-sol` 的原厂 Chat 路线。支持 Chat 函数调用的同名中转可继续参与选路。纯文本和仅含 `custom` 工具的请求仍可走原厂 Chat。协议桥接按分组和提供商配置选定，跳过原厂候选不会触发对该候选的协议转换。因工具不兼容耗尽候选时，网关返回 `400 invalid_request_error`，提示改用 `/v1/responses`。[OpenAI API 更新日志](https://developers.openai.com/api/docs/changelog)
+
+函数工具诊断只考虑通过分组限制的路线。对同一提供商，完整记录和数据库复核的结果依次优先于候选列表里的记录。复核发现提供商已被其他硬限制排除时，早先记录的工具能力不再参与诊断。
+
 提供商的创建、更新、复制和批量更新不会自动探测协议。旧的工作负载和路由字段在接收输入时转换并清除，历史上的探测状态直接丢弃。Responses 图片工具使用分组独立的四态策略，优先于提供商和全局设置，独立的 Images 入口不受分组的这项策略影响。
 
 ## 远程压缩协议

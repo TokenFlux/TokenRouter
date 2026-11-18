@@ -10,7 +10,8 @@ import (
 // openai.go defines OpenAI model and authentication rules for Chat, Responses,
 // Compact and Images. Author-level sampling controls also apply through
 // canonical model references, while OAuth restrictions require the selected
-// OpenAI account route.
+// OpenAI account route. Native first-party Chat selection uses the exact model
+// restriction for ordinary function tools on GPT-6.2.
 
 // applyOpenAIEncoding selects payload controls for the final OpenAI author identity.
 func (r *Resolution) applyOpenAIEncoding(model string, patch *modelcatalog.Attributes, conditions modelcatalog.ParameterConditions) {
@@ -51,6 +52,18 @@ func (r *Resolution) applyOpenAIEncoding(model string, patch *modelcatalog.Attri
 		case "gpt-6-sol", "gpt-6-luna":
 			conditions["tool_call"] = modelcatalog.ParameterCondition{Efforts: []string{"none"}}
 		}
+	}
+}
+
+// OpenAIChatFunctionToolsUnsupported identifies models whose first-party Chat
+// endpoint cannot accept ordinary function tools. Callers resolve the outgoing
+// model and confirm the first-party endpoint before applying the restriction.
+func OpenAIChatFunctionToolsUnsupported(model string) bool {
+	switch normalize(model) {
+	case "gpt-6.2-astra", "gpt-6.2-sol":
+		return true
+	default:
+		return false
 	}
 }
 

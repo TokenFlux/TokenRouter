@@ -17,12 +17,165 @@ import (
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
+	schedulerredis "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache"
 )
 
 // candidate_policy_test.go checks provider selection against final model and
 // protocol capabilities. Mixed-provider fixtures exercise model mapping,
 // hosted image tools, and GIF restrictions while distinguishing a locally
 // unsupported route from an available alternative.
+
+// TestChatFunctionToolSelectionSkipsNativeGPT62 verifies candidate exhaustion
+// and alternative selection in both scheduler modes. A relay or a configured
+// bridge can still be selected, while official native Chat handles text.
+func TestChatFunctionToolSelectionSkipsNativeGPT62(t *testing.T) {
+	const chat = capability.ProtocolOpenAIChatCompletions
+	const responses = capability.ProtocolOpenAIResponses
+	const alias = "client-model"
+	for _, mode := range []routing.GroupSchedulerType{routing.GroupSchedulerTypeBasic, routing.GroupSchedulerTypeAdvanced} {
+		for _, model := range []string{"gpt-6.2-astra", "gpt-6.2-sol"} {
+			t.Run(string(mode)+"/"+model, func(t *testing.T) {
+				group := &routing.Group{
+					ID: 91, Hydrated: true, Status: routing.StatusActive, SchedulerType: mode,
+					AllowedProtocols:  []capability.ProtocolID{chat},
+					ProtocolFallbacks: map[capability.ProtocolID][]capability.ProtocolID{chat: {responses}},
+				}
+				official := mixedGroupProvider(1, capability.PlatformOpenAI, model, group.ID)
+				official.Record.Credentials["model_mapping"] = map[string]any{alias: model}
+				official.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat), string(responses)}
+				relay := mixedGroupProvider(2, capability.PlatformOpenAI, model, group.ID)
+				relay.Record.Credentials["model_mapping"] = map[string]any{alias: model}
+				relay.Record.Credentials["base_url"] = " https://relay.example/v1 "
+				relay.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat)}
+
+				base := requeststate.WithClientProtocol(requeststate.WithGroup(t.Context(), group), chat)
+				plan := gatewayadapter.NewRoutePlanner(nil).PlanRoute(base, group, &group.ID, alias)
+				base = requeststate.WithRoutePlan(base, plan)
+				functions := requeststate.WithChatFunctionTools(base)
+
+				selectProvider := func(ctx context.Context, records ...gatewayadapter.ExecutionProvider) (*gatewayadapter.SelectionResult, error) {
+					selector := NewCompatible(CompatibleDependencies{Reads: Reads{Providers: &mixedGroupProviders{values: records}}}, DefaultOptions())
+					result, _, err := selector.SelectProviderWithSchedulerForCapability(ctx, &group.ID, "", "", alias, nil, egress.OpenAIUpstreamTransportAny, providercore.OpenAIEndpointCapabilityTextGeneration, false, false)
+					if result != nil && result.ReleaseFunc != nil {
+						result.ReleaseFunc()
+					}
+					return result, err
+				}
+
+				selected, err := selectProvider(base, official)
+				require.NoError(t, err)
+				require.Equal(t, int64(1), selected.Provider.Record.ID)
+
+				selected, err = selectProvider(functions, official)
+				require.Nil(t, selected)
+				require.Equal(t, gatewayadapter.NativeChatFunctionToolsUnsupported, apperror.Reason(err), "%v", err)
+				require.Contains(t, err.Error(), "/v1/responses")
+
+				selected, err = selectProvider(functions, official, relay)
+				require.NoError(t, err)
+				require.Equal(t, int64(2), selected.Provider.Record.ID)
+				routed, err := gatewayadapter.ProviderForProtocolAttempt(functions, selected.Provider)
+				require.NoError(t, err)
+				require.Equal(t, chat, routed.Route.Protocol())
+
+				selected, err = selectProvider(functions)
+				require.Nil(t, selected)
+				require.ErrorIs(t, err, schedulercore.ErrNoAvailableProviders)
+
+				// Removing native Chat from this fixture explicitly selects the
+				// configured Responses bridge through the original group policy.
+				official.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(responses)}
+				selected, err = selectProvider(functions, official)
+				require.NoError(t, err)
+				routed, err = gatewayadapter.ProviderForProtocolAttempt(functions, selected.Provider)
+				require.NoError(t, err)
+				require.Equal(t, responses, routed.Route.Protocol())
+			})
+		}
+	}
+}
+
+// TestChatToolExhaustionRespectsUpstreamWhitelist uses final provider aliases
+// to exercise both directions of the group gate. A forbidden original route
+// contributes no tool error, and a forbidden relay cannot mask a valid one.
+func TestChatToolExhaustionRespectsUpstreamWhitelist(t *testing.T) {
+	const chat = capability.ProtocolOpenAIChatCompletions
+	const model = "gpt-6.2-sol"
+	const alias = "request-alias"
+	for _, mode := range []routing.GroupSchedulerType{routing.GroupSchedulerTypeBasic, routing.GroupSchedulerTypeAdvanced} {
+		t.Run(string(mode), func(t *testing.T) {
+			group := &routing.Group{ID: 91, Hydrated: true, Status: routing.StatusActive, SchedulerType: mode, AllowedProtocols: []capability.ProtocolID{chat}}
+			official := mixedGroupProvider(1, capability.PlatformOpenAI, model, group.ID)
+			official.Record.Credentials["model_mapping"] = map[string]any{alias: model}
+			official.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat)}
+			relay := mixedGroupProvider(2, capability.PlatformOpenAI, "gpt-6.2-astra", group.ID)
+			relay.Record.Credentials["model_mapping"] = map[string]any{alias: "gpt-6.2-astra"}
+			relay.Record.Credentials["base_url"] = "https://relay.example/v1"
+			relay.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat)}
+			selectOne := func(withFunction bool, allowed string, records ...gatewayadapter.ExecutionProvider) error {
+				pricing := routingtestkit.NewConfigServiceFixture(routingtestkit.StandardPricingConfigRepository(routingtestkit.Configuration{
+					ID: 1, Status: routing.StatusActive, GroupIDs: []int64{group.ID},
+					RestrictModels: true, BillingModelSource: routing.BillingModelSourceUpstream,
+					ModelPricing: []routing.ModelPricingEntry{{Models: []string{allowed}}},
+				}, map[int64]string{group.ID: capability.PlatformOpenAI}))
+				svc := NewCompatible(CompatibleDependencies{Reads: Reads{Providers: &mixedGroupProviders{values: records}}, Shared: Shared{GroupPolicies: pricing}}, DefaultOptions())
+				base := requeststate.WithClientProtocol(requeststate.WithGroup(t.Context(), group), chat)
+				require.True(t, svc.NeedsUpstreamGroupRestriction(base, &group.ID))
+				plan := gatewayadapter.NewRoutePlanner(pricing).PlanRoute(base, group, &group.ID, alias)
+				ctx := requeststate.WithRoutePlan(base, plan)
+				if withFunction {
+					ctx = requeststate.WithChatFunctionTools(ctx)
+				}
+				result, _, err := svc.SelectProviderWithSchedulerForCapability(ctx, &group.ID, "", "", alias, nil, egress.OpenAIUpstreamTransportAny, providercore.OpenAIEndpointCapabilityTextGeneration, false, false)
+				require.Nil(t, result)
+				return err
+			}
+			t.Run("disallowed official appears incompatible", func(t *testing.T) {
+				baseline := selectOne(false, "gpt-5.4", official)
+				require.ErrorIs(t, baseline, schedulercore.ErrNoAvailableProviders)
+				err := selectOne(true, "gpt-5.4", official)
+				require.ErrorIs(t, err, schedulercore.ErrNoAvailableProviders)
+			})
+			t.Run("disallowed relay hides real incompatibility", func(t *testing.T) {
+				baseline := selectOne(true, model, official)
+				require.Equal(t, gatewayadapter.NativeChatFunctionToolsUnsupported, apperror.Reason(baseline))
+				err := selectOne(true, model, official, relay)
+				require.Equal(t, gatewayadapter.NativeChatFunctionToolsUnsupported, apperror.Reason(err))
+			})
+		})
+	}
+}
+
+// TestChatToolExhaustionUsesAuthoritativeCandidate starts with a cached relay
+// and reloads the same provider as first-party Chat. Its latest rejection must
+// replace the cached tool support in the exhaustion diagnosis.
+func TestChatToolExhaustionUsesAuthoritativeCandidate(t *testing.T) {
+	const chat = capability.ProtocolOpenAIChatCompletions
+	const model = "gpt-6.2-sol"
+	for _, mode := range []routing.GroupSchedulerType{routing.GroupSchedulerTypeBasic, routing.GroupSchedulerTypeAdvanced} {
+		t.Run(string(mode), func(t *testing.T) {
+			group := &routing.Group{ID: 91, Hydrated: true, Status: routing.StatusActive, SchedulerType: mode, AllowedProtocols: []capability.ProtocolID{chat}}
+			stale := mixedGroupProvider(1, capability.PlatformOpenAI, model, group.ID)
+			stale.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat)}
+			stale.Record.Credentials["base_url"] = "https://relay.example/v1"
+			current := mixedGroupProvider(1, capability.PlatformOpenAI, model, group.ID)
+			current.Record.Credentials[providercore.UpstreamProtocolsKey] = []string{string(chat)}
+			snap := &openAISnapshotCacheStub{snapshotProviders: []*gatewayadapter.ExecutionProvider{&stale}, providersByID: map[int64]*gatewayadapter.ExecutionProvider{1: &stale}}
+			svc := NewCompatible(CompatibleDependencies{Reads: Reads{
+				Providers: &mixedGroupProviders{values: []gatewayadapter.ExecutionProvider{current}},
+				Snapshot:  schedulerredis.NewSnapshotReader(schedulercore.NewSnapshotService(snap, nil, nil, nil, nil)),
+			}}, DefaultOptions())
+			ctx := requeststate.WithClientProtocol(requeststate.WithGroup(t.Context(), group), chat)
+			plan := gatewayadapter.NewRoutePlanner(nil).PlanRoute(ctx, group, &group.ID, model)
+			ctx = requeststate.WithChatFunctionTools(requeststate.WithRoutePlan(ctx, plan))
+			result, _, err := svc.SelectProviderWithSchedulerForCapability(ctx, &group.ID, "", "", model, nil, egress.OpenAIUpstreamTransportAny, providercore.OpenAIEndpointCapabilityTextGeneration, false, false)
+			require.Nil(t, result)
+			require.Equal(t, gatewayadapter.NativeChatFunctionToolsUnsupported, apperror.Reason(err))
+		})
+	}
+}
 
 // TestMixedGroupImageCandidateUsesFinalMappedModel maps an image alias through
 // a wildcard provider scope. A text target is rejected and an image-generation

@@ -31,16 +31,42 @@ import (
 // against the later full record, keeping lightweight candidate state from
 // deciding execution eligibility by itself.
 
+// Chat-tool observation stages follow increasingly authoritative provider
+// reads, from the ranking snapshot through the final database recheck.
+const (
+	chatToolRanked chatToolCheckStage = iota
+	chatToolFresh
+	chatToolRechecked
+)
+
 // capabilitySelectionState retains capability outcomes across candidate attempts.
-// Its mutex protects diagnostics when the scheduler evaluates candidates
-// concurrently; any supported route keeps transient selection errors authoritative.
+// Its mutex protects diagnostics across candidate checks. A supported route
+// leaves transient selection errors authoritative. Chat tracks the current
+// outcome for each provider so a replaced record cannot establish support.
 type capabilitySelectionState struct {
-	// mu protects supported and err across concurrent candidate checks. A
-	// successful declaration makes scheduler availability authoritative; otherwise
-	// err retains the most informative local capability failure for presentation.
+	// mu protects supported, err and chatTools across candidate checks. For
+	// attribute checks, a supported route leaves availability errors in place.
+	// Otherwise err retains the most informative local capability failure.
 	mu        sync.Mutex // candidate observation lock
 	supported bool       // observed capability-qualified route
 	err       error      // retained local capability failure
+	// chatTools keeps one outcome per provider. A fresh or database check can
+	// supersede a snapshot observation without affecting other candidates.
+	chatTools map[int64]chatToolObservation
+}
+
+// chatToolCheckStage orders observations from ranking through final revalidation.
+type chatToolCheckStage uint8
+
+// chatToolObservation records whether one candidate passed ordinary eligibility
+// and the error, if any, from applying its Chat function-tool policy.
+type chatToolObservation struct {
+	// stage orders records for one provider. qualified controls whether its
+	// err participates in diagnosis. For a qualified route, nil err records
+	// a compatible candidate even if capacity later prevents selection.
+	stage     chatToolCheckStage // record freshness stage
+	qualified bool               // passed ordinary eligibility
+	err       error              // native function-tool rejection
 }
 
 // capabilitySelectionKey identifies observations shared by one scheduler call.
@@ -115,6 +141,49 @@ func (s *capabilitySelectionState) failure() error {
 	return s.err
 }
 
+// observeChatTools replaces a candidate's record with evidence from an equally
+// or more authoritative check. A current eligibility failure clears earlier
+// tool evidence so an unusable route cannot decide the client-facing error.
+func (s *capabilitySelectionState) observeChatTools(id int64, observation chatToolObservation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if previous, ok := s.chatTools[id]; ok && previous.stage > observation.stage {
+		return
+	}
+	if s.chatTools == nil {
+		s.chatTools = make(map[int64]chatToolObservation)
+	}
+	s.chatTools[id] = observation
+}
+
+// chatToolFailure reports incompatibility only when a qualified route was
+// rejected for function tools and no current qualified route accepted them.
+// Availability diagnostics still own failures involving a compatible route.
+func (s *capabilitySelectionState) chatToolFailure() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var failure error
+	for _, candidate := range s.chatTools {
+		if !candidate.qualified {
+			continue
+		}
+		if candidate.err == nil {
+			return nil
+		}
+		failure = candidate.err
+	}
+	return failure
+}
+
+// resetChatToolObservation discards older tool evidence before a provider
+// recheck. The explicit ineligible outcome remains if that recheck stops at
+// a non-tool gate, including a failed provider read.
+func resetChatToolObservation(ctx context.Context, id int64, stage chatToolCheckStage) {
+	if state, ok := ctx.Value(capabilitySelectionKey{}).(*capabilitySelectionState); ok && requeststate.ChatFunctionToolsRequired(ctx) {
+		state.observeChatTools(id, chatToolObservation{stage: stage})
+	}
+}
+
 // withCandidatePolicy captures group membership and the existing sticky
 // provider for eligibility rechecks. The sticky reader's returned ID supplies
 // window-cost and RPM reserve eligibility even when the read also reports an
@@ -180,6 +249,58 @@ func (s *Compatible) candidateEligibilityReason(ctx context.Context, value *gate
 	return ""
 }
 
+// basicCandidateEligibilityReason retains the basic scheduler's ordinary
+// checks. A Chat tool observation also needs the group, runtime and parent
+// gates that the basic scheduler normally evaluates after this callback.
+func (s *Compatible) basicCandidateEligibilityReason(ctx context.Context, value *gatewayadapter.ExecutionProvider, platform, model string, compact bool, required provider.OpenAIEndpointCapability) string {
+	reason := s.candidateEligibilityReason(ctx, value, platform, model, compact, required)
+	if reason != "" || !requeststate.ChatFunctionToolsRequired(ctx) {
+		return reason
+	}
+	state, _ := ctx.Value(candidatePolicyKey{}).(candidatePolicy)
+	if !s.openAIProviderPassesPrivacyRequirement(ctx, state.groupID, value) {
+		return "privacy_not_set"
+	}
+	if !s.shadowProtocolsAllowed(ctx, value) || !provider.ParentHealthyForShadow(gatewayadapter.ExecutionRecord(value), func(id int64) *provider.Record {
+		return gatewayadapter.ExecutionRecord(s.parentProviderLookup(ctx)(id))
+	}) {
+		return "shadow_parent_unhealthy"
+	}
+	if s.isOpenAIProviderRequestRuntimeBlocked(value, model) {
+		return "runtime_blocked"
+	}
+	if s.isOpenAIProxyStreamQuarantined(ctx, value) {
+		return "proxy_stream_quarantined"
+	}
+	return s.chatToolEligibilityReason(ctx, value, state.groupID, model, compact, chatToolRanked)
+}
+
+// chatToolEligibilityReason checks the final protocol and provider-mapped model
+// after ordinary admission. The upstream whitelist runs on the same record as
+// the tool check, including when that record replaces a cached candidate.
+// Successful and failed tool checks are recorded only for admitted routes. A
+// rejected route is skipped without changing the group's protocol fallback.
+// The observation stage identifies the read used by the caller, allowing
+// final rechecks to retain precedence over later visits to older snapshots.
+func (s *Compatible) chatToolEligibilityReason(ctx context.Context, value *gatewayadapter.ExecutionProvider, groupID *int64, model string, compact bool, stage chatToolCheckStage) string {
+	if !requeststate.ChatFunctionToolsRequired(ctx) {
+		return ""
+	}
+	if groupID != nil && s.NeedsUpstreamGroupRestriction(ctx, groupID) && s.UpstreamRoutingModelRestricted(ctx, *groupID, value, model, compact) {
+		return "group_upstream_restricted"
+	}
+	target, err := gatewayadapter.ProviderForProtocolAttempt(ctx, value)
+	if err != nil {
+		return "protocol_unavailable"
+	}
+	finalModel := gatewayadapter.ExecutionModelPolicy(target).UpstreamModel(ctx, model)
+	err = gatewayadapter.CheckNativeChatFunctionTools(ctx, target, finalModel)
+	if state, ok := ctx.Value(capabilitySelectionKey{}).(*capabilitySelectionState); ok {
+		state.observeChatTools(value.Record.ID, chatToolObservation{stage: stage, qualified: true, err: err})
+	}
+	return apperror.Reason(err)
+}
+
 // withSelectionRequest captures group and model inputs for later credential
 // hydration checks. The group pointer stays attached to this request value;
 // callers provide a nonnil context and retain stable input identities.
@@ -198,7 +319,7 @@ func withCapabilitySelection(ctx context.Context) (context.Context, *capabilityS
 	return context.WithValue(ctx, capabilitySelectionKey{}, state), state
 }
 
-// candidateOutputEligibility validates output after resolving the actual protocol.
+// candidateOutputEligibility validates capabilities on the resolved protocol.
 // The supplied model is already group-mapped; provider mapping uses the resolved
 // attempt copy. Shared scheduler observations retain typed local errors until
 // the pool has been inspected, allowing another provider to satisfy the request.

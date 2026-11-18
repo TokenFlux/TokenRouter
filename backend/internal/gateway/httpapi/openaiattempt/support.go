@@ -18,6 +18,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
@@ -102,10 +103,15 @@ func AppendOpenAIProviderProxyLogFields(fields []zap.Field, provider *gatewaypro
 }
 
 // HandleOpenAISelectionBusinessError writes recognized group-selection errors
-// using OpenAI framing. Its return reports whether shared business-error
-// handling recognized the failure. Callers continue availability or
-// exhausted-retry classification only when this returns false.
+// using OpenAI framing. Native Chat tool incompatibility is a client request
+// error. Callers continue availability or exhausted-retry classification only
+// when this returns false.
 func (h *Support) HandleOpenAISelectionBusinessError(c *gin.Context, err error, streamStarted bool) bool {
+	if apperror.Reason(err) == gatewayprovider.NativeChatFunctionToolsUnsupported {
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalModelConfiguration)
+		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, http.StatusBadRequest, "invalid_request_error", apperror.Message(err), streamStarted)
+		return true
+	}
 	return handleGroupSelectionBusinessError(c, err, streamStarted, func(status int, errType string, message string, streamStarted bool) {
 		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, streamStarted)
 	})

@@ -17,6 +17,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -26,6 +27,20 @@ import (
 // precedence, request cancellation and explicit post-write recovery permission,
 // and proxy observations that expose selected connection metadata without
 // credential fields.
+
+// TestHandleOpenAISelectionBusinessErrorWritesChatFunctionToolError verifies
+// that exhaustion due to unsupported Chat function tools is a local client
+// error. The response directs callers to the Responses endpoint.
+func TestHandleOpenAISelectionBusinessErrorWritesChatFunctionToolError(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	err := apperror.BadRequest(gatewayprovider.NativeChatFunctionToolsUnsupported, "Use /v1/responses instead.")
+	require.True(t, (&Support{}).HandleOpenAISelectionBusinessError(c, err, false))
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "invalid_request_error")
+	require.Contains(t, recorder.Body.String(), "/v1/responses")
+}
 
 // TestResolveOpenAIUpstreamEndpointPrefersForwardResult varies inbound,
 // recorded, and returned endpoint evidence across providers. It checks the

@@ -10,7 +10,7 @@ import (
 // routing.go captures selected groups, route plans, and client protocols in
 // request contexts. Group storage and retrieval clone the group's mutable
 // policy collections, and the context carries the client protocol alongside the
-// selected model route.
+// selected model route and any Chat function-tool requirement.
 //
 // The saved RoutePlan is retained by value when a derived context replaces its
 // group. That plan still identifies the group for which it was built, so
@@ -25,10 +25,11 @@ type RoutingState struct {
 	// group is cloned by WithGroup and GroupFromContext. plan retains its own
 	// group identity, and planSet distinguishes explicit zero plans from absence;
 	// clientProtocol determines subsequent candidate capability resolution.
-	group          *routing.Group      // captured admitted group policy
-	plan           routing.RoutePlan   // captured model route plan
-	planSet        bool                // route plan presence flag
-	clientProtocol protocol.ProtocolID // entry protocol for candidate resolution
+	group             *routing.Group      // captured admitted group policy
+	plan              routing.RoutePlan   // captured model route plan
+	planSet           bool                // route plan presence flag
+	clientProtocol    protocol.ProtocolID // entry protocol for candidate resolution
+	chatFunctionTools bool                // admitted Chat function-tool requirement
 }
 
 // routingStateKey distinguishes prepared routing state from other context
@@ -102,4 +103,18 @@ func WithClientProtocol(ctx context.Context, source protocol.ProtocolID) context
 func ClientProtocolFromContext(ctx context.Context) (protocol.ProtocolID, bool) {
 	state := RoutingStateFromContext(ctx)
 	return state.clientProtocol, state.clientProtocol != ""
+}
+
+// WithChatFunctionTools records a Chat request that requires function tools.
+// The derived context retains that requirement across provider and group
+// changes while leaving the parent routing state intact.
+func WithChatFunctionTools(ctx context.Context) context.Context {
+	state := RoutingStateFromContext(ctx)
+	state.chatFunctionTools = true
+	return WithRoutingState(ctx, state)
+}
+
+// ChatFunctionToolsRequired reports whether the admitted Chat request uses functions.
+func ChatFunctionToolsRequired(ctx context.Context) bool {
+	return RoutingStateFromContext(ctx).chatFunctionTools
 }

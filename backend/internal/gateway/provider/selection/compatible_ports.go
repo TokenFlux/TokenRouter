@@ -83,10 +83,10 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 			return s.service.UpstreamRoutingModelRestricted(ctx, id, scope.oldProvider(a), model, compact)
 		},
 		BasicEligible: func(ctx context.Context, a *schedulercore.FlowProvider, platform, model string, compact bool, capability provider.OpenAIEndpointCapability) bool {
-			return s.service.candidateEligibilityReason(ctx, scope.oldProvider(a), platform, model, compact, capability) == ""
+			return s.service.basicCandidateEligibilityReason(ctx, scope.oldProvider(a), platform, model, compact, capability) == ""
 		},
 		BasicFailureReason: func(ctx context.Context, a *schedulercore.FlowProvider, platform, model string, compact bool, capability provider.OpenAIEndpointCapability) string {
-			return s.service.candidateEligibilityReason(ctx, scope.oldProvider(a), platform, model, compact, capability)
+			return s.service.basicCandidateEligibilityReason(ctx, scope.oldProvider(a), platform, model, compact, capability)
 		},
 		CompleteAcquired: func(ctx context.Context, a *schedulercore.FlowProvider, release func()) (*schedulercore.FlowSelection, error) {
 			v, err := s.service.newAcquiredSelectionResult(ctx, scope.oldProvider(a), release)

@@ -323,6 +323,7 @@ func (s *Compatible) resolveFreshSchedulableOpenAIProvider(ctx context.Context, 
 	if provider == nil {
 		return nil
 	}
+	resetChatToolObservation(ctx, provider.Record.ID, chatToolFresh)
 	platform = strings.TrimSpace(platform)
 
 	fresh := provider
@@ -351,6 +352,10 @@ func (s *Compatible) resolveFreshSchedulableOpenAIProvider(ctx context.Context, 
 		return nil
 	}
 	if s.isOpenAIProxyStreamQuarantined(ctx, fresh) {
+		return nil
+	}
+	state, _ := ctx.Value(candidatePolicyKey{}).(candidatePolicy)
+	if s.chatToolEligibilityReason(ctx, fresh, state.groupID, requestedModel, requireCompact, chatToolFresh) != "" {
 		return nil
 	}
 	return fresh
@@ -386,6 +391,7 @@ func (s *Compatible) recheckSelectedOpenAIProviderFromDB(ctx context.Context, pr
 	if provider == nil {
 		return nil
 	}
+	resetChatToolObservation(ctx, provider.Record.ID, chatToolRechecked)
 	platform = strings.TrimSpace(platform)
 	if s.schedulerSnapshot == nil || s.providerRepo == nil {
 		if !s.openAIProviderMatchesSchedulingGroup(provider, groupID) {
@@ -406,6 +412,9 @@ func (s *Compatible) recheckSelectedOpenAIProviderFromDB(ctx context.Context, pr
 			return nil
 		}
 		if s.isOpenAIProxyStreamQuarantined(ctx, provider) {
+			return nil
+		}
+		if s.chatToolEligibilityReason(ctx, provider, groupID, requestedModel, requireCompact, chatToolRechecked) != "" {
 			return nil
 		}
 		return provider
@@ -438,6 +447,9 @@ func (s *Compatible) recheckSelectedOpenAIProviderFromDB(ctx context.Context, pr
 		return nil
 	}
 	if s.isOpenAIProxyStreamQuarantined(ctx, latest) {
+		return nil
+	}
+	if s.chatToolEligibilityReason(ctx, latest, groupID, requestedModel, requireCompact, chatToolRechecked) != "" {
 		return nil
 	}
 	return latest

@@ -14,17 +14,18 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // openai_text_chat.go admits Chat Completions requests and prepares their
 // routing and session identities.
-// Chat admission validates stream and tier before provider execution, and
-// rejects group-mapped image models before moderation. Prompt replacement
-// occurs before model policy and session derivation so later checks use the
-// rewritten client body, while logs and client errors retain the original
-// requested model.
+// Chat admission validates stream and tier before provider execution. Prompt
+// replacement occurs before model policy and session derivation so later
+// checks use the rewritten client body, while logs and client errors retain
+// the original requested model. Image-only eligibility uses the final provider
+// model during selection.
 //
-// Group route mapping is resolved before moderation in this entry. User
+// Group route mapping and function-tool use are captured before moderation. User
 // admission can wait and start output, so eligibility is checked afterward and
 // its rejection uses the resulting started flag. Provider affinity, explicit
 // session isolation and upstream prompt-cache seeds are then derived
@@ -37,9 +38,9 @@ import (
 // prompt replacement, model/group resolution, effort policy and strict
 // stream/tier validation prepare the canonical request.
 //
-// The group-mapped model determines the Chat image-family rejection before
-// moderation, while the client model remains in observations and execution
-// attribution. After user-slot waiting, Eligibility runs the configured
+// Request context retains function-tool use for candidate checks after each
+// provider's model mapping. Observations and execution attribution keep the
+// client model. After user-slot waiting, Eligibility runs the configured
 // funding admission and its normal RPM path. Session affinity and cache seeds
 // are distinct from explicit isolation identity, and cyber/session rejection
 // stops before Execute. Returned request and slot cleanup remain deferred
@@ -132,8 +133,11 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
-	// Use group-mapped model G for Chat endpoint capability checks and client model R for logs and errors.
-	// Pass the current group and mapped model to the execution plan.
+	// Capture function-tool use once so candidate filtering can check the final
+	// provider route without parsing the body again after model mapping.
+	if protocolopenai.ChatUsesFunctionTools(body) {
+		c.Request = c.Request.WithContext(requeststate.WithChatFunctionTools(c.Request.Context()))
+	}
 	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
 	groupMapping := groupMappingRoutePlan.Mapping()
 	h.backend.BindPlan(c, groupMappingRoutePlan)
