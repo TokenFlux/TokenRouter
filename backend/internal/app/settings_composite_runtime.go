@@ -63,7 +63,7 @@ func provideCompositeReadOptions(cfg *config.Config, oauth *identity.OAuthSettin
 // notify site and adjust creative workers plus Ops monitoring. Persistence and
 // application-error handling remain owned by composite.Runtime.
 func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *composite.ReadOptions, grants *identity.GrantSettings, gatewayRuntime *gateway.RuntimeSettings, gatewayRules *gateway.AdminSettingsRules, defaults *scheduler.AdminDefaults, plans *billing.Plans, backendMode *admission.BackendMode, providerRuntime *provider.RuntimeSettings, quota *provider.QuotaSettingsCache, forwarded *runtimeconfig.ForwardedSettings, shared *schedulerSharedState, worker *creative.CreativeWorkerRuntime, monitor *ops.OpsService, metrics *bstats.Service) *composite.Runtime {
-	prepare := composite.PrepareOptions{ReadValues: store.GetAll, Gateway: *gatewayRules, Scheduler: *defaults, ValidatePlans: func(ctx context.Context, value []billing.DefaultSubscriptionSetting) error {
+	prepare := composite.PrepareOptions{ReadValues: store.GetConfigurationValues, Gateway: *gatewayRules, Scheduler: *defaults, ValidatePlans: func(ctx context.Context, value []billing.DefaultSubscriptionSetting) error {
 		return billing.ValidateDefaultSubscriptionPlans(ctx, value, plans.GetPlan)
 	}}
 	steps := []composite.Application{

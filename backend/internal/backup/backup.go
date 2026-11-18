@@ -75,6 +75,9 @@ var (
 	ErrBackupStorageConfigCorrupt = infraerrors.InternalServer("BACKUP_STORAGE_CONFIG_CORRUPT", "backup storage config data is corrupted")
 	ErrBackupContentConfigCorrupt = infraerrors.InternalServer("BACKUP_CONTENT_CONFIG_CORRUPT", "backup content config data is corrupted")
 	ErrDatabaseMaintenanceBusy    = infraerrors.Conflict("MAINTENANCE_BUSY", "another database maintenance task is running")
+	// errSettingNotFound matches the missing-key application error returned by
+	// persistent settings storage when backup_records has not been created yet.
+	errSettingNotFound = infraerrors.NotFound("SETTING_NOT_FOUND", "setting not found")
 	// ErrSecretEncryptionKeyNotConfigured rejects newly supplied S3 secrets when
 	// deployment key stability has not been configured.
 	ErrSecretEncryptionKeyNotConfigured = infraerrors.BadRequest(
@@ -1906,8 +1909,8 @@ func (s *BackupService) buildStorageKey(storageType string, s3Cfg *BackupS3Confi
 }
 
 // loadRecords reads the persisted record list under recordsMu and returns newly
-// decoded metadata. Missing, empty, or failed settings reads yield no records;
-// malformed JSON returns ErrBackupRecordsCorrupt to distinguish stored-data failure.
+// decoded metadata. Absent or empty settings yield no records, storage read
+// errors propagate to the caller, and malformed JSON returns ErrBackupRecordsCorrupt.
 func (s *BackupService) loadRecords(ctx context.Context) ([]BackupRecord, error) {
 	s.recordsMu.Lock()
 	defer s.recordsMu.Unlock()
@@ -1915,13 +1918,20 @@ func (s *BackupService) loadRecords(ctx context.Context) ([]BackupRecord, error)
 }
 
 // loadRecordsLocked decodes the complete stored record list while its caller
-// holds recordsMu. Missing, empty, or failed reads return nil without error;
-// malformed JSON fails and JSON null leaves the result nil.
+// holds recordsMu. Missing or empty settings return nil without error, storage
+// read failures return their error, malformed JSON returns ErrBackupRecordsCorrupt,
+// and JSON null leaves the result nil.
 func (s *BackupService) loadRecordsLocked(ctx context.Context) ([]BackupRecord, error) {
 	raw, err := s.settingRepo.GetValue(ctx, settingKeyBackupRecords)
-	// Read outages and absent settings appear as an empty list to record
-	// consumers; callers cannot distinguish those cases through this helper's successful result.
-	if err != nil || raw == "" {
+	if err != nil {
+		// Treat an absent setting key as an uninitialized empty list while propagating
+		// transient database or cancellation failures so callers never mistake outages for empty history.
+		if errors.Is(err, errSettingNotFound) {
+			return nil, nil //nolint:nilnil // no records is a valid state
+		}
+		return nil, err
+	}
+	if raw == "" {
 		return nil, nil //nolint:nilnil // no records is a valid state
 	}
 	var records []BackupRecord
@@ -1944,8 +1954,9 @@ func (s *BackupService) saveRecordsLocked(ctx context.Context, records []BackupR
 
 // saveRecord replaces the first matching ID or appends metadata while holding
 // recordsMu across loading and persistence. Callers pass a nonnil record and
-// avoid concurrent mutation during encoding. Malformed existing JSON is ignored
-// here, so the write can rebuild the list from just this record.
+// avoid concurrent mutation during encoding. Storage read errors abort before
+// writing so transient failures cannot overwrite existing backup history, while
+// malformed stored JSON is rebuilt from just this record.
 //
 // The list retains at most its last hundred entries in stored order after the
 // update. Trimming removes metadata without deleting corresponding archive objects;
@@ -1956,9 +1967,12 @@ func (s *BackupService) saveRecord(ctx context.Context, record *BackupRecord) er
 	s.recordsMu.Lock()
 	defer s.recordsMu.Unlock()
 
-	// Suppress a malformed-list error and rebuild from the supplied record;
-	// a later successful write can replace corrupt metadata, leaving earlier object references untracked.
-	records, _ := s.loadRecordsLocked(ctx)
+	// Abort on storage read failures to preserve prior records during database
+	// glitches; only corrupt JSON rebuilds the list from the supplied record.
+	records, err := s.loadRecordsLocked(ctx)
+	if err != nil && !errors.Is(err, ErrBackupRecordsCorrupt) {
+		return err
+	}
 
 	found := false
 	for i := range records {

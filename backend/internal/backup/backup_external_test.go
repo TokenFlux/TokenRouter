@@ -22,6 +22,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/backup"
 	bp "github.com/TokenFlux/TokenRouter/internal/backup/provider"
 	pg "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // A small compressed dump stays in one remote object, while a tiny configured
@@ -656,6 +657,48 @@ func TestBackupService_LoadRecords_Corrupted(t *testing.T) {
 	records, err := backup.AccessLoadRecords(svc, context.Background())
 	require.Error(t, err) // Invalid stored JSON produces an error result.
 	require.Nil(t, records)
+}
+
+// TestBackupService_LoadRecords_MissingSentinel returns the persistent settings
+// not-found error from GetValue. The loader must treat that sentinel as an empty
+// uninitialized list rather than a storage read failure.
+func TestBackupService_LoadRecords_MissingSentinel(t *testing.T) {
+	repo := newMockSettingRepo()
+	repo.getValueErr = apperror.NotFound("SETTING_NOT_FOUND", "setting not found")
+	svc := newTestBackupService(t, repo, &mockDumper{}, newMockObjectStore())
+
+	records, err := backup.AccessLoadRecords(svc, context.Background())
+	require.NoError(t, err)
+	require.Nil(t, records)
+}
+
+// TestBackupService_SaveRecord_PreservesHistoryOnReadError injects a transient
+// settings read failure after two backup records have been persisted. Saving a
+// third record must fail without overwriting the stored two-record history.
+func TestBackupService_SaveRecord_PreservesHistoryOnReadError(t *testing.T) {
+	repo := newMockSettingRepo()
+	svc := newTestBackupService(t, repo, &mockDumper{}, newMockObjectStore())
+
+	require.NoError(t, backup.AccessSaveRecord(svc, context.Background(), &backup.BackupRecord{ID: "b1", Status: "completed"}))
+	require.NoError(t, backup.AccessSaveRecord(svc, context.Background(), &backup.BackupRecord{ID: "b2", Status: "completed"}))
+
+	readErr := errors.New("transient database read timeout")
+	repo.mu.Lock()
+	repo.getValueErr = readErr
+	repo.mu.Unlock()
+
+	err := backup.AccessSaveRecord(svc, context.Background(), &backup.BackupRecord{ID: "b3", Status: "running"})
+	require.ErrorIs(t, err, readErr)
+
+	repo.mu.Lock()
+	repo.getValueErr = nil
+	repo.mu.Unlock()
+
+	records, err := backup.AccessLoadRecords(svc, context.Background())
+	require.NoError(t, err)
+	require.Len(t, records, 2)
+	require.Equal(t, "b1", records[0].ID)
+	require.Equal(t, "b2", records[1].ID)
 }
 
 // TestBackupService_CreateBackup_Streaming creates a small remote archive using

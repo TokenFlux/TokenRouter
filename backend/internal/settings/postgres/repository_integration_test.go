@@ -26,9 +26,9 @@ type SettingRepoSuite struct {
 	// client stays bound to the suite database while ctx and repo are replaced
 	// for each case. SetupTest binds repo to a fresh transaction, and fixture
 	// cleanup owns the shared database connection after the suite finishes.
-	client *dbent.Client           // suite database Ent client
-	ctx    context.Context         // current case operation context
-	repo   settingscore.Repository // Store bound to case transaction
+	client *dbent.Client       // suite database Ent client
+	ctx    context.Context     // current case operation context
+	repo   *settingscore.Store // Store bound to case transaction
 }
 
 // TestSettingsAtomicFailure installs a trigger that rejects one settings write
@@ -216,6 +216,30 @@ func (s *SettingRepoSuite) TestGetAll() {
 	s.Require().GreaterOrEqual(len(all), 2, "expected at least 2 settings")
 	s.Require().Equal("1", all["x"])
 	s.Require().Equal("2", all["y"])
+}
+
+// TestGetConfigurationValues excludes operational notification delivery, locale,
+// and preference prefixes while keeping administrator configuration and template
+// keys available, and leaves GetAll returning the complete stored key set.
+func (s *SettingRepoSuite) TestGetConfigurationValues() {
+	s.Require().NoError(s.repo.SetMultiple(s.ctx, map[string]string{
+		"site_name":                               "TokenRouter",
+		"notification_email_template:welcome":     "{}",
+		"notification_email_delivery:v2:123":      "2026-11-19T00:00:00Z",
+		"notification_email_locale:email:456":     "en",
+		"notification_email_preference:user:1:ev": "unsubscribed",
+	}))
+	cfg, err := s.repo.GetConfigurationValues(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Equal("TokenRouter", cfg["site_name"])
+	s.Require().Equal("{}", cfg["notification_email_template:welcome"])
+	s.Require().NotContains(cfg, "notification_email_delivery:v2:123")
+	s.Require().NotContains(cfg, "notification_email_locale:email:456")
+	s.Require().NotContains(cfg, "notification_email_preference:user:1:ev")
+
+	all, err := s.repo.GetAll(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Contains(all, "notification_email_delivery:v2:123")
 }
 
 // TestDelete saves a setting and removes its key inside the transaction.

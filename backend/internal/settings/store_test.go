@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"testing"
 
@@ -18,6 +19,14 @@ type writeStoreStub struct {
 	err    error // configured batch persistence failure
 }
 
+// configStoreStub implements ConfigurationRepository to verify direct delegation
+// from Store.GetConfigurationValues without invoking Repository.GetAll.
+type configStoreStub struct {
+	Repository                   // unused inherited repository operations
+	config     map[string]string // pre-filtered configuration values returned by stub
+	called     bool              // whether GetConfigurationValues was invoked
+}
+
 // SetMultiple returns the configured persistence error or retains the supplied
 // map for assertions. The fixture ignores context cancellation and copies no
 // entries, so the successful caller's map remains shared with values.
@@ -27,6 +36,23 @@ func (r *writeStoreStub) SetMultiple(_ context.Context, values map[string]string
 	}
 	r.values = values
 	return nil
+}
+
+// GetAll returns a copy of values or the configured error so fallback filtering
+// tests can inspect Store.GetConfigurationValues without mutating fixture entries.
+func (r *writeStoreStub) GetAll(_ context.Context) (map[string]string, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	out := make(map[string]string, len(r.values))
+	maps.Copy(out, r.values)
+	return out, nil
+}
+
+// GetConfigurationValues records invocation and returns the stub's configuration map.
+func (r *configStoreStub) GetConfigurationValues(_ context.Context) (map[string]string, error) {
+	r.called = true
+	return r.config, nil
 }
 
 // TestStorePreservesWriteAndExplicitNotificationBoundary fails and then accepts a
@@ -81,4 +107,32 @@ func TestStoreVersionAndSubscriptionConcurrency(t *testing.T) {
 	}
 	wg.Wait()
 	require.Equal(t, "v-test", store.Version())
+}
+
+// TestStoreGetConfigurationValuesChecksDelegationAndFallback exercises both a
+// repository implementing ConfigurationRepository and an ordinary Repository stub.
+// Direct readers delegate without calling GetAll, while fallback readers strip
+// notification delivery, locale, and preference prefixes and retain site settings.
+func TestStoreGetConfigurationValuesChecksDelegationAndFallback(t *testing.T) {
+	direct := &configStoreStub{config: map[string]string{"site_name": "TokenRouter"}}
+	gotDirect, err := New(direct).GetConfigurationValues(context.Background())
+	require.NoError(t, err)
+	require.True(t, direct.called)
+	require.Equal(t, map[string]string{"site_name": "TokenRouter"}, gotDirect)
+
+	fallback := &writeStoreStub{values: map[string]string{
+		"site_name":                               "TokenRouter",
+		"notification_email_template:welcome":     "{}",
+		"notification_email_unsubscribe_secret":   "secret",
+		"notification_email_delivery:v2:abc":      "2026-11-19T00:00:00Z",
+		"notification_email_locale:email:def":     "zh-CN",
+		"notification_email_preference:user:1:op": "unsubscribed",
+	}}
+	gotFallback, err := New(fallback).GetConfigurationValues(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"site_name":                             "TokenRouter",
+		"notification_email_template:welcome":   "{}",
+		"notification_email_unsubscribe_secret": "secret",
+	}, gotFallback)
 }

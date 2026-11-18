@@ -212,9 +212,9 @@ func AccessSaveRecord(s *BackupService, c context.Context, r *BackupRecord) erro
 }
 
 // AccessLoadRecords exposes locked record-list loading to external tests. Missing
-// or failed reads return no records, while malformed JSON returns the service's
-// corruption error. Callers await worker completion before using these decoded
-// snapshots for final-outcome assertions.
+// settings return no records, storage read errors propagate, and malformed JSON
+// returns the service's corruption error. Callers await worker completion before
+// using these decoded snapshots for final-outcome assertions.
 func AccessLoadRecords(s *BackupService, c context.Context) ([]BackupRecord, error) {
 	return s.loadRecords(c)
 }

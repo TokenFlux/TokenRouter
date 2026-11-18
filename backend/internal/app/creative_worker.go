@@ -70,7 +70,7 @@ func provideCreativeWorkerRuntime(public *creative.Public, executor *creative.Ex
 		Outbox:    public.Results.RunCreativeOutboxReconciler,
 		Transient: public.Results.RunCreativeTransientReconciler,
 		WorkerCount: func(ctx context.Context) int {
-			values, err := store.GetAll(ctx)
+			values, err := store.GetConfigurationValues(ctx)
 			// Zero makes desiredWorkerCountValue keep its stored or default count,
 			// so a failed settings read does not abort runtime startup.
 			if err != nil {

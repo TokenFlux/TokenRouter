@@ -48,12 +48,12 @@ func NewRuntime(store *settings.Store, read ReadOptions, prepare PrepareOptions,
 	return &Runtime{store: store, read: read, prepare: prepare, grants: grants, gateway: gateway, totpConfigured: totpConfigured, applications: append([]Application(nil), applications...)}
 }
 
-// GetAllSettings reads the complete stored map and returns its parsed module
-// Snapshot. Parse copies StoredValues, transfers module read results, and can
-// invoke the configured model publication callback before the returned snapshot
-// reaches its administrator or application caller.
+// GetAllSettings reads stored administrator configuration values and returns their
+// parsed module Snapshot. Parse copies StoredValues, transfers module read results,
+// and can invoke the configured model publication callback before the returned
+// snapshot reaches its administrator or application caller.
 func (s *Runtime) GetAllSettings(ctx context.Context) (*Snapshot, error) {
-	values, err := s.store.GetAll(ctx)
+	values, err := s.store.GetConfigurationValues(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get all settings: %w", err)
 	}

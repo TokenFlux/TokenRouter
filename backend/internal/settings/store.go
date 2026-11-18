@@ -25,9 +25,19 @@ import (
 // notification's registration order; concurrent notifications can execute callbacks
 // at the same time.
 
-// ErrSettingNotFound identifies an absent saved setting so callers can choose
-// their module's default without depending on storage-specific absence errors.
-var ErrSettingNotFound = apperror.NotFound("SETTING_NOT_FOUND", "setting not found")
+var (
+	// ErrSettingNotFound identifies an absent saved setting so callers can choose
+	// their module's default without depending on storage-specific absence errors.
+	ErrSettingNotFound = apperror.NotFound("SETTING_NOT_FOUND", "setting not found")
+
+	// NonConfigurationKeyPrefixes lists per-delivery and per-recipient operational
+	// key prefixes stored in the settings table outside administrator configuration.
+	NonConfigurationKeyPrefixes = []string{
+		"notification_email_delivery:",
+		"notification_email_locale:",
+		"notification_email_preference:",
+	}
+)
 
 // Setting holds one stored key/value record and its persistence timestamp.
 type Setting struct {
@@ -76,6 +86,14 @@ type ConditionalRepository interface {
 	CompareAndSetMultiple(context.Context, map[string]string, map[string]*string) error
 }
 
+// ConfigurationRepository reads administrator configuration keys without scanning
+// unbounded per-delivery or per-recipient operational entries.
+type ConfigurationRepository interface {
+	// GetConfigurationValues returns a newly allocated map of stored settings
+	// excluding NonConfigurationKeyPrefixes.
+	GetConfigurationValues(context.Context) (map[string]string, error)
+}
+
 // subscription holds a registered callback and its notification admission state.
 type subscription struct {
 	// active is read before fn is selected outside the store lock. Unsubscribe
@@ -102,6 +120,17 @@ type Store struct {
 	version     string          // application version display text
 	nextID      uint64          // next registration sequence counter
 	subscribers []*subscription // callbacks in registration order
+}
+
+// IsNonConfigurationKey reports whether key belongs to an operational marker or
+// recipient preference prefix excluded from administrator configuration snapshots.
+func IsNonConfigurationKey(key string) bool {
+	for _, prefix := range NonConfigurationKeyPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // New wraps a repository with setting reads, update coordination, and local
@@ -148,6 +177,29 @@ func (s *Store) SetMultiple(ctx context.Context, values map[string]string) error
 
 // GetAll delegates reading the repository's complete key/value map for its caller.
 func (s *Store) GetAll(ctx context.Context) (map[string]string, error) { return s.repo.GetAll(ctx) }
+
+// GetConfigurationValues reads administrator configuration entries while excluding
+// operational notification delivery, locale, and preference prefixes. Repositories
+// implementing ConfigurationRepository filter in storage; other implementations
+// fall back to filtering GetAll results into a fresh map.
+func (s *Store) GetConfigurationValues(ctx context.Context) (map[string]string, error) {
+	if reader, ok := s.repo.(ConfigurationRepository); ok {
+		return reader.GetConfigurationValues(ctx)
+	}
+	// Filter in memory when a test or custom repository only implements Repository,
+	// keeping composite configuration snapshots consistent with SQL prefix exclusion.
+	all, err := s.repo.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make(map[string]string, len(all))
+	for key, value := range all {
+		if !IsNonConfigurationKey(key) {
+			filtered[key] = value
+		}
+	}
+	return filtered, nil
+}
 
 // Delete delegates removal of one setting key to the bound repository. The
 // caller decides which default applies after deletion and coordinates any runtime

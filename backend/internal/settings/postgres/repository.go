@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	"github.com/TokenFlux/TokenRouter/ent/setting"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
@@ -138,6 +139,32 @@ func (r *settingRepository) GetAll(ctx context.Context) (map[string]string, erro
 	result := make(map[string]string)
 	for _, s := range settings {
 		result[s.Key] = s.Value
+	}
+	return result, nil
+}
+
+// GetConfigurationValues reads administrator configuration rows while excluding
+// operational notification delivery, locale, and preference prefixes in SQL.
+// Callers receive an independent map without loading unbounded mail-tracking rows.
+func (r *settingRepository) GetConfigurationValues(ctx context.Context) (map[string]string, error) {
+	query := r.client.Setting.Query()
+	if len(settings.NonConfigurationKeyPrefixes) > 0 {
+		// Push operational-prefix exclusion into the SQL predicate so composite
+		// settings reads do not transfer historical email delivery and locale rows.
+		excluded := make([]predicate.Setting, 0, len(settings.NonConfigurationKeyPrefixes))
+		for _, prefix := range settings.NonConfigurationKeyPrefixes {
+			excluded = append(excluded, setting.KeyHasPrefix(prefix))
+		}
+		query = query.Where(setting.Not(setting.Or(excluded...)))
+	}
+	rows, err := query.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(rows))
+	for _, row := range rows {
+		result[row.Key] = row.Value
 	}
 	return result, nil
 }
