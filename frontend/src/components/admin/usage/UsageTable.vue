@@ -244,7 +244,7 @@
               </div>
               <div
                 v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0"
-                class="flex items-center gap-2"
+                class="flex flex-wrap items-center gap-x-2 gap-y-1"
               >
                 <div v-if="row.cache_read_tokens > 0" class="inline-flex items-center gap-1">
                   <Icon name="archive" size="xs" class="h-3.5 w-3.5 text-sky-500" />
@@ -252,16 +252,27 @@
                     formatCacheTokens(row.cache_read_tokens)
                   }}</span>
                 </div>
-                <div v-if="row.cache_creation_tokens > 0" class="inline-flex items-center gap-1">
+                <div
+                  v-if="row.cache_creation_tokens > 0"
+                  class="inline-flex flex-wrap items-center gap-1"
+                >
                   <Icon name="edit" size="xs" class="h-3.5 w-3.5 text-amber-500" />
-                  <span class="font-medium text-amber-600 dark:text-amber-400">{{
-                    formatCacheTokens(row.cache_creation_tokens)
-                  }}</span>
                   <span
-                    v-if="row.cache_creation_1h_tokens > 0"
-                    class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-100 text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:ring-orange-500/30"
-                    >1h</span
+                    v-for="bucket in cacheWriteBuckets(row)"
+                    :key="bucket.ttl ?? 'unknown'"
+                    data-testid="cache-write-bucket"
+                    class="inline-flex items-center gap-1"
                   >
+                    <span class="font-medium text-amber-600 dark:text-amber-400">{{
+                      formatCacheTokens(bucket.tokens)
+                    }}</span>
+                    <span
+                      v-if="bucket.ttl"
+                      :data-cache-write-ttl="bucket.ttl"
+                      class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-100 text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:ring-orange-500/30"
+                      >{{ bucket.ttl }}</span
+                    >
+                  </span>
                   <span
                     v-if="row.cache_ttl_overridden"
                     :title="t('usage.cacheTtlOverriddenHint')"
@@ -577,70 +588,20 @@
                 }}</span>
               </div>
               <div
-                v-if="
-                  tokenTooltipData?.cache_creation_30m_tokens != null ||
-                  tokenTooltipData?.cache_creation_12h_tokens != null
-                "
+                v-for="bucket in tokenTooltipCacheWrites"
+                :key="bucket.ttl ?? 'unknown'"
+                class="flex items-center justify-between gap-4"
               >
-                <div
-                  v-for="ttl in ['30m', '12h'] as const"
-                  :key="ttl"
-                  class="flex items-center justify-between gap-4"
-                >
-                  <span class="text-gray-400">{{
-                    t('marketplace.cacheWriteLifetime', { ttl })
-                  }}</span>
-                  <span class="font-medium text-white">{{
-                    tokenTooltipData?.[`cache_creation_${ttl}_tokens`]?.toLocaleString()
-                  }}</span>
-                </div>
-              </div>
-              <div v-else-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
-                <!-- Recorded five-minute and one-hour cache creation counts expand into separate detail rows. -->
-                <template
-                  v-if="
-                    tokenTooltipData.cache_creation_5m_tokens > 0 ||
-                    tokenTooltipData.cache_creation_1h_tokens > 0
-                  "
-                >
-                  <div
-                    v-if="tokenTooltipData.cache_creation_5m_tokens > 0"
-                    class="flex items-center justify-between gap-4"
+                <span class="text-gray-400 flex items-center gap-1.5">
+                  {{ t('admin.usage.cacheCreationTokens') }}
+                  <span
+                    v-if="bucket.ttl"
+                    :data-cache-write-ttl="bucket.ttl"
+                    class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-500/20 text-orange-400 ring-1 ring-inset ring-orange-500/30"
+                    >{{ bucket.ttl }}</span
                   >
-                    <span class="text-gray-400 flex items-center gap-1.5">
-                      {{ t('admin.usage.cacheCreation5mTokens') }}
-                      <span
-                        class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30"
-                        >5m</span
-                      >
-                    </span>
-                    <span class="font-medium text-white">{{
-                      tokenTooltipData.cache_creation_5m_tokens.toLocaleString()
-                    }}</span>
-                  </div>
-                  <div
-                    v-if="tokenTooltipData.cache_creation_1h_tokens > 0"
-                    class="flex items-center justify-between gap-4"
-                  >
-                    <span class="text-gray-400 flex items-center gap-1.5">
-                      {{ t('admin.usage.cacheCreation1hTokens') }}
-                      <span
-                        class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-500/20 text-orange-400 ring-1 ring-inset ring-orange-500/30"
-                        >1h</span
-                      >
-                    </span>
-                    <span class="font-medium text-white">{{
-                      tokenTooltipData.cache_creation_1h_tokens.toLocaleString()
-                    }}</span>
-                  </div>
-                </template>
-                <!-- Absent interval detail leaves the aggregate cache creation count visible. -->
-                <div v-else class="flex items-center justify-between gap-4">
-                  <span class="text-gray-400">{{ t('admin.usage.cacheCreationTokens') }}</span>
-                  <span class="font-medium text-white">{{
-                    tokenTooltipData.cache_creation_tokens.toLocaleString()
-                  }}</span>
-                </div>
+                </span>
+                <span class="font-medium text-white">{{ bucket.tokens.toLocaleString() }}</span>
               </div>
               <div
                 v-if="tokenTooltipData && tokenTooltipData.cache_ttl_overridden"
@@ -1378,6 +1339,40 @@ const tokenTooltipReady = ref(false)
 const tokenTooltipRef = ref<HTMLElement | null>(null)
 const tokenTooltipPosition = ref<TooltipPosition>({ x: 0, y: 0, arrowY: 0, placement: 'overlay' })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
+
+// tokenTooltipCacheWrites uses the same recorded buckets as the usage cell.
+const tokenTooltipCacheWrites = computed(() =>
+  tokenTooltipData.value ? cacheWriteBuckets(tokenTooltipData.value) : [],
+)
+
+// CacheWriteBucket pairs a displayed count with its recorded cache lifetime.
+interface CacheWriteBucket {
+  ttl: '5m' | '30m' | '1h' | '12h' | null // Recorded lifetime, or null for unclassified writes.
+  tokens: number // Positive token count for this bucket.
+}
+
+// cacheWriteBuckets breaks down the aggregate count using available lifetime counters.
+// Each positive known count can appear separately, including mixed lifetimes in one
+// request. If the known amounts cover only part of the aggregate, the remainder has
+// unknown lifetime. An inconsistent split above the aggregate yields one
+// unclassified amount. The summary and tooltip both retain those counts and
+// display lifetime tags only for recorded durations.
+function cacheWriteBuckets(row: AdminUsageLog): CacheWriteBucket[] {
+  const total = row.cache_creation_tokens
+  if (!(total > 0)) return []
+
+  const reported: CacheWriteBucket[] = [
+    { ttl: '5m', tokens: row.cache_creation_5m_tokens },
+    { ttl: '30m', tokens: row.cache_creation_30m_tokens ?? 0 },
+    { ttl: '1h', tokens: row.cache_creation_1h_tokens },
+    { ttl: '12h', tokens: row.cache_creation_12h_tokens ?? 0 },
+  ]
+  const buckets = reported.filter(({ tokens }) => tokens > 0)
+  const remainder = total - buckets.reduce((sum, { tokens }) => sum + tokens, 0)
+  if (remainder < 0) return [{ ttl: null, tokens: total }]
+  if (remainder > 0) buckets.push({ ttl: null, tokens: remainder })
+  return buckets
+}
 
 // timingTooltipVisible, timingTooltipReady, timingTooltipRef, timingTooltipPosition, and
 // timingTooltipData coordinate the timing panel: selection and mounting precede measured

@@ -1203,3 +1203,75 @@ describe('admin UsageTable deleted-user badge', () => {
     expect(wrapper.text()).toContain('a***e')
   })
 })
+
+// Known lifetimes, mixed counts, and legacy aggregates use the same usage cell.
+// A partial split shows its untagged remainder, and inconsistent detail
+// cannot increase the displayed total or introduce an unsupported lifetime.
+it.each([
+  { ttl: [['5m', '687']], counts: { cache_creation_5m_tokens: 687 }, total: 687 },
+  { ttl: [['1h', '687']], counts: { cache_creation_1h_tokens: 687 }, total: 687 },
+  {
+    ttl: [
+      ['5m', '80'],
+      ['1h', '20'],
+    ],
+    counts: { cache_creation_5m_tokens: 80, cache_creation_1h_tokens: 20 },
+    total: 100,
+  },
+  {
+    ttl: [
+      ['30m', '100'],
+      ['12h', '200'],
+    ],
+    counts: { cache_creation_30m_tokens: 100, cache_creation_12h_tokens: 200 },
+    total: 300,
+  },
+  {
+    ttl: [['12h', '200']],
+    counts: { cache_creation_30m_tokens: 0, cache_creation_12h_tokens: 200 },
+    total: 200,
+  },
+  {
+    ttl: [
+      ['1h', '20'],
+      ['unknown', '80'],
+    ],
+    counts: { cache_creation_1h_tokens: 20 },
+    total: 100,
+  },
+  { ttl: [['unknown', '100']], counts: {}, total: 100 },
+  {
+    ttl: [['unknown', '100']],
+    counts: { cache_creation_5m_tokens: 120 },
+    total: 100,
+  },
+  { ttl: [], counts: {}, total: 0 },
+])('shows the reported write lifetime for each positive bucket %#', ({ total, counts, ttl }) => {
+  const wrapper = mount(UsageTable, {
+    props: {
+      data: [
+        {
+          ...baseImageRow,
+          billing_mode: 'token',
+          image_count: 0,
+          cache_creation_tokens: total,
+          ...counts,
+        },
+      ],
+      columns: [{ key: 'tokens', label: 'Tokens' }],
+      loading: false,
+    },
+    global: {
+      stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true },
+    },
+  })
+
+  const written = wrapper.findAll('[data-testid="cache-write-bucket"]')
+  expect(
+    written.map((bucket) => {
+      const tag = bucket.find('[data-cache-write-ttl]')
+      return [tag.exists() ? tag.text() : 'unknown', bucket.get('span').text()]
+    }),
+  ).toEqual(ttl)
+  wrapper.unmount()
+})

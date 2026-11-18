@@ -4969,3 +4969,40 @@ func TestCatalogOnlyCompletionUsesCapturedPricingTime(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, 4, cost.TotalCost, 1e-12)
 }
+
+// TestV2GPTImageMiniUsesMeasuredImageTokenPrices restores default settlement
+// from the bundled directory. A native Images result with no configured
+// per-image amount must charge its text, image, and cached input buckets
+// together with the image output.
+func TestV2GPTImageMiniUsesMeasuredImageTokenPrices(t *testing.T) {
+	catalog := provider.NewService(provider.Options{DataDir: t.TempDir()}, nil)
+	require.NoError(t, catalog.Initialize())
+	t.Cleanup(catalog.Stop)
+
+	const model = "gpt-image-1-mini"
+	require.Equal(t, []string{"image"}, *catalog.ModelAttributes(model).OutputModalities)
+	recorder := completion.NewRecorder(
+		completion.Dependencies{Calculator: billingtestkit.Calculator(catalog, nil)},
+		completion.RecorderOptions{DefaultMultiplier: 1},
+	)
+	usage := completion.TokenUsage{
+		InputTokens: 210, OutputTokens: 200, CacheReadInputTokens: 30,
+		ImageInputTokens: 100, ImageCacheReadTokens: 20, ImageOutputTokens: 200,
+	}
+	result := &completion.Result{Model: model, UpstreamModel: model, ImageCount: 1, Usage: usage}
+	tokens := pricing.UsageTokens{
+		InputTokens: usage.InputTokens - usage.CacheReadInputTokens, OutputTokens: usage.OutputTokens,
+		CacheReadTokens: usage.CacheReadInputTokens, ImageInputTokens: usage.ImageInputTokens,
+		ImageCacheReadTokens: usage.ImageCacheReadTokens, ImageOutputTokens: usage.ImageOutputTokens,
+	}
+	cost, err := recorder.CalculateOpenAIRecordUsageCostAt(
+		t.Context(), result, &completion.KeySnapshot{}, []string{model}, 1, 1, 1, 1, tokens, "", time.Time{},
+	)
+	require.NoError(t, err)
+	require.Equal(t, string(completion.BillingModeToken), cost.BillingMode)
+	require.InDelta(t, 0.0002, cost.InputCost, 1e-12)
+	require.InDelta(t, 0.0002, cost.ImageInputCost, 1e-12)
+	require.InDelta(t, 0.000007, cost.CacheReadCost, 1e-12)
+	require.InDelta(t, 0.0016, cost.ImageOutputCost, 1e-12)
+	require.InDelta(t, 0.002007, cost.ActualCost, 1e-12)
+}

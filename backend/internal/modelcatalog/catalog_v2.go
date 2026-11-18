@@ -280,6 +280,13 @@ func projectV2Model(raw catalogModelV2, service string) (sourceModel, error) {
 	if err != nil {
 		return sourceModel{}, err
 	}
+	// OpenAI documents GPT Image 1 mini text as input only. Correct the v2
+	// modality while it lacks a text output rate so the complete image quote
+	// reaches native Images billing without opening text output on this model.
+	if service == "openai" && raw.ID == "gpt-image-1-mini" && raw.Type == "image" &&
+		model.Cost.Output == nil && model.Cost.ImageOutput != nil {
+		model.Modalities.Output = new([]string{"image"})
+	}
 	model.Cost.Tiers, err = projectV2Context(raw.Cost)
 	if err != nil {
 		return sourceModel{}, err
