@@ -144,7 +144,6 @@ OpenAI API Key 提供商可以通过 `extra.images_url_to_b64_json=true` 开启�
 
 分组可以按协议开放 Messages、Responses 和 Chat，新建时默认开放这三个文本入口，三项都可以关闭。旧字段 `allow_messages_dispatch` 是 Messages 已弃用的兼容镜像；迁移时，只有这个旧字段开启的分组才加入 Messages。Messages 的模型改写，统一使用分组的 `routing_policy.model_mapping` 和提供商的模型规则。Responses WebSocket 是 OpenAI 和 Grok 的原生传输能力，其他平台启用了兼容 Responses，也不会因此开放它。
 
-<a id="openai_fast_policy"></a>
 ### GPT Image 2.6 与 GIF
 
 `gpt-image-2.6-sunburst` 与 `gpt-image-2.6-flare` 使用内嵌目录补充，并开放 `xhigh`、`max` 质量选项。GIF 使用 `output_format=gif`，`frame_count` 为 2 至 16，缺省 9；`frame_duration_ms` 为 20 至 2000，缺省 200，按 10 毫秒舍入。尺寸为 `auto` 或两边均为 16 倍数的正整数，供应商负责总像素预算校验。
@@ -161,13 +160,16 @@ Responses 的 HTTP、SSE 和 WebSocket 结果同样按完整 GIF 容器校验并
 
 Images 响应中的 GIF 项按实际字节校正 `data[].size`。当全部输出都是同尺寸 GIF 时，顶层 `size` 同步为该尺寸；尺寸不一致或混有其他格式时移除顶层 `size`，各项保留自己的尺寸信息。成功的 GIF 原生 JSON 和 SSE 汇总响应都使用校正后的条目尺寸计费。仅含静态图片的响应保持原有元数据。
 
+<a id="openai_fast_policy"></a>
 ### Fast 与 Ultra Fast 策略
 
 `service_tier` 报文字段的校验、归一化和类型化错误由 `protocol/openai` 提供；策略求值和拒绝错误在 `gateway/tierpolicy`；认证范围和模型白名单动作复用 routing 的纯规则。
 
 分组用 `openai_fast_policy` 选择 `follow_request`、`force_priority`、`force_ultrafast` 或 `force_off`。HTTP、Chat、Messages、passthrough 和 WebSocket 使用同一套策略：强制开启时，可以为没带 tier 的请求注入对应的档位；强制关闭时，移除 Fast 和 Ultra Fast，并阻止 Key 再次开启，其他合法的 tier 保留。
 
-分组的强制意图要先经过全局规则；全局的过滤、阻断、强制 Fast 或 Ultra Fast 都有最终的优先级。Key 的 force_off 可以移除全局放行的分组级加速，force_on 不会把分组级的 Ultra Fast 降档。全局规则只匹配已有的合法 tier，主动作和其他模型动作都支持 `force_ultrafast`。
+分组的强制档位先经过全局规则。全局的过滤、阻断和强制档位优先。全局规则只匹配已有的合法 tier，主动作和其他模型动作都支持 `force_ultrafast`。全局放行后，分组的 `force_off` 会结束判定并移除请求中的加速档位。
+
+Key 的 `force_off` 可以移除全局放行的分组级加速，`force_on` 会保留分组强制的 Ultra Fast。Key 的 `force_ultrafast` 只在 OpenAI 上游且所选分组的模型定价声明了 Ultrafast 时生效，可以把全局放行的 Fast 改成 Ultrafast。Key 改写后的新档位会再经过一次全局规则。Claude 请求按客户端原有的加速信号处理。
 
 新字段优先于旧的 `force_openai_fast`：旧值 true 映射为强制 Fast，false 映射为跟随请求，更新时两个字段都省略则保留现值。其他平台的提供商不应用这项策略，公开的分组接口不返回管理用的策略。迁移 269 保留旧开关的行为；新字段随分组复制、仓储和认证快照传递，认证快照版本为 46，版本不一致时重建快照。
 

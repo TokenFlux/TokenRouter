@@ -8,7 +8,7 @@ import (
 
 // TestDecisionPreservesLazyPolicyOrder records policy and price callback order
 // for system blocks and key overrides. It protects early termination and the
-// second system check after key force_on.
+// second system check after a key forces Fast or Ultrafast.
 func TestDecisionPreservesLazyPolicyOrder(t *testing.T) {
 	for _, tc := range []struct {
 		// name labels the subtest, group supplies its group policy, key its API Key
@@ -18,7 +18,8 @@ func TestDecisionPreservesLazyPolicyOrder(t *testing.T) {
 	}{
 		{name: "系统拒绝", original: "priority", action: "block", want: []string{"system:priority"}},
 		{name: "分组关闭", group: "force_off", key: "force_on", want: nil},
-		{name: "Key开启后复核系统", key: "force_on", want: []string{"key", "price", "system:priority"}},
+		{name: "Key开启Fast后复核系统", key: "force_on", want: []string{"key", "price:priority", "system:priority"}},
+		{name: "Key开启Ultrafast后复核系统", key: "force_ultrafast", want: []string{"key", "price:ultrafast", "system:ultrafast"}},
 		{name: "Key关闭不查价", key: "force_off", original: "priority", want: []string{"system:priority", "key"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -29,8 +30,11 @@ func TestDecisionPreservesLazyPolicyOrder(t *testing.T) {
 					calls = append(calls, "system:"+tier)
 					return tc.action, ""
 				},
-				KeyPolicy:        func() string { calls = append(calls, "key"); return tc.key },
-				ForceOnSupported: func() bool { calls = append(calls, "price"); return true },
+				KeyPolicy: func() string { calls = append(calls, "key"); return tc.key },
+				CanForceTier: func(tier string) bool {
+					calls = append(calls, "price:"+tier)
+					return true
+				},
 			}
 			Resolve(input, tc.original, tc.original != "")
 			require.Equal(t, tc.want, calls)

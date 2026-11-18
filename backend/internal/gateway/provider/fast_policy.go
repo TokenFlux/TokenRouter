@@ -20,9 +20,10 @@ import (
 // fast_policy.go applies API Key Fast policy to Anthropic speed and beta
 // signaling.
 // Forced Fast mode depends on trusted Key policy and the selected group's
-// effective price capability. Anthropic rewriting treats body speed and beta
-// headers as one requested mode: force-off removes Fast signaling, while
-// eligible direct API Key traffic can gain speed and its beta token together.
+// effective price capability. The shared lookup also supplies OpenAI tier
+// eligibility. Anthropic rewriting treats body speed and beta headers as one
+// requested mode. Force-off removes Fast signaling, while eligible direct API
+// Key traffic can gain speed and its beta token together.
 //
 // The ingress model retained in telemetry supplies pricing identity before a
 // fallback model is considered, keeping capability checks tied to the group's
@@ -85,19 +86,26 @@ func FastModePricingModel(ctx context.Context, fallback string) string {
 // group, or resolved price returns false, preventing forced Fast injection
 // with absent capability evidence.
 func SupportsFastMode(ctx context.Context, resolver *billing.PriceResolver, model string) bool {
+	resolved := resolveFastModePricing(ctx, resolver, model)
+	return resolved != nil && resolved.SupportsServiceTier
+}
+
+// resolveFastModePricing reads the effective price for the admitted group and
+// ingress model. An absent context, group ID, or price resolver leaves pricing
+// unavailable for forced acceleration.
+func resolveFastModePricing(ctx context.Context, resolver *billing.PriceResolver, model string) *billing.ResolvedPricing {
 	if ctx == nil || resolver == nil {
-		return false
+		return nil
 	}
 	group, ok := requeststate.GroupFromContext(ctx)
 	if !ok || group == nil || group.ID <= 0 {
-		return false
+		return nil
 	}
 	groupID := group.ID
-	resolved := resolver.Resolve(ctx, billing.PricingInput{
+	return resolver.Resolve(ctx, billing.PricingInput{
 		Model:   FastModePricingModel(ctx, model),
 		GroupID: &groupID,
 	})
-	return resolved != nil && resolved.SupportsServiceTier
 }
 
 // SupportsAnthropicFastMode permits forced Fast capability for direct
@@ -132,10 +140,10 @@ func addAnthropicBetaToken(header, token string) string {
 // group pricing support.
 //
 // Body speed and Fast beta token both count as client Fast requests when Key
-// policy follows input. Force-on enables both signals, while force-off removes
-// fast speed and its beta token; other beta values survive. Header changes use
-// a clone, body-update errors return the supplied bytes, and system beta
-// filtering or blocking still runs afterward.
+// policy follows input or selects OpenAI-only Ultrafast. Force-on enables both
+// signals, while force-off removes fast speed and its beta token. Other beta
+// values survive. Header changes use a clone, body-update errors return the
+// supplied bytes, and system beta filtering or blocking still runs afterward.
 func ApplyAnthropicFastMode(
 	ctx context.Context, resolver *billing.PriceResolver,
 

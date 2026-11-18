@@ -245,6 +245,8 @@ Ollama Cloud 的设置、状态、会话、自动刷新和主动刷新路由绑�
 
 `POST /api/v1/keys` 和 `PUT /api/v1/keys/{id}` 接受 `billing_mode`（`auto`、`subscription`、`balance`）和可空的 `preferred_subscription_id`。省略模式或使用 `auto` 时，先用订阅，不足的部分由余额补足；`balance` 会清除指定的订阅；`subscription` 需要指定当前付款主体的一份有效订阅。个人 Key 的付款主体是本人，团队 Key 的付款主体是 Team Owner。
 
+创建和更新接口也接受 `fast_mode_policy`，取值为 `follow_request`、`force_on`、`force_ultrafast` 或 `force_off`。创建时省略该字段或传空字符串，默认跟随请求。更新时省略字段会保留原值，传空字符串会恢复为 `follow_request`。适用模型和优先级见 [Fast 与 Ultra Fast 策略](openai_upstream.md#openai_fast_policy)。
+
 创建和更新 API Key 时，`quota`、`rate_limit_5h`、`rate_limit_1d`、`rate_limit_7d` 要求是有限的、非负的、小于 `1e12` 的 USD 数值，以适配数据库的 `DECIMAL(20,8)`；`0` 表示不限额。创建时省略 `expires_in_days` 表示永不过期，提供时要大于 0；更新时用空的 `expires_at` 清除到期时间，用合法的 RFC3339 时间设置到期点。handler 的早期校验和 service 的最终校验使用同一套规则，内部调用同样要经过校验。
 
 `GET /api/v1/keys/billing-options?scope=personal|team` 返回当前作用域下可以指定的有效订阅摘要，包括 `id`、`plan_id`、`plan_name`、`expires_at`、`groups_restricted` 和 `applicable_groups`。`GET /api/v1/groups/available?scope=personal|team&subscription_id={id}` 带 `subscription_id` 时，返回付款主体已有的分组权限和这个订阅套餐分组的交集；不带时返回普通的可用分组列表。两个接口在团队作用域下都不会返回成员自己的订阅。可见分组的 `models` 和 `model_protocols` 来自有限模型目录，供客户端配置时选择型号，权限由请求时的分组策略校验。`include_models` 默认为 `true`；传 `false` 时保留作用域、套餐和分组权限过滤，跳过模型、协议和模型属性计算。使用记录及仪表盘的筛选项使用轻量查询，Key 配置导出使用完整查询。非法的 `include_models` 值返回 400。

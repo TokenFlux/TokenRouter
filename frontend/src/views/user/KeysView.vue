@@ -630,14 +630,24 @@
         </div>
 
         <div class="space-y-3">
-          <label class="input-label">{{ t('keys.billing.modeLabel') }}</label>
-          <Select
-            v-model="formData.billing_mode"
-            :options="billingModeOptions"
-            :placeholder="t('keys.billing.modeLabel')"
-            data-test="api-key-billing-mode"
-            @change="onBillingModeChange"
-          />
+          <div>
+            <label class="input-label">{{ t('keys.billing.modeLabel') }}</label>
+            <Select
+              v-model="formData.billing_mode"
+              :options="billingModeOptions"
+              :placeholder="t('keys.billing.modeLabel')"
+              :aria-label="t('keys.billing.modeLabel')"
+              aria-describedby="key-billing-mode-hint"
+              data-test="api-key-billing-mode"
+              @change="onBillingModeChange"
+            />
+            <p id="key-billing-mode-hint" class="input-hint">
+              {{
+                billingModeOptions.find((option) => option.value === formData.billing_mode)
+                  ?.description
+              }}
+            </p>
+          </div>
 
           <div v-if="formData.billing_mode === 'subscription'">
             <label class="input-label">{{ t('keys.billing.subscriptionLabel') }}</label>
@@ -662,6 +672,8 @@
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
             :disabled="formGroupsLoading"
+            :aria-label="t('keys.groupLabel')"
+            aria-describedby="key-group-hint"
             data-tour="key-form-group"
           >
             <template #selected="{ option }">
@@ -685,6 +697,7 @@
               />
             </template>
           </Select>
+          <p id="key-group-hint" class="input-hint">{{ t('keys.groupHint') }}</p>
         </div>
 
         <RuleListEditor
@@ -737,14 +750,34 @@
             v-model="formData.fast_mode_policy"
             :options="fastModePolicyOptions"
             :placeholder="t('keys.fastModePolicyLabel')"
+            :aria-label="t('keys.fastModePolicyLabel')"
+            aria-describedby="key-fast-mode-hint"
             data-test="fast-mode-policy-select"
           />
+          <p id="key-fast-mode-hint" class="input-hint">
+            {{
+              fastModePolicyOptions.find((option) => option.value === formData.fast_mode_policy)
+                ?.description
+            }}
+          </p>
         </div>
 
         <!-- This switch allows request routing to fall back when the chosen group is unavailable. -->
-        <div class="flex items-center justify-between">
-          <label class="input-label mb-0">{{ t('keys.fallbackWhenGroupUnavailable') }}</label>
-          <Toggle v-model="formData.fallback_when_group_unavailable" size="sm" />
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label for="key-group-fallback" class="input-label mb-0">{{
+              t('keys.fallbackWhenGroupUnavailable')
+            }}</label>
+            <p id="key-group-fallback-hint" class="input-hint">{{
+              t('keys.fallbackWhenGroupUnavailableHint')
+            }}</p>
+          </div>
+          <Toggle
+            id="key-group-fallback"
+            v-model="formData.fallback_when_group_unavailable"
+            size="sm"
+            aria-describedby="key-group-fallback-hint"
+          />
         </div>
 
         <!-- This switch rewrites Claude ephemeral prompt-cache lifetimes on this key from 5m to 1h. -->
@@ -785,9 +818,20 @@
 
         <!-- Custom Key Section (only for create) -->
         <div v-if="!showEditModal" class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="input-label mb-0">{{ t('keys.customKeyLabel') }}</label>
-            <Toggle v-model="formData.use_custom_key" size="sm" off-tone="soft" />
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <label for="key-use-custom" class="input-label mb-0">{{
+                t('keys.customKeyLabel')
+              }}</label>
+              <p id="key-use-custom-hint" class="input-hint">{{ t('keys.useCustomKeyHint') }}</p>
+            </div>
+            <Toggle
+              id="key-use-custom"
+              v-model="formData.use_custom_key"
+              size="sm"
+              off-tone="soft"
+              aria-describedby="key-use-custom-hint"
+            />
           </div>
           <div v-if="formData.use_custom_key">
             <input
@@ -804,13 +848,18 @@
 
         <div v-if="showEditModal" class="space-y-3">
           <div class="flex items-center justify-between gap-4">
-            <label class="input-label mb-0">{{ t('keys.statusLabel') }}</label>
+            <div>
+              <label class="input-label mb-0">{{ t('keys.statusLabel') }}</label>
+              <p id="key-status-hint" class="input-hint">{{ t('keys.statusHint') }}</p>
+            </div>
             <Toggle
               :model-value="formData.status === 'active'"
               :disabled="Boolean(selectedKey?.team_owner_disabled)"
               :aria-label="t('keys.statusLabel')"
               :aria-describedby="
-                selectedKey?.team_owner_disabled ? 'team-owner-disabled-hint' : undefined
+                selectedKey?.team_owner_disabled
+                  ? 'key-status-hint team-owner-disabled-hint'
+                  : 'key-status-hint'
               "
               data-test="key-status-toggle"
               @update:model-value="onStatusToggle"
@@ -828,9 +877,22 @@
 
         <!-- IP Restriction Section -->
         <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="input-label mb-0">{{ t('keys.ipRestriction') }}</label>
-            <Toggle v-model="formData.enable_ip_restriction" size="sm" off-tone="soft" />
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <label for="key-ip-restriction" class="input-label mb-0">{{
+                t('keys.ipRestriction')
+              }}</label>
+              <p id="key-ip-restriction-hint" class="input-hint">{{
+                t('keys.ipRestrictionHint')
+              }}</p>
+            </div>
+            <Toggle
+              id="key-ip-restriction"
+              v-model="formData.enable_ip_restriction"
+              size="sm"
+              off-tone="soft"
+              aria-describedby="key-ip-restriction-hint"
+            />
           </div>
 
           <div v-if="formData.enable_ip_restriction" class="space-y-4 pt-2">
@@ -947,13 +1009,23 @@
 
         <!-- Rate Limit Section -->
         <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="input-label mb-0">{{ t('keys.rateLimitSection') }}</label>
-            <Toggle v-model="formData.enable_rate_limit" size="sm" off-tone="soft" />
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <label for="key-spending-limits" class="input-label mb-0">{{
+                t('keys.rateLimitSection')
+              }}</label>
+              <p id="key-spending-limits-hint" class="input-hint">{{ t('keys.rateLimitHint') }}</p>
+            </div>
+            <Toggle
+              id="key-spending-limits"
+              v-model="formData.enable_rate_limit"
+              size="sm"
+              off-tone="soft"
+              aria-describedby="key-spending-limits-hint"
+            />
           </div>
 
           <div v-if="formData.enable_rate_limit" class="space-y-4 pt-2">
-            <p class="input-hint -mt-2">{{ t('keys.rateLimitHint') }}</p>
             <!-- 5-Hour Limit -->
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
@@ -1166,9 +1238,20 @@
 
         <!-- Expiration Section -->
         <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <label class="input-label mb-0">{{ t('keys.expiration') }}</label>
-            <Toggle v-model="formData.enable_expiration" size="sm" off-tone="soft" />
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <label for="key-expiration" class="input-label mb-0">{{
+                t('keys.expiration')
+              }}</label>
+              <p id="key-expiration-hint" class="input-hint">{{ t('keys.expirationHint') }}</p>
+            </div>
+            <Toggle
+              id="key-expiration"
+              v-model="formData.enable_expiration"
+              size="sm"
+              off-tone="soft"
+              aria-describedby="key-expiration-hint"
+            />
           </div>
 
           <div v-if="formData.enable_expiration" class="space-y-4 pt-2">
@@ -2011,20 +2094,48 @@ const customKeyError = computed(() => {
   return ''
 })
 
-// fastModePolicyOptions offers request-following, forced-on, and forced-off policies while
-// the shared Select component owns keyboard and popup interaction.
+// fastModePolicyOptions pairs each stored acceleration policy with a localized
+// option label and an explanation of how it affects requests.
 const fastModePolicyOptions = computed(() => [
-  { value: 'follow_request', label: t('keys.fastModePolicy.followRequest') },
-  { value: 'force_on', label: t('keys.fastModePolicy.forceOn') },
-  { value: 'force_off', label: t('keys.fastModePolicy.forceOff') },
+  {
+    value: 'follow_request',
+    label: t('keys.fastModePolicy.followRequest'),
+    description: t('keys.fastModePolicy.followRequestHint'),
+  },
+  {
+    value: 'force_on',
+    label: t('keys.fastModePolicy.forceOn'),
+    description: t('keys.fastModePolicy.forceOnHint'),
+  },
+  {
+    value: 'force_ultrafast',
+    label: t('keys.fastModePolicy.forceUltrafast'),
+    description: t('keys.fastModePolicy.forceUltrafastHint'),
+  },
+  {
+    value: 'force_off',
+    label: t('keys.fastModePolicy.forceOff'),
+    description: t('keys.fastModePolicy.forceOffHint'),
+  },
 ])
 
-// billingModeOptions retains auto alongside subscription and balance choices so existing
-// keys can display and restore automatic billing before server validation.
+// billingModeOptions supplies localized labels and funding rules for the billing selector.
 const billingModeOptions = computed(() => [
-  { value: 'auto', label: t('keys.billing.modes.auto') },
-  { value: 'subscription', label: t('keys.billing.modes.subscription') },
-  { value: 'balance', label: t('keys.billing.modes.balance') },
+  {
+    value: 'auto',
+    label: t('keys.billing.modes.auto'),
+    description: t('keys.billing.modeHints.auto'),
+  },
+  {
+    value: 'subscription',
+    label: t('keys.billing.modes.subscription'),
+    description: t('keys.billing.modeHints.subscription'),
+  },
+  {
+    value: 'balance',
+    label: t('keys.billing.modes.balance'),
+    description: t('keys.billing.modeHints.balance'),
+  },
 ])
 
 // billingSubscriptionOptions presents eligible subscription records and retains an

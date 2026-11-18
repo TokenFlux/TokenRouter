@@ -80,13 +80,13 @@ func (APIKey) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(apikey.StatusActive),
-		// fast_mode_policy records follow_request, force_on, or force_off for
-		// this credential. The default follows the incoming client's Fast
-		// choice, and the request policy resolver applies the stored override.
+		// fast_mode_policy records the credential's choice to follow requests,
+		// force Fast, force Ultrafast, or turn acceleration off. The gateway
+		// applies the preference within provider and policy constraints.
 		field.String("fast_mode_policy").
 			MaxLen(32).
 			Default("follow_request").
-			Comment("API key Fast mode policy: follow_request, force_on, or force_off"),
+			Comment("API key Fast mode policy: follow_request, force_on, force_ultrafast, or force_off"),
 		// force_claude_1h_cache rewrites ephemeral prompt-cache markers on
 		// Claude requests authenticated with this credential to use a 1h TTL.
 		// Leaving it false preserves incoming client cache lifetimes and any

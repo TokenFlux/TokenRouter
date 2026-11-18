@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 import type { ApiKey } from '@/api/keys.types'
+import enDashboard from '@/i18n/locales/en/dashboard'
 import KeysView from '../KeysView.vue'
 
 // KeysView.spec.ts exercises the production key-management page with controlled API
@@ -75,6 +76,9 @@ const messages: Record<string, string> = {
   'keys.selectGroup': 'Select a group',
   'keys.forceClaude1hCache': 'Force Claude 1h cache',
   'keys.forceClaude1hCacheHint': 'Force Claude ephemeral prompt cache to 1h',
+  'keys.fastModePolicy.followRequestHint': enDashboard.keys.fastModePolicy.followRequestHint,
+  'keys.fastModePolicy.forceUltrafast': enDashboard.keys.fastModePolicy.forceUltrafast,
+  'keys.fastModePolicy.forceUltrafastHint': enDashboard.keys.fastModePolicy.forceUltrafastHint,
   'keys.composite.label': 'Composite key',
   'keys.composite.hint': 'Choose a group with a prefix/model ID.',
   'keys.composite.addMapping': 'Add group mapping',
@@ -1085,9 +1089,9 @@ describe('user KeysView column settings', () => {
     )
   })
 
-  // A new key selects a forced Fast policy with request-count caps. The test protects those
-  // policy and numeric limit values in the submitted creation payload.
-  it('submits the selected Fast mode policy when creating a key', async () => {
+  // A new key selects Ultrafast with request-count caps. The test checks the localized
+  // description and verifies that the policy and numeric caps reach the creation request.
+  it('describes and submits the Ultrafast policy when creating a key', async () => {
     getAvailableGroups.mockResolvedValueOnce([
       {
         id: 42,
@@ -1117,8 +1121,17 @@ describe('user KeysView column settings', () => {
     )
     expect(groupSelect).toBeDefined()
     expect(fastSelect).toBeDefined()
+    expect(fastSelect!.props('options')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: 'force_ultrafast', label: 'Force Ultrafast on' }),
+      ]),
+    )
+    expect(wrapper.get('#key-fast-mode-hint').text()).toContain('requested by the client')
     await groupSelect!.vm.$emit('update:modelValue', 42)
-    await fastSelect!.vm.$emit('update:modelValue', 'force_on')
+    await fastSelect!.vm.$emit('update:modelValue', 'force_ultrafast')
+    expect(wrapper.get('#key-fast-mode-hint').text()).toContain(
+      'OpenAI models with Ultrafast pricing',
+    )
     await wrapper.get('#key-concurrency-limit').setValue('2')
     await wrapper.get('#key-rpm-limit').setValue('30')
     await wrapper.get('form#key-form').trigger('submit')
@@ -1128,7 +1141,7 @@ describe('user KeysView column settings', () => {
       expect.objectContaining({
         name: 'fast-key',
         group_id: 42,
-        fast_mode_policy: 'force_on',
+        fast_mode_policy: 'force_ultrafast',
         concurrency_limit: 2,
         rpm_limit: 30,
       }),
@@ -1406,11 +1419,19 @@ describe('user KeysView column settings', () => {
     expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ model_mapping: {} }))
   })
 
-  // An existing key loads finite concurrency and RPM caps before the user enters zero. The
-  // test protects loading those values and submitting zero to remove both caps.
-  it('loads request limits and submits zero to remove them', async () => {
+  // An existing Ultrafast key loads finite concurrency and RPM caps. Submitting
+  // zero clears both caps and preserves the stored Ultrafast preference.
+  it('clears request limits without changing the saved Ultrafast policy', async () => {
     listKeys.mockResolvedValueOnce({
-      items: [{ ...createApiKey(), group_id: 42, concurrency_limit: 3, rpm_limit: 60 }],
+      items: [
+        {
+          ...createApiKey(),
+          group_id: 42,
+          fast_mode_policy: 'force_ultrafast',
+          concurrency_limit: 3,
+          rpm_limit: 60,
+        },
+      ],
       total: 1,
       page: 1,
       page_size: 20,
@@ -1418,6 +1439,9 @@ describe('user KeysView column settings', () => {
     })
     const wrapper = await mountView()
     await getButtonByText(wrapper, 'Edit').trigger('click')
+    expect(wrapper.get('#key-fast-mode-hint').text()).toContain(
+      'OpenAI models with Ultrafast pricing',
+    )
     expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('3')
     expect((wrapper.get('#key-rpm-limit').element as HTMLInputElement).value).toBe('60')
     await wrapper.get('#key-concurrency-limit').setValue('0')
@@ -1426,7 +1450,11 @@ describe('user KeysView column settings', () => {
     await flushPromises()
     expect(updateKey).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ concurrency_limit: 0, rpm_limit: 0 }),
+      expect.objectContaining({
+        fast_mode_policy: 'force_ultrafast',
+        concurrency_limit: 0,
+        rpm_limit: 0,
+      }),
     )
   })
 

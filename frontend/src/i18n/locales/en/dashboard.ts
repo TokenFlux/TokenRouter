@@ -162,6 +162,7 @@ export default {
     nameLabel: 'Name',
     namePlaceholder: 'My API Key',
     groupLabel: 'Group',
+    groupHint: 'The group determines which models and request protocols this key can use.',
     selectGroup: 'Select a group',
     composite: {
       label: 'Composite key',
@@ -193,12 +194,25 @@ export default {
         subscription: 'Selected subscription',
         balance: 'Balance only',
       },
+      modeHints: {
+        auto: 'Use available subscription allowance first and charge any remainder to the balance.',
+        subscription:
+          'Use only the selected subscription. Its plan limits which groups you can choose.',
+        balance: 'Charge all requests to the balance.',
+      },
     },
     fastModePolicyLabel: 'Fast mode policy',
     fastModePolicy: {
       followRequest: 'Follow request',
+      followRequestHint:
+        'Use the tier requested by the client, subject to group and system policies.',
       forceOn: 'Force Fast on',
+      forceOnHint: 'Request Fast on supported OpenAI or Claude requests, subject to system policy.',
+      forceUltrafast: 'Force Ultrafast on',
+      forceUltrafastHint:
+        'Request Ultrafast for OpenAI models with Ultrafast pricing, subject to system policy and group settings that turn acceleration off.',
       forceOff: 'Force Fast off',
+      forceOffHint: 'Turn off Fast and Ultrafast for OpenAI requests and Fast for Claude requests.',
     },
     modelRedirect: {
       label: 'Model redirects',
@@ -230,10 +244,13 @@ export default {
       tooManyRules: 'Up to 100 model redirect rules are allowed',
     },
     fallbackWhenGroupUnavailable: 'Auto fallback when unavailable',
+    fallbackWhenGroupUnavailableHint:
+      'If the current group is unavailable, try the fallback group configured by an administrator.',
     forceClaude1hCache: 'Force Claude 1h cache',
     forceClaude1hCacheHint:
       'Rewrites existing Claude ephemeral prompt cache lifetimes on requests from this key to 1h.',
     statusLabel: 'Status',
+    statusHint: 'Disabling this key stops clients from making requests with it.',
     selectStatus: 'Select status',
     saving: 'Saving...',
     noKeysYet: 'No API keys yet',
@@ -359,12 +376,15 @@ export default {
       },
     },
     customKeyLabel: 'Custom Key',
+    useCustomKeyHint: 'Enter your own key or leave this off to generate one automatically.',
     customKeyPlaceholder: 'Enter your custom key (min 16 chars)',
     customKeyHint: 'Only letters, numbers, underscores and hyphens allowed. Minimum 16 characters.',
     customKeyTooShort: 'Custom key must be at least 16 characters',
     customKeyInvalidChars: 'Custom key can only contain letters, numbers, underscores, and hyphens',
     customKeyRequired: 'Please enter a custom key',
     ipRestriction: 'IP Restriction',
+    ipRestrictionHint:
+      'Restrict access by client IP address or range. The denylist takes precedence.',
     ipWhitelist: 'IP Whitelist',
     ipWhitelistPlaceholder: '192.168.1.100\n10.0.0.0/8',
     ipWhitelistHint: 'One IP or CIDR per line. Only these IPs can use this key when set.',
@@ -416,6 +436,7 @@ export default {
     failedToResetRateLimit: 'Failed to reset rate limit usage',
     resetNow: 'Resetting soon',
     expiration: 'Expiration',
+    expirationHint: 'Clients can make model requests with this key until it expires.',
     expiresInDays: '{days} days',
     extendDays: '+{days} days',
     customDate: 'Custom',

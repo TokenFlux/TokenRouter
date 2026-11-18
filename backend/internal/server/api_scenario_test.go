@@ -431,14 +431,14 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
-			name: "POST /api/v1/keys",
+			name: "POST /api/v1/keys with Ultrafast policy",
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
 				deps.groupRepo.SetActive([]routing.Group{{ID: 10, Status: "active"}})
 			},
 			method: http.MethodPost,
 			path:   "/api/v1/keys",
-			body:   `{"name":"Key One","custom_key":"sk_custom_1234567890","group_id":10}`,
+			body:   `{"name":"Key One","custom_key":"sk_custom_1234567890","group_id":10,"fast_mode_policy":"force_ultrafast"}`,
 			headers: map[string]string{
 				"Content-Type": "application/json",
 			},
@@ -458,7 +458,7 @@ func TestAPIContracts(t *testing.T) {
 					"is_composite": false,
 					"composite_groups": [],
 					"status": "active",
-					"fast_mode_policy": "follow_request",
+					"fast_mode_policy": "force_ultrafast",
 					"force_claude_1h_cache": false,
 					"billing_mode": "auto",
 					"preferred_subscription_id": null,

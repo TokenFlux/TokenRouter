@@ -1,6 +1,7 @@
 package provider_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -239,6 +240,8 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 		// key: Key override policy. action: global rule action. want:
 		// expected outgoing tier.
 		group, tier, key, action, want string
+		ruleTier                       string // optional system rule tier match
+		model                          string // model with test pricing metadata
 		// expected policy block result
 		blocked bool
 	}{
@@ -254,16 +257,27 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 		{group: "force_ultrafast", action: "filter"},
 		{group: "force_ultrafast", action: "block", blocked: true},
 		{group: "force_off", tier: "priority", action: "force_ultrafast", want: "ultrafast"},
+		{model: "gpt-5.6-sol", key: "force_ultrafast", want: "ultrafast"},
+		{model: "gpt-5.6-sol", tier: "priority", key: "force_ultrafast", want: "ultrafast"},
+		{model: "gpt-5.6-sol", group: "force_priority", key: "force_ultrafast", want: "ultrafast"},
+		{model: "gpt-5.6-sol", group: "force_off", key: "force_ultrafast"},
+		{model: "gpt-5.6-sol", key: "force_ultrafast", action: "filter", ruleTier: "ultrafast"},
+		{model: "gpt-5.6-sol", key: "force_ultrafast", action: "block", ruleTier: "ultrafast", blocked: true},
+		{model: "gpt-5.6-sol", key: "force_ultrafast", action: "force_priority", ruleTier: "ultrafast", want: "priority"},
+		{model: "gpt-5.5", tier: "flex", key: "force_ultrafast", want: "flex"},
 	} {
-		t.Run(tt.group+"/"+tt.tier+"/"+tt.key+"/"+tt.action, func(t *testing.T) {
+		t.Run(tt.model+"/"+tt.group+"/"+tt.tier+"/"+tt.key+"/"+tt.action, func(t *testing.T) {
+			model := cmp.Or(tt.model, "gpt-5.5")
 			settings := tierpolicy.Default()
 			if tt.action != "" {
-				settings.Rules = []tierpolicy.OpenAIFastPolicyRule{{ServiceTier: "all", Scope: "all", Action: tt.action}}
+				settings.Rules = []tierpolicy.OpenAIFastPolicyRule{
+					{ServiceTier: cmp.Or(tt.ruleTier, "all"), Scope: "all", Action: tt.action},
+				}
 			}
 			svc := newFastPolicyContract(t, settings)
 			svc.Prices = fastModeTestResolver()
-			ctx := requeststate.WithGroup(fastModeTestContext(tt.key, "gpt-5.5"), &routing.Group{ID: 1, Status: billingcore.StatusActive, Hydrated: true, OpenAIFastPolicy: tt.group})
-			payload := map[string]any{"model": "gpt-5.5", "type": "response.create"}
+			ctx := requeststate.WithGroup(fastModeTestContext(tt.key, model), &routing.Group{ID: 1, Status: billingcore.StatusActive, Hydrated: true, OpenAIFastPolicy: tt.group})
+			payload := map[string]any{"model": model, "type": "response.create"}
 			if tt.tier != "" {
 				payload["service_tier"] = tt.tier
 			}
@@ -271,8 +285,8 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 			// unsupported values or cycles; body policy then receives the same serialized frame input.
 			body, _ := json.Marshal(payload)
 			provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey}}
-			httpBody, httpErr := tierpolicy.ApplyBody(body, svc.Input(ctx, provider, "gpt-5.5"))
-			wsBody, blocked, err := gatewayws.ApplyServiceTierFrame(body, "gpt-5.5", svc.Input(ctx, provider, "gpt-5.5"))
+			httpBody, httpErr := tierpolicy.ApplyBody(body, svc.Input(ctx, provider, model))
+			wsBody, blocked, err := gatewayws.ApplyServiceTierFrame(body, model, svc.Input(ctx, provider, model))
 			require.NoError(t, err)
 			if tt.blocked {
 				require.Error(t, httpErr)

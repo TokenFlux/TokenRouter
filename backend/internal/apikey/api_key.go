@@ -31,11 +31,12 @@ const (
 	StatusAPIKeyQuotaExhausted = "quota_exhausted" // exhausted total quota
 	StatusAPIKeyExpired        = "expired"         // expired spending credential
 
-	// Key Fast policies select whether provider processing follows the request
-	// or forces acceleration, subject to the gateway's other policy decisions.
-	APIKeyFastModePolicyFollowRequest = "follow_request" // request-selected Fast mode
-	APIKeyFastModePolicyForceOn       = "force_on"       // forced enabled acceleration
-	APIKeyFastModePolicyForceOff      = "force_off"      // forced disabled acceleration
+	// Key Fast policies select whether provider processing follows the request,
+	// forces an eligible tier, or removes acceleration subject to gateway policy.
+	APIKeyFastModePolicyFollowRequest  = "follow_request"  // request-selected Fast mode
+	APIKeyFastModePolicyForceOn        = "force_on"        // force the provider's Fast mode
+	APIKeyFastModePolicyForceUltrafast = "force_ultrafast" // force OpenAI Ultrafast mode
+	APIKeyFastModePolicyForceOff       = "force_off"       // remove accelerated modes
 
 	// Funding modes let admission and settlement select subscriptions, wallet
 	// balance, or automatic allocation using the Key's selected subscription ID.
@@ -179,7 +180,7 @@ func NormalizeAPIKeyFastModePolicy(value string) (string, bool) {
 	switch value {
 	case "", APIKeyFastModePolicyFollowRequest:
 		return APIKeyFastModePolicyFollowRequest, true
-	case APIKeyFastModePolicyForceOn, APIKeyFastModePolicyForceOff:
+	case APIKeyFastModePolicyForceOn, APIKeyFastModePolicyForceUltrafast, APIKeyFastModePolicyForceOff:
 		return value, true
 	default:
 		return "", false

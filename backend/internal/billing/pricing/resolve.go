@@ -3,6 +3,8 @@ package pricing
 import (
 	"slices"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // resolve.go applies card overrides and resolves token intervals and
@@ -165,6 +167,14 @@ func (r *ResolvedPricing) IsUnpriced() bool {
 		return false
 	}
 	return !slices.ContainsFunc(r.Intervals, PricingIntervalHasEffectiveTokenPricing)
+}
+
+// SupportsUltrafast reports whether the resolved token price declares Ultrafast.
+// Nil and non-token resolutions return false. General service-tier metadata
+// alone does not establish that this specific tier is available.
+func (r *ResolvedPricing) SupportsUltrafast() bool {
+	return r != nil && r.Mode == BillingModeToken && r.BasePricing != nil &&
+		hasCatalogServiceTier(r.BasePricing, openai.ServiceTierUltrafast)
 }
 
 // hasBaseTokenPricing reports an available base pointer, including explicit

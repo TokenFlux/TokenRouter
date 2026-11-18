@@ -132,15 +132,26 @@ func (s *ExecutionFastPolicy) Input(ctx context.Context, value *ExecutionProvide
 		KeyPolicy: func() string {
 			return APIKeyFastModePolicy(ctx)
 		},
-		ForceOnSupported: func() bool { return s.ForceOnSupported(ctx, value, model) },
+		CanForceTier: func(tier string) bool {
+			return s.canForceTier(ctx, value, model, tier)
+		},
 	}
 }
 
-// ForceOnSupported requires an OpenAI target and service-tier support from
-// group pricing for model. Missing pricing evidence disables forced injection;
-// callers provide a configured ExecutionFastPolicy receiver when that check is
-// needed.
-func (s *ExecutionFastPolicy) ForceOnSupported(ctx context.Context, provider *ExecutionProvider, model string) bool {
-	return provider != nil && provider.View().IsOpenAI() &&
-		SupportsFastMode(ctx, s.Prices, model)
+// canForceTier checks the selected OpenAI target against effective group
+// pricing. Priority accepts the model's service-tier flag. Ultrafast requires
+// a specific price declaration, and missing prices or other tiers are ineligible.
+func (s *ExecutionFastPolicy) canForceTier(ctx context.Context, provider *ExecutionProvider, model, tier string) bool {
+	if provider == nil || !provider.View().IsOpenAI() {
+		return false
+	}
+	switch tier {
+	case tierpolicy.OpenAIFastTierPriority:
+		return SupportsFastMode(ctx, s.Prices, model)
+	case tierpolicy.OpenAIFastTierUltrafast:
+		resolved := resolveFastModePricing(ctx, s.Prices, model)
+		return resolved.SupportsUltrafast()
+	default:
+		return false
+	}
 }

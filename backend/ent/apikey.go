@@ -43,7 +43,7 @@ type APIKey struct {
 	IsComposite bool `json:"is_composite,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
-	// API key Fast mode policy: follow_request, force_on, or force_off
+	// API key Fast mode policy: follow_request, force_on, force_ultrafast, or force_off
 	FastModePolicy string `json:"fast_mode_policy,omitempty"`
 	// Rewrites ephemeral cache_control markers on Claude requests to 1h TTL
 	ForceClaude1hCache bool `json:"force_claude_1h_cache,omitempty"`

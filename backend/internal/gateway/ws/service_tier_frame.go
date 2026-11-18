@@ -29,7 +29,7 @@ import (
 // or accepted tier. The returned block is separate from encoding errors so the
 // caller can emit a policy event and close locally. Callers supply
 // model-resolved DecisionInput callbacks: Evaluate and KeyPolicy are required
-// when their Resolve paths run, and ForceOnSupported is needed for key force_on.
+// when their Resolve paths run, and CanForceTier checks a tier forced by the key.
 // The caller forwards the accepted frame or writes the selected policy event.
 func ApplyServiceTierFrame(frame []byte, model string, input tierpolicy.DecisionInput) ([]byte, *tierpolicy.BlockedError, error) {
 	if len(frame) == 0 {

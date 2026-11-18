@@ -17,23 +17,23 @@ import (
 // stops a later key override.
 //
 // When the system passes the initial tier, an eligible key may inject priority
-// or remove an accelerated request. A newly injected tier is checked against
-// system policy again so key force_on cannot bypass a block or filter. The
-// result keeps rejection, field removal, and tier replacement distinct for both
-// HTTP bodies and WebSocket frames.
+// or ultrafast, or remove an accelerated request. A newly injected tier is
+// checked against system policy again so the same block or filter rules apply
+// to tiers introduced by either key override. The result keeps rejection,
+// field removal, and tier replacement distinct for HTTP and WebSocket callers.
 
-// DecisionInput supplies platform and group policy, with lazy policy and
-// pricing checks.
+// DecisionInput supplies platform and group policy along with lazy rule and
+// pricing callbacks for the shared HTTP and WebSocket decision.
 type DecisionInput struct {
 	Model       string // model used for policy diagnostics
 	GroupPolicy string // selected group Fast policy
 	OpenAI      bool   // provider is an OpenAI target
-	// Evaluate, KeyPolicy, and ForceOnSupported are invoked lazily in policy order.
-	// Callers supply each callback that the selected branch can reach; early system
+	// Evaluate, KeyPolicy, and CanForceTier are invoked lazily in policy order.
+	// Callers supply each callback that the selected branch can reach. Early system
 	// and group decisions can avoid both the key read and its eligibility check.
-	Evaluate         func(string) (string, string) // system action and message reader
-	KeyPolicy        func() string                 // authenticated key policy reader
-	ForceOnSupported func() bool                   // key force_on eligibility check
+	Evaluate     func(string) (string, string) // system action and message reader
+	KeyPolicy    func() string                 // authenticated key policy reader
+	CanForceTier func(string) bool             // forced tier eligibility check
 }
 
 // Decision describes the service tier to write, remove, or reject.
@@ -57,8 +57,9 @@ func IsAcceleratedTier(tier string) bool {
 //
 // Group forcing precedes the first system check. A handled system action ends
 // resolution, while a passing action permits group force_off or key policy to
-// run. Key force_on retains a group-forced ultrafast tier, and a changed
-// nonempty candidate receives a second system check before being returned.
+// run. Key force_on retains a group-forced ultrafast tier. Key force_ultrafast
+// can replace a passing tier when the target supports it. Any new tier from
+// a key override receives a second system check before being returned.
 func Resolve(input DecisionInput, rawTier string, hasField bool) Decision {
 	normTier := openai.ServiceTierValue(rawTier)
 	groupPolicy := input.GroupPolicy
@@ -104,48 +105,33 @@ func Resolve(input DecisionInput, rawTier string, hasField bool) Decision {
 		return Decision{Tier: normTier}
 	}
 	candidateTier := normTier
-	policy := input.KeyPolicy()
-	keyPolicyApplicable := false
-	switch policy {
+	switch input.KeyPolicy() {
 	case apikey.APIKeyFastModePolicyForceOn:
-		keyPolicyApplicable = input.ForceOnSupported()
-	case apikey.APIKeyFastModePolicyForceOff:
-		// Key force_off applies to OpenAI accelerated tiers.
-		keyPolicyApplicable = input.OpenAI
-	}
-	candidateChanged := false
-	if keyPolicyApplicable {
-		switch policy {
-		case apikey.APIKeyFastModePolicyForceOn:
-			// A group-selected ultrafast request keeps that higher tier when the key
-			// asks for priority, so this override does not discard the group choice.
-			if groupPolicy != routing.GroupOpenAIFastPolicyForceUltrafast {
-				candidateTier = OpenAIFastTierPriority
-			}
-		case apikey.APIKeyFastModePolicyForceOff:
-			// Remove accelerated tiers while retaining recognized alternatives such as
-			// flex and scale; key force_off does not require deleting those values.
-			if IsAcceleratedTier(normTier) {
-				candidateTier = ""
-			}
+		// Keep the group's higher tier when the key asks for priority, even
+		// when this target would otherwise qualify for the key override.
+		if input.CanForceTier(OpenAIFastTierPriority) && groupPolicy != routing.GroupOpenAIFastPolicyForceUltrafast {
+			candidateTier = OpenAIFastTierPriority
 		}
-		candidateChanged = candidateTier != normTier
+	case apikey.APIKeyFastModePolicyForceUltrafast:
+		if input.CanForceTier(OpenAIFastTierUltrafast) {
+			candidateTier = OpenAIFastTierUltrafast
+		}
+	case apikey.APIKeyFastModePolicyForceOff:
+		// Remove OpenAI accelerated tiers without disturbing other recognized
+		// tiers such as flex and scale or another provider's tier handling.
+		if input.OpenAI && IsAcceleratedTier(normTier) {
+			return Decision{DeleteField: hasField}
+		}
 	}
 
-	// Evaluate a newly introduced nonempty tier against the same system rules,
-	// preventing key force_on from enabling a tier those rules block or filter.
-	if candidateTier != "" {
-		if candidateChanged {
-			if decision, handled := applySystemAction(candidateTier); handled {
-				return decision
-			}
+	// Evaluate a newly introduced tier against the same system rules, so
+	// forcing it through a key applies any tier-specific block or filter.
+	if candidateTier != normTier {
+		if decision, handled := applySystemAction(candidateTier); handled {
+			return decision
 		}
-		return Decision{Tier: candidateTier}
 	}
-	if policy == apikey.APIKeyFastModePolicyForceOff && keyPolicyApplicable && IsAcceleratedTier(normTier) {
-		return Decision{DeleteField: hasField}
-	}
-	return Decision{}
+	return Decision{Tier: candidateTier}
 }
 
 // ApplyBody applies the resolved Fast policy to the service_tier JSON field

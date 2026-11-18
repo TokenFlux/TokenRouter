@@ -32,9 +32,9 @@ func fastModeTestContext(policy, model string) context.Context {
 	return context.WithValue(ctx, telemetry.Model, model)
 }
 
-// fastModeTestResolver builds billing prices from a fixed two-model catalogue
-// snapshot. Both models advertise service-tier and prompt-cache pricing,
-// giving Fast policy tests predictable price capability checks.
+// fastModeTestResolver builds billing prices from a fixed catalog snapshot.
+// GPT-5.5 and Claude advertise general Fast support, while GPT-5.6 Sol declares
+// an Ultrafast price so tests can distinguish tier-specific eligibility.
 func fastModeTestResolver() *billingcore.PriceResolver {
 	pricing := catalogprovider.NewServiceFromSnapshot(catalogprovider.Options{ModelLookupCandidates: modelidentity.CandidatesFactory}, nil, catalogprovider.Snapshot{Data: map[string]*billingpricing.CatalogModelPricing{
 		"gpt-5.5": {
@@ -42,6 +42,16 @@ func fastModeTestResolver() *billingcore.PriceResolver {
 			OutputCostPerToken:    30e-6,
 			SupportsServiceTier:   true,
 			SupportsPromptCaching: true,
+		},
+		"gpt-5.6-sol": {
+			CatalogRules: billingpricing.CatalogRules{
+				ServiceTierPrices: []billingpricing.CatalogServicePrice{
+					{Tier: tierpolicy.OpenAIFastTierUltrafast, Factor: new(3.0)},
+				},
+			},
+			InputCostPerToken:   5e-6,
+			OutputCostPerToken:  30e-6,
+			SupportsServiceTier: true,
 		},
 		"claude-opus-4-8": {
 			InputCostPerToken:     5e-6,

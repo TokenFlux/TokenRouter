@@ -4,9 +4,10 @@ import type { Group } from '@/api/groups.types'
 // Keys carry routing, funding, and spending controls, while composite keys associate
 // individual prefixes with destination groups and may belong to a personal or team scope.
 
-// ApiKeyFastModePolicy selects key-level Fast handling; system policy takes precedence
-// over this preference.
-export type ApiKeyFastModePolicy = 'follow_request' | 'force_on' | 'force_off'
+// ApiKeyFastModePolicy selects how a key requests or removes acceleration.
+// System policy has precedence. The Ultrafast override applies to eligible
+// OpenAI requests.
+export type ApiKeyFastModePolicy = 'follow_request' | 'force_on' | 'force_ultrafast' | 'force_off'
 
 // ApiKeyBillingMode selects request funding; auto spends subscription allowance before
 // wallet balance.

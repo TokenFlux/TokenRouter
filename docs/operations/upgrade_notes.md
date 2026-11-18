@@ -17,6 +17,10 @@ Qoder Responses 调用方需关闭响应存储并提交完整历史。使用上�
 
 调用方没有提供推理参数时，开始使用当前模型的默认推理设置，可能改变上游 Credits 消耗。需要固定行为的调用方应明确传入模型支持的控制字段。旧 COSY 和 PAT 凭据的刷新路径保留，新桌面授权使用 `device_token`。回退到旧版时，这类提供商需要重新配置旧版支持的凭据。直接修改 `refresh_mode` 会把令牌送到错误的刷新接口。
 
+## 迁移 315：API Key 强制开启 Ultrafast
+
+`315_api_key_force_ultrafast.sql` 扩展了 API Key 的 Fast 策略约束，已有记录保留原值。前后端整体升级后，可在密钥表单中选择「强制开启 Ultrafast」。用已声明 Ultrafast 定价的 OpenAI 模型检查出站请求档位。旧后端会把已保存的 `force_ultrafast` 当作跟随请求，回退应用前可在新版里为这些密钥选回旧策略。
+
 <a id="config_version_2"></a>
 ## models.dev v2 与 GPT 缓存写入分档
 
