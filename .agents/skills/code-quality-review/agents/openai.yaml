@@ -1,6 +1,0 @@
-interface:
-  display_name: "Code Quality Review and Optimization"
-  short_description: "Review code by responsibility and preserve behavior in changes"
-
-policy:
-  allow_implicit_invocation: false
