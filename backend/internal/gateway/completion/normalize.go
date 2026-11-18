@@ -64,8 +64,8 @@ func ResolveBillingServiceTier(requested, observed string) ServiceTierBillingRes
 }
 
 // ServiceTierCostRank reports the normalized tier's relative billing category.
-// Flex ranks below standard aliases, and priority/fast rank above them. Unknown
-// names return the standard rank with known=false for caller selection rules.
+// Flex ranks below standard aliases, then Priority and Ultrafast rank higher.
+// Unknown names return the standard rank with known=false for caller selection rules.
 func ServiceTierCostRank(tier string) (rank int, known bool) {
 	switch normalizeBillingServiceTier(tier) {
 	case "flex":
@@ -74,6 +74,8 @@ func ServiceTierCostRank(tier string) (rank int, known bool) {
 		return 1, true
 	case "priority", "fast":
 		return 2, true
+	case "ultrafast":
+		return 3, true
 	default:
 		return 1, false
 	}

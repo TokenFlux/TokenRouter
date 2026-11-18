@@ -78,9 +78,24 @@ func AddCacheWriteDetails(leftTotal int, left *CacheWriteTokensDetails, rightTot
 	return &CacheWriteTokensDetails{Tokens30m: left.Tokens30m + right.Tokens30m, Tokens12h: left.Tokens12h + right.Tokens12h}
 }
 
+// IsExplicitZeroOpenAIUsage reports whether both aggregate token fields
+// explicitly describe a complete zero observation without billable details.
+// A missing field remains sparse. Callers use the original counters before
+// merging and decide whether their transport resets or retains the prior snapshot.
+func IsExplicitZeroOpenAIUsage(raw gjson.Result, counts ForwardUsage) bool {
+	return usageHasAny(raw, "input_tokens", "prompt_tokens") &&
+		usageHasAny(raw, "output_tokens", "completion_tokens") &&
+		raw.Get("total_tokens").Int() == 0 &&
+		counts.InputTokens == 0 && counts.OutputTokens == 0 &&
+		counts.CacheCreationInputTokens == 0 && counts.CacheReadInputTokens == 0 &&
+		counts.ImageInputTokens == 0 && counts.ImageCacheReadTokens == 0 && counts.ImageOutputTokens == 0
+}
+
 // applyObservedCacheWriteDetails joins sparse writes before stream terminal selection.
 func applyObservedCacheWriteDetails(previous, current *ForwardUsage, raw gjson.Result) {
-	if previous.CacheWriteDetails == nil {
+	// Leave a complete zero intact so each consumer can detect its existing reset
+	// or placeholder rule before cached counters make the observation appear positive.
+	if previous.CacheWriteDetails == nil || IsExplicitZeroOpenAIUsage(raw, *current) {
 		return
 	}
 	// A terminal frame can contain only output usage. Retain observed input and

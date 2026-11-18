@@ -87,6 +87,8 @@ OpenAI 兼容的 Messages 请求，在还没向客户端提交响应时，如果
 
 分组通过 `openai_fast_policy` 选择：跟随请求、强制 Fast、强制 Ultra Fast，或关闭两种加速。全局规则优先级最高；分组级关闭后，Key 无法重新开启；分组级强制开启时，Key 仍可以关闭。详细的优先级和旧布尔字段的兼容见 [Fast 与 Ultra Fast 策略](../interfaces/openai_upstream.md#openai_fast_policy)。
 
+OpenAI 的计费档位依次为 Flex、Standard、Fast 和 Ultrafast。上游明确报告更低的档位时，结算采用该档位。Codex OAuth 返回的 `default` 可能只是回显，继续沿用转发档位。
+
 关联的价格配置还可以开启 `free_openai_fast`。最终使用 OpenAI 提供商、计费档位是 `priority` 或 `fast` 时，网关发往上游的仍是 Fast 档位，用户价格用同一分组、价格配置、长上下文和高峰规则按 Standard 重新计算。Usage Log 的 `total_cost`、提供商统计和提供商额度保留 Fast 成本；`actual_cost`、余额和订阅分配、API Key 配额使用 Standard 价格。缺少 Standard 价格时，按现有的缺价零成本记录流程处理，上游请求保持 Fast。其他平台、普通档位和不可信的认证上下文都忽略这个字段。
 
 分组还可以设置 `max_reasoning_effort` 和 `max_reasoning_effort_over_limit`。策略只处理客户端明确传入的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；客户端没传时，桥接器补出的默认值不算客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再按 `minimal < low < medium < high < xhigh < max` 比较：`downgrade`（默认）改写为上限值，`deny` 返回本地 403 权限错误并标记为业务限制。

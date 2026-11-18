@@ -140,15 +140,15 @@ func (o *ResponseObserver) ServiceTier() string {
 }
 
 // NormalizeObservedOpenAIServiceTier trims and case-folds observed tier text,
-// accepting priority, default, flex, and scale. The fast alias maps to priority
-// for internal pricing, while empty or unknown values return no usable tier.
+// accepting the reported Standard, Flex, Fast, and Ultrafast tiers. The fast
+// alias maps to priority, and unknown values return no usable tier.
 func NormalizeObservedOpenAIServiceTier(raw string) string {
 	switch value := strings.ToLower(strings.TrimSpace(raw)); value {
 	case "priority", "fast":
 		// Completion uses priority as its internal Fast billing name. Normalize
 		// the accepted fast spelling here so observed aliases share that tier representation.
 		return tierpolicy.OpenAIFastTierPriority
-	case "default", "flex", "scale":
+	case "default", "flex", "scale", tierpolicy.OpenAIFastTierUltrafast:
 		return value
 	default:
 		return ""

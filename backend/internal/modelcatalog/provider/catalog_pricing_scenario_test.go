@@ -1073,3 +1073,49 @@ func TestV2CacheWriteOverridesKeepUniformFallback(t *testing.T) {
 	aggregate := billingpricing.ComputeTokenBreakdown(effective, tokens, 1, "", true)
 	require.InDelta(t, 0.03, aggregate.CacheCreationCost, 1e-12)
 }
+
+// TestV2StandaloneCalendarPricesComposeWithServiceTier verifies an actual
+// catalog promotion at its published date boundary. Standard, Flex, and
+// Priority follow the calendar, while a fixed card retains its configured prices.
+func TestV2StandaloneCalendarPricesComposeWithServiceTier(t *testing.T) {
+	service := newOfflinePricingFixture(t)
+	price := catalogPriceForTest(t, service, "gemini-4-carbon")
+	tokens := billingpricing.UsageTokens{InputTokens: 1000000, OutputTokens: 1000000}
+	after := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
+	before := after.Add(-time.Second)
+	charge := func(price *billingpricing.ModelPricing, tier string, at time.Time) float64 {
+		return billingpricing.ComputeTokenBreakdownAt(price, tokens, 1, tier, true, at).TotalCost
+	}
+	require.InDelta(t, 12, charge(price, "", before), 1e-12)
+	require.InDelta(t, 24, charge(price, "", after), 1e-12)
+	require.InDelta(t, 12, charge(price, "flex", after), 1e-12)
+	require.InDelta(t, 43.2, charge(price, "priority", after), 1e-12)
+
+	fixed := billingpricing.ApplyConfigPrice(price, &billingpricing.ModelPricingEntry{InputPrice: new(3e-6), OutputPrice: new(9e-6)})
+	require.InDelta(t, 12, charge(fixed, "", after), 1e-12)
+	partial := billingpricing.ApplyConfigPrice(price, &billingpricing.ModelPricingEntry{InputPrice: new(3e-6)})
+	require.InDelta(t, 23, charge(partial, "", after), 1e-12)
+	require.InDelta(t, 24, charge(price, "", after), 1e-12)
+
+	interval := billingpricing.IntervalToModelPricingWithBase(
+		&billingpricing.PricingInterval{InputPrice: new(5e-6)}, false, nil, price,
+	)
+	require.InDelta(t, 25, charge(interval, "", after), 1e-12)
+	modified := billingpricing.ApplyConfigPrice(price, &billingpricing.ModelPricingEntry{FlexMultiplier: new(0.25)})
+	require.InDelta(t, 6, charge(modified, "flex", after), 1e-12)
+}
+
+// TestV2ScalarServiceTierPricesScaleImages verifies the Vertex catalog model's
+// image portion directly. The global service tier factors must reach the image
+// bucket in both settlement and the public per-token quote.
+func TestV2ScalarServiceTierPricesScaleImages(t *testing.T) {
+	service := newOfflinePricingFixture(t)
+	price := catalogPriceForTest(t, service, "google-vertex/gemini-3.1-flash-lite-image")
+	tokens := billingpricing.UsageTokens{OutputTokens: 1000000, ImageOutputTokens: 1000000}
+	require.InDelta(t, 54, billingpricing.ComputeTokenBreakdown(price, tokens, 1, "priority", true).ImageOutputCost, 1e-12)
+	require.InDelta(t, 15, billingpricing.ComputeTokenBreakdown(price, tokens, 1, "flex", true).ImageOutputCost, 1e-12)
+	quote := billingpricing.BuildTokenDisplayPricing(price, 1)
+	require.InDelta(t, 54e-6, quote.FastImageOutputPricePerToken, 1e-12)
+	require.NotNil(t, quote.Flex)
+	require.InDelta(t, 15e-6, quote.Flex.ImageOutput, 1e-12)
+}

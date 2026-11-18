@@ -674,3 +674,35 @@ func TestResponsesCacheWriteLifetimesSurviveSparseCompletion(t *testing.T) {
 		})
 	}
 }
+
+// TestResponsesZeroTerminalKeepsWholeUsagePolicy checks full zero observations
+// after classified writes. The raw reader resets its usage, while the
+// placeholder-compatible HTTP and WebSocket readers retain the entire prior
+// snapshot, including ordinary input and output.
+func TestResponsesZeroTerminalKeepsWholeUsagePolicy(t *testing.T) {
+	progress := []byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":12000,"output_tokens":10,"input_tokens_details":{"cached_tokens":4000,"cache_write_tokens":7000,"cache_write_tokens_details":{"ttl_30m_tokens":3000,"ttl_12h_tokens":4000}}}}}`)
+	terminal := []byte(`{"type":"response.completed","response":{"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`)
+	observeHTTP := func(body []byte, usage *ForwardUsage) {
+		ParseSSEUsageBytesWithType(body, "", usage)
+	}
+	for _, scenario := range []struct {
+		name    string                      // usage reader name
+		observe func([]byte, *ForwardUsage) // reader's wire entry point
+		retains bool                        // complete zero placeholder behavior
+	}{
+		{name: "unconditional SSE", observe: ParseSSEUsageBytes},
+		{name: "live SSE", observe: observeHTTP, retains: true},
+		{name: "websocket", observe: ParseWSResponseUsageFromCompletedEvent, retains: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			var usage ForwardUsage
+			scenario.observe(progress, &usage)
+			expected := ForwardUsage{}
+			if scenario.retains {
+				expected = usage
+			}
+			scenario.observe(terminal, &usage)
+			require.Equal(t, expected, usage)
+		})
+	}
+}

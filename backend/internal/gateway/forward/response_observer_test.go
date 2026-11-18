@@ -81,3 +81,12 @@ func TestUpstreamResponseModelObserver_ObservesServiceTier(t *testing.T) {
 	modelFree.ObserveOpenAI([]byte(`{"type":"response.completed","response":{"service_tier":"default"}}`), "response.completed")
 	require.Empty(t, modelFree.ServiceTier())
 }
+
+// TestOpenAIResponseObserverAcceptsUltrafast retains an observed Ultrafast
+// tier as execution evidence. Completion can then compare it with the
+// outbound tier without losing the actual tier on the response.
+func TestOpenAIResponseObserverAcceptsUltrafast(t *testing.T) {
+	observer := &ResponseObserver{}
+	observer.ObserveOpenAI([]byte(`{"type":"response.completed","response":{"model":"gpt-6.2-sol","service_tier":"ultrafast"}}`), "response.completed")
+	require.Equal(t, "ultrafast", observer.ServiceTier())
+}

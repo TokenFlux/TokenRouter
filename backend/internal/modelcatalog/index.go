@@ -114,6 +114,7 @@ func (index Index) Search(query AttributeQuery) AttributePage {
 		for i := range entry.ServicePrices {
 			rate := &entry.ServicePrices[i]
 			rate.Factor = clonePointer(rate.Factor)
+			rate.TextFactor = clonePointer(rate.TextFactor)
 			if rate.Cost != nil {
 				rate.Cost = new(cloneCost(*rate.Cost))
 			}

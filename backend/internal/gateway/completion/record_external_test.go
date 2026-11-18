@@ -4940,3 +4940,32 @@ func TestRecordFundingPricingInstant(t *testing.T) {
 		})
 	}
 }
+
+// TestCatalogOnlyCompletionUsesCapturedPricingTime sends dated catalog usage
+// through each completion price path without a group resolver. Both prices
+// follow the recorded instant instead of the live calculation clock.
+func TestCatalogOnlyCompletionUsesCapturedPricingTime(t *testing.T) {
+	model := "dated-catalog-model"
+	service := newModelCatalogFixture(modelCatalogFixture{pricingData: map[string]*pricing.CatalogModelPricing{
+		model: {
+			InputCostPerToken: 1e-6, OutputCostPerToken: 1e-6,
+			CatalogRules: pricing.CatalogRules{ServiceTierPrices: []pricing.CatalogServicePrice{
+				{After: "2026-12-01", Zone: "UTC", Factor: new(2.0)},
+			}},
+		},
+	}})
+	recorder := completion.NewRecorder(
+		completion.Dependencies{Calculator: billingtestkit.Calculator(service, nil)},
+		completion.RecorderOptions{DefaultMultiplier: 1},
+	)
+	result := &completion.Result{Model: model, Usage: completion.TokenUsage{InputTokens: 1000000, OutputTokens: 1000000}}
+	key := &completion.KeySnapshot{}
+	at := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
+
+	cost := recorder.CalculateTokenCost(context.Background(), result, key, nil, model, model, "", model, 1, &completion.PricingOptions{PricingAt: at})
+	require.InDelta(t, 4, cost.TotalCost, 1e-12)
+	tokens := pricing.UsageTokens{InputTokens: 1000000, OutputTokens: 1000000}
+	cost, err := recorder.CalculateOpenAIRecordUsageTokenCostAt(context.Background(), key, model, 1, at, tokens, "", "")
+	require.NoError(t, err)
+	require.InDelta(t, 4, cost.TotalCost, 1e-12)
+}

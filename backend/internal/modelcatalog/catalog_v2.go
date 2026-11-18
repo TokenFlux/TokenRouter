@@ -20,15 +20,16 @@ import (
 // the same v2 quotes and preserve established qualified lookups after provider
 // consolidation. Remote and offline candidates use the same validation path.
 
-// ServicePrice describes a supported service-tier rule in source currency units.
+// ServicePrice describes a service-tier quote or a dated token price change.
 type ServicePrice struct {
-	Tier    string   `json:"tier"`             // normalized service tier
-	After   string   `json:"after,omitempty"`  // first applicable local date
-	Before  string   `json:"before,omitempty"` // first excluded local date
-	Zone    string   `json:"zone,omitempty"`   // timezone for rule dates
-	Factor  *float64 `json:"factor,omitempty"` // text-token price factor
-	Cost    *Cost    `json:"-"`                // explicit overriding token rates
-	Factors *Cost    `json:"-"`                // per-bucket token factors
+	Tier       string   `json:"tier"`                  // normalized service tier
+	After      string   `json:"after,omitempty"`       // first applicable local date
+	Before     string   `json:"before,omitempty"`      // first excluded local date
+	Zone       string   `json:"zone,omitempty"`        // timezone for rule dates
+	Factor     *float64 `json:"factor,omitempty"`      // factor for all token buckets
+	TextFactor *float64 `json:"text_factor,omitempty"` // text token price factor
+	Cost       *Cost    `json:"-"`                     // explicit overriding token rates
+	Factors    *Cost    `json:"-"`                     // per-bucket token factors
 }
 
 // catalogProviderV2 contains the model offerings served under one provider ID.
@@ -543,54 +544,69 @@ func projectV2ServicePrices(raw catalogModelV2, service string) ([]ServicePrice,
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, ServicePrice{Tier: normalizeV2Tier(tier), Cost: &cost})
+		if normalized := normalizeV2Tier(tier); normalized != "" {
+			rows = append(rows, ServicePrice{Tier: normalized, Cost: &cost})
+		}
 	}
 	for _, multiplier := range raw.Cost.Multipliers {
-		if len(multiplier.When) == 0 || len(multiplier.When) > 2 {
-			continue
-		}
-		var equality struct {
-			Equals string `json:"equals"` // required service tier
-		}
-		if err := json.Unmarshal(multiplier.When["service_tier"], &equality); err != nil {
-			continue
-		}
-		tier := normalizeV2Tier(equality.Equals)
-		if tier == "" {
-			continue
-		}
-		row := ServicePrice{Tier: tier}
-		if rawDate := multiplier.When["date"]; rawDate != nil {
-			var date map[string]string
-			if err := json.Unmarshal(rawDate, &date); err != nil || len(date) != 1 {
-				continue
-			}
-			row.Before = date["lt"]
-			row.After = date["gte"]
-			if row.After == "" && row.Before == "" {
-				continue
-			}
-			row.Zone = "UTC"
-			if service == "openai" {
-				row.Zone = "America/Los_Angeles"
-			}
-		} else if len(multiplier.When) != 1 {
+		row, supported := projectV2PriceCondition(multiplier.When, service)
+		if !supported {
 			continue
 		}
 		if err := readV2Factors(multiplier.Factor, &row); err != nil {
 			return nil, err
 		}
-		if row.Factor != nil || row.Factors != nil {
+		if row.Factor != nil || row.TextFactor != nil || row.Factors != nil {
 			rows = append(rows, row)
 		}
 	}
 	return rows, nil
 }
 
-// readV2Factors decodes a service-tier multiplier's supported token buckets.
-// A scalar text rule affects those token prices together. When v2 supplies
-// separate input and output factors, omitted buckets inherit their standard
-// prices. A factor for a non-token unit is left to its own billing consumer.
+// projectV2PriceCondition compiles price rules needing only service tier,
+// date, or both. Date-only rows have an empty tier and apply independently
+// after the tier is selected. Other conditions require request evidence the
+// directory pricing path does not carry, so those rows remain inapplicable.
+func projectV2PriceCondition(when map[string]json.RawMessage, service string) (ServicePrice, bool) {
+	var row ServicePrice
+	tierCondition, dateCondition := when["service_tier"], when["date"]
+	supported := 0
+	if tierCondition != nil {
+		var equality struct {
+			Equals string `json:"equals"` // required service tier
+		}
+		if err := json.Unmarshal(tierCondition, &equality); err != nil {
+			return ServicePrice{}, false
+		}
+		row.Tier = normalizeV2Tier(equality.Equals)
+		if row.Tier == "" {
+			return ServicePrice{}, false
+		}
+		supported++
+	}
+	if dateCondition != nil {
+		var date map[string]string
+		if err := json.Unmarshal(dateCondition, &date); err != nil || len(date) != 1 {
+			return ServicePrice{}, false
+		}
+		row.Before = date["lt"]
+		row.After = date["gte"]
+		if row.After == "" && row.Before == "" {
+			return ServicePrice{}, false
+		}
+		row.Zone = "UTC"
+		if service == "openai" {
+			row.Zone = "America/Los_Angeles"
+		}
+		supported++
+	}
+	return row, supported > 0 && len(when) == supported
+}
+
+// readV2Factors decodes the supported token prices a multiplier adjusts.
+// A plain number affects all token buckets. An object can limit a factor to
+// text, image, or named individual rates. Omitted buckets in that object
+// inherit their existing price, and non-token units keep their own rules.
 func readV2Factors(raw json.RawMessage, row *ServicePrice) error {
 	if len(raw) == 0 {
 		return nil
@@ -608,7 +624,7 @@ func readV2Factors(raw json.RawMessage, row *ServicePrice) error {
 	}
 	if text := modalities["text"]; len(text) > 0 {
 		if text[0] != '{' {
-			if err := json.Unmarshal(text, &row.Factor); err != nil {
+			if err := json.Unmarshal(text, &row.TextFactor); err != nil {
 				return err
 			}
 		} else {
@@ -660,7 +676,7 @@ func readV2Factors(raw json.RawMessage, row *ServicePrice) error {
 			factors.ImageOutput, factors.ImageRead = factors.ImageInput, factors.ImageInput
 		}
 	}
-	if err := validateCost(Cost{Input: row.Factor}); err != nil {
+	if err := validateCost(Cost{Input: row.Factor, Output: row.TextFactor}); err != nil {
 		return err
 	}
 	if err := validateCost(factors); err != nil {

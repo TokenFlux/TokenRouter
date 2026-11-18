@@ -405,21 +405,6 @@ func NormalizeVideoBillingDurationSecondsOrDefault(v int) int {
 // pricing before charge selection compares category names.
 func normalizeBillingServiceTier(v string) string { return pricing.NormalizeBillingServiceTier(v) }
 
-// applyCostBreakdownMultiplier delegates in-place bucket and total scaling to
-// pricing. Callers own the breakdown while applying the additional factor and
-// supply nil or factor one for a no-op. Other factors scale each cost bucket and
-// both totals in place, so callers apply the factor after base cost resolution.
-func applyCostBreakdownMultiplier(v *CostBreakdown, m float64) {
-	pricing.ApplyCostBreakdownMultiplier(v, m)
-}
-
-// maxReasoningEffortBillingMultiplier reads the configured max-effort factor through
-// pricing. The helper returns the applicable model factor or one, allowing token
-// cost calculation to apply final effort after its base prices are resolved.
-func maxReasoningEffortBillingMultiplier(model, effort string, p *pricing.ModelPricing) float64 {
-	return pricing.MaxReasoningEffortBillingMultiplier(model, effort, p)
-}
-
 // cacheOverrideTarget selects the captured cache-write category before provider
 // policy and global injection. Callers supply a nonnil Input, and a missing provider
 // with no captured override returns empty.

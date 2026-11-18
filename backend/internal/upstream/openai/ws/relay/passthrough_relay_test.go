@@ -2413,3 +2413,21 @@ func TestRelayToolArgumentsDoneExtendsContentInterval(t *testing.T) {
 	require.Equal(t, turn.Timings.TPS(20), result.Timings.TPS(20))
 	require.Less(t, turn.Timings.Values["upstream_last_output_ms"], turn.Timings.Values["upstream_completed_ms"])
 }
+
+// TestRelayZeroTerminalKeepsEntireCacheWriteObservation checks the retained
+// counters at turn settlement. A complete zero terminal must leave the prior
+// split and its inclusive input and output totals together.
+func TestRelayZeroTerminalKeepsEntireCacheWriteObservation(t *testing.T) {
+	t.Parallel()
+
+	state := &relayState{}
+	progress := []byte(`{"usage":{"input_tokens":12000,"output_tokens":10,"input_tokens_details":{"cached_tokens":4000,"cache_write_tokens":7000,"cache_write_tokens_details":{"ttl_30m_tokens":3000,"ttl_12h_tokens":4000}}}}`)
+	terminal := []byte(`{"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}`)
+	parseUsageAndAccumulate(state, progress, "response.in_progress", nil)
+	parseUsageAndAccumulate(state, terminal, "response.completed", nil)
+
+	require.Equal(t, Usage{
+		InputTokens: 12000, OutputTokens: 10, CacheReadInputTokens: 4000, CacheCreationInputTokens: 7000,
+		CacheWriteDetails: &openai.CacheWriteTokensDetails{Tokens30m: 3000, Tokens12h: 4000},
+	}, finalizeRelayTurnUsage(state))
+}

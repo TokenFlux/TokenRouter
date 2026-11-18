@@ -141,7 +141,7 @@ v2 目录包含上游实际发布的各类模型。模型类型、缺少 token �
 
 ## 目录价格换算
 
-目录以美元每百万 token 提供文本和图像 token 价，按张报价与 token 价独立。v2 的 `context.gt` 和 `context.gte` 转换成同一种内部区间边界。Fast、Flex 和 Ultrafast 使用目录服务档位金额或倍率，价格配置中的显式倍率优先。OpenAI 日期规则按美国太平洋时间取计价日期。无法从现有计价输入确定的区域和组合条件，沿用目录基础报价和相应的手动规则。
+目录以美元每百万 token 提供文本和图像 token 价，按张报价与 token 价独立。v2 的 `context.gt` 和 `context.gte` 转换成同一种内部区间边界。Fast、Flex 和 Ultrafast 使用目录服务档位金额或倍率，价格配置中的显式倍率优先。独立日期倍率与所选服务档位叠加。手填金额的计费桶沿用自定义报价，其他桶按当天目录规则计价。OpenAI 日期规则按美国太平洋时间取计价日期，其他已支持日期规则使用 UTC。v2 数值倍率作用于全部 token 桶，对象倍率仅作用于其指定的桶。无法从现有计价输入确定的区域和组合条件，沿用目录基础报价和相应的手动规则。
 
 GPT 的 `cost.text.input.cache.write` 保留 30m 与 12h 的绝对价格。Claude 的 5m 与 1h 报价沿用对应字段。Azure 旧 Cognitive Services 限定名和 Vertex Claude 限定名根据 v2 的同服务记录解析。各限定名保持独立定价身份。
 

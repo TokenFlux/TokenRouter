@@ -191,9 +191,9 @@ func (s *Recorder) CalculateImageCost(
 // also requires a nonnil key for its group/catalogue selection.
 //
 // Configured pricing or an available group resolver uses CalculateCostUnified with
-// service tier and final effort. The catalogue path applies a separate max-effort
-// factor after service-tier pricing; a failed second price read leaves that factor
-// at its default. Calculation errors are logged and return a zero token-mode
+// service tier and final effort. Catalogue-only requests forward the same
+// pricing instant so dated rates use the captured observation as well.
+// Calculation errors are logged and return a zero token-mode
 // placeholder, allowing measured work to continue into record construction.
 func (s *Recorder) CalculateTokenCost(
 	ctx context.Context,
@@ -262,13 +262,10 @@ func (s *Recorder) CalculateTokenCost(
 				Resolver:        s.resolver,
 			})
 		default:
-			cost, err = s.billingService.CalculateCostWithServiceTier(billingModel, tokens, multiplier, serviceTier)
-			if err == nil {
-				// The successful base cost remains usable if this later catalogue read fails;
-				// nil price evidence leaves the optional max-effort factor at one.
-				price, _ := s.billingService.GetModelPricing(billingModel)
-				applyCostBreakdownMultiplier(cost, maxReasoningEffortBillingMultiplier(billingModel, stringValueOrEmpty(result.ReasoningEffort), price))
-			}
+			cost, err = s.billingService.CalculateCostUnified(CostInput{
+				Ctx: ctx, Model: billingModel, Tokens: tokens, RateMultiplier: multiplier,
+				PricingAt: opts.PricingAt, ServiceTier: serviceTier, ReasoningEffort: stringValueOrEmpty(result.ReasoningEffort),
+			})
 		}
 	}
 	if err != nil {
@@ -438,8 +435,8 @@ func IsUsagePricingUnavailableError(err error) bool {
 }
 
 // CalculateOpenAIRecordUsageTokenCostAt delegates one candidate's measured buckets
-// to unified pricing with service tier and final effort. An available group
-// resolver receives pricingAt; the catalogue-only call omits that supplied instant.
+// to unified pricing with service tier and final effort. Both group-resolved
+// and catalogue-only requests retain pricingAt for dated rules.
 // Callers provide a calculator and handle the returned pricing error. A bound
 // resolver also requires a nonnil key before checking its group.
 func (s *Recorder) CalculateOpenAIRecordUsageTokenCostAt(
@@ -470,7 +467,7 @@ func (s *Recorder) CalculateOpenAIRecordUsageTokenCostAt(
 	}
 	return s.billingService.CalculateCostUnified(CostInput{
 		Ctx: ctx, Model: billingModel, Tokens: tokens, RateMultiplier: multiplier,
-		ServiceTier: serviceTier, ReasoningEffort: reasoningEffort,
+		PricingAt: pricingAt, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort,
 	})
 }
 

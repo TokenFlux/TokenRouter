@@ -580,6 +580,11 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		ApplyConfigFastModeMultiplier(pricing, chPricing)
 		ApplyConfigFlexMultiplier(pricing, chPricing)
 	}
+	retainFixedCalendarRates(pricing, &ModelPricingEntry{
+		InputPrice: iv.InputPrice, OutputPrice: iv.OutputPrice, CacheReadPrice: iv.CacheReadPrice,
+		CacheWritePrice: iv.CacheWritePrice, CacheWrite1hPrice: iv.CacheWrite1hPrice,
+		CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
+	})
 	return pricing
 }
 

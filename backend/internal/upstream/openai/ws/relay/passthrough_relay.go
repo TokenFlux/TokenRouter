@@ -1618,9 +1618,18 @@ func parseUsageAndAccumulate(
 		}
 		return Usage{}
 	}
+	// Classify complete zero observations before filling omitted counters. The
+	// WebSocket relay keeps its positive prior usage intact for terminal placeholders.
+	previousDetails := state.turnUsage.CacheWriteDetails
+	if previousDetails != nil && inputTokens == 0 && outputTokens == 0 {
+		rawUsage, _ := openai.OpenAIUsageFromGJSON(usageResult)
+		if openai.IsExplicitZeroOpenAIUsage(usageResult, rawUsage) {
+			previousDetails = nil
+		}
+	}
 	// A timed cache split can precede the terminal usage frame. Keep the earlier
 	// same-turn totals where the terminal frame only supplies a subset of counters.
-	if state.turnUsage.CacheWriteDetails != nil {
+	if previousDetails != nil {
 		if !inputResult.Exists() {
 			inputTokens = state.turnUsage.InputTokens
 		}
@@ -1643,7 +1652,7 @@ func parseUsageAndAccumulate(
 			int64(inputTokens), int64(outputTokens), usageResult.Get("total_tokens").Int(), reasoningTokens,
 		))
 	}
-	cacheWrites, cacheWriteDetails := openai.ObserveCacheWriteDetails(usageResult, state.turnUsage.CacheCreationInputTokens, state.turnUsage.CacheWriteDetails)
+	cacheWrites, cacheWriteDetails := openai.ObserveCacheWriteDetails(usageResult, state.turnUsage.CacheCreationInputTokens, previousDetails)
 	parsedUsage := Usage{
 		CacheWriteDetails:        cacheWriteDetails,
 		InputTokens:              inputTokens,
@@ -1661,6 +1670,12 @@ func parseUsageAndAccumulate(
 			state.turnUsage = parsedUsage
 		}
 	} else {
+		if previousDetails != nil && cacheWrites == 0 && cacheWriteDetails == nil {
+			// An explicit zero aggregate invalidates an earlier classified write
+			// even though the ordinary progress merge only accepts positive counts.
+			state.turnUsage.CacheCreationInputTokens = 0
+			state.turnUsage.CacheWriteDetails = nil
+		}
 		mergeRelayUsageNonZero(&state.turnUsage, parsedUsage)
 		return Usage{}
 	}

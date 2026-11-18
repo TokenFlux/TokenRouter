@@ -117,6 +117,7 @@ func (r CatalogRules) Clone() CatalogRules {
 	r.ServiceTierPrices = slices.Clone(r.ServiceTierPrices)
 	for i := range r.ServiceTierPrices {
 		r.ServiceTierPrices[i].Factor = copyOptional(r.ServiceTierPrices[i].Factor)
+		r.ServiceTierPrices[i].TextFactor = copyOptional(r.ServiceTierPrices[i].TextFactor)
 		r.ServiceTierPrices[i].Amounts = maps.Clone(r.ServiceTierPrices[i].Amounts)
 		r.ServiceTierPrices[i].Factors = maps.Clone(r.ServiceTierPrices[i].Factors)
 	}
