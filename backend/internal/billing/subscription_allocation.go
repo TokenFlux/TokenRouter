@@ -121,9 +121,9 @@ func SettlementSubscriptionRateMultiplier(row SettlementSubscription, groupID *i
 
 // NormalizeSettlementSubscription returns a row copy whose quota windows are
 // ready for allocation at now. Replacement anchors use midnight in now's own
-// zone, daily uses twenty-four hours, weekly seven elapsed days and monthly
-// thirty elapsed days. Limits and plan-rate maps remain shared read-only
-// values.
+// zone, daily resets by calendar day in that zone, weekly uses seven elapsed
+// days and monthly uses thirty elapsed days. Limits and plan-rate maps remain
+// shared read-only values.
 //
 // Positive weekly/monthly limits protect daily expiry tails, and positive
 // monthly limits protect weekly tails; monthly has no outer protection.
@@ -167,10 +167,11 @@ func NormalizeSettlementSubscription(row SettlementSubscription, now time.Time) 
 // Other periods need the proposed resetStart to fit before expiry or have the
 // supplied outer protection. A denied replacement retains established usage,
 // turning missing/zero anchors into nil. An allowed missing, zero or elapsed
-// anchor becomes resetStart with zero usage; elapsed detection compares stored
-// start plus duration to now. Callers provide eligible lifetimes and positive
-// durations, since this normalization itself does not admit the grant or
-// substitute calendar-day comparison for elapsed detection.
+// anchor becomes resetStart with zero usage; twenty-four-hour daily windows
+// advance on calendar-date rollover in resetStart's location, while longer
+// periods compare stored start plus duration to now. Callers provide eligible
+// lifetimes and positive durations, since this normalization itself does not
+// admit the grant.
 func NormalizeSettlementWindow(
 	windowStart *time.Time,
 	limit *float64,
@@ -194,7 +195,7 @@ func NormalizeSettlementWindow(
 	// A one-day lifetime has one daily allowance; an existing anchor keeps
 	// consumption even after later day boundaries, preventing another issuance of
 	// that quota.
-	if duration == 24*time.Hour && !expiresAt.After(startsAt.AddDate(0, 0, 1)) {
+	if duration == SubscriptionDailyWindow && !expiresAt.After(startsAt.AddDate(0, 0, 1)) {
 		if windowStart == nil || windowStart.IsZero() {
 			start := resetStart
 			return &start, 0
@@ -214,10 +215,18 @@ func NormalizeSettlementWindow(
 		return &start, used
 	}
 
-	// Elapsed detection uses the stored anchor plus duration. A permitted expired
-	// or missing period starts at the caller's reset anchor, which may differ
-	// from its previous time-of-day.
-	if windowStart == nil || windowStart.IsZero() || !windowStart.Add(duration).After(now) {
+	// Daily quotas align with calendar midnights in resetStart's zone so legacy
+	// non-midnight anchors and 23-hour DST spring-forward days reset with precheck;
+	// weekly and monthly windows continue to require full elapsed durations.
+	windowElapsed := windowStart == nil || windowStart.IsZero()
+	if !windowElapsed {
+		if duration == SubscriptionDailyWindow {
+			windowElapsed = startOfDay(resetStart).After(startOfDay(windowStart.In(resetStart.Location())))
+		} else {
+			windowElapsed = !windowStart.Add(duration).After(now)
+		}
+	}
+	if windowElapsed {
 		start := resetStart
 		return &start, 0
 	}

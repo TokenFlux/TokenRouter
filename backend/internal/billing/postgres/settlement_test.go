@@ -167,7 +167,7 @@ func TestReserveUsageBillingBatchImageBilling_UsesBalanceRateAfterPartialSubscri
 		SubscriptionRateMultiplierScale: 1,
 		BalanceRateMultiplier:           2,
 		SettlementRateScale:             0.5,
-	})
+	}, now)
 	require.NoError(t, err)
 	// The 1e-6 allowance covers floating arithmetic in source dollars, covered
 	// base dollars and the chosen multiplier; allocation count retains its exact
@@ -232,7 +232,7 @@ func TestReserveUsageBillingBatchImageBilling_StrictSubscriptionRejectsPartialHo
 		HoldAmount:              0.5,
 		APIKeyBillingMode:       billing.APIKeyBillingModeSubscription,
 		PreferredSubscriptionID: &preferredID,
-	})
+	}, now)
 
 	require.ErrorIs(t, err, billing.ErrPreferredSubscriptionInsufficient)
 	// Roll back the caller-owned attempt after its capped counter update and
@@ -897,4 +897,92 @@ func TestIncrementUsageBillingProviderQuota_ReturnedState(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+// TestSettlementStore_UsesConfiguredCalendarForDailyRollover sets a UTC clock
+// instant that has already crossed midnight in Asia/Shanghai while still on the
+// prior UTC date, with an exhausted afternoon daily anchor from the previous
+// Shanghai day. Both unlocked group resolution and transactional settlement must
+// reset daily usage at Shanghai midnight instead of treating the grant as exhausted.
+func TestSettlementStore_UsesConfiguredCalendarForDailyRollover(t *testing.T) {
+	shanghai, err := time.LoadLocation("Asia/Shanghai")
+	require.NoError(t, err)
+	utcClock := time.Date(2026, 5, 10, 16, 30, 0, 0, time.UTC)
+	cal := timezone.NewCalendarWithClock(shanghai, func() time.Time { return utcClock })
+	expectedNow := utcClock.In(shanghai)
+	expectedMidnight := time.Date(2026, 5, 11, 0, 0, 0, 0, shanghai)
+	priorAfternoon := time.Date(2026, 5, 10, 15, 0, 0, 0, shanghai)
+	startsAt := time.Date(2026, 5, 1, 0, 0, 0, 0, shanghai)
+	expiresAt := time.Date(2026, 5, 20, 0, 0, 0, 0, shanghai)
+
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	// Close the mock pool after both unlocked resolution and transactional
+	// settlement expectations have been checked.
+	defer func() { _ = db.Close() }()
+
+	store := NewSettlementStore(db, cal, nil)
+	preferredID := int64(11)
+
+	mock.ExpectQuery(`(?s)SELECT\s+us\.id,\s+us\.plan_id,.*FROM user_subscriptions us`).
+		WithArgs(int64(42), billing.SubscriptionStatusActive, billing.SubscriptionStatusPending, int64(7), expectedNow, &preferredID).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "plan_id", "starts_at", "expires_at",
+			"daily_window_start", "weekly_window_start", "monthly_window_start",
+			"daily_limit_usd", "weekly_limit_usd", "monthly_limit_usd",
+			"daily_usage_usd", "weekly_usage_usd", "monthly_usage_usd",
+			"plan_groups", "plan_rates",
+		}).AddRow(
+			preferredID, int64(22), startsAt, expiresAt,
+			priorAfternoon, nil, nil,
+			10.0, nil, nil,
+			10.0, 0.0, 0.0,
+			`[7]`, `{}`,
+		))
+
+	usable, err := store.resolveUsableSubscriptionForGroup(ctx, 42, 7, &preferredID)
+	require.NoError(t, err)
+	require.NotNil(t, usable)
+	require.NotNil(t, usable.DailyWindowStart)
+	require.True(t, expectedMidnight.Equal(*usable.DailyWindowStart))
+	require.InDelta(t, 0.0, usable.DailyUsageUSD, 0.000001)
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectQuery(`(?s)SELECT\s+id,\s+plan_id,.*FROM user_subscriptions.*FOR UPDATE`).
+		WithArgs(int64(42), billing.SubscriptionStatusActive, billing.SubscriptionStatusPending, preferredID, int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"id", "plan_id", "starts_at", "expires_at",
+			"daily_window_start", "weekly_window_start", "monthly_window_start",
+			"daily_limit_usd", "weekly_limit_usd", "monthly_limit_usd",
+			"daily_usage_usd", "weekly_usage_usd", "monthly_usage_usd", "group_rates",
+		}).AddRow(
+			preferredID, int64(22), startsAt, expiresAt,
+			priorAfternoon, nil, nil,
+			10.0, nil, nil,
+			10.0, 0.0, 0.0, `{}`,
+		))
+	mock.ExpectExec(`(?s)UPDATE user_subscriptions\s+SET.*WHERE id = \$7`).
+		WithArgs(expectedMidnight, nil, nil, 1.5, 0.0, 0.0, preferredID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	groupID := int64(7)
+	applyResult := &billing.UsageBillingApplyResult{}
+	err = store.applyUsageBillingEffects(ctx, tx, &billing.UsageBillingCommand{
+		UserID:                  42,
+		GroupID:                 &groupID,
+		BillableAmountUSD:       1.5,
+		APIKeyBillingMode:       billing.APIKeyBillingModeSubscription,
+		PreferredSubscriptionID: &preferredID,
+	}, applyResult)
+	require.NoError(t, err)
+	// Confirm the reset subscription absorbed the full 1.5-dollar charge with zero
+	// wallet spillover before committing the caller-owned mock transaction.
+	require.InDelta(t, 1.5, applyResult.SubscriptionAmountUSD, 0.000001)
+	require.InDelta(t, 0.0, applyResult.BalanceAmountUSD, 0.000001)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
 }

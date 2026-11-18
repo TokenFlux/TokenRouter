@@ -291,7 +291,7 @@ func (r *SettlementStore) resolveUsableSubscriptionForGroup(ctx context.Context,
 		return nil, billing.ErrSubscriptionNotFound
 	}
 
-	now := time.Now()
+	now := r.calendar.Now()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT
 			us.id,
@@ -477,7 +477,7 @@ func (r *SettlementStore) claimUsageBillingRequest(ctx context.Context, tx *sql.
 // attempt succeeds.
 func (r *SettlementStore) Reserve(ctx context.Context, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	return r.applyTaskBalanceHold(ctx, cmd, taskAllowanceReserve, func(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, projection TaskProjection) (*billing.TaskFundsResult, error) {
-		return reserveUsageBillingTaskBilling(ctx, tx, projection, cmd)
+		return reserveUsageBillingTaskBilling(ctx, tx, projection, cmd, r.calendar.Now())
 	})
 }
 
@@ -1080,7 +1080,7 @@ func chargeTaskAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount fl
 // event use the caller's transaction, which recovers earlier effects after a
 // later error.
 func (r *SettlementStore) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *billing.UsageBillingCommand, result *billing.UsageBillingApplyResult) error {
-	remainingAmount, subscriptionAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd)
+	remainingAmount, subscriptionAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd, r.calendar.Now())
 	if err != nil {
 		return err
 	}
@@ -1300,11 +1300,12 @@ func usageBillingNullableFloat64Ptr(v sql.NullFloat64) *float64 {
 //
 // Positive groups require an unrestricted or matching plan, while pinned mode
 // without a group requires an unrestricted plan. Rows must be free of refund
-// holds and use database NOW for eligibility; the planner observes Go time after rows close for effective
-// windows and source rates. Each planned counter update is persisted in order
-// on the same transaction, so a later failure requires owner rollback before
-// exposing any allocation.
-func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, cmd *billing.UsageBillingCommand) (float64, float64, []billing.BillingAllocation, error) {
+// holds and use database NOW for eligibility; the planner evaluates effective
+// windows and source rates at now so daily midnight resets and replacement
+// anchors follow the store's configured calendar zone. Each planned counter
+// update is persisted in order on the same transaction, so a later failure
+// requires owner rollback before exposing any allocation.
+func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, cmd *billing.UsageBillingCommand, now time.Time) (float64, float64, []billing.BillingAllocation, error) {
 	amountUSD, querySubscriptions, err := billing.SubscriptionAllocationRequest(cmd)
 	if err != nil {
 		return 0, 0, nil, err
@@ -1429,7 +1430,7 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, cmd *bil
 	for i, row := range subscriptions {
 		snapshots[i] = settlementSubscriptionSnapshot(row)
 	}
-	plan, err := billing.AllocateSubscriptions(cmd, snapshots, time.Now())
+	plan, err := billing.AllocateSubscriptions(cmd, snapshots, now)
 	if err != nil {
 		return 0, 0, nil, err
 	}
@@ -1588,10 +1589,11 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	return newBalance, deductedAmount, nil
 }
 
-// reserveUsageBillingTaskBilling reserves eligible subscription quota, freezes
-// uncovered wallet money and stores their task funding split on the caller's
-// transaction. Nil or nonpositive hold-and-base input returns an empty result.
-// A pinned mode rejects any remaining basis beyond its small tolerance;
+// reserveUsageBillingTaskBilling reserves eligible subscription quota at now,
+// freezes uncovered wallet money and stores their task funding split on the
+// caller's transaction. Nil or nonpositive hold-and-base input returns an empty
+// result, while now supplies the configured calendar zone for daily midnight
+// resets. A pinned mode rejects any remaining basis beyond its small tolerance;
 // subscription writes may already have occurred, so the owner recovers that
 // failure before submission.
 //
@@ -1601,7 +1603,7 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 // been claimed. SaveReservation persists the same split and estimate before
 // the outer transaction can commit; its failure also requires recovery of
 // preceding quota and wallet writes.
-func reserveUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, projection TaskProjection, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+func reserveUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, projection TaskProjection, cmd *billing.TaskFundsCommand, now time.Time) (*billing.TaskFundsResult, error) {
 	result := &billing.TaskFundsResult{}
 	if cmd == nil || (cmd.HoldAmount <= 0 && cmd.BaseAmountUSD <= 0) {
 		return result, nil
@@ -1620,7 +1622,7 @@ func reserveUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, projection 
 		IncludeAllocationPricing:        cmd.PricingSnapshotVersion >= 2,
 	}
 	allocationCommand.Normalize()
-	remainingBase, subscriptionAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, allocationCommand)
+	remainingBase, subscriptionAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, allocationCommand, now)
 	if err != nil {
 		return nil, err
 	}
@@ -1791,7 +1793,7 @@ func releaseTaskSubscriptionAllocations(ctx context.Context, tx *sql.Tx, cmd *bi
 	if cmd == nil {
 		return nil
 	}
-	// Attribute refunds to SQL intervals of twenty-four hours, seven days or
+	// Attribute refunds to SQL intervals of one calendar day, seven days or
 	// thirty days containing ReservedAt. Day-based timestamptz additions follow
 	// the database session calendar across offset changes; later windows retain
 	// their own usage when the reservation lies outside those intervals.
@@ -1803,7 +1805,7 @@ func releaseTaskSubscriptionAllocations(ctx context.Context, tx *sql.Tx, cmd *bi
 			UPDATE user_subscriptions
 			SET daily_usage_usd = CASE
 					WHEN daily_limit_usd IS NOT NULL AND daily_limit_usd > 0
-						AND daily_window_start <= $4 AND $4 < daily_window_start + INTERVAL '24 hours'
+						AND daily_window_start <= $4 AND $4 < daily_window_start + INTERVAL '1 day'
 					THEN GREATEST(0, daily_usage_usd - $1) ELSE daily_usage_usd END,
 				weekly_usage_usd = CASE
 					WHEN weekly_limit_usd IS NOT NULL AND weekly_limit_usd > 0
