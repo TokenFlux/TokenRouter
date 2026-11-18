@@ -13,7 +13,6 @@ import (
 	acct "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/provider/qodermodel"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -885,10 +884,10 @@ func TestProviderGetModelMapping_AntigravityNormalizesGemini31ProAliases(t *test
 }
 
 // TestProviderGetModelMapping_AntigravityPreservesGemini31ProOverrides supplies
-// custom targets for known Antigravity aliases. Mapping reads must retain those
-// targets and avoid adding extra entries to the supplied set.
+// saved Gemini aliases for an Antigravity provider. Mapping reads retain the
+// configured entries, and the forwarding model resolves to the saved target.
 func TestProviderGetModelMapping_AntigravityPreservesGemini31ProOverrides(t *testing.T) {
-	raw := map[string]any{"gemini-pro-agent": "custom-model", "gemini-3.1-pro-high": "another-model"}
+	raw := map[string]any{"gemini-pro-agent": "custom-model", "gemini-3.1-pro-high": "gemini-pro-agent"}
 	provider := &acct.Record{Platform: capability.PlatformAntigravity, Credentials: map[string]any{"model_mapping": raw}}
 	mapping := acct.ResolveModelMapping(provider, ModelDefaults())
 	if len(mapping) != len(raw) {
@@ -899,12 +898,12 @@ func TestProviderGetModelMapping_AntigravityPreservesGemini31ProOverrides(t *tes
 			t.Fatalf("显式映射被改写: %s", source)
 		}
 	}
+	require.Equal(t, "gemini-pro-agent", MapAntigravityModel(provider, "gemini-3.1-pro-high"))
 }
 
 // TestProviderGetModelMapping_AntigravityGemini31ProAliasesRespectWildcard
-// supplies an identity rule together with a Gemini wildcard. Exact default
-// aliases must remain absent so the configured wildcard retains its selection
-// role.
+// supplies an identity rule together with a Gemini wildcard. The configured
+// wildcard can match Gemini 3.1 aliases without exact entries in the saved map.
 func TestProviderGetModelMapping_AntigravityGemini31ProAliasesRespectWildcard(t *testing.T) {
 	t.Parallel()
 
@@ -912,8 +911,8 @@ func TestProviderGetModelMapping_AntigravityGemini31ProAliasesRespectWildcard(t 
 		Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
-				antigravity.AntigravityGemini31ProAgentModel: antigravity.AntigravityGemini31ProAgentModel,
-				"gemini-3.1-*": "custom-wildcard",
+				"gemini-pro-agent": "gemini-pro-agent",
+				"gemini-3.1-*":     "custom-wildcard",
 			},
 		},
 	}
@@ -1079,8 +1078,8 @@ func TestProviderGetModelMapping_GoogleOnePreservesExplicitMapping(t *testing.T)
 }
 
 // TestProviderGetModelMapping_AntigravityRespectsWildcardOverride supplies one
-// Gemini wildcard target. Default exact aliases must remain absent, and a
-// matching concrete request must resolve through the supplied wildcard.
+// Gemini wildcard target. The wildcard must handle concrete Gemini names when
+// the saved mapping has no exact rule for those names.
 func TestProviderGetModelMapping_AntigravityRespectsWildcardOverride(t *testing.T) {
 	provider := &acct.Record{
 		Platform: capability.PlatformAntigravity,

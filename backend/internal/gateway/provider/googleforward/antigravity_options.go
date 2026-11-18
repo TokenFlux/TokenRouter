@@ -70,9 +70,9 @@ func (s *Antigravity) getUpstreamErrorDetail(body []byte) string {
 	return logredact.TruncateUTF8(string(body), maxBytes)
 }
 
-// getMappedModel delegates provider and default Antigravity model mapping for
-// this request. Provider mappings, including wildcard matches, take precedence
-// under MapAntigravityModel before its default model resolution.
+// getMappedModel delegates model resolution to the Antigravity provider policy.
+// The policy applies saved exact or wildcard mappings and uses the final model
+// for whitelist admission.
 func (s *Antigravity) getMappedModel(provider *gatewayprovider.ExecutionProvider, requestedModel string) string {
 	return provideradapter.MapAntigravityModel(gatewayprovider.ExecutionRecord(provider), requestedModel)
 }

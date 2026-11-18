@@ -13,20 +13,19 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-// TestResolveProviderUpstreamModel_Antigravity resolves a supported Claude name
-// through an Antigravity target. The current default mapping returns the
-// expected complete identity, protecting shared gateway model resolution.
+// TestResolveProviderUpstreamModel_Antigravity requests Gemini 3.1 Pro High
+// through an Antigravity provider without a saved mapping. Gateway resolution
+// must return the requested model name for forwarding.
 func TestResolveProviderUpstreamModel_Antigravity(t *testing.T) {
 	t.Parallel()
-	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{Credentials: map[string]any{"model_whitelist": []string{"*"}}, LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
-	// Antigravity uses DefaultAntigravityModelMapping.
-	got := resolveProviderUpstreamModel(context.Background(), provider, "claude-sonnet-4-6")
-	require.Equal(t, "claude-sonnet-4-6", got)
+	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
+	got := resolveProviderUpstreamModel(context.Background(), provider, "gemini-3.1-pro-high")
+	require.Equal(t, "gemini-3.1-pro-high", got)
 }
 
 // TestResolveProviderUpstreamModel_Antigravity_Unsupported passes an unknown
 // model with no explicit Antigravity allowlist. The name passes through
-// unchanged, protecting the default mapping's unmatched-name behavior.
+// unchanged, protecting model resolution for names outside the catalog.
 func TestResolveProviderUpstreamModel_Antigravity_Unsupported(t *testing.T) {
 	t.Parallel()
 	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}

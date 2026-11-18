@@ -1270,7 +1270,7 @@ func TestGatewayService_isModelSupportedByProvider(t *testing.T) {
 		expected bool                               // expected eligibility result
 	}{
 		{
-			name:     "Antigravity平台-支持默认映射中的claude模型",
+			name:     "Antigravity平台-空白名单允许Claude Sonnet 4.5",
 			provider: &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			model:    "claude-sonnet-4-5",
 			expected: true,

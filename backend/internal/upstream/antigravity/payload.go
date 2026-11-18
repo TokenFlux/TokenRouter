@@ -17,9 +17,8 @@ import (
 // payload.go prepares Antigravity request envelopes, identity instructions,
 // schemas, and token-limit overrides.
 // Antigravity generation payloads carry a project and internal model route
-// outside the Gemini request object. The envelope supplies a new agent request
-// ID and fixed client identity, while preparation retains the distinction
-// between model mapping, thinking variants, and safe error text.
+// outside the Gemini request object. The envelope carries the model supplied by
+// the caller alongside a new agent request ID and a fixed client identity.
 //
 // Identity injection and schema cleanup decode mutable JSON maps and reencode
 // when their conditions require changes. Existing camelCase declaration arrays take
@@ -28,10 +27,6 @@ import (
 // even when its value prevents a positive override. Directly supplied schema
 // maps can be mutated by bridge cleaners; byte wrappers work on separately
 // decoded objects.
-
-// AntigravityGemini31ProAgentModel identifies the internal route selected by
-// the default public Gemini 3.1 Pro High model mapping.
-const AntigravityGemini31ProAgentModel = "gemini-pro-agent"
 
 var (
 	// AntigravityPassthroughErrorMessages lists lowercase fragments that permit upstream
@@ -44,11 +39,9 @@ var (
 	// v1internal wrapper, before generation data can be serialized for sending.
 	ErrProjectIDRequired = errors.New("this standard-tier Antigravity provider requires project_id")
 
-	// DefaultAntigravityModelMapping selects the internal agent route for the public
-	// Gemini alias before payload construction and thinking-model suffix selection.
-	DefaultAntigravityModelMapping = map[string]string{
-		"gemini-3.1-pro-high": AntigravityGemini31ProAgentModel,
-	}
+	// DefaultAntigravityModelMapping is an allocated empty map so the admin
+	// defaults endpoint encodes it as a JSON object.
+	DefaultAntigravityModelMapping = map[string]string{}
 )
 
 // PromptTooLongError retains a prompt-length response status, request

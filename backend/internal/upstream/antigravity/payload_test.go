@@ -4,17 +4,12 @@ import (
 	"testing"
 )
 
-// The public Gemini 3.1 Pro High alias selects one internal agent route before
-// payload construction. Thinking-name selection changes only the enabled
-// Sonnet 4.5 base case, and table fixtures retain already suffixed or
-// unrelated model names.
-
-// TestDefaultMappingOnlyRewritesRouteKeys checks the complete configured
-// public-to-internal mapping. It requires exactly one route and verifies the
-// Gemini alias selects the agent-model constant.
-func TestDefaultMappingOnlyRewritesRouteKeys(t *testing.T) {
-	if len(DefaultAntigravityModelMapping) != 1 || DefaultAntigravityModelMapping["gemini-3.1-pro-high"] != AntigravityGemini31ProAgentModel {
-		t.Fatal("unexpected execution mapping")
+// TestDefaultMappingIsEmpty checks the built-in mapping supplied to routing and
+// the admin endpoint. An allocated empty map lets the endpoint return an empty
+// JSON object.
+func TestDefaultMappingIsEmpty(t *testing.T) {
+	if DefaultAntigravityModelMapping == nil || len(DefaultAntigravityModelMapping) != 0 {
+		t.Fatalf("expected an allocated empty mapping, got %#v", DefaultAntigravityModelMapping)
 	}
 }
 
