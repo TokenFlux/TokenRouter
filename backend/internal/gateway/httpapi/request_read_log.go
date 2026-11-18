@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -112,4 +113,22 @@ func RequestLogger(c *gin.Context, component string, fields ...zap.Field) *zap.L
 		fields = append([]zap.Field{zap.String("component", component)}, fields...)
 	}
 	return base.With(fields...)
+}
+
+// BodyLimitLabel formats a byte limit for client error messages. Values of at
+// least one binary megabyte use truncated integer MiB magnitude with the
+// existing MB suffix; smaller values retain their byte magnitude.
+func BodyLimitLabel(limit int64) string {
+	// Truncate binary megabyte magnitude while retaining the existing MB
+	// suffix.
+	if limit >= 1024*1024 {
+		return fmt.Sprintf("%dMB", limit/(1024*1024))
+	}
+	return fmt.Sprintf("%dB", limit)
+}
+
+// BodyTooLargeMessage returns the shared request-size error using
+// BodyLimitLabel formatting.
+func BodyTooLargeMessage(limit int64) string {
+	return fmt.Sprintf("Request body too large, limit is %s", BodyLimitLabel(limit))
 }

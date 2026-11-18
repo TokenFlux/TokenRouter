@@ -38,7 +38,6 @@ import (
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -597,22 +596,6 @@ type captureOpsErrorQueue struct {
 	health ops.ErrorLogQueueHealth // serial submission health counters
 }
 
-// qoderRuntimeContract records attempt and completion phases with configured
-// usage-bearing output.
-type qoderRuntimeContract struct {
-	t       *testing.T          // owning fixture assertion context
-	partial bool                // configured partial-output failure mode
-	wire    protocol.ProtocolID // expected selected wire protocol
-	events  []string            // ordered Qoder execution phases
-	// captures, records, binds and refreshes count distinct Qoder phases
-	// during a serial request. Tests inspect each counter after completion
-	// to distinguish captured usage from persistence, sticky binding and
-	// credential refresh. captures counts completion snapshots; records
-	// counts completion submissions; binds counts sticky publications;
-	// refreshes counts credential refreshes.
-	captures, records, binds, refreshes int
-}
-
 // searchHTTPStub records standalone-search phases and enforces completion
 // before provider cleanup.
 type searchHTTPStub struct {
@@ -636,12 +619,10 @@ type openAIWSPolicyRepo struct {
 // prefaceBackend supplies entry rejection evidence while unexpected
 // scheduling/storage calls fail.
 type prefaceBackend struct {
-	CompatibleTextBackend                    // unconfigured scheduling/storage fixture methods
-	key                   *apikey.APIKey     // configured authenticated fixture Key
-	events                []string           // ordered preface preparation phases
-	block                 bool               // configured moderation blocking result
-	policyErr             error              // configured reasoning policy error
-	call                  CompatibleTextCall // captured prepared text call
+	key       *apikey.APIKey // configured authenticated fixture Key
+	events    []string       // ordered preface preparation phases
+	block     bool           // configured moderation blocking result
+	policyErr error          // configured reasoning policy error
 }
 
 // geminiPrefaceBackend shares preface observations while capturing prepared
@@ -2968,118 +2949,6 @@ func opsLoggerFixture(service *ops.OpsService) gin.HandlerFunc {
 	return OpsErrorLoggerMiddleware(service, testOpsCaptureQueue, opsAccessFixture())
 }
 
-// CheckKey records fixture funding order and permits the Qoder exchange.
-func (f *qoderRuntimeContract) CheckKey(context.Context, *apikey.APIKey, *billing.UserSubscription, string, bool) error {
-	f.events = append(f.events, "funding")
-	return nil
-}
-
-// Select records provider selection and returns this fixture as the acquired
-// target.
-func (f *qoderRuntimeContract) Select(context.Context, *int64, string, string, map[int64]struct{}, int64) (QoderCompatibleSelection, error) {
-	f.events = append(f.events, "select")
-	return f, nil
-}
-
-// Plan builds a mapped fixture route with the supplied Key group and client
-// model.
-func (f *qoderRuntimeContract) Plan(_ context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	return routing.Plan(routing.PlanInput{GroupID: key.GroupID, RequestedModel: model, GroupMapping: routing.GroupMappingResult{Mapped: true, MappedModel: "upstream-model"}})
-}
-
-// BindStickySession counts fixture sticky publication and returns successful
-// acceptance.
-func (f *qoderRuntimeContract) BindStickySession(context.Context, *int64, string, int64) error {
-	f.binds++
-	return nil
-}
-
-// Target returns this fixture as its selected Qoder execution target. Its
-// phase counters and configured mode remain shared with selection, so tests
-// finish serial execution before inspecting or changing those observations.
-func (f *qoderRuntimeContract) Target() QoderCompatibleTarget { return f }
-
-// Acquired reports an already held provider slot for this fixture.
-func (*qoderRuntimeContract) Acquired() bool { return true }
-
-// ReleaseFunc returns a callback appending fixture provider release to the
-// phase history. Each invocation appends again; the owning attempt supplies
-// repetition protection, and tests inspect serial history after cleanup has
-// finished.
-func (f *qoderRuntimeContract) ReleaseFunc() func() {
-	return func() { f.events = append(f.events, "release") }
-}
-
-// WaitPlan returns nil because Acquired reports existing fixture ownership.
-// The attempt uses the configured release callback and proceeds directly to
-// forwarding; this fixture supplies no capacity-waiting behavior.
-func (*qoderRuntimeContract) WaitPlan() *scheduler.ProviderWaitPlan { return nil }
-
-// Report checks success against the configured partial-output scenario and
-// records feedback order.
-func (f *qoderRuntimeContract) Report(_ int64, ok bool, _ *forwardcore.MessagesResult) {
-	require.Equal(f.t, !f.partial, ok)
-	f.events = append(f.events, "report")
-}
-
-// Switched fails the owning test if usage-bearing fixture execution switches
-// providers.
-func (f *qoderRuntimeContract) Switched() { f.t.Fatal("已有用量不得再次切号") }
-
-// Snapshot returns the fixed Qoder fixture provider with one concurrency slot.
-func (*qoderRuntimeContract) Snapshot() providercore.ProviderSnapshot {
-	return providercore.ProviderSnapshot{ID: 1, Platform: "qoder", Concurrency: 1}
-}
-
-// Forward validates client model, mapped body model and selected wire protocol.
-// Complete mode writes JSON success; partial mode writes SSE content then
-// returns usage with an error, letting tests verify completion accounting after
-// delivery has begun.
-func (f *qoderRuntimeContract) Forward(_ context.Context, c *gin.Context, body []byte, wire protocol.ProtocolID, model string) (*forwardcore.MessagesResult, error) {
-	f.events = append(f.events, "forward")
-	require.Equal(f.t, f.wire, wire)
-	require.Equal(f.t, "client-model", model)
-	require.Equal(f.t, "upstream-model", gjson.GetBytes(body, "model").String())
-	result := &forwardcore.MessagesResult{RequestID: "response-id", Model: model, UpstreamModel: "upstream-model", Usage: upstreamcore.TokenUsage{InputTokens: 3, OutputTokens: 2}}
-	// Return usage alongside an error after writing partial SSE, letting
-	// the real attempt flow prove completion accounting still runs when
-	// delivery has already started.
-	if f.partial {
-		c.Writer.WriteHeader(http.StatusOK)
-		_, err := c.Writer.Write([]byte("data: {\"text\":\"partial\"}\n\n"))
-		require.NoError(f.t, err)
-		return result, errors.New("after service")
-	}
-	c.JSON(http.StatusOK, gin.H{"result": "complete"})
-	return result, nil
-}
-
-// Refresh counts credential refresh and returns the same fixture target object.
-func (f *qoderRuntimeContract) Refresh(context.Context) (QoderCompatibleTarget, error) {
-	f.refreshes++
-	return f, nil
-}
-
-// Completion counts capture and validates client body identity and returned
-// input usage. It returns a minimal completion input for the shared submission
-// path, allowing capture order to remain independent of persistence assertions.
-func (f *qoderRuntimeContract) Completion(_ context.Context, capture QoderCompletionCapture) *completion.Input {
-	f.captures++
-	require.Equal(f.t, "client-model", gjson.GetBytes(capture.Body, "model").String())
-	require.Equal(f.t, 3, capture.Result.Usage.InputTokens)
-	return &completion.Input{Provider: &completion.ProviderSnapshot{ID: 1}, Result: &completion.Result{}}
-}
-
-// Record requires a live completion context and the Qoder accounting mode. It
-// counts fixture persistence without storing completion input, letting the
-// caller assert submission even after the request exchange has finished.
-func (f *qoderRuntimeContract) Record(ctx context.Context, _ *completion.Input, openAI bool) error {
-	require.NoError(f.t, ctx.Err())
-	require.False(f.t, openAI)
-	f.records++
-	return nil
-}
-
 // newObservedLogger constructs an in-memory zap observer for warning-level
 // fixture diagnostics.
 func newObservedLogger(t *testing.T) (*zap.Logger, *observer.ObservedLogs) {
@@ -3495,16 +3364,6 @@ func (p *geminiPrefaceBackend) BindSticky(context.Context, *int64, string, int64
 // FailoverObservation accepts Gemini diagnostics without retaining fixture
 // failover observations.
 func (p *geminiPrefaceBackend) FailoverObservation(context.Context, string, map[string]any) {}
-
-// Execute captures a call from a valid unified text request and records fixture
-// order. Text and Funding are required; parsed body and mapping references
-// remain shared, so tests inspect prepared preface input before changing those
-// dependencies.
-func (p *prefaceBackend) Execute(_ context.Context, in execution.Request, _ upstreamcore.OutputSink) (execution.ExecutionResult, error) {
-	p.call = CompatibleTextCall{MessagesCall: MessagesCall{Key: in.Funding.Key, Subscription: in.Funding.Subscription, Parsed: in.Text.Parsed, Body: in.Body, Model: in.Model, Mapping: in.Text.Mapping}, RequestContext: in.Text.SelectionContext}
-	p.events = append(p.events, "execution")
-	return execution.ExecutionResult{}, nil
-}
 
 // Execute retains the unified request and requires a MessagesOutput fixture
 // sink. Another sink returns an error naming its type before output capture;

@@ -38,6 +38,7 @@ import (
 // execution reports both Served and HasUsage. Returned usage, duration and
 // client-disconnect state come from execution without synthesized first-token
 // timing.
+// @project-doc docs/architecture/gateway_request_lifecycle.md#qoder_gateway_execution
 func ForwardQoderAttempt(ctx context.Context, c *gin.Context, runtime *gatewayadapter.QoderRuntime, value *provider.Record, body []byte, wire protocol.ProtocolID, responseModels ...string) (*forward.MessagesResult, error) {
 	responseModel := qoder.FirstNonEmptyQoder(responseModels...)
 	// Preserve an explicit response-model override when supplied; body identity is

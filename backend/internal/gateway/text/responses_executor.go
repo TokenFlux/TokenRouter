@@ -16,8 +16,8 @@ import (
 // Attempts counts Forward invocations and can include a local stop before
 // network dispatch. Execute binds captured request hints/routing, opens one
 // session, and selects standard or Responses options using entry kind. Its
-// observation wrapper exposes the declared ResponsePorts method set; additional
-// underlying session methods are described at responseExecutionObservation.
+// observation wrapper forwards optional lifecycle, group-fallback, and
+// retry-preparation hooks to the underlying session when supported.
 // Returned attempt collections remain shared with their producer, so this
 // wrapper supplies observed execution evidence rather than an independent
 // completion snapshot or proof of funds persistence.
@@ -27,8 +27,8 @@ import (
 type ResponseRuntime interface {
 	// Open creates usable request-local ResponsePorts or returns an initialization
 	// error. The runtime receives request/output references whose handling stays
-	// with its session; callers do not obtain additional session methods through
-	// the executor's observation wrapper.
+	// with its session, and optional lifecycle, group-fallback, and retry hooks on
+	// that session are forwarded through the executor's observation wrapper.
 	Open(context.Context, execution.Request, upstream.OutputSink) (ResponsePorts, error)
 }
 
@@ -43,15 +43,14 @@ type ResponsesExecutor struct {
 }
 
 // responseExecutionObservation retains selection/result evidence while exposing
-// ResponsePorts and its four overrides. Execute passes this wrapper to
-// RunResponses after every nil-error runtime Open.
+// ResponsePorts, its four observation overrides, and optional lifecycle,
+// group-fallback, and retry-preparation forwarding. Execute passes this wrapper
+// to RunResponses after every nil-error runtime Open.
 //
-// Embedding the interface promotes its declared methods, not extra methods on
-// the underlying dynamic session. Consequently RunResponses' lifecycle
-// Begin/Finish, TryGroupFallback, and PrepareRetry assertions inspect this
-// wrapper and cannot see those additional session methods through Execute.
-// Ordinary ResponsePorts operations remain delegated and can perform their own
-// work; direct RunResponses callers expose their own dynamic method sets.
+// Because embedding an interface promotes only its declared method set, this
+// wrapper explicitly implements Begin, Finish, TryGroupFallback, and
+// PrepareRetry and delegates each call to the underlying dynamic session when
+// present. Sessions lacking an optional hook observe a safe no-op default.
 type responseExecutionObservation struct {
 	// selected supplies provider/plan metadata on Forward. result retains its
 	// latest attempt and invocation count, while err can later represent a
@@ -74,8 +73,8 @@ func NewResponsesExecutor(runtime ResponseRuntime, standard, responses ResponseO
 // usable runtime; an Open error returns zero execution evidence immediately.
 //
 // After Open succeeds, entry kind selects captured options and
-// responseExecutionObservation is passed to the loop. Its documented method set
-// determines which optional loop assertions can succeed on this call path.
+// responseExecutionObservation is passed to the loop, forwarding optional
+// lifecycle, fallback, and retry hooks supported by the session.
 // Returned attempt references remain shared, and later rejection/selection
 // errors can accompany the last forwarded result, so callers inspect both
 // values before deciding how to handle partial work.
@@ -90,12 +89,62 @@ func (e *ResponsesExecutor) Execute(ctx context.Context, in execution.Request, s
 	if in.Text.Kind == execution.TextOpenAIResponses {
 		options = e.responses
 	}
-	// Capture result/error observations around the opened session before entering
-	// the loop. Its dynamic receiver is this wrapper, whose optional-method
-	// visibility is described at responseExecutionObservation.
+	// Capture result/error observations around the opened session while forwarding
+	// optional lifecycle, group-fallback, and retry hooks to the dynamic session.
 	observed := &responseExecutionObservation{ResponsePorts: session}
 	RunResponses(options, observed)
 	return observed.result, observed.err
+}
+
+// Begin forwards request-lifecycle startup when the underlying session provides
+// both Begin and Finish. Sessions without the paired lifecycle contract skip
+// startup cleanly.
+func (o *responseExecutionObservation) Begin() {
+	if lifecycle, ok := o.ResponsePorts.(interface {
+		Begin()
+		Finish(bool)
+	}); ok {
+		lifecycle.Begin()
+	}
+}
+
+// Finish forwards request-lifecycle completion with the loop's served flag when
+// the underlying session provides both Begin and Finish.
+func (o *responseExecutionObservation) Finish(served bool) {
+	if lifecycle, ok := o.ResponsePorts.(interface {
+		Begin()
+		Finish(bool)
+	}); ok {
+		lifecycle.Finish(served)
+	}
+}
+
+// TryGroupFallback delegates group recovery to the underlying session when
+// supported and records ErrExecutionRejected when a handled fallback stops
+// execution without an existing error.
+func (o *responseExecutionObservation) TryGroupFallback(err error) (bool, bool) {
+	fallback, ok := o.ResponsePorts.(interface {
+		TryGroupFallback(error) (bool, bool)
+	})
+	if !ok {
+		return false, false
+	}
+	handled, retry := fallback.TryGroupFallback(err)
+	if handled && !retry && o.err == nil {
+		o.err = ErrExecutionRejected
+	}
+	return handled, retry
+}
+
+// PrepareRetry forwards classified retry preparation to the underlying session
+// when supported so forced-cache billing and derived context survive into the
+// next attempt.
+func (o *responseExecutionObservation) PrepareRetry(failure *AttemptFailure, sameProvider bool) {
+	if observer, ok := o.ResponsePorts.(interface {
+		PrepareRetry(*AttemptFailure, bool)
+	}); ok {
+		observer.PrepareRetry(failure, sameProvider)
+	}
 }
 
 // CanAttempt delegates the next-attempt decision and captures cancellation when

@@ -3,20 +3,25 @@ package httpapi
 import (
 	"strconv"
 
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 )
 
-// request_parse_log.go logs malformed request bodies using bounded, escaped
-// excerpts and the full byte length.
+// request_parse_log.go validates OpenAI-compatible stream fields and logs
+// malformed request bodies using bounded, escaped excerpts and the full byte
+// length.
 // Invalid JSON can result from malformed values or a body cut off in transit.
 // Parse diagnostics retain the byte length and bounded beginning and ending
 // excerpts, escaping their contents so each field remains one log value.
 
-// parseFailureSnippetLen limits each logged body excerpt in bytes, bounding
-// the request data copied into parsing diagnostics for large invalid bodies.
-const parseFailureSnippetLen = 256
+// Request body parsing constants bound logged excerpts and provide consistent
+// client stream-validation error text across OpenAI-compatible HTTP entries.
+const (
+	parseFailureSnippetLen        = 256
+	InvalidStreamFieldTypeMessage = "invalid stream field type"
+)
 
 // LogRequestBodyParseFailure logs parsing diagnostics with escaped body
 // excerpts and total byte length. A nil logger skips reporting; a nil error
@@ -54,4 +59,16 @@ func LogRequestBodyParseFailure(reqLog *zap.Logger, body []byte, err error) {
 // UTF-8.
 func SanitizeBodySnippet(b []byte) string {
 	return strconv.Quote(string(b))
+}
+
+// ParseOpenAICompatibleStream returns client stream intent and whether its
+// JSON field has a supported type. A missing field means false with
+// valid=true; explicit null, strings and numbers return false with
+// valid=false.
+func ParseOpenAICompatibleStream(body []byte) (bool, bool) {
+	v := gjson.GetBytes(body, "stream")
+	if v.Exists() && v.Type != gjson.True && v.Type != gjson.False {
+		return false, false
+	}
+	return v.Bool(), true
 }

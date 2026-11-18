@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +17,6 @@ import (
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
@@ -28,9 +26,8 @@ import (
 // settlement and analysis-log failures into the downstream stores.
 
 // TestQoderNativeChainCompletionFailures emits content and usage before a
-// wrapped upstream error. It checks one completion and release, retained token
-// counts, and distinct recorder outcomes for settlement and
-// marked log-insertion failures.
+// wrapped upstream error. It checks retained token counts and distinct recorder
+// outcomes for settlement and marked log-insertion failures.
 func TestQoderNativeChainCompletionFailures(t *testing.T) {
 	for _, tc := range []struct {
 		name string // subtest failure label
@@ -56,27 +53,20 @@ func TestQoderNativeChainCompletionFailures(t *testing.T) {
 			completion := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &gatewaytestkit.UserStore{}, &gatewaytestkit.SubscriptionStore{})
 			rec := httptest.NewRecorder()
 			body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
-			// Feed the provider and upstream outcome into completion to check
-			// usage recording after a stream failure.
+			// Execute the prepared Qoder attempt directly and feed its partial
+			// usage-bearing result into completion recording.
 			executor, input := platform.Runtime.PrepareQoderTarget(gatewayhttp.QoderRequestMetadata(nil), provider, body, protocol.ProtocolOpenAIChatCompletions, "auto")
-			completed, released, bound := 0, 0, 0
-			var completionErr error
-			// The completion callback receives the attempt's observed tokens
-			// after streamed output. Its captured error distinguishes
-			// settlement failure from a marked analysis-log insertion failure.
-			ports := gateway.RequestPorts{CanFailover: func(error) bool { return true }, Select: func(context.Context, map[int64]struct{}) (*gateway.Selection, error) {
-				return &gateway.Selection{Acquired: true, Release: func() { released++ }, Executor: executor, Input: input, Bind: func(context.Context, upstream.AttemptResult) { bound++ }, Complete: func(ctx context.Context, r upstream.AttemptResult) {
-					completed++
-					completionErr = completion.RecordMessages(ctx, &gatewaycapture.MessagesCapture{Result: forwardcore.MessagesFromAttempt(r), APIKey: &apikey.APIKey{ID: 505}, User: &identity.User{ID: 605}, Provider: gatewaycapture.ExecutionCompletionRecord(gatewaycapture.NewExecutionProvider(provider))})
-				}}, nil
-			}}
-			err := gateway.NewQoderUseCase(3, time.Second).Run(context.Background(), gateway.Request{Stream: true}, ports, &gateway.OutputTracker{Sink: gatewayhttp.ResponseSink{Writer: rec}})
+			r, err := executor.Execute(context.Background(), input, &gateway.OutputTracker{Sink: gatewayhttp.ResponseSink{Writer: rec}})
 			require.Error(t, err)
+			require.True(t, r.Served && r.HasUsage)
+			completionErr := completion.RecordMessages(context.Background(), &gatewaycapture.MessagesCapture{
+				Result:   forwardcore.MessagesFromAttempt(r),
+				APIKey:   &apikey.APIKey{ID: 505},
+				User:     &identity.User{ID: 605},
+				Provider: gatewaycapture.ExecutionCompletionRecord(gatewaycapture.NewExecutionProvider(provider)),
+			})
 			require.Contains(t, rec.Body.String(), "served")
 			require.Len(t, client.Requests, 1)
-			require.Equal(t, 1, completed)
-			require.Equal(t, 1, released)
-			require.Zero(t, bound)
 			require.Equal(t, 1, billingRepo.Calls)
 			require.Equal(t, 1, usageRepo.Calls)
 			require.Equal(t, 12, usageRepo.LastLog.InputTokens)

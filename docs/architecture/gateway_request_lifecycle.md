@@ -199,7 +199,7 @@ Live 和 sideband 的 HTTP 入口由 app 直接构造，`LivePorts` 共用审核
 
 ### 会话哈希
 
-客户端会话 Header、Grok 实际选号、强制平台、手动 Header 的判断，以及 OpenAI 会话哈希的请求绑定，由 `gateway/httpapi` 负责。内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 `gateway/session` 提供。手动信号、内容回退、无状态的图片入口和用量日志各有自己的优先级，只用于日志的 Header 不参与通用选号。新旧两种哈希从同一个种子派生，旧哈希通过 requeststate 交给现有的粘性读取逻辑。Qoder 兼容入口调用通用的请求哈希函数。
+客户端会话 Header、Grok 实际选号、强制平台、手动 Header 的判断，以及 OpenAI 会话哈希的请求绑定，由 `gateway/httpapi` 负责。内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 `gateway/session` 提供。手动信号、内容回退、无状态的图片入口和用量日志各有自己的优先级，只用于日志的 Header 不参与通用选号。新旧两种哈希从同一个种子派生，旧哈希通过 requeststate 交给现有的粘性读取逻辑。
 
 ### 故障转移
 
@@ -218,7 +218,7 @@ Messages、Claude 的 Chat/Responses 转换和 `count_tokens` 使用 `gateway/pr
 
 Anthropic 上游承接 Chat Completions 或 Responses 时，单独的转换读取器在改写客户端模型之前，先采集原始 `message_start` 里声明的模型。流式和缓冲两条路径都把这个声明写入转发结果，再进入完成快照；上游没有声明时，这个字段保持为空。
 
-Messages、计数和 Qoder 的路由计划由 `gateway/provider.RoutePlanner` 读取分组策略并调用 routing，摘要和隔离使用 `gateway/session`。重试用尽后的兼容冷却由 `provider.RetryCooldown` 读取最新的池模式后决定。完成器绑定 app 构造的记录器。调试输出的文件句柄由一个 `requestdebug.Trace` 持有，请求和后台工作都结束后才关闭。
+Messages、统一文本和计数入口的路由计划由 `gateway/provider.RoutePlanner` 读取分组策略并调用 routing，摘要和隔离使用 `gateway/session`。重试用尽后的兼容冷却由 `provider.RetryCooldown` 读取最新的池模式后决定。完成器绑定 app 构造的记录器。调试输出的文件句柄由一个 `requestdebug.Trace` 持有，请求和后台工作都结束后才关闭。
 
 Gemini 和 Antigravity 的凭据来源、传输和动态读取接口由 app 注入 `gateway/provider/googleforward`。平台准备器不接触 Gin 和完整配置；`gateway/httpapi` 负责三种客户端协议各自的错误格式、规则覆盖和 Ops 写入顺序。图片计数和工具名恢复状态按 attempt 创建；图片数取单个响应片段里内联图片数的最大值，没有观测到图片时才回退到原模型名。
 
@@ -324,7 +324,7 @@ SystemOne 执行器由 app 独立构造，注入传输、地址策略、价格�
 <a id="qoder_gateway_execution"></a>
 ## Qoder Chat 请求编排
 
-Qoder 提供商参与普通文本入口的提供商循环，`UnifiedTextExecutor` 复用 `QoderChatExecutor` 和兼容单次执行器。站点、模型和认证能力由 Qoder 适配器检查；已有的单步协议转换只覆盖既定的转换路线，任意会话恢复不在支持范围内。
+Qoder 提供商参与普通文本入口的提供商循环，`UnifiedTextExecutor` 通过 `ForwardQoderAttempt` 和 `QoderRuntime` 执行单次尝试，并在尚未写出业务内容时支持一次同提供商凭据刷新重试。站点、模型和认证能力由 Qoder 适配器检查；已有的单步协议转换只覆盖既定的转换路线，任意会话恢复不在支持范围内。
 
 选号前做资金预检；等待结束后复查资金，RPM 只累计一次。已经提交实际输出的请求不会重放。Qoder 流式上游有自己的执行预算，客户端取消后，正在执行的提供商槽要等完成捕获后才释放。部分结果只进入一次完成处理，记录或结算失败时也不会重新调用供应商。
 

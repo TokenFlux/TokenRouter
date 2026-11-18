@@ -77,10 +77,6 @@ func (r *Runtime) Open(ctx context.Context, in execution.Request, sink upstream.
 	switch in.Text.Kind {
 	case execution.TextGeminiMessages:
 		return &geminiMessageAttemptBridge{messageAttemptBridge: base, forwardModel: in.Text.GeminiModel, forwardBody: in.Text.GeminiBody, groupMapping: in.Route.Mapping()}, nil
-	case execution.TextGenericResponses:
-		return &genericResponsesAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, forwardBody: in.AttemptBody, groupMapping: in.Text.Mapping}, nil
-	case execution.TextGenericChat:
-		return &genericChatAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, groupPlatform: in.Text.Platform, selectionSessionHash: in.Text.SelectionSessionHash, groupMapping: in.Text.Mapping}, nil
 	case execution.TextNativeGemini:
 		return &nativeGeminiAttemptBridge{
 			messageAttemptBridge: base,

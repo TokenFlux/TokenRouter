@@ -30,69 +30,18 @@ import (
 // ForwardPorts supplies single-attempt platform execution; gateway/text owns
 // provider failover.
 type ForwardPorts struct {
-	// AntigravityAvailable gates compatible Chat and Responses execution
-	// before those callbacks are called. False reports missing
-	// compatibility service and ends that selected attempt.
-	AntigravityAvailable bool
 	// Bedrock client compatibility transformation
 	BedrockCompat func(*gin.Context, []byte, string, *gatewaycapture.ExecutionProvider, *int64) []byte
 	// Antigravity Messages attempt execution
-	ForwardAntigravity     func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, []byte, bool) (*forwardcore.MessagesResult, error)
-	ForwardAntigravityChat func( // Antigravity Chat conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
+	ForwardAntigravity func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, []byte, bool) (*forwardcore.MessagesResult, error)
 	// Antigravity native Gemini execution
-	ForwardAntigravityGemini    func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, string, string, bool, []byte, bool, ...forwardcore.GeminiSessionOption) (*forwardcore.MessagesResult, error)
-	ForwardAntigravityResponses func( // Antigravity Responses conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	ForwardChat func( // generic Chat attempt execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		parsed *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
+	ForwardAntigravityGemini func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, string, string, bool, []byte, bool, ...forwardcore.GeminiSessionOption) (*forwardcore.MessagesResult, error)
 	// Gemini Messages conversion execution
-	ForwardGemini     func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, []byte) (*forwardcore.MessagesResult, error)
-	ForwardGeminiChat func( // Gemini Chat conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-	) (*forwardcore.MessagesResult, error)
+	ForwardGemini func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, []byte) (*forwardcore.MessagesResult, error)
 	// native Gemini action execution
-	ForwardGeminiNative    func(ctx context.Context, c *gin.Context, provider *gatewaycapture.ExecutionProvider, originalModel string, action string, stream bool, body []byte) (*forwardcore.MessagesResult, error)
-	ForwardGeminiResponses func( // Gemini Responses conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
+	ForwardGeminiNative func(ctx context.Context, c *gin.Context, provider *gatewaycapture.ExecutionProvider, originalModel string, action string, stream bool, body []byte) (*forwardcore.MessagesResult, error)
 	// native Messages attempt execution
-	ForwardMessages  func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error)
-	ForwardResponses func( // generic Responses attempt execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		parsed *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	// GeminiAvailable gates compatible Gemini execution before its
-	// callbacks are used. Native Gemini has its own execution path and does
-	// not consult this compatibility availability flag.
-	GeminiAvailable bool
-	// request model replacement callback
-	ReplaceModel func(body []byte, newModel string) []byte
+	ForwardMessages func(context.Context, *gin.Context, *gatewaycapture.ExecutionProvider, *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error)
 	// digest-based Gemini affinity persistence
 	SaveGeminiSession func(_ context.Context, groupID int64, prefixHash, digestChain, uuid string, providerID int64, oldDigestChain string) error
 	// mapped Claude failure presentation
@@ -156,65 +105,10 @@ type Bindings struct {
 // messageExecutionDependencies retains shared application operations read by
 // serial text attempt adapters.
 type messageExecutionDependencies struct {
-	// geminiAvailable gates Gemini compatibility; antigravityAvailable
-	// gates Antigravity compatibility. Each flag is retained with the
-	// platform callbacks configured during runtime assembly.
-	geminiAvailable, antigravityAvailable bool
-	forwardResponses                      func( // generic Responses attempt execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		parsed *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	forwardChat func( // generic Chat attempt execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		parsed *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	forwardAntigravityResponses func( // Antigravity Responses conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	forwardAntigravityChat func( // Antigravity Chat conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	forwardGeminiResponses func( // Gemini Responses conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-		_ *requeststate.ParsedRequest,
-	) (*forwardcore.MessagesResult, error)
-	forwardGeminiChat func( // Gemini Chat conversion execution
-		ctx context.Context,
-		c *gin.Context,
-		provider *gatewaycapture.ExecutionProvider,
-		body []byte,
-	) (*forwardcore.MessagesResult, error)
 	// native Gemini action execution
 	forwardGeminiNative func(ctx context.Context, c *gin.Context, provider *gatewaycapture.ExecutionProvider, originalModel string, action string, stream bool, body []byte) (*forwardcore.MessagesResult, error)
 	// digest-based Gemini affinity persistence
 	saveGeminiSession func(_ context.Context, groupID int64, prefixHash, digestChain, uuid string, providerID int64, oldDigestChain string) error
-	// request model replacement callback
-	replaceModel func(body []byte, newModel string) []byte
-	// Responses JSON error presentation
-	responsesErrorResponse func(c *gin.Context, status int, code, message string)
-	// Chat JSON error presentation
-	chatCompletionsErrorResponse func(c *gin.Context, status int, errType, message string)
-	// Responses exhaustion error presentation
-	handleResponsesFailoverExhausted func(c *gin.Context, lastErr *forwardcore.UpstreamFailoverError, streamStarted bool)
-	// Chat exhaustion error presentation
-	handleCCFailoverExhausted func(c *gin.Context, lastErr *forwardcore.UpstreamFailoverError, streamStarted bool)
 	// native Gemini exhaustion presentation
 	handleGeminiFailoverExhausted func(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError)
 
@@ -298,21 +192,12 @@ type messageExecutionDependencies struct {
 func New(b Bindings) *Runtime {
 	output := gatewayhttp.MessagesErrorOutput{Rules: b.Errors}
 	d := &messageExecutionDependencies{
-		antigravityAvailable:              b.Forward.AntigravityAvailable,
 		bedrockCompat:                     b.Forward.BedrockCompat,
 		forwardAntigravity:                b.Forward.ForwardAntigravity,
-		forwardAntigravityChat:            b.Forward.ForwardAntigravityChat,
 		forwardAntigravityGemini:          b.Forward.ForwardAntigravityGemini,
-		forwardAntigravityResponses:       b.Forward.ForwardAntigravityResponses,
-		forwardChat:                       b.Forward.ForwardChat,
 		forwardGemini:                     b.Forward.ForwardGemini,
-		forwardGeminiChat:                 b.Forward.ForwardGeminiChat,
 		forwardGeminiNative:               b.Forward.ForwardGeminiNative,
-		forwardGeminiResponses:            b.Forward.ForwardGeminiResponses,
 		forwardMessages:                   b.Forward.ForwardMessages,
-		forwardResponses:                  b.Forward.ForwardResponses,
-		geminiAvailable:                   b.Forward.GeminiAvailable,
-		replaceModel:                      b.Forward.ReplaceModel,
 		saveGeminiSession:                 b.Forward.SaveGeminiSession,
 		writeMappedClaudeError:            b.Forward.WriteMappedClaudeError,
 		providerSwitched:                  b.Selection.ProviderSwitched,
@@ -334,10 +219,6 @@ func New(b Bindings) *Runtime {
 		concurrencyHelper:                 b.Concurrency,
 		userMsgQueueHelper:                b.Queue,
 		messageWaitTimeout:                b.QueueWait,
-		responsesErrorResponse:            output.ResponsesError,
-		chatCompletionsErrorResponse:      output.ChatError,
-		handleResponsesFailoverExhausted:  output.ResponsesExhausted,
-		handleCCFailoverExhausted:         output.ChatExhausted,
 		handleGeminiFailoverExhausted:     output.GeminiExhausted,
 		errorResponse:                     output.Error,
 		handleStreamingAwareError:         output.StreamError,

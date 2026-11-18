@@ -22,14 +22,12 @@ import (
 // Text kinds select the protocol-specific request bridge and provider-loop
 // options; ordinary Messages is the zero value used by default request state.
 const (
-	TextMessages         TextKind = iota // ordinary Messages request execution
-	TextGeminiMessages                   // Messages converted to Gemini execution
-	TextGenericResponses                 // generic Responses protocol execution
-	TextGenericChat                      // generic Chat protocol execution
-	TextNativeGemini                     // Gemini native request execution
-	TextOpenAIResponses                  // OpenAI Responses request execution
-	TextOpenAIChat                       // OpenAI Chat request execution
-	TextOpenAIMessages                   // Messages using OpenAI execution
+	TextMessages        TextKind = iota // ordinary Messages request execution
+	TextGeminiMessages                  // Messages converted to Gemini execution
+	TextNativeGemini                    // Gemini native request execution
+	TextOpenAIResponses                 // OpenAI Responses request execution
+	TextOpenAIChat                      // OpenAI Chat request execution
+	TextOpenAIMessages                  // Messages using OpenAI execution
 )
 
 // Executor binds shared dependencies at construction and receives request
@@ -139,7 +137,6 @@ type FundingState struct {
 // evidence.
 type ExecutionResult struct {
 	// PlanProvided reports whether Plan carries adapter-obtained candidate evidence.
-	// Qoder result capture sets it from a nonzero Plan.ProviderID after execution.
 	PlanProvided bool
 
 	Attempt  upstream.AttemptResult    // final executed attempt observations

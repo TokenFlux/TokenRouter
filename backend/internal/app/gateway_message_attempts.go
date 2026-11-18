@@ -13,17 +13,16 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// gateway_message_attempts.go binds Messages-family platform callbacks,
+// gateway_message_attempts.go binds Messages and Gemini platform callbacks,
 // selection, admission, and completion to the text attempt runtime.
-// Messages, compatible text, and Gemini attempts reuse one set of admission,
-// selection, and completion dependencies. Assembly binds each available
-// platform callback and retains the Forward recorder, while textattempt.Runtime
-// owns per-attempt HTTP state and output handling.
+// Messages and Gemini attempts reuse one set of admission, selection, and
+// completion dependencies. Assembly binds each available platform callback and
+// retains the Forward recorder, while textattempt.Runtime owns per-attempt HTTP
+// state and output handling.
 
 // messageAttemptBindings supplies platform callbacks and shared admission to
 // textattempt. shared is required; queue helpers are created when queue and cfg
@@ -93,8 +92,6 @@ func messageAttemptBindings(
 	if messages != nil {
 		b.Forward.BedrockCompat = messages.ApplyBedrockCCCompat
 		b.Forward.ForwardMessages = messages.Forward
-		b.Forward.ForwardResponses = messages.ForwardAsResponses
-		b.Forward.ForwardChat = messages.ForwardAsChatCompletions
 	}
 	if s := antigravity; s != nil {
 		b.Forward.ForwardAntigravity = s.Forward
@@ -103,20 +100,9 @@ func messageAttemptBindings(
 	}
 	if s := gemini; s != nil {
 		b.Forward.ForwardGemini = s.Forward
-	}
-	b.Forward.SaveGeminiSession = messageDigestSave(digest)
-	b.Forward.ReplaceModel = openaiwire.ReplaceModelInBody
-	if s := antigravity; s != nil {
-		b.Forward.ForwardAntigravityResponses = s.ForwardAsResponses
-		b.Forward.ForwardAntigravityChat = s.ForwardAsChatCompletions
-	}
-	if s := gemini; s != nil {
-		b.Forward.ForwardGeminiResponses = s.ForwardAsResponses
-		b.Forward.ForwardGeminiChat = s.ForwardAsChatCompletions
 		b.Forward.ForwardGeminiNative = s.ForwardNative
 	}
-	b.Forward.GeminiAvailable = gemini != nil
-	b.Forward.AntigravityAvailable = antigravity != nil
+	b.Forward.SaveGeminiSession = messageDigestSave(digest)
 
 	return b
 }

@@ -18,7 +18,7 @@
 //
 // File groups:
 //   - authorization.go, api_key*.go, and routes*.go handle authentication, key model rewriting, and protocol admission.
-//   - messages*.go, compatible_text*.go, and gemini_native*.go prepare Messages, generic Responses/Chat, and Gemini entries.
+//   - messages*.go and gemini_native*.go prepare Antigravity Messages and Gemini entries.
 //   - openai_text*.go and openai_protocol_execution*.go handle OpenAI text entries and protocol execution.
 //   - openai_request*.go, codex*.go, and session_identity.go prepare outbound messages, client identity, and session IDs.
 //   - openai_response*.go, output*.go, and response_tool_restoration.go read responses, restore tool names, and write output.

@@ -315,6 +315,6 @@ func newHeartbeatRouteRouter(t *testing.T, url, kind string, interval time.Durat
 	runtime := provideMessageAttemptRuntime(nil, digest, nil, nil, native.Gemini, funding, keys, GatewayCompletionRecorders{Forward: recording.Core(nil, false), OpenAI: source.Recorder}, shared, nil, nil, nil, cfg, nil, generic, nil, nil, prices)
 	gemini := provideGeminiNativeHTTP(shared, digest, runtime, activity, generic)
 	router := gin.New()
-	gatewayhttp.RegisterGatewayRoutes(router, gatewayhttp.RouteEndpoints{OpenAIText: endpoints.textHandler(), GeminiNative: gemini, ResponsesWS: func(*gin.Context) {}, PublicUsage: func(*gin.Context) {}, QoderChat: func(*gin.Context) {}}, middleware, func(*gin.RouterGroup) {})
+	gatewayhttp.RegisterGatewayRoutes(router, gatewayhttp.RouteEndpoints{OpenAIText: endpoints.textHandler(), GeminiNative: gemini, ResponsesWS: func(*gin.Context) {}, PublicUsage: func(*gin.Context) {}}, middleware, func(*gin.RouterGroup) {})
 	return router, origins
 }

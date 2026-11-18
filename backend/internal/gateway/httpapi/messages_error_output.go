@@ -171,10 +171,10 @@ func (h MessagesErrorOutput) Exhausted(c *gin.Context, failure *forwardcore.Upst
 	WriteAnthropicFailover(c, failure, platform, started, rules, forwardcore.IsOpenAISilentRefusalErrorBody, forwardcore.OpenAISilentRefusalClientMessage())
 }
 
-// ResponsesError delegates a plain OpenAI Responses error envelope to shared
-// presentation.
+// ResponsesError writes a plain OpenAI Responses error envelope with code and
+// message fields.
 func (h MessagesErrorOutput) ResponsesError(c *gin.Context, status int, code, message string) {
-	WriteCompatibleResponsesError(c, status, code, message)
+	c.JSON(status, gin.H{"error": gin.H{"code": code, "message": message}})
 }
 
 // ResponsesExhausted presents final failover failure for a Responses client,
@@ -223,10 +223,10 @@ func (h MessagesErrorOutput) ResponsesExhausted(c *gin.Context, lastErr *forward
 	h.ResponsesError(c, status, code, message)
 }
 
-// ChatError delegates a plain OpenAI Chat Completions error to shared
-// presentation.
+// ChatError writes a plain OpenAI Chat Completions error envelope with type
+// and message fields.
 func (h MessagesErrorOutput) ChatError(c *gin.Context, status int, errType, message string) {
-	WriteCompatibleChatError(c, status, errType, message)
+	c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": message}})
 }
 
 // ChatExhausted presents Chat failover exhaustion before streaming begins,

@@ -75,8 +75,6 @@ func TestClientGroupFallbackPrecedesPoliciesAndExecution(t *testing.T) {
 		{"responses", protocol.ProtocolOpenAIResponses},
 		{"chat", protocol.ProtocolOpenAIChatCompletions},
 		{"forced_messages", protocol.ProtocolAnthropicMessages},
-		{"compatible_responses", protocol.ProtocolOpenAIResponses},
-		{"compatible_chat", protocol.ProtocolOpenAIChatCompletions},
 		{"gemini", protocol.ProtocolGeminiGenerateContent},
 	}
 	for _, tc := range cases {
@@ -128,10 +126,6 @@ func TestClientGroupFallbackPrecedesPoliciesAndExecution(t *testing.T) {
 				NewBoundOpenAITextHandler(OpenAITextOptions{}, openai, prompt, executor).ChatCompletions(c)
 			case "forced_messages":
 				NewBoundMessagesHandler(MessagesHTTPOptions{}, messages, prompt, concurrency, executor).Messages(c)
-			case "compatible_responses":
-				NewBoundCompatibleTextHandler(MessagesHTTPOptions{}, messages, openaiprotocol.ReplaceModelInBody, prompt, concurrency, executor).Responses(c)
-			case "compatible_chat":
-				NewBoundCompatibleTextHandler(MessagesHTTPOptions{}, messages, openaiprotocol.ReplaceModelInBody, prompt, concurrency, executor).ChatCompletions(c)
 			case "gemini":
 				c.Params = gin.Params{{Key: "modelAction", Value: "/client-model:generateContent"}}
 				NewBoundGeminiNativeHandler(GeminiNativeOptions{}, messages, GeminiHTTPBindings{SafeModelSegment: func(string) bool { return true }}, prompt, concurrency, func() string { return "new" }, executor).GeminiV1BetaModels(c)

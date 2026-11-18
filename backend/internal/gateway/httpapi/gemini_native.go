@@ -242,7 +242,7 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	body, err := ReadRequestBodyWithPrealloc(c.Request)
 	if err != nil {
-		if maxErr, ok := compatibleMaxBytesError(err); ok {
+		if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			WriteGoogleError(c, http.StatusRequestEntityTooLarge, BodyTooLargeMessage(maxErr.Limit))
 			return
 		}

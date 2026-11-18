@@ -21,13 +21,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
-	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 )
 
-// gateway_messages_http.go constructs Messages, compatible text, and Gemini
-// HTTP handlers with shared preparation dependencies.
+// gateway_messages_http.go constructs Antigravity Messages and Gemini HTTP
+// handlers with shared preparation dependencies.
 // Messages and Gemini HTTP handlers share prompt policy, route planning, and
 // concurrency helpers. Their execution options differ for partial failure and
 // cancellation, so each handler constructs the appropriate text loop around the
@@ -116,39 +115,6 @@ func provideMessagesHTTP(
 			textflow.MessageOptions{
 				MaxSwitches: shared.options.MaxGeminiSwitches,
 				Observe:     telemetry.Failover,
-			},
-		),
-	)
-	result.BindRequestActivity(activity.Enter)
-	return result
-}
-
-// provideCompatibleTextHTTP constructs compatible text handlers using shared
-// Messages dependencies. Both text loops stop on canceled context, model
-// replacement uses the OpenAI wire helper, and activity tracks each request
-// through the application barrier.
-func provideCompatibleTextHTTP(
-	shared *messageHTTPBindings,
-	runtime *textattempt.Runtime,
-	activity *gatewayRequestActivity,
-) *gatewayhttp.CompatibleTextHandler {
-	result := gatewayhttp.NewBoundCompatibleTextHandler(
-		shared.options,
-		shared.bindings,
-		openaiwire.ReplaceModelInBody,
-		shared.prompt,
-		shared.concurrency,
-		textflow.NewMessagesExecutor(
-			runtime,
-			textflow.MessageOptions{
-				MaxSwitches:           shared.options.MaxSwitches,
-				StopOnCanceledContext: true,
-				Observe:               telemetry.Failover,
-			},
-			textflow.MessageOptions{
-				MaxSwitches:           shared.options.MaxGeminiSwitches,
-				StopOnCanceledContext: true,
-				Observe:               telemetry.Failover,
 			},
 		),
 	)

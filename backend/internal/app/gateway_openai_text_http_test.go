@@ -36,7 +36,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/googleforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/messageforward"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
 	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
@@ -184,12 +183,6 @@ type openAIResponsesFailoverCancelUpstream struct {
 // requests.
 type mixedHTTPNoSearch struct{}
 
-// newEmptyGenericSelectionFixture constructs generic selection with default
-// options and absent data sources.
-func newEmptyGenericSelectionFixture() *selection.Generic {
-	return selection.NewGeneric(selection.GenericDependencies{}, selection.DefaultOptions())
-}
-
 // TestChatCompletionsChecksFinalOutput validates each selected provider target
 // before forwarding. Image-only declarations reject Chat, while a provider
 // mapping to a text target keeps the image-named client alias executable.
@@ -238,8 +231,9 @@ func (c *countingGatewaySchedulerCache) GetSnapshot(ctx context.Context, bucket 
 }
 
 // TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectProvider invokes
-// compatible Responses and Chat handlers with already-cancelled contexts. It
-// checks zero scheduler snapshot reads and an absent selected-provider marker.
+// unified Responses, Chat, and Messages handlers with already-cancelled
+// contexts. It checks zero scheduler snapshot reads and an absent
+// selected-provider marker.
 func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectProvider(t *testing.T) {
 	groupID := int64(9100)
 	group := &routing.Group{ID: groupID, Hydrated: true, Status: billing.StatusActive}
@@ -263,13 +257,20 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectProvider(t *test
 	billingCacheService := newBillingEligibilityFixture(cfg)
 	billingCacheService.Start()
 	t.Cleanup(billingCacheService.Stop)
-	h := newMessageEndpointsFixture(gatewayService, messages, newFundingAdmissionFixture(billingCacheService, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{
-		Logf:  logging.LegacyPrintf,
-		Event: logging.Event,
-	},
-	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,
-		nil, nil), gatewayServiceChoices,
-	)
+	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
+		Native:  &gatewayhttp.UnifiedTextExecutor{Anthropic: messages},
+		Generic: gatewayServiceChoices,
+		Source:  &gatewayExecutionFixture{},
+		Funding: newFundingAdmissionFixture(billingCacheService, cfg),
+		Keys:    &apikey.APIKeyService{},
+		Config:  cfg,
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{
+			Logf:  logging.LegacyPrintf,
+			Event: logging.Event,
+		}), gatewayhttp.SSEPingFormatClaude, 0),
+		MaxSwitches: 1,
+		Recorder:    gatewayService.Recorder,
+	})
 	apiKey := &apikey.APIKey{
 		ID: 9102, UserID: 9103, GroupID: &groupID, Group: group, Status: billing.StatusActive,
 		User: &identity.User{ID: 9103, Concurrency: 10, Balance: 100},
@@ -2660,8 +2661,8 @@ func TestOpenAIGatewayHandlerChatCompletions_InvalidServiceTierRejected400(t *te
 }
 
 // TestOpenAICompatibleHandlersRejectInvalidStreamFieldType submits string and
-// numeric stream values to both compatible and OpenAI handlers. It checks HTTP
-// 400 and the shared invalid-stream-type message at each endpoint.
+// numeric stream values to OpenAI text handlers. It checks HTTP 400 and the
+// shared invalid-stream-type message at each endpoint.
 func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 	tests := []struct {
 		name string             // Stream validation case name.
@@ -2670,40 +2671,8 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 		run  func(*gin.Context) // Endpoint handler invocation callback.
 	}{
 		{
-			name: "gateway_responses_string_stream",
-			path: "/v1/responses",
-			body: `{"model":"gpt-5","stream":"true","input":"hello"}`,
-			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(nil, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil, nil).Responses(c)
-			},
-		},
-		{
-			name: "gateway_responses_number_stream",
-			path: "/v1/responses",
-			body: `{"model":"gpt-5","stream":1,"input":"hello"}`,
-			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(nil, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil, nil).Responses(c)
-			},
-		},
-		{
-			name: "gateway_chat_completions_string_stream",
-			path: "/v1/chat/completions",
-			body: `{"model":"gpt-5","stream":"true","messages":[{"role":"user","content":"hello"}]}`,
-			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(nil, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil, nil).ChatCompletions(c)
-			},
-		},
-		{
-			name: "gateway_chat_completions_number_stream",
-			path: "/v1/chat/completions",
-			body: `{"model":"gpt-5","stream":1,"messages":[{"role":"user","content":"hello"}]}`,
-			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(nil, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil, nil).ChatCompletions(c)
-			},
-		},
-		{
 			name: "openai_responses_string_stream",
-			path: "/openai/v1/responses",
+			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":"true","input":"hello"}`,
 			run: func(c *gin.Context) {
 				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).Responses(c)
@@ -2711,7 +2680,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 		},
 		{
 			name: "openai_responses_number_stream",
-			path: "/openai/v1/responses",
+			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":1,"input":"hello"}`,
 			run: func(c *gin.Context) {
 				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).Responses(c)
@@ -2719,7 +2688,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 		},
 		{
 			name: "openai_chat_completions_string_stream",
-			path: "/openai/v1/chat/completions",
+			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":"true","messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
 				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).ChatCompletions(c)
@@ -2727,7 +2696,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 		},
 		{
 			name: "openai_chat_completions_number_stream",
-			path: "/openai/v1/chat/completions",
+			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":1,"messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
 				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).ChatCompletions(c)
@@ -2764,7 +2733,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":false,"input":"hello"}`,
 			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(&messageExecutionFixture{Routes: gatewayprovider.NewRoutePlanner(nil)}, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil, nil, nil), newEmptyGenericSelectionFixture()).Responses(c)
+				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).Responses(c)
 			},
 		},
 		{
@@ -2772,7 +2741,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":true,"messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
-				newMessageEndpointsFixture(&messageExecutionFixture{Routes: gatewayprovider.NewRoutePlanner(nil)}, nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil, nil, nil), newEmptyGenericSelectionFixture()).ChatCompletions(c)
+				newOpenAIHandlerForPreviousResponseIDValidation(t, nil).ChatCompletions(c)
 			},
 		},
 	}

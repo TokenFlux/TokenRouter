@@ -80,7 +80,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	routepromotion "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
-	openaiwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	routeprovider "github.com/TokenFlux/TokenRouter/internal/provider/httpapi"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
@@ -125,16 +124,6 @@ import (
 // existing memberships. Structured-log capture holds a process-wide lock until
 // the caller restores its sink; moderation cleanup stops runtime workers before
 // joining the separately registered background callbacks.
-
-// successfulQoderStream and qoderFailureFrame supply encoded Qoder SSE bodies
-// for successful completion and failed-forwarding assertions across gateway
-// HTTP fixtures.
-const (
-	// successfulQoderStream carries content, usage, and a nested DONE marker.
-	successfulQoderStream = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"served\\\"}}]}\"}\n\ndata: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":12,\\\"completion_tokens\\\":3}}\"}\n\ndata: {\"body\":\"[DONE]\"}\n\n"
-	// qoderFailureFrame combines nested code 500 with outer HTTP status 502.
-	qoderFailureFrame = "data: {\"body\":\"{\\\"code\\\":\\\"500\\\",\\\"message\\\":\\\"fixture failure\\\"}\",\"statusCodeValue\":502}\n\n"
-)
 
 // The fixture interface assertion verifies task submission compatibility, while
 // handlerStructuredLogCaptureMu and handlerRefresherStarted coordinate
@@ -312,15 +301,11 @@ type gatewayExecutionPricingConfigRows struct {
 	groupPlatforms map[int64]string // Stored group platform names.
 }
 
-// messageEndpointsFixture exposes message-compatible handlers and group attempt
+// messageEndpointsFixture exposes Messages HTTP handling and group attempt
 // preparation for tests.
 type messageEndpointsFixture struct {
 	// Messages HTTP handler entry.
 	Messages gin.HandlerFunc
-	// Compatible Responses handler entry.
-	Responses gin.HandlerFunc
-	// Compatible Chat handler entry.
-	ChatCompletions gin.HandlerFunc
 	// prepareGatewayAttemptRequest delegates group mapping to the same
 	// retained route planner as the handlers, keeping request body and
 	// mapped model together.
@@ -704,10 +689,6 @@ type routeTestHandlers struct {
 	AuxiliaryHTTP *gatewayhttp.AuxiliaryHandler
 	// Batch image gateway receiver.
 	BatchImage *batchhttp.BatchImageHandler
-	// CompatibleTextHTTP overrides the compatible text fixture; a nil
-	// receiver is constructed with shared message bindings when TextEnabled
-	// is true.
-	CompatibleTextHTTP *gatewayhttp.CompatibleTextHandler
 	// CountTokensHTTP overrides token counting; when it is nil and
 	// TextEnabled is true, registration reads body limits from nonnil cfg
 	// and constructs the unavailable-funding fixture.
@@ -767,14 +748,6 @@ type routeTestHandlers struct {
 	// receiver uses a minimal context-reading handler with the
 	// process-local calendar.
 	PublicUsage *usagehttp.PublicUsageHandler
-	// QoderChat overrides the Qoder-compatible ChatCompletions method when
-	// supplied, allowing route tests to bind the standalone Qoder chat
-	// receiver instead.
-	QoderChat *gatewayhttp.QoderChatHandler
-	// QoderCompatibleHTTP overrides Qoder compatible entry points; a nil
-	// receiver is constructed unconditionally with minimal application
-	// dependencies before route registration.
-	QoderCompatibleHTTP *gatewayhttp.QoderCompatibleHandler
 	// User redemption route receiver.
 	Redeem *routebilling.RedeemHandler
 	// ResponsesWSHTTP overrides Responses WebSocket ingress; a nil receiver
@@ -1306,14 +1279,11 @@ func newMessageEndpointsFixture(source *messageExecutionFixture, messages *gatew
 		}
 		b.Forward = textattempt.ForwardPorts{
 			SaveGeminiSession: messageDigestSave(source.Digest),
-			ReplaceModel:      openaiwire.ReplaceModelInBody,
 		}
 	}
 	if messages != nil {
 		b.Forward.BedrockCompat = messages.ApplyBedrockCCCompat
 		b.Forward.ForwardMessages = messages.Forward
-		b.Forward.ForwardResponses = messages.ForwardAsResponses
-		b.Forward.ForwardChat = messages.ForwardAsChatCompletions
 	}
 	var settings *gateway.RuntimeSettings
 	bindings := gatewayhttp.MessagesBindings{
@@ -1329,9 +1299,8 @@ func newMessageEndpointsFixture(source *messageExecutionFixture, messages *gatew
 	runtime := textattempt.New(b)
 	var prompts *promptpolicy.Service
 	messageHandler := gatewayhttp.NewBoundMessagesHandler(options, bindings, prompts, concurrency, textflow.NewMessagesExecutor(runtime, textflow.MessageOptions{MaxSwitches: options.MaxSwitches, CompletePartialFailure: true, Observe: telemetry.Failover}, textflow.MessageOptions{MaxSwitches: options.MaxGeminiSwitches, Observe: telemetry.Failover}))
-	compatible := gatewayhttp.NewBoundCompatibleTextHandler(options, bindings, b.Forward.ReplaceModel, prompts, concurrency, textflow.NewMessagesExecutor(runtime, textflow.MessageOptions{MaxSwitches: options.MaxSwitches, StopOnCanceledContext: true, Observe: telemetry.Failover}, textflow.MessageOptions{MaxSwitches: options.MaxGeminiSwitches, StopOnCanceledContext: true, Observe: telemetry.Failover}))
 	return &messageEndpointsFixture{
-		Messages: messageHandler.Messages, Responses: compatible.Responses, ChatCompletions: compatible.ChatCompletions,
+		Messages: messageHandler.Messages,
 		prepareGatewayAttemptRequest: func(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.GroupMappingResult, error) {
 			return gatewayhttp.PrepareGroupAttempt(ctx, parsed, body, key, model, plan)
 		},
@@ -3689,14 +3658,6 @@ func RegisterGatewayRoutes(
 	if countTokensHTTP == nil && h.TextEnabled {
 		countTokensHTTP = gatewayhttp.NewCountTokensHandler(cfg.Gateway.MaxRequestBodyBytes, 0, gatewayhttp.CountHTTPPorts{ReadAccess: keyhttp.GetAPIKeyFromContext, Funding: routeCountUnavailable{}, ObserveCompatibility: func(*zap.Logger) {}}, (*promptpolicy.Service)(nil))
 	}
-	qoderCompatibleHTTP := h.QoderCompatibleHTTP
-	if qoderCompatibleHTTP == nil {
-		qoderCompatibleHTTP = provideQoderCompatibleHTTP(nil, nil, nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
-	}
-	compatibleTextHTTP := h.CompatibleTextHTTP
-	if compatibleTextHTTP == nil && h.TextEnabled {
-		compatibleTextHTTP = provideCompatibleTextHTTP(shared, runtime, activity)
-	}
 	geminiNativeHTTP := h.GeminiNativeHTTP
 	if geminiNativeHTTP == nil && h.TextEnabled {
 		geminiNativeHTTP = provideGeminiNativeHTTP(shared, nil, runtime, activity, nil)
@@ -3737,10 +3698,6 @@ func RegisterGatewayRoutes(
 		searchHTTP = gatewayhttp.NewSearchHandler(gatewayhttp.SearchPorts{})
 	}
 
-	qoderChat := gin.HandlerFunc(qoderCompatibleHTTP.ChatCompletions)
-	if h.QoderChat != nil {
-		qoderChat = h.QoderChat.ChatCompletions
-	}
 	publicUsage := usagehttp.NewPublicUsageHandler(nil, nil, nil, nil, usagehttp.PublicUsageContext{
 		Key: keyhttp.GetAPIKeyFromContext,
 		Billing: func(c *gin.Context) (*billing.APIKeyBillingContext, bool) {
@@ -3751,7 +3708,7 @@ func RegisterGatewayRoutes(
 	if h.PublicUsage != nil {
 		publicUsage = h.PublicUsage.Usage
 	}
-	gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: countTokensHTTP, QoderCompatible: qoderCompatibleHTTP, CompatibleText: compatibleTextHTTP, GeminiNative: geminiNativeHTTP, OpenAIText: openAITextHTTP, OpenAITokens: openAITokensHTTP, ResponsesWS: responsesWSHTTP.ResponsesWebSocket, Models: modelsHTTP, Messages: messagesHTTP, Media: mediaHTTP, Auxiliary: auxiliaryHTTP, Live: liveHTTP, Search: searchHTTP, PublicUsage: publicUsage, QoderChat: qoderChat}, legacyRouteMiddleware(apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg), func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, h.BatchImage) })
+	gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: countTokensHTTP, GeminiNative: geminiNativeHTTP, OpenAIText: openAITextHTTP, OpenAITokens: openAITokensHTTP, ResponsesWS: responsesWSHTTP.ResponsesWebSocket, Models: modelsHTTP, Messages: messagesHTTP, Media: mediaHTTP, Auxiliary: auxiliaryHTTP, Live: liveHTTP, Search: searchHTTP, PublicUsage: publicUsage}, legacyRouteMiddleware(apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg), func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, h.BatchImage) })
 }
 
 // CheckKey returns billing-service unavailability for every token-count fixture

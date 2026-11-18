@@ -91,7 +91,7 @@ backend/
 │   │   ├── compact/                                     压缩请求恢复、流观察与回退规则
 │   │   ├── completion/                                  完成快照、结算、记录和有界任务池
 │   │   ├── errorpolicy/                                 最终错误规则匹配、改写与配置快照
-│   │   ├── execution/                                   Qoder 请求执行的输入、输出和接口定义
+│   │   ├── execution/                                   同步文本请求执行的输入、输出和接口定义
 │   │   ├── failover/                                    切号状态、重试预算与退避
 │   │   ├── forward/                                     转发结果、协议准备、输出观察和失败类型
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
@@ -99,7 +99,7 @@ backend/
 │   │   │   ├── mediaentry/                              图片、视频、音频、嵌入及搜索入口的请求适配
 │   │   │   ├── openaiattempt/                           OpenAI 兼容文本入口的逐次尝试绑定
 │   │   │   ├── testkit/                                 该模块测试所需的替身与夹具
-│   │   │   ├── textattempt/                             Messages、通用文本与 Gemini 入口的尝试绑定
+│   │   │   ├── textattempt/                             Messages 与 Gemini 入口的逐次尝试绑定
 │   │   ├── live/                                        Live 创建、会话身份、模型状态和观察者编排
 │   │   ├── media/                                       媒体生成、视频归属、搜索与 Realtime 用例
 │   │   │   └── provider/                                媒体归属与异步计量的任务适配

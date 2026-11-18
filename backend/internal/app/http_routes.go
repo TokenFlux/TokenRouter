@@ -106,12 +106,10 @@ func provideAuthRouteMount(eModelMarketplace *routinghttp.MarketplaceHandler,
 }
 
 // provideGatewayRouteMount returns gateway registration with the assembled
-// protocol handlers and middleware. Responses WS, usage, and Qoder Chat method
+// protocol handlers and middleware. Responses WS and public usage method
 // callbacks are captured, and batch-image routes are added through the gateway
 // registrar callback.
 func provideGatewayRouteMount(eCountTokensHTTP *gatewayhttp.CountTokensHandler,
-	eQoderCompatibleHTTP *gatewayhttp.QoderCompatibleHandler,
-	eCompatibleTextHTTP *gatewayhttp.CompatibleTextHandler,
 	eGeminiNativeHTTP *gatewayhttp.GeminiNativeHandler,
 	eOpenAITextHTTP *gatewayhttp.OpenAITextHandler,
 	eOpenAITokensHTTP *gatewayhttp.OpenAITokensHandler,
@@ -123,12 +121,11 @@ func provideGatewayRouteMount(eCountTokensHTTP *gatewayhttp.CountTokensHandler,
 	eLiveHTTP *gatewayhttp.LiveHandler,
 	eSearchHTTP *gatewayhttp.SearchHandler,
 	ePublicUsage *usagehttp.PublicUsageHandler,
-	eQoderChat *gatewayhttp.QoderChatHandler,
 	batch *batchhttp.BatchImageHandler,
 	options gatewayhttp.RouteMiddleware,
 ) gatewayRouteMount {
 	return func(r *gin.Engine) {
-		gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: eCountTokensHTTP, QoderCompatible: eQoderCompatibleHTTP, CompatibleText: eCompatibleTextHTTP, GeminiNative: eGeminiNativeHTTP, OpenAIText: eOpenAITextHTTP, OpenAITokens: eOpenAITokensHTTP, ResponsesWS: eResponsesWSHTTP.ResponsesWebSocket, Models: eModelsHTTP, Messages: eMessagesHTTP, Media: eMediaHTTP, Auxiliary: eAuxiliaryHTTP, Live: eLiveHTTP, Search: eSearchHTTP, PublicUsage: ePublicUsage.Usage, QoderChat: eQoderChat.ChatCompletions}, options, func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, batch) })
+		gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: eCountTokensHTTP, GeminiNative: eGeminiNativeHTTP, OpenAIText: eOpenAITextHTTP, OpenAITokens: eOpenAITokensHTTP, ResponsesWS: eResponsesWSHTTP.ResponsesWebSocket, Models: eModelsHTTP, Messages: eMessagesHTTP, Media: eMediaHTTP, Auxiliary: eAuxiliaryHTTP, Live: eLiveHTTP, Search: eSearchHTTP, PublicUsage: ePublicUsage.Usage}, options, func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, batch) })
 	}
 }
 

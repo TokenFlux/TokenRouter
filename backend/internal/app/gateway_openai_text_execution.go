@@ -163,9 +163,10 @@ func openAITextExecution(cfg *config.Config, store gatewayadapter.ExecutionProvi
 }
 
 // provideUnifiedTextExecutor combines platform executors with model-pricing
-// admission. When cfg is present it captures message queue mode and wait
-// policy; a queue helper is added only when both queue and cfg are supplied.
-func provideUnifiedTextExecutor(openai *gatewayhttp.OpenAIResponsesExecutor, anthropic *gatewayhttp.MessagesExecutor, gemini *gatewayhttp.GeminiExecutor, antigravity *gatewayhttp.AntigravityExecutor, qoder *gatewayadapter.QoderRuntime, refresh *provideradapter.QoderRequestRefresh, queue *scheduler.UserMessageQueueService, cfg *config.Config, prices *billing.PriceResolver) *gatewayhttp.UnifiedTextExecutor {
+// admission and binds Qoder's lifecycle barrier. When cfg is present it captures
+// message queue mode and wait policy; a queue helper is added only when both
+// queue and cfg are supplied.
+func provideUnifiedTextExecutor(openai *gatewayhttp.OpenAIResponsesExecutor, anthropic *gatewayhttp.MessagesExecutor, gemini *gatewayhttp.GeminiExecutor, antigravity *gatewayhttp.AntigravityExecutor, qoder *gatewayadapter.QoderRuntime, _ *qoderRequestActivity, refresh *provideradapter.QoderRequestRefresh, queue *scheduler.UserMessageQueueService, cfg *config.Config, prices *billing.PriceResolver) *gatewayhttp.UnifiedTextExecutor {
 	executor := &gatewayhttp.UnifiedTextExecutor{OpenAI: openai, Anthropic: anthropic, Gemini: gemini, Antigravity: antigravity, Qoder: qoder, QoderRefresh: refresh}
 	executor.Pricing = &admission.ModelPricing{Resolver: prices}
 	if cfg != nil {

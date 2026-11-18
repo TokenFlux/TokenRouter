@@ -28,22 +28,18 @@ import (
 
 // RouteEndpoints collects gateway HTTP handlers and externally supplied endpoint functions.
 type RouteEndpoints struct {
-	CountTokens     *CountTokensHandler     // Messages token-count HTTP handler
-	QoderCompatible *QoderCompatibleHandler // Qoder compatible text handler
-	CompatibleText  *CompatibleTextHandler  // compatible text request handler
-	GeminiNative    *GeminiNativeHandler    // Gemini native protocol handler
-	OpenAIText      *OpenAITextHandler      // unified OpenAI text handler
-	OpenAITokens    *OpenAITokensHandler    // OpenAI token preflight handler
-	ResponsesWS     gin.HandlerFunc         // Responses WebSocket ingress handler
-	Models          *ModelsHandler          // client model catalogue handler
-	Messages        *MessagesHandler        // Antigravity Messages entry handler
-	Media           *MediaHandler           // image and video HTTP handlers
-	Auxiliary       *AuxiliaryHandler       // auxiliary and voice HTTP handlers
-	Live            *LiveHandler            // Live creation and sideband handlers
-	Search          *SearchHandler          // standalone Web and X handlers
-	// PublicUsage handles authenticated usage lookup; QoderChat supplies the Qoder
-	// chat endpoint function.
-	PublicUsage, QoderChat gin.HandlerFunc
+	CountTokens  *CountTokensHandler  // Messages token-count HTTP handler
+	GeminiNative *GeminiNativeHandler // Gemini native protocol handler
+	OpenAIText   *OpenAITextHandler   // unified OpenAI text handler
+	OpenAITokens *OpenAITokensHandler // OpenAI token preflight handler
+	ResponsesWS  gin.HandlerFunc      // Responses WebSocket ingress handler
+	Models       *ModelsHandler       // client model catalogue handler
+	Messages     *MessagesHandler     // Antigravity Messages entry handler
+	Media        *MediaHandler        // image and video HTTP handlers
+	Auxiliary    *AuxiliaryHandler    // auxiliary and voice HTTP handlers
+	Live         *LiveHandler         // Live creation and sideband handlers
+	Search       *SearchHandler       // standalone Web and X handlers
+	PublicUsage  gin.HandlerFunc      // authenticated public usage lookup handler
 }
 
 // RegisterGatewayRoutes installs gateway endpoint families with ordered
