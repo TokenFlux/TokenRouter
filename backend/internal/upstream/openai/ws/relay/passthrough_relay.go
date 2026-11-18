@@ -16,6 +16,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // passthrough_relay.go relays WebSocket frames bidirectionally and settles
@@ -61,11 +62,12 @@ type FrameConn interface {
 
 // Usage holds the token counters accumulated from observed upstream snapshots.
 type Usage struct {
-	InputTokens              int // upstream input tokens
-	OutputTokens             int // upstream output tokens
-	CacheCreationInputTokens int // reported cache creation tokens
-	CacheReadInputTokens     int // reported cache read tokens
-	ImageOutputTokens        int // reported image output tokens
+	CacheWriteDetails        *openai.CacheWriteTokensDetails // validated lifetime details
+	InputTokens              int                             // upstream input tokens
+	OutputTokens             int                             // upstream output tokens
+	CacheCreationInputTokens int                             // reported cache creation tokens
+	CacheReadInputTokens     int                             // reported cache read tokens
+	ImageOutputTokens        int                             // reported image output tokens
 }
 
 // RelayResult combines settled session usage with the latest retained upstream
@@ -1602,7 +1604,7 @@ func parseUsageAndAccumulate(
 		imageTokens = usageResult.Get("completion_tokens_details.image_tokens").Int()
 	}
 
-	requireTotals := isTerminalEvent(strings.TrimSpace(eventType))
+	requireTotals := isTerminalEvent(strings.TrimSpace(eventType)) && state.turnUsage.CacheWriteDetails == nil
 	inputTokens, inputOK := parseUsageIntField(inputResult, requireTotals)
 	outputTokens, outputOK := parseUsageIntField(outputResult, requireTotals)
 	cachedTokens, cachedOK := parseUsageIntField(cachedResult, false)
@@ -1616,6 +1618,19 @@ func parseUsageAndAccumulate(
 		}
 		return Usage{}
 	}
+	// A timed cache split can precede the terminal usage frame. Keep the earlier
+	// same-turn totals where the terminal frame only supplies a subset of counters.
+	if state.turnUsage.CacheWriteDetails != nil {
+		if !inputResult.Exists() {
+			inputTokens = state.turnUsage.InputTokens
+		}
+		if !outputResult.Exists() {
+			outputTokens = state.turnUsage.OutputTokens
+		}
+		if !cachedResult.Exists() {
+			cachedTokens = state.turnUsage.CacheReadInputTokens
+		}
+	}
 	// Select reasoning through the zero-valued details alias rule, then let the
 	// shared total-gap helper cap its addition so inclusive output does not receive
 	// those tokens again.
@@ -1628,10 +1643,12 @@ func parseUsageAndAccumulate(
 			int64(inputTokens), int64(outputTokens), usageResult.Get("total_tokens").Int(), reasoningTokens,
 		))
 	}
+	cacheWrites, cacheWriteDetails := openai.ObserveCacheWriteDetails(usageResult, state.turnUsage.CacheCreationInputTokens, state.turnUsage.CacheWriteDetails)
 	parsedUsage := Usage{
+		CacheWriteDetails:        cacheWriteDetails,
 		InputTokens:              inputTokens,
 		OutputTokens:             outputTokens,
-		CacheCreationInputTokens: openAICacheCreationTokensFromUsage(usageResult),
+		CacheCreationInputTokens: cacheWrites,
 		CacheReadInputTokens:     cachedTokens,
 		ImageOutputTokens:        int(imageTokens),
 	}
@@ -1680,8 +1697,9 @@ func mergeRelayUsageNonZero(dst *Usage, src Usage) {
 	if src.OutputTokens > 0 {
 		dst.OutputTokens = src.OutputTokens
 	}
-	if src.CacheCreationInputTokens > 0 {
+	if src.CacheCreationInputTokens > 0 || src.CacheWriteDetails != nil {
 		dst.CacheCreationInputTokens = src.CacheCreationInputTokens
+		dst.CacheWriteDetails = src.CacheWriteDetails
 	}
 	if src.CacheReadInputTokens > 0 {
 		dst.CacheReadInputTokens = src.CacheReadInputTokens
@@ -1709,6 +1727,7 @@ func finalizeRelayTurnUsage(state *relayState) Usage {
 	turnUsage := state.turnUsage
 	state.usage.InputTokens += turnUsage.InputTokens
 	state.usage.OutputTokens += turnUsage.OutputTokens
+	state.usage.CacheWriteDetails = openai.AddCacheWriteDetails(state.usage.CacheCreationInputTokens, state.usage.CacheWriteDetails, turnUsage.CacheCreationInputTokens, turnUsage.CacheWriteDetails)
 	state.usage.CacheCreationInputTokens += turnUsage.CacheCreationInputTokens
 	state.usage.CacheReadInputTokens += turnUsage.CacheReadInputTokens
 	state.usage.ImageOutputTokens += turnUsage.ImageOutputTokens
@@ -1731,45 +1750,6 @@ func parseUsageIntField(value gjson.Result, required bool) (int, bool) {
 	// large integer parsing and the following Go-int conversion have their own
 	// range behavior.
 	return int(value.Int()), true
-}
-
-// openAICacheCreationTokensFromUsage selects a cache-creation count using
-// ordered nested fields, then top-level aliases. The first present nested
-// cache-write or cache-creation field wins, with its integer conversion clamped
-// at zero. Thus a present nested zero prevents a positive top-level counter
-// from replacing that observation.
-//
-// When no nested candidate is present, the first positive top-level alias wins;
-// otherwise the result is zero. Selection uses field presence for nested
-// counters and positivity for top-level counters, matching the different
-// evidence rules applied to one usage snapshot.
-func openAICacheCreationTokensFromUsage(value gjson.Result) int {
-	// Nested field presence takes precedence even for zero or nonnumeric
-	// conversion; positive top-level aliases are considered only when every nested
-	// candidate is absent.
-	for _, field := range []string{
-		"input_tokens_details.cache_write_tokens",
-		"prompt_tokens_details.cache_write_tokens",
-		"input_tokens_details.cache_creation_tokens",
-		"prompt_tokens_details.cache_creation_tokens",
-	} {
-		result := value.Get(field)
-		if result.Exists() {
-			// Clamp the selected nested counter after Go-int conversion.
-			return max(int(result.Int()), 0)
-		}
-	}
-	for _, field := range []string{
-		"cache_write_tokens",
-		"cache_creation_input_tokens",
-		"cache_write_input_tokens",
-		"cache_creation_tokens",
-	} {
-		if tokens := int(value.Get(field).Int()); tokens > 0 {
-			return tokens
-		}
-	}
-	return 0
 }
 
 // enrichResult fills aggregate duration and the state values retained after

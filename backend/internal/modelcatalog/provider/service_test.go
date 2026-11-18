@@ -34,20 +34,13 @@ import (
 // hotReloadCatalogJSON and fallbackOriginFixture supply base cache records and
 // competing source prices for reload and complete-identity assertions.
 const (
-	hotReloadCatalogJSON = `{"providers":{"openai":{"models":{"remote-model":{"cost":{"input":1,"output":2}}}}}}`
+	hotReloadCatalogJSON = `{"openai":{"id":"openai","models":{"remote-model":{"id":"remote-model","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1},"output":{"price":2}}}}}}}`
 
-	fallbackOriginFixture = `{"providers":{
-	"anthropic":{"models":{
-		"claude-opus-4-6":{"cost":{"input":5,"output":25}},
-		"claude-opus-4-6-20260101":{"cost":{"input":6,"output":30}}
-	}},
-	"openai":{"models":{"gpt-5.4":{"cost":{"input":2.5,"output":15}}}},
-	"ollama-cloud":{"models":{
-		"claude-opus-4-6":{"cost":{"input":1,"output":2}},
-		"claude-opus-4-6-discount":{"cost":{"input":0,"output":0}},
-		"gpt-5.4":{"cost":{"input":1,"output":3}}
-	}}
-}}`
+	fallbackOriginFixture = `{
+	"anthropic":{"id":"anthropic","models":{"claude-opus-4-6":{"id":"claude-opus-4-6","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":5},"output":{"price":25}}}},"claude-opus-4-6-20260101":{"id":"claude-opus-4-6-20260101","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":6},"output":{"price":30}}}}}},
+	"openai":{"id":"openai","models":{"gpt-5.4":{"id":"gpt-5.4","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":2.5},"output":{"price":15}}}}}},
+	"ollama-cloud":{"id":"ollama-cloud","models":{"claude-opus-4-6":{"id":"claude-opus-4-6","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1},"output":{"price":2}}}},"claude-opus-4-6-discount":{"id":"claude-opus-4-6-discount","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":0},"output":{"price":0}}}},"gpt-5.4":{"id":"gpt-5.4","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1},"output":{"price":3}}}}}}
+}`
 )
 
 // structuredLogCaptureMu serializes captures that install and clear the global
@@ -1154,7 +1147,7 @@ func TestEmbeddedSupplementsCustomLayer(t *testing.T) {
 		price := service.GetModelPricing(name)
 		require.NotNil(t, price)
 		require.NotEqual(t, 99.0, price.InputCostPerToken, "自定义补充不能覆盖目录已有报价")
-		require.Zero(t, price.OutputCostPerToken)
+		require.Equal(t, 12e-6, price.OutputCostPerToken)
 		require.Zero(t, price.ImagePrices["1K"])
 	}
 	require.Zero(t, *service.BillingDefaults().WebSearchPricePerCall)
@@ -1250,7 +1243,7 @@ func TestModelsCatalogFallbackOriginAndSupplements(t *testing.T) {
 // metadata alongside a filtered relay quote. Public attributes remain available,
 // while bare and qualified prices stay unpriced and unknown suffixes stay absent.
 func TestModelsCatalogFallbackDoesNotBorrowRelayOnlyModel(t *testing.T) {
-	remote := &catalogRemoteFixture{body: []byte(`{"models":{"anthropic/claude-opus-4-6":{"limit":{"context":200000}}},"providers":{"relay":{"models":{"claude-opus-4-6":{"cost":{"input":1,"output":2}}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"relay":{"id":"relay","models":{"claude-opus-4-6":{"id":"claude-opus-4-6","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1},"output":{"price":2}}}}}},"anthropic":{"id":"anthropic","models":{"claude-opus-4-6":{"id":"claude-opus-4-6","type":"chat","capabilities":{},"canonical_id":"anthropic/claude-opus-4-6","limit":{"context":200000}}}}}`)}
 	service := NewService(Options{DataDir: t.TempDir(), RemoteURL: "https://models.dev/catalog.json"}, remote)
 	require.NoError(t, service.ForceUpdate())
 	for _, reader := range []*Service{service, service.ReadOnlySnapshot()} {
@@ -1550,7 +1543,7 @@ func TestModelsCatalogRejectsLegacyRemote(t *testing.T) {
 	attrs := service.AttributesSnapshot()
 	disk := readCatalogTestFile(t, service.catalogFilePath())
 	remote.body = []byte(`{"gpt-test":{"input_cost_per_token":1}}`)
-	require.ErrorContains(t, service.ForceUpdate(), "legacy pricing JSON")
+	require.ErrorContains(t, service.ForceUpdate(), "invalid models.dev v2 provider")
 	require.Equal(t, before.Data, service.Snapshot().Data)
 	require.Equal(t, attrs.Items, service.AttributesSnapshot().Items)
 	require.Equal(t, before.LocalHash, service.Snapshot().LocalHash)
@@ -1567,7 +1560,7 @@ func TestModelsCatalogDroppedAbsoluteTierWarns(t *testing.T) {
 	remote := &catalogRemoteFixture{body: []byte(modelsCatalogFixture)}
 	service := NewService(Options{RemoteURL: "https://models.dev/catalog.json", DataDir: t.TempDir()}, remote)
 	require.NoError(t, service.ForceUpdate())
-	remote.body = []byte(`{"providers":{"anthropic":{"models":{"claude-test":{"cost":{"input":3,"output":15}}}}}}`)
+	remote.body = []byte(`{"anthropic":{"id":"anthropic","models":{"claude-test":{"id":"claude-test","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":3},"output":{"price":15}}}}}}}`)
 	require.NoError(t, service.ForceUpdate())
 	require.True(t, sink.ContainsMessageAtLevel("Long-context ladder dropped", "warn"))
 }
@@ -1579,7 +1572,7 @@ func TestModelsCatalogAttributesOnlyWithUnknownPatch(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "supplement.json")
 	require.NoError(t, os.WriteFile(file, []byte(`{"typo":{"long_context_input_token_threshold":0}}`), 0o600))
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"openai":{"models":{"attributes-only":{"name":"No prices"}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"openai":{"id":"openai","models":{"attributes-only":{"id":"attributes-only","type":"chat","capabilities":{},"name":"No prices"}}}}`)}
 	service := NewService(Options{RemoteURL: "https://models.dev/catalog.json", DataDir: dir, FallbackFile: file}, remote)
 	require.NoError(t, service.ForceUpdate())
 	require.NotContains(t, service.Snapshot().Data, "typo")
@@ -1595,7 +1588,7 @@ func TestIncompleteCatalogFieldsAreNotReplaced(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "prices.json")
 	require.NoError(t, os.WriteFile(file, []byte(`{"partial":{"input_cost_per_token":99,"output_cost_per_token":0}}`), 0o600))
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"openai":{"models":{"partial":{"cost":{"input":2},"reasoning":false,"modalities":{"output":[]}}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"openai":{"id":"openai","models":{"partial":{"id":"partial","type":"chat","capabilities":{"reasoning":{"supported":false}},"modalities":{"output":[]},"cost":{"text":{"input":{"price":2}}}}}}}`)}
 	service := NewService(Options{DataDir: dir, RemoteURL: "https://models.dev/catalog.json", FallbackFile: file}, remote)
 	require.NoError(t, service.ForceUpdate())
 	price := service.GetModelPricing("partial")

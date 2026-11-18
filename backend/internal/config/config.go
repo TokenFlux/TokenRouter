@@ -2349,7 +2349,7 @@ func setDefaults(v *viper.Viper) {
 
 	// Pricing uses the models.dev catalog and local supplements for additional
 	// billing dimensions.
-	v.SetDefault("model_catalog.catalog_url", "https://models.dev/catalog.json?type=all")
+	v.SetDefault("model_catalog.catalog_url", "https://models.dev/experimental/v2.0/api.json")
 	v.SetDefault("storage.dir", "./data")
 	v.SetDefault("model_catalog.supplement_file", "")
 	v.SetDefault("model_catalog.check_interval_minutes", 10)

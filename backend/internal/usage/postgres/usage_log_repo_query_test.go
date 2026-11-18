@@ -180,7 +180,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},
 			sql.NullInt64{},
 			0, 0, 0, 0, 0, 0,
-			0, 0.0, // Image output tokens and cost
+			sql.NullInt64{},
+			sql.NullInt64{}, // GPT cache lifetime counts.
+			0, 0.0,          // Image output tokens and cost
 			0, 0.0, // Image input tokens and cost
 			0.0, 0.0, 0.0, 0.0, 0.8, 0.8,
 			0.0, 0.0, []byte("[]"),
@@ -250,15 +252,17 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "req-1"},
 			"gpt-5", // model
 			sql.NullString{Valid: true, String: "gpt-5"}, // requested_model
-			sql.NullString{},  // upstream_model
-			sql.NullInt64{},   // group_id
-			sql.NullInt64{},   // subscription_id
-			1,                 // input_tokens
-			2,                 // output_tokens
-			3,                 // cache_creation_tokens
-			4,                 // cache_read_tokens
-			5,                 // cache_creation_5m_tokens
-			6,                 // cache_creation_1h_tokens
+			sql.NullString{}, // upstream_model
+			sql.NullInt64{},  // group_id
+			sql.NullInt64{},  // subscription_id
+			1,                // input_tokens
+			2,                // output_tokens
+			3,                // cache_creation_tokens
+			4,                // cache_read_tokens
+			5,                // cache_creation_5m_tokens
+			6,                // cache_creation_1h_tokens
+			sql.NullInt64{},
+			sql.NullInt64{},   // GPT cache lifetime counts.
 			0,                 // image_output_tokens
 			0.0,               // image_output_cost
 			0,                 // image_input_tokens
@@ -337,7 +341,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},
 			sql.NullInt64{},
 			1, 2, 3, 4, 5, 6,
-			0, 0.0, // Image output tokens and cost
+			sql.NullInt64{},
+			sql.NullInt64{}, // GPT cache lifetime counts.
+			0, 0.0,          // Image output tokens and cost
 			0, 0.0, // Image input tokens and cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
 			0.0, 0.0, []byte("[]"),
@@ -406,7 +412,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},
 			sql.NullInt64{},
 			1, 2, 3, 4, 5, 6,
-			0, 0.0, // Image output tokens and cost
+			sql.NullInt64{},
+			sql.NullInt64{}, // GPT cache lifetime counts.
+			0, 0.0,          // Image output tokens and cost
 			0, 0.0, // Image input tokens and cost
 			0.1, 0.2, 0.3, 0.4, 1.0, 0.9,
 			0.0, 0.0, []byte("[]"),

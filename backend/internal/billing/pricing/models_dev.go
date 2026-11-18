@@ -34,13 +34,16 @@ import (
 func ModelsDevPrices(catalog *modelcatalog.Catalog) map[string]json.RawMessage {
 	result := map[string]json.RawMessage{}
 	for key, entry := range catalog.Entries {
-		if entry.Cost.Input == nil && entry.Cost.Output == nil {
+		if entry.Cost.Input == nil && entry.Cost.Output == nil && entry.Cost.ImageInput == nil && entry.Cost.ImageOutput == nil && entry.Cost.PerImage == nil && len(entry.ImagePrices) == 0 && len(entry.VideoPrices) == 0 {
 			continue
 		}
 		fields := modelsDevPriceFields(entry, entry.Cost)
 		var tiers []map[string]any
+		cost := entry.Cost
 		for _, tier := range entry.Tiers {
-			cost := entry.Cost
+			if !tier.Exclusive {
+				cost = entry.Cost
+			}
 			if tier.Input != nil {
 				cost.Input = tier.Input
 			}
@@ -53,7 +56,11 @@ func ModelsDevPrices(catalog *modelcatalog.Catalog) map[string]json.RawMessage {
 			if tier.CacheWrite != nil {
 				cost.CacheWrite = tier.CacheWrite
 			}
-			tiers = append(tiers, map[string]any{"threshold": tier.Tier.Size, "pricing": modelsDevPriceFields(entry, cost)})
+			if tier.CacheWrite30m != nil || tier.CacheWrite12h != nil || tier.CacheWrite1h != nil {
+				cost.CacheWrite30m, cost.CacheWrite12h = tier.CacheWrite30m, tier.CacheWrite12h
+				cost.CacheWrite1h = tier.CacheWrite1h
+			}
+			tiers = append(tiers, map[string]any{"threshold": tier.Tier.Size, "exclusive": tier.Exclusive, "pricing": modelsDevPriceFields(entry, cost)})
 		}
 		if len(tiers) > 0 {
 			fields["context_prices"] = tiers
@@ -89,6 +96,16 @@ func modelsDevPriceFields(entry modelcatalog.Entry, cost modelcatalog.Cost) map[
 		provider = "zhipu"
 	}
 	fields := map[string]any{"source": "models.dev", "provider": provider, "mode": "chat"}
+	if len(entry.ImagePrices) > 0 {
+		fields["image_prices"] = entry.ImagePrices
+	}
+	if len(entry.VideoPrices) > 0 {
+		fields["video_prices"] = entry.VideoPrices
+	}
+	if cost.ImageOutput != nil && entry.Attributes.OutputOnly("image") ||
+		cost.Input == nil && cost.Output == nil && (cost.PerImage != nil || len(entry.ImagePrices) > 0) {
+		fields["mode"] = "image_generation"
+	}
 	if entry.Attributes.InputModalities != nil {
 		fields["supported_modalities"] = *entry.Attributes.InputModalities
 	}
@@ -109,13 +126,49 @@ func modelsDevPriceFields(entry modelcatalog.Entry, cost modelcatalog.Cost) map[
 		}
 	}
 	put("input_cost_per_token", cost.Input)
-	if imageOutput {
+	if imageOutput && cost.ImageOutput == nil {
 		put("output_cost_per_image_token", cost.Output)
 	} else {
 		put("output_cost_per_token", cost.Output)
 	}
 	put("cache_read_input_token_cost", cost.CacheRead)
 	put("cache_creation_input_token_cost", cost.CacheWrite)
+	put("cache_creation_input_token_cost_above_1hr", cost.CacheWrite1h)
+	put("cache_creation_input_token_cost_30m", cost.CacheWrite30m)
+	put("cache_creation_input_token_cost_12h", cost.CacheWrite12h)
+	put("input_cost_per_image_token", cost.ImageInput)
+	put("cache_read_input_image_token_cost", cost.ImageRead)
+	put("output_cost_per_image_token", cost.ImageOutput)
+	put("output_cost_per_image", cost.PerImage)
+	if len(entry.ServicePrices) > 0 {
+		rules := normalizeCatalogServicePrices(entry.ServicePrices, entry.Cost)
+		fields["service_tier_prices"] = rules
+		for _, rule := range rules {
+			if rule.Tier != "priority" || rule.Before != "" || rule.After != "" {
+				continue
+			}
+			// Legacy consumers inspect the equivalent Fast rates for these buckets.
+			// Compute those values from the selected context band as well.
+			fast := map[string]*float64{
+				"input": cost.Input, "output": cost.Output,
+				"cache_read": cost.CacheRead, "cache_write": cost.CacheWrite,
+			}
+			for key, destination := range map[string]string{
+				"input":       "input_cost_per_token_priority",
+				"output":      "output_cost_per_token_priority",
+				"cache_read":  "cache_read_input_token_cost_priority",
+				"cache_write": "cache_creation_input_token_cost_priority",
+			} {
+				if amount := fast[key]; amount != nil {
+					fields[destination] = rule.adjust(key, *amount/1e6)
+				} else if amount, ok := rule.Amounts[key]; ok {
+					fields[destination] = amount
+				}
+			}
+			break
+		}
+		fields["supports_service_tier"] = true
+	}
 	fields["supports_prompt_caching"] = cost.CacheRead != nil || cost.CacheWrite != nil
 	// These Fast fields represent text-token amounts; image-output conversion
 	// omits them so text-tier pricing is not misassigned to image tokens.

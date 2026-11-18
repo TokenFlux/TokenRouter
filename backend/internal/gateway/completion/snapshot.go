@@ -64,6 +64,12 @@ func SnapshotResult(in *Result) *Result {
 		return nil
 	}
 	out := *in
+	if in.Usage.CacheCreation30mTokens != nil {
+		out.Usage.CacheCreation30mTokens = new(*in.Usage.CacheCreation30mTokens)
+	}
+	if in.Usage.CacheCreation12hTokens != nil {
+		out.Usage.CacheCreation12hTokens = new(*in.Usage.CacheCreation12hTokens)
+	}
 	out.UpstreamRequestID = cloneString(in.UpstreamRequestID)
 	out.ServiceTier = cloneString(in.ServiceTier)
 	out.ReasoningEffort = cloneString(in.ReasoningEffort)

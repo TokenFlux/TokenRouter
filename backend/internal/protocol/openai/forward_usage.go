@@ -22,14 +22,15 @@ import (
 
 // ForwardUsage holds token, cache, and image observations for downstream accounting.
 type ForwardUsage struct {
-	ImageFrameCount          int `json:"-"`                                     // independently observed animation frame units
-	InputTokens              int `json:"input_tokens"`                          // reported input tokens
-	ImageInputTokens         int `json:"image_input_tokens,omitempty"`          // reported image-input tokens
-	ImageCacheReadTokens     int `json:"image_cache_read_tokens,omitempty"`     // explicit cached image token subset
-	OutputTokens             int `json:"output_tokens"`                         // reported output tokens
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"` // reported cache-write tokens
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`     // reported cache-read tokens
-	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`         // reported image-output tokens
+	CacheWriteDetails        *CacheWriteTokensDetails `json:"-"`                                     // validated TTL write counters
+	ImageFrameCount          int                      `json:"-"`                                     // independently observed animation frame units
+	InputTokens              int                      `json:"input_tokens"`                          // reported input tokens
+	ImageInputTokens         int                      `json:"image_input_tokens,omitempty"`          // reported image-input tokens
+	ImageCacheReadTokens     int                      `json:"image_cache_read_tokens,omitempty"`     // explicit cached image token subset
+	OutputTokens             int                      `json:"output_tokens"`                         // reported output tokens
+	CacheCreationInputTokens int                      `json:"cache_creation_input_tokens,omitempty"` // reported cache-write tokens
+	CacheReadInputTokens     int                      `json:"cache_read_input_tokens,omitempty"`     // reported cache-read tokens
+	ImageOutputTokens        int                      `json:"image_output_tokens,omitempty"`         // reported image-output tokens
 }
 
 // CopyForwardUsage copies Responses input, output, and canonical cache-write
@@ -46,6 +47,9 @@ func CopyForwardUsage(usage *ResponsesUsage) ForwardUsage {
 	}
 	if usage.InputTokensDetails != nil {
 		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
+		if details := usage.InputTokensDetails.CacheWriteDetails; details.Matches(result.CacheCreationInputTokens) {
+			result.CacheWriteDetails = new(*details)
+		}
 	}
 	return result
 }
@@ -62,6 +66,7 @@ func AddForwardUsage(dst *ForwardUsage, usage ForwardUsage) {
 	dst.ImageInputTokens += usage.ImageInputTokens
 	dst.ImageCacheReadTokens += usage.ImageCacheReadTokens
 	dst.OutputTokens += usage.OutputTokens
+	dst.CacheWriteDetails = AddCacheWriteDetails(dst.CacheCreationInputTokens, dst.CacheWriteDetails, usage.CacheCreationInputTokens, usage.CacheWriteDetails)
 	dst.CacheCreationInputTokens += usage.CacheCreationInputTokens
 	dst.CacheReadInputTokens += usage.CacheReadInputTokens
 	dst.ImageOutputTokens += usage.ImageOutputTokens

@@ -156,7 +156,8 @@ func ParseWSResponseUsageFromCompletedEvent(message []byte, usage *ForwardUsage)
 	if usage == nil || len(message) == 0 || !bytes.Contains(message, []byte(`"usage"`)) {
 		return
 	}
-	if parsedUsage, ok := ExtractOpenAIUsageFromJSONBytes(message); ok {
+	if parsedUsage, raw, ok := extractOpenAIUsage(message); ok {
+		applyObservedCacheWriteDetails(usage, &parsedUsage, raw)
 		if OpenAIStreamEventTypeIsTerminal(EffectiveOpenAISSEEventType(message, "")) {
 			// A terminal snapshot with no positive counter retains earlier positive
 			// counts. A snapshot with any positive field replaces all buckets,

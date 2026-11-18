@@ -296,6 +296,22 @@
                   :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
                 />
               </div>
+              <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
+                <label class="text-xs text-gray-400">{{
+                  t('admin.pricing.form.cacheWriteLifetime', { ttl })
+                }}</label>
+                <input
+                  :value="entry[`cache_write_${ttl}_price`]"
+                  @input="
+                    emitField(`cache_write_${ttl}_price`, ($event.target as HTMLInputElement).value)
+                  "
+                  type="number"
+                  step="any"
+                  min="0"
+                  class="input mt-0.5 text-sm"
+                  :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
+                />
+              </div>
               <div>
                 <label class="text-xs text-gray-400">{{
                   t('admin.pricing.form.cacheReadPrice', '缓存读取')
@@ -663,6 +679,8 @@ function addInterval() {
     output_price: null,
     cache_write_price: null,
     cache_write_1h_price: null,
+    cache_write_30m_price: null,
+    cache_write_12h_price: null,
     cache_read_price: null,
     per_request_price: null,
     input_multiplier: null,
@@ -689,6 +707,8 @@ function addMediaTier() {
     output_price: null,
     cache_write_price: null,
     cache_write_1h_price: null,
+    cache_write_30m_price: null,
+    cache_write_12h_price: null,
     cache_read_price: null,
     per_request_price: null,
     input_multiplier: null,
@@ -746,6 +766,8 @@ async function onModelsUpdate(newModels: string[]) {
     e.output_price != null ||
     e.cache_write_price != null ||
     e.cache_write_1h_price != null ||
+    e.cache_write_30m_price != null ||
+    e.cache_write_12h_price != null ||
     e.cache_read_price != null
   if (hasPrice) return
 
@@ -761,6 +783,8 @@ async function onModelsUpdate(newModels: string[]) {
         output_price: perTokenToMTok(result.output_price ?? null),
         cache_write_price: perTokenToMTok(result.cache_write_price ?? null),
         cache_write_1h_price: perTokenToMTok(result.cache_write_1h_price ?? null),
+        cache_write_30m_price: perTokenToMTok(result.cache_write_30m_price ?? null),
+        cache_write_12h_price: perTokenToMTok(result.cache_write_12h_price ?? null),
         cache_read_price: perTokenToMTok(result.cache_read_price ?? null),
         image_output_price: perTokenToMTok(result.image_output_price ?? null),
       })

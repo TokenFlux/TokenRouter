@@ -47,7 +47,7 @@ func TestModelsCatalogMediaQuotes(t *testing.T) {
 	require.NotContains(t, rows, "azure/gpt-5.4")
 	for _, model := range []string{
 		"azure/phi-4", "minimax-cn/minimax-m3", "volcengine/doubao-seed-2-0-pro-260215",
-		"alibaba-token-plan/happyhorse-1.1-t2v", "bailing/ling-1t", "nova/nova-2-lite-v1",
+		"alibaba-token-plan/happyhorse-1.1-t2v", "nova/nova-2-lite-v1",
 	} {
 		require.Contains(t, rows, model)
 	}

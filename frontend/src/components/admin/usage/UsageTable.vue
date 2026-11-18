@@ -576,7 +576,26 @@
                   tokenTooltipData.image_output_tokens.toLocaleString()
                 }}</span>
               </div>
-              <div v-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
+              <div
+                v-if="
+                  tokenTooltipData?.cache_creation_30m_tokens != null ||
+                  tokenTooltipData?.cache_creation_12h_tokens != null
+                "
+              >
+                <div
+                  v-for="ttl in ['30m', '12h'] as const"
+                  :key="ttl"
+                  class="flex items-center justify-between gap-4"
+                >
+                  <span class="text-gray-400">{{
+                    t('marketplace.cacheWriteLifetime', { ttl })
+                  }}</span>
+                  <span class="font-medium text-white">{{
+                    tokenTooltipData?.[`cache_creation_${ttl}_tokens`]?.toLocaleString()
+                  }}</span>
+                </div>
+              </div>
+              <div v-else-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
                 <!-- Recorded five-minute and one-hour cache creation counts expand into separate detail rows. -->
                 <template
                   v-if="

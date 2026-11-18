@@ -50,7 +50,7 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 			// Absolute tiers are selected strictly above their internal threshold. Lower
 			// xAI's value by one so an integer count at the catalog threshold selects
 			// its higher tier.
-			if inclusiveThreshold && threshold > 0 {
+			if inclusiveThreshold && !tier.Exclusive && threshold > 0 {
 				threshold--
 			}
 			contextPrices = append(contextPrices, ContextModelPrice{Threshold: threshold, Pricing: price})
@@ -63,6 +63,9 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 	enableBreakdown := price1h > 0 && price1h > price5m || catalogPricing.CacheCreation1hPricePresent
 	return &ModelPricing{
 		FastMultiplier:                     rules.FastMultiplier,
+		ServiceTierPrices:                  rules.ServiceTierPrices,
+		CacheCreation30mPrice:              copyOptional(catalogPricing.CacheCreation30mPrice),
+		CacheCreation12hPrice:              copyOptional(catalogPricing.CacheCreation12hPrice),
 		FlexMultiplier:                     rules.FlexMultiplier,
 		TimePricing:                        rules.TimePricing,
 		CatalogSource:                      catalogPricing.Source,

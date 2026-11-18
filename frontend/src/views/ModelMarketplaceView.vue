@@ -756,7 +756,25 @@ function tokenPricingRowsFromValues(
       value: formatPerMillion(pricing.output_price_per_token),
     })
   }
-  if (hasPositiveValue(pricing.cache_write_price_per_token)) {
+  if (pricing.cache_write_30m_price_per_token != null) {
+    rows.push({
+      key: 'cache_write_30m',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
+      value: formatPerMillion(pricing.cache_write_30m_price_per_token),
+    })
+  }
+  if (pricing.cache_write_12h_price_per_token != null) {
+    rows.push({
+      key: 'cache_write_12h',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
+      value: formatPerMillion(pricing.cache_write_12h_price_per_token),
+    })
+  }
+  if (
+    pricing.cache_write_30m_price_per_token == null &&
+    pricing.cache_write_12h_price_per_token == null &&
+    hasPositiveValue(pricing.cache_write_price_per_token)
+  ) {
     rows.push({
       key: 'cache_write',
       label: t('marketplace.cacheWrite'),
@@ -805,7 +823,25 @@ function tokenPricingRowsFromValues(
       value: formatPerMillion(pricing.fast_output_price_per_token),
     })
   }
-  if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
+  if (pricing.fast_cache_write_30m_price_per_token != null) {
+    rows.push({
+      key: 'fast_cache_write_30m',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
+      value: formatPerMillion(pricing.fast_cache_write_30m_price_per_token),
+    })
+  }
+  if (pricing.fast_cache_write_12h_price_per_token != null) {
+    rows.push({
+      key: 'fast_cache_write_12h',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
+      value: formatPerMillion(pricing.fast_cache_write_12h_price_per_token),
+    })
+  }
+  if (
+    pricing.fast_cache_write_30m_price_per_token == null &&
+    pricing.fast_cache_write_12h_price_per_token == null &&
+    hasPositiveValue(pricing.fast_cache_write_price_per_token)
+  ) {
     rows.push({
       key: 'fast_cache_write',
       label: t('marketplace.fastCacheWrite'),

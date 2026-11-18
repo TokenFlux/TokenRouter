@@ -31,8 +31,8 @@ func TestPricingConcurrentReadAndReload(t *testing.T) {
 	dir := t.TempDir()
 	first := filepath.Join(dir, "first.json")
 	second := filepath.Join(dir, "second.json")
-	require.NoError(t, os.WriteFile(first, []byte(`{"providers":{"openai":{"models":{"model":{"cost":{"input":1000000,"output":2000000}}}}}}`), 0o600))
-	require.NoError(t, os.WriteFile(second, []byte(`{"providers":{"openai":{"models":{"model":{"cost":{"input":3000000,"output":4000000}}}}}}`), 0o600))
+	require.NoError(t, os.WriteFile(first, []byte(`{"openai":{"id":"openai","models":{"model":{"id":"model","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1000000},"output":{"price":2000000}}}}}}}`), 0o600))
+	require.NoError(t, os.WriteFile(second, []byte(`{"openai":{"id":"openai","models":{"model":{"id":"model","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":3000000},"output":{"price":4000000}}}}}}}`), 0o600))
 	service := NewService(Options{DataDir: dir}, nil)
 	require.NoError(t, service.publishModelsCatalog(readCatalogTestFile(t, first), time.Now(), false))
 	var readers sync.WaitGroup
@@ -75,27 +75,16 @@ func TestPricingConcurrentReadAndReload(t *testing.T) {
 // attributes retain their omissions.
 func TestModelAttributesCanonicalFallbackKeepsPricing(t *testing.T) {
 	remote := &catalogRemoteFixture{body: []byte(`{
-		"models":{"openai/gpt-image-2.5-flare":{
-			"modalities":{"input":["text","image"],"output":["image"]}
-		}},
-		"providers":{
-			"google-vertex":{"models":{"gpt-image-2.5-flare":{
-				"canonical_model_id":"openai/gpt-image-2.5-flare","cost":{"input":1,"output":2}
-			}}},
-			"ollama-cloud":{"models":{"gpt-image-2.5-flare":{
-				"canonical_model_id":"openai/gpt-image-2.5-flare","cost":{"input":3,"output":4}
-			}}}
-		}
-	}`)}
+	"google-vertex":{"id":"google-vertex","models":{"gpt-image-2.5-flare":{"id":"gpt-image-2.5-flare","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2.5-flare","cost":{"text":{"input":{"price":1},"output":{"price":2}}}}}},
+	"ollama-cloud":{"id":"ollama-cloud","models":{"gpt-image-2.5-flare":{"id":"gpt-image-2.5-flare","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2.5-flare","cost":{"text":{"input":{"price":3},"output":{"price":4}}}}}},
+	"openai":{"id":"openai","models":{"gpt-image-2.5-flare":{"id":"gpt-image-2.5-flare","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2.5-flare","modalities":{"input":["text","image"],"output":["image"]}}}}
+}`)}
 	s := NewService(Options{RemoteURL: "https://models.dev/catalog.json", DataDir: t.TempDir()}, remote)
 	require.NoError(t, s.ForceUpdate())
 	attributes := s.ModelAttributes("gpt-image-2.5-flare")
 	require.Equal(t, []string{"text", "image"}, *attributes.InputModalities)
 	require.Equal(t, []string{"image"}, *attributes.OutputModalities)
-	price := s.GetModelPricing("gpt-image-2.5-flare")
-	require.Equal(t, "unpriced", price.Source)
-	require.True(t, price.TokenPricingAbsent)
-	require.False(t, price.InputPricePresent)
+	require.Nil(t, s.GetModelPricing("gpt-image-2.5-flare"))
 	require.Nil(t, s.ModelAttributes("google-vertex/gpt-image-2.5-flare").InputModalities)
 	require.InDelta(t, 1e-6, s.GetModelPricing("google-vertex/gpt-image-2.5-flare").InputCostPerToken, 1e-12)
 }
@@ -115,7 +104,7 @@ func TestDirectoryReaderTracksPublishedVersion(t *testing.T) {
 	// Replace response bytes and validator together before the next
 	// synchronous update reads them, keeping the fixture's downloaded identity
 	// tied to that response version.
-	remote.body = []byte(`{"providers":{"anthropic":{"models":{"claude-new":{"name":"New name"}}}}}`)
+	remote.body = []byte(`{"anthropic":{"id":"anthropic","models":{"claude-new":{"id":"claude-new","type":"chat","capabilities":{},"name":"New name"}}}}`)
 	remote.etag = "v2"
 	remote.mu.Unlock()
 	require.NoError(t, service.ForceUpdate())
@@ -135,7 +124,7 @@ func TestDirectoryReaderTracksPublishedVersion(t *testing.T) {
 // arbitrarily named models. Returned modalities must follow catalog fields,
 // and a record with no declaration must retain an unknown output list.
 func TestOutputModalityMetadata(t *testing.T) {
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"google":{"models":{"arbitrary-output":{"name":"Image","modalities":{"output":["image"]}},"gemini-text-image-name":{"name":"Text","modalities":{"output":["text"]}},"unknown":{"name":"Unknown"}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"google":{"id":"google","models":{"arbitrary-output":{"id":"arbitrary-output","type":"chat","capabilities":{},"name":"Image","modalities":{"output":["image"]}},"gemini-text-image-name":{"id":"gemini-text-image-name","type":"chat","capabilities":{},"name":"Text","modalities":{"output":["text"]}},"unknown":{"id":"unknown","type":"chat","capabilities":{},"name":"Unknown"}}}}`)}
 	service := NewService(Options{RemoteURL: "https://models.dev/catalog.json", DataDir: t.TempDir()}, remote)
 	require.NoError(t, service.ForceUpdate())
 	require.Equal(t, []string{"image"}, *service.ModelEntry("arbitrary-output").Attributes.OutputModalities)
@@ -148,7 +137,7 @@ func TestOutputModalityMetadata(t *testing.T) {
 // prices, while subsequent authoritative prices preserve explicit zero overrides.
 func TestImage26Supplements(t *testing.T) {
 	service := NewService(Options{DataDir: t.TempDir()}, nil)
-	require.NoError(t, service.publishModelsCatalog([]byte(`{"providers":{"openai":{"models":{"gpt-test":{"cost":{"input":1,"output":2}}}}}}`), time.Now(), false))
+	require.NoError(t, service.publishModelsCatalog([]byte(`{"openai":{"id":"openai","models":{"gpt-test":{"id":"gpt-test","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":1},"output":{"price":2}}}}}}}`), time.Now(), false))
 	for _, model := range []string{"gpt-image-2.6-sunburst", "gpt-image-2.6-flare"} {
 		price := service.GetModelPricing(model)
 		require.NotNil(t, price)
@@ -161,6 +150,6 @@ func TestImage26Supplements(t *testing.T) {
 		require.NotNil(t, attrs.OutputModalities)
 		require.Equal(t, []string{"image"}, *attrs.OutputModalities)
 	}
-	require.NoError(t, service.publishModelsCatalog([]byte(`{"providers":{"openai":{"models":{"gpt-image-2.6-sunburst":{"cost":{"input":0,"output":0}}}}}}`), time.Now(), false))
+	require.NoError(t, service.publishModelsCatalog([]byte(`{"openai":{"id":"openai","models":{"gpt-image-2.6-sunburst":{"id":"gpt-image-2.6-sunburst","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":0},"output":{"price":0}}}}}}}`), time.Now(), false))
 	require.Zero(t, service.GetModelPricing("gpt-image-2.6-sunburst").InputCostPerToken)
 }

@@ -209,13 +209,15 @@ func (s *Recorder) CalculateTokenCost(
 ) *CostBreakdown {
 	serviceTier := ForwardServiceTier(result)
 	tokens := UsageTokens{
-		InputTokens:           result.Usage.InputTokens,
-		OutputTokens:          result.Usage.OutputTokens,
-		CacheCreationTokens:   result.Usage.CacheCreationInputTokens,
-		CacheReadTokens:       result.Usage.CacheReadInputTokens,
-		CacheCreation5mTokens: result.Usage.CacheCreation5mTokens,
-		CacheCreation1hTokens: result.Usage.CacheCreation1hTokens,
-		ImageOutputTokens:     result.Usage.ImageOutputTokens,
+		InputTokens:            result.Usage.InputTokens,
+		OutputTokens:           result.Usage.OutputTokens,
+		CacheCreationTokens:    result.Usage.CacheCreationInputTokens,
+		CacheCreation30mTokens: result.Usage.CacheCreation30mTokens,
+		CacheCreation12hTokens: result.Usage.CacheCreation12hTokens,
+		CacheReadTokens:        result.Usage.CacheReadInputTokens,
+		CacheCreation5mTokens:  result.Usage.CacheCreation5mTokens,
+		CacheCreation1hTokens:  result.Usage.CacheCreation1hTokens,
+		ImageOutputTokens:      result.Usage.ImageOutputTokens,
 	}
 
 	var cost *CostBreakdown

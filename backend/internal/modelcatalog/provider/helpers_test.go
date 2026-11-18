@@ -24,17 +24,11 @@ import (
 // attribute-only, and tiered-price records for supplement and publication tests.
 const (
 	mediaAliasFixture = `{
-	"models":{"openai/gpt-image-2":{"name":"Image"}},
-	"providers":{
-		"openai":{"models":{
-			"gpt-image-2":{"cost":{"input":5,"output":30}},
-			"gpt-image-2-snapshot":{"canonical_model_id":"openai/gpt-image-2","cost":{"input":4,"output":20}}
-		}},
-		"google-vertex":{"models":{"gpt-image-2":{"canonical_model_id":"openai/gpt-image-2","cost":{"input":1,"output":2}}}}
-	}
+	"openai":{"id":"openai","models":{"gpt-image-2":{"id":"gpt-image-2","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2","name":"Image","cost":{"text":{"input":{"price":5},"output":{"price":30}}}},"gpt-image-2-snapshot":{"id":"gpt-image-2-snapshot","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2","cost":{"text":{"input":{"price":4},"output":{"price":20}}}}}},
+	"google-vertex":{"id":"google-vertex","models":{"gpt-image-2":{"id":"gpt-image-2","type":"chat","capabilities":{},"canonical_id":"openai/gpt-image-2","cost":{"text":{"input":{"price":1},"output":{"price":2}}}}}}
 }`
 
-	modelsCatalogFixture = `{"models":{"anthropic/claude-test":{"name":"Claude"}},"providers":{"anthropic":{"models":{"claude-test":{"name":"Claude","reasoning":true,"limit":{"output":10},"cost":{"input":3,"output":15,"cache_write":3.75,"cache_read":0.3,"tiers":[{"tier":{"type":"context","size":100},"input":6,"output":30,"cache_write":7.5,"cache_read":0.6},{"tier":{"type":"context","size":200},"input":9,"output":45,"cache_write":11.25,"cache_read":0.9}]}},"attributes-only":{"name":"No price","temperature":false}}}}}`
+	modelsCatalogFixture = `{"anthropic":{"id":"anthropic","models":{"claude-test":{"id":"claude-test","type":"chat","capabilities":{"reasoning":{"supported":true}},"canonical_id":"anthropic/claude-test","name":"Claude","limit":{"output":10},"cost":{"text":{"input":{"price":3,"cache":{"read":0.3,"write":3.75},"overrides":[{"when":{"context":{"gt":100}},"price":6,"cache":{"read":0.6,"write":7.5}},{"when":{"context":{"gt":200}},"price":9,"cache":{"read":0.9,"write":11.25}}]},"output":{"price":15,"overrides":[{"when":{"context":{"gt":100}},"price":30},{"when":{"context":{"gt":200}},"price":45}]}}}},"attributes-only":{"id":"attributes-only","type":"chat","capabilities":{"temperature":false},"name":"No price"}}}}`
 )
 
 // modelCatalogFixture supplies options and prices before service initialization.

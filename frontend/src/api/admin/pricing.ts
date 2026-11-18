@@ -42,6 +42,8 @@ export interface PricingInterval {
    * also price the hourly bucket; an explicit hourly value takes precedence.
    */
   cache_write_1h_price?: number | null // USD per hourly cache-write token.
+  cache_write_30m_price?: number | null // USD per 30m cache-write token.
+  cache_write_12h_price?: number | null // USD per 12h cache-write token.
   cache_read_price: number | null // USD per cache-read token.
   input_multiplier: number | null // Input price multiplier.
   output_multiplier: number | null // Output price multiplier.
@@ -113,6 +115,8 @@ export interface ModelPricingEntry {
    * also price the hourly bucket; an explicit hourly value takes precedence.
    */
   cache_write_1h_price?: number | null // USD per hourly cache-write token.
+  cache_write_30m_price?: number | null // USD per 30m cache-write token.
+  cache_write_12h_price?: number | null // USD per 12h cache-write token.
   cache_read_price: number | null // USD per cache-read token.
   /**
    * User token pricing uses the selected text-input rate when this image-input
@@ -269,6 +273,8 @@ export interface ModelDefaultPricing {
   output_price?: number // USD per output token.
   cache_write_price?: number // USD per cache-write token.
   cache_write_1h_price?: number | null // USD per hourly cache-write token.
+  cache_write_30m_price?: number | null // USD per 30m cache-write token.
+  cache_write_12h_price?: number | null // USD per 12h cache-write token.
   cache_read_price?: number // USD per cache-read token.
   max_reasoning_effort_multiplier?: number | null // Max reasoning effort multiplier.
   image_input_price?: number // USD per image-input token.

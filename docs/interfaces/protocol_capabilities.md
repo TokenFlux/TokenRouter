@@ -123,6 +123,8 @@ Responses 图片策略和 Images 入口互相独立：`inherit` 沿用提供商�
 <a id="client_usage_cache"></a>
 ## 客户端用量与缓存
 
+OpenAI Responses 的原生路由保留 `prompt_cache_options` 和内容块上的 `prompt_cache_breakpoint`。显式缓存 TTL 被上游拒绝时，兼容重试保留该语义。结算读取 `input_tokens_details.cache_write_tokens_details` 的 30m 和 12h 计数，校验两者恰好组成写入总数。上游只给总数、或两档之和与总数冲突时，使用统一写入价。流式读取器在同一响应内合并稀疏用量，保留先前有效的分档。
+
 文本响应的客户端用量和后台结算使用同一次上游观察。Messages 的 `input_tokens` 只包含普通输入，缓存读取和写入分别放在 `cache_read_input_tokens`、`cache_creation_input_tokens`；Chat 的 `prompt_tokens` 和 Responses 的 `input_tokens` 包含这三个输入桶。转换时只相加一次，缓存写入的聚合数与 5 分钟、1 小时分档不能重复计数。
 
 Gemini 的 `cachedContentTokenCount` 映射到目标协议的缓存读取字段，流式和非流式使用同一口径。OpenAI 兼容响应支持已有的嵌套明细和顶层缓存别名，包括 DeepSeek 的 `prompt_cache_hit_tokens`、`prompt_cache_miss_tokens`；标准嵌套缓存字段优先，明确的零不会被备用别名替换。未报告的缓存数不按输入长度或命中率估算。

@@ -27,9 +27,11 @@ import (
 // label and a supplied amount in ParsePricingEntries; positive legacy amounts
 // can still select priority prices without these markers.
 type CatalogModelPricing struct {
-	CatalogRules            // supplemental media and modifier rules
-	InputPricePresent  bool `json:"-"` // input amount presence flag
-	OutputPricePresent bool `json:"-"` // text-output amount presence flag
+	CacheCreation30mPrice *float64 `json:"cache_creation_input_token_cost_30m,omitempty"` // USD per thirty-minute write token
+	CacheCreation12hPrice *float64 `json:"cache_creation_input_token_cost_12h,omitempty"` // USD per twelve-hour write token
+	CatalogRules                   // supplemental media and modifier rules
+	InputPricePresent     bool     `json:"-"` // input amount presence flag
+	OutputPricePresent    bool     `json:"-"` // text-output amount presence flag
 	// CacheCreation1hPricePresent records a supplied hourly cache amount,
 	// including zero. ResolveModelPricing uses it to enable TTL detail pricing
 	// independently of positive legacy amounts.
@@ -157,6 +159,8 @@ type CatalogRawEntry struct {
 	CacheCreationInputTokenCostPriority *float64 `json:"cache_creation_input_token_cost_priority"`
 	// USD per hourly cache-write token
 	CacheCreationInputTokenCostAbove1hr *float64 `json:"cache_creation_input_token_cost_above_1hr"`
+	CacheCreation30mPrice               *float64 `json:"cache_creation_input_token_cost_30m"` // USD per thirty-minute write token
+	CacheCreation12hPrice               *float64 `json:"cache_creation_input_token_cost_12h"` // USD per twelve-hour write token
 	// USD per standard cache-read token
 	CacheReadInputTokenCost      *float64 `json:"cache_read_input_token_cost"`
 	CacheReadInputImageTokenCost *float64 `json:"cache_read_input_image_token_cost"` // optional USD per cached image token
@@ -204,6 +208,7 @@ type CatalogRawEntry struct {
 // ResolveModelPricing conversion, while this representation keeps the supplied
 // catalog threshold.
 type CatalogContextPrice struct {
+	Exclusive bool `json:"exclusive,omitempty"` // normalized exclusive lower bound
 	// catalog input-context token threshold
 	Threshold int `json:"threshold"`
 	// Pricing holds nested catalog amounts interpreted through ParsePricingEntries
@@ -223,6 +228,8 @@ func CloneCatalogPrice(value *CatalogModelPricing) *CatalogModelPricing {
 	}
 	result := *value
 	result.CatalogRules = value.Clone()
+	result.CacheCreation30mPrice = copyOptional(value.CacheCreation30mPrice)
+	result.CacheCreation12hPrice = copyOptional(value.CacheCreation12hPrice)
 	result.SupportedModalities = slices.Clone(value.SupportedModalities)
 	result.SupportedOutputModalities = slices.Clone(value.SupportedOutputModalities)
 	if value.PriceSources != nil {
@@ -233,7 +240,7 @@ func CloneCatalogPrice(value *CatalogModelPricing) *CatalogModelPricing {
 		result.ContextPrices = make([]CatalogContextPrice, len(value.ContextPrices))
 	}
 	for i, tier := range value.ContextPrices {
-		result.ContextPrices[i] = CatalogContextPrice{Threshold: tier.Threshold, Pricing: CloneCatalogPrice(tier.Pricing)}
+		result.ContextPrices[i] = CatalogContextPrice{Threshold: tier.Threshold, Exclusive: tier.Exclusive, Pricing: CloneCatalogPrice(tier.Pricing)}
 	}
 	return &result
 }
@@ -250,6 +257,7 @@ func CloneCatalogPrice(value *CatalogModelPricing) *CatalogModelPricing {
 func (c *CatalogContextPrice) UnmarshalJSON(body []byte) error {
 	var raw struct {
 		Threshold int             `json:"threshold"` // decoded context-token threshold
+		Exclusive bool            `json:"exclusive"` // normalized exclusive lower bound
 		Pricing   json.RawMessage `json:"pricing"`   // raw nested catalog price object
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -262,6 +270,6 @@ func (c *CatalogContextPrice) UnmarshalJSON(body []byte) error {
 	if err != nil {
 		return err
 	}
-	c.Threshold, c.Pricing = raw.Threshold, entries["tier"]
+	c.Threshold, c.Exclusive, c.Pricing = raw.Threshold, raw.Exclusive, entries["tier"]
 	return nil
 }

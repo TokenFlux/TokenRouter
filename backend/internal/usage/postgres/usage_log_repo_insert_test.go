@@ -245,6 +245,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.CacheReadTokens,
 			log.CacheCreation5mTokens,
 			log.CacheCreation1hTokens,
+			nil, // thirty-minute write detail
+			nil, // twelve-hour write detail
 			log.ImageOutputTokens,
 			log.ImageOutputCost,
 			log.ImageInputTokens,
@@ -354,6 +356,8 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.CacheReadTokens,
 			log.CacheCreation5mTokens,
 			log.CacheCreation1hTokens,
+			nil, // thirty-minute write detail
+			nil, // twelve-hour write detail
 			log.ImageOutputTokens,
 			log.ImageOutputCost,
 			log.ImageInputTokens,
@@ -579,15 +583,15 @@ func TestPrepareUsageLogInsert_PersistsImageSizeMetadata(t *testing.T) {
 		CreatedAt:            time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
 	})
 
-	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[43])
-	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[44])
-	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[45])
-	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[46])
-	breakdownJSON, ok := prepared.args[47].(string)
+	require.Equal(t, sql.NullString{String: imageSize, Valid: true}, prepared.args[45])
+	require.Equal(t, sql.NullString{String: inputSize, Valid: true}, prepared.args[46])
+	require.Equal(t, sql.NullString{String: outputSize, Valid: true}, prepared.args[47])
+	require.Equal(t, sql.NullString{String: source, Valid: true}, prepared.args[48])
+	breakdownJSON, ok := prepared.args[49].(string)
 	require.True(t, ok)
 	require.JSONEq(t, `{"1K":1,"4K":1}`, breakdownJSON)
-	require.Equal(t, 18, prepared.args[41])
-	require.Equal(t, 3, prepared.args[42])
+	require.Equal(t, 18, prepared.args[43])
+	require.Equal(t, 3, prepared.args[44])
 }
 
 // TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing builds a charged
@@ -620,7 +624,7 @@ func TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing(t *testing.T) {
 // correlation ID. It checks the nullable session argument and the following
 // timestamp, reasoning, and compaction type positions.
 func TestPrepareUsageLogInsert_SessionIDArgWiring(t *testing.T) {
-	require.Len(t, usageLogInsert.argTypes, 73, "arg-type table must include billing key")
+	require.Len(t, usageLogInsert.argTypes, 75, "arg-type table must include billing key")
 
 	sessionID := "sess-persisted-123"
 	prepared := prepareUsageLogInsert(newSessionIDUsageLog(&sessionID))

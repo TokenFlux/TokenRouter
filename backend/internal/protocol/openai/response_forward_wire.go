@@ -295,12 +295,13 @@ func ParseSSEUsageBytes(data []byte, usage *ForwardUsage) {
 	if !bytes.Contains(data, []byte(`"usage"`)) {
 		return
 	}
-	parsedUsage, ok := ExtractOpenAIUsageFromJSONBytes(data)
+	parsedUsage, usageObject, ok := extractOpenAIUsage(data)
 	if !ok {
 		return
 	}
 	// Terminal object presence replaces earlier progressive counts as one unit,
 	// including zero fields; merging here would keep stale categories from earlier events.
+	applyObservedCacheWriteDetails(usage, &parsedUsage, usageObject)
 	if OpenAIStreamEventTypeIsTerminal(strings.TrimSpace(gjson.GetBytes(data, "type").String())) {
 		*usage = parsedUsage
 		return
@@ -326,8 +327,9 @@ func MergeOpenAIUsageNonZero(dst *ForwardUsage, src ForwardUsage) {
 	if src.OutputTokens > 0 {
 		dst.OutputTokens = src.OutputTokens
 	}
-	if src.CacheCreationInputTokens > 0 {
+	if src.CacheCreationInputTokens > 0 || src.CacheWriteDetails != nil {
 		dst.CacheCreationInputTokens = src.CacheCreationInputTokens
+		dst.CacheWriteDetails = src.CacheWriteDetails
 	}
 	if src.CacheReadInputTokens > 0 {
 		dst.CacheReadInputTokens = src.CacheReadInputTokens
@@ -351,8 +353,16 @@ func MergeOpenAIUsageNonZero(dst *ForwardUsage, src ForwardUsage) {
 // and the alias helpers, so true means an object was observed rather than
 // fully validated nonnegative token accounting.
 func ExtractOpenAIUsageFromJSONBytes(body []byte) (ForwardUsage, bool) {
+	usage, _, ok := extractOpenAIUsage(body)
+	return usage, ok
+}
+
+// extractOpenAIUsage returns parsed counters and the selected raw usage object.
+// The raw observation distinguishes omitted and explicit zero cache writes on
+// sparse frames. Source order keeps hosted images paired with their envelope.
+func extractOpenAIUsage(body []byte) (ForwardUsage, gjson.Result, bool) {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
-		return ForwardUsage{}, false
+		return ForwardUsage{}, gjson.Result{}, false
 	}
 	// Envelopes select both main and hosted-image usage locations. Return the
 	// first object-shaped candidate, so tool details stay paired with that same response scope.
@@ -369,12 +379,13 @@ func ExtractOpenAIUsageFromJSONBytes(body []byte) (ForwardUsage, bool) {
 		{usagePath: "data.response.usage", imageUsagePath: "data.response.tool_usage.image_gen"},
 	}
 	for _, candidate := range candidates {
-		if usage, ok := OpenAIUsageFromGJSON(gjson.GetBytes(body, candidate.usagePath)); ok {
+		value := gjson.GetBytes(body, candidate.usagePath)
+		if usage, ok := OpenAIUsageFromGJSON(value); ok {
 			MergeHostedImageGenToolUsage(gjson.GetBytes(body, candidate.imageUsagePath), &usage)
-			return usage, true
+			return usage, value, true
 		}
 	}
-	return ForwardUsage{}, false
+	return ForwardUsage{}, gjson.Result{}, false
 }
 
 // OpenAIResponsesCompletedEventIsEmpty checks content/usage/error evidence in
@@ -487,7 +498,7 @@ func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 		)
 	}
 	cacheReadTokens := OpenAICacheReadTokensFromUsage(value)
-	cacheCreationTokens := OpenAICacheCreationTokensFromUsage(value)
+	cacheCreationTokens, cacheWriteDetails := ObserveCacheWriteDetails(value, 0, nil)
 	// Canonical image output can retain negative observations. The Chat detail
 	// alias fills zero values; image input selects positive observations independently.
 	imageOutputTokens := value.Get("output_tokens_details.image_tokens").Int()
@@ -506,6 +517,7 @@ func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 		ImageCacheReadTokens:     OpenAIImageCacheReadTokens(value),
 		OutputTokens:             int(outputTokens),
 		CacheCreationInputTokens: cacheCreationTokens,
+		CacheWriteDetails:        cacheWriteDetails,
 		CacheReadInputTokens:     cacheReadTokens,
 		ImageOutputTokens:        int(imageOutputTokens),
 	}, true
@@ -1111,10 +1123,11 @@ func ParseSSEUsageBytesWithType(data []byte, eventType string, usage *ForwardUsa
 	if usage == nil || len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
 		return false
 	}
-	parsedUsage, ok := ExtractOpenAIUsageFromJSONBytes(data)
+	parsedUsage, usageObject, ok := extractOpenAIUsage(data)
 	if !ok {
 		return false
 	}
+	applyObservedCacheWriteDetails(usage, &parsedUsage, usageObject)
 	if OpenAIStreamEventTypeIsTerminal(EffectiveOpenAISSEEventType(data, eventType)) {
 		// A terminal object can be an all-zero placeholder after progressive usage.
 		// Keep earlier counters until a positive terminal observation can replace the complete aggregate.

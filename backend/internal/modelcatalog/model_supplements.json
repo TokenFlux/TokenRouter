@@ -1,4 +1,77 @@
 {
+  "nvidia/nemotron-3.5-lightning": {
+    "provider": "nvidia",
+    "source_url": "https://github.com/anomalyco/models.dev/blob/dev/models/nvidia/nemotron-3.5-lightning.toml",
+    "attributes": {
+      "display_name": "Nemotron 3.5 Lightning 30B A3B",
+      "reasoning": true,
+      "attachment": false,
+      "temperature": true,
+      "tool_call": true,
+      "input_modalities": [
+        "text"
+      ],
+      "output_modalities": [
+        "text"
+      ],
+      "context": 262144,
+      "output_limit": 262144
+    },
+    "verified_at": "2026-11-18"
+  },
+  "gemini-3-pro-image-preview": {
+    "provider": "google",
+    "source_url": "https://ai.google.dev/gemini-api/docs/image-generation",
+    "attributes": {
+      "display_name": "Nano Banana Pro Preview",
+      "reasoning": true,
+      "attachment": true,
+      "temperature": true,
+      "tool_call": false,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text",
+        "image"
+      ],
+      "context": 65536,
+      "output_limit": 32768
+    },
+    "verified_at": "2026-11-18"
+  },
+  "openai/gpt-image-1": {
+    "provider": "openai",
+    "attributes": {
+      "display_name": "GPT-Image-1",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "image"
+      ]
+    },
+    "source_url": "https://developers.openai.com/api/docs/models/gpt-image-1",
+    "verified_at": "2026-11-18"
+  },
+  "xai/grok-4.1-fast-reasoning": {
+    "provider": "xai",
+    "attributes": {
+      "display_name": "Grok 4.1 Fast (Reasoning)",
+      "context": 2000000,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "text"
+      ]
+    },
+    "source_url": "https://docs.x.ai/docs/models",
+    "verified_at": "2026-11-18"
+  },
   "gemini-2.5-flash-image": {
     "provider": "gemini",
     "output_cost_per_token": 2.5e-06,
@@ -47,7 +120,17 @@
     "input_cost_per_image_token": 1e-05,
     "output_cost_per_image_token": 4e-05,
     "source_url": "https://developers.openai.com/api/docs/models/gpt-image-1",
-    "verified_at": "2026-10-01"
+    "verified_at": "2026-11-18",
+    "attributes": {
+      "display_name": "GPT-Image-1",
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "image"
+      ]
+    }
   },
   "gpt-image-1-mini": {
     "provider": "openai",
@@ -88,7 +171,22 @@
       "2K": 0.07
     },
     "source_url": "https://docs.x.ai/developers/pricing",
-    "verified_at": "2026-10-01"
+    "verified_at": "2026-11-18",
+    "attributes": {
+      "display_name": "Grok Imagine Image Quality",
+      "reasoning": false,
+      "attachment": true,
+      "temperature": false,
+      "tool_call": false,
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "output_modalities": [
+        "image"
+      ],
+      "context": 16000
+    }
   },
   "grok-imagine-video": {
     "provider": "xai",

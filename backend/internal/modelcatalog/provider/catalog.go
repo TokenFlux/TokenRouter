@@ -40,6 +40,8 @@ var supplementFields = map[string]string{
 	"cache_read_input_token_cost":       "cache_read", "cache_read_input_token_cost_priority": "priority_cache_read",
 	"cache_creation_input_token_cost": "cache_write", "cache_creation_input_token_cost_priority": "priority_cache_write",
 	"cache_creation_input_token_cost_above_1hr": "cache_write_1h",
+	"cache_creation_input_token_cost_30m":       "cache_write_30m",
+	"cache_creation_input_token_cost_12h":       "cache_write_12h",
 	"input_cost_per_image_token":                "image_input", "output_cost_per_image_token": "image_output", "output_cost_per_image": "image",
 	"image_prices": "image_prices", "video_prices": "video_prices",
 	"fast_multiplier": "fast_multiplier", "flex_multiplier": "flex_multiplier",
@@ -116,7 +118,7 @@ func (s *Service) ModelAttributes(model string) modelcatalog.Attributes {
 // Both paths are validated before return, and price diagnostics record orphan
 // cache tiers or one-sided context surcharges for administrative inspection.
 func (s *Service) buildModelsCatalog(body []byte) (*modelcatalog.Catalog, map[string]*CatalogModelPricing, pricing.OperationPrices, error) {
-	catalog, err := modelcatalog.Parse(body)
+	catalog, err := modelcatalog.ParseV2(body)
 	if err != nil {
 		return nil, nil, pricing.OperationPrices{}, err
 	}

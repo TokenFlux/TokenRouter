@@ -390,6 +390,8 @@ func MultiplyModelPricing(pricing *ModelPricing, multiplier float64) *ModelPrici
 	scaled.CacheReadPricePerTokenPriority *= multiplier
 	scaled.CacheCreation5mPrice *= multiplier
 	scaled.CacheCreation1hPrice *= multiplier
+	scaled.CacheCreation30mPrice = MultiplyPricePointer(scaled.CacheCreation30mPrice, multiplier)
+	scaled.CacheCreation12hPrice = MultiplyPricePointer(scaled.CacheCreation12hPrice, multiplier)
 	scaled.ImageOutputPricePerToken *= multiplier
 	return &scaled
 }
@@ -409,6 +411,8 @@ func MultiplyPricingIntervals(intervals []PricingInterval, multiplier float64) [
 		scaled[i].OutputPrice = MultiplyPricePointer(intervals[i].OutputPrice, multiplier)
 		scaled[i].CacheWritePrice = MultiplyPricePointer(intervals[i].CacheWritePrice, multiplier)
 		scaled[i].CacheWrite1hPrice = MultiplyPricePointer(intervals[i].CacheWrite1hPrice, multiplier)
+		scaled[i].CacheWrite30mPrice = MultiplyPricePointer(intervals[i].CacheWrite30mPrice, multiplier)
+		scaled[i].CacheWrite12hPrice = MultiplyPricePointer(intervals[i].CacheWrite12hPrice, multiplier)
 		scaled[i].CacheReadPrice = MultiplyPricePointer(intervals[i].CacheReadPrice, multiplier)
 		scaled[i].PerRequestPrice = MultiplyPricePointer(intervals[i].PerRequestPrice, multiplier)
 	}
@@ -427,6 +431,8 @@ func MultiplyPricingFields(pricing *ModelPricingEntry, multiplier float64) {
 	pricing.OutputPrice = MultiplyPricePointer(pricing.OutputPrice, multiplier)
 	pricing.CacheWritePrice = MultiplyPricePointer(pricing.CacheWritePrice, multiplier)
 	pricing.CacheWrite1hPrice = MultiplyPricePointer(pricing.CacheWrite1hPrice, multiplier)
+	pricing.CacheWrite30mPrice = MultiplyPricePointer(pricing.CacheWrite30mPrice, multiplier)
+	pricing.CacheWrite12hPrice = MultiplyPricePointer(pricing.CacheWrite12hPrice, multiplier)
 	pricing.CacheReadPrice = MultiplyPricePointer(pricing.CacheReadPrice, multiplier)
 	pricing.ImageInputPrice = MultiplyPricePointer(pricing.ImageInputPrice, multiplier)
 	pricing.ImageOutputPrice = MultiplyPricePointer(pricing.ImageOutputPrice, multiplier)
@@ -453,7 +459,7 @@ func FilterValidTokenIntervals(intervals []PricingInterval) []PricingInterval {
 	var valid []PricingInterval
 	for _, iv := range intervals {
 		if iv.InputPrice != nil || iv.OutputPrice != nil ||
-			iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheReadPrice != nil ||
+			iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil ||
 			iv.InputMultiplier != nil || iv.OutputMultiplier != nil ||
 			iv.CacheWriteMultiplier != nil || iv.CacheReadMultiplier != nil {
 			valid = append(valid, iv)
@@ -546,7 +552,10 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.CacheCreationPricePerTokenPriority *= *iv.CacheWriteMultiplier
 		pricing.CacheCreation5mPrice *= *iv.CacheWriteMultiplier
 		pricing.CacheCreation1hPrice *= *iv.CacheWriteMultiplier
+		pricing.CacheCreation30mPrice = MultiplyPricePointer(pricing.CacheCreation30mPrice, *iv.CacheWriteMultiplier)
+		pricing.CacheCreation12hPrice = MultiplyPricePointer(pricing.CacheCreation12hPrice, *iv.CacheWriteMultiplier)
 	}
+	applyCacheWriteTTLPrices(pricing, iv.CacheWritePrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice)
 	if iv.CacheWrite1hPrice != nil {
 		pricing.CacheCreation1hPrice = *iv.CacheWrite1hPrice
 		pricing.SupportsCacheBreakdown = true
@@ -702,12 +711,12 @@ func HasExplicitPricingPrice(p ModelPricingEntry) bool {
 		}
 		return false
 	}
-	if p.InputPrice != nil || p.OutputPrice != nil || p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil ||
+	if p.InputPrice != nil || p.OutputPrice != nil || p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil || p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil ||
 		p.CacheReadPrice != nil || p.ImageInputPrice != nil || p.ImageOutputPrice != nil {
 		return true
 	}
 	for _, iv := range p.Intervals {
-		if iv.InputPrice != nil || iv.OutputPrice != nil || iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheReadPrice != nil {
+		if iv.InputPrice != nil || iv.OutputPrice != nil || iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil {
 			return true
 		}
 	}

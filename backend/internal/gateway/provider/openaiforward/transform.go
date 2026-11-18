@@ -488,10 +488,16 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		// Remove the compatibility fields handled by this non-Codex route after
 		// output-limit translation, keeping later request construction from
 		// forwarding unsupported retention and identity controls.
-		for _, unsupportedField := range []string{"prompt_cache_retention", "safety_identifier", "prompt_cache_options"} {
+		for _, unsupportedField := range []string{"prompt_cache_retention", "safety_identifier"} {
 			if gjson.GetBytes(body, unsupportedField).Exists() {
 				markPatchDelete(unsupportedField)
 			}
+		}
+		// Native Responses accepts the cache options without translation.
+		// Keep converted requests and Compact on their existing field allowlists.
+		if (!profile.OpenAI || profile.ResolvedChat || compatMessagesBridge || isCompactRequest) &&
+			gjson.GetBytes(body, "prompt_cache_options").Exists() {
+			markPatchDelete("prompt_cache_options")
 		}
 	}
 	// Native HTTP continuation and WSv2 retain their upstream response reference.

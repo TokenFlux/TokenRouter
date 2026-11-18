@@ -192,7 +192,7 @@ func (s *Calculator) GetModelPricingWithConfig(model string, configPricing *Mode
 // resolved tier slice available for later uses.
 func (s *Calculator) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
 	if input.Resolver == nil {
-		breakdown, err := s.CalculateCostInternal(input.Model, input.Tokens, input.RateMultiplier, input.ServiceTier, nil)
+		breakdown, err := s.calculateCostInternalAt(input.Model, input.Tokens, input.RateMultiplier, input.ServiceTier, nil, input.PricingAt)
 		if err == nil {
 			// The token charge is already available; a failed second lookup leaves
 			// effort selection with the unit factor rather than discarding that
@@ -263,6 +263,13 @@ func (s *Calculator) CalculateCostWithServiceTier(model string, tokens UsageToke
 // before overrides; the catalog time schedule runs only when configPricing is
 // nil. Callers supply finite rates and representable nonnegative token counts.
 func (s *Calculator) CalculateCostInternal(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, configPricing *ModelPricingEntry) (*CostBreakdown, error) {
+	return s.calculateCostInternalAt(model, tokens, rateMultiplier, serviceTier, configPricing, time.Time{})
+}
+
+// calculateCostInternalAt resolves the catalog for the supplied pricing instant.
+// A missing instant uses the calculator clock. Calendar tier conditions and
+// catalog time multipliers both see the same instant for a single charge.
+func (s *Calculator) calculateCostInternalAt(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, configPricing *ModelPricingEntry, at time.Time) (*CostBreakdown, error) {
 	var pricing *ModelPricing
 	var err error
 	if configPricing != nil {
@@ -273,11 +280,14 @@ func (s *Calculator) CalculateCostInternal(model string, tokens UsageTokens, rat
 	if err != nil {
 		return nil, err
 	}
+	if at.IsZero() {
+		at = s.options.Now()
+	}
 	if configPricing == nil {
-		pricing = s.applyCatalogTimePricing(pricing, s.options.Now())
+		pricing = s.applyCatalogTimePricing(pricing, at)
 	}
 
-	return s.ComputeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, true), nil
+	return purepricing.ComputeTokenBreakdownAt(pricing, tokens, rateMultiplier, serviceTier, true, at), nil
 }
 
 // ForceUpdatePricing asks the bound catalog to refresh its pricing data. A

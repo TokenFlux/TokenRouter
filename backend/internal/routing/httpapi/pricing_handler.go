@@ -125,8 +125,10 @@ type modelPricingRequest struct {
 	// CacheWrite1hPrice can independently supply an hourly amount, including
 	// zero; when absent, a CacheWritePrice override also covers that hourly
 	// bucket.
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"` // USD per hourly cache-write token
-	CacheReadPrice    *float64 `json:"cache_read_price" binding:"omitempty,min=0"`     // USD per cache-read token
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"`  // USD per hourly cache-write token
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price" binding:"omitempty,min=0"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price" binding:"omitempty,min=0"` // USD per twelve-hour write token
+	CacheReadPrice     *float64 `json:"cache_read_price" binding:"omitempty,min=0"`      // USD per cache-read token
 	// ImageInputPrice is the image-input subset rate; user token-card
 	// application uses the selected text-input amount when this field is omitted
 	// or zero.
@@ -189,8 +191,10 @@ type pricingIntervalRequest struct {
 	// CacheWrite1hPrice supplies a separate hourly interval amount, including
 	// zero; absent hourly input lets an interval CacheWritePrice override cover
 	// that bucket.
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"` // USD per hourly interval cache-write token
-	CacheReadPrice    *float64 `json:"cache_read_price"`     // USD per interval cache-read token
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly interval cache-write token
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
+	CacheReadPrice     *float64 `json:"cache_read_price"`      // USD per interval cache-read token
 	// InputMultiplier, OutputMultiplier, CacheWriteMultiplier, and
 	// CacheReadMultiplier scale inherited user token amounts when the
 	// corresponding explicit amount is absent. Provider statistics calculations
@@ -282,8 +286,10 @@ type modelPricingResponse struct {
 	// CacheWrite1hPrice can independently supply an hourly amount, including
 	// zero; when absent, a CacheWritePrice override also covers that hourly
 	// bucket.
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"` // USD per hourly cache-write token
-	CacheReadPrice    *float64 `json:"cache_read_price"`     // USD per cache-read token
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly cache-write token
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
+	CacheReadPrice     *float64 `json:"cache_read_price"`      // USD per cache-read token
 	// ImageInputPrice is the image-input subset rate; user token-card
 	// application uses the selected text-input amount when this field is omitted
 	// or zero.
@@ -346,8 +352,10 @@ type pricingIntervalResponse struct {
 	// CacheWrite1hPrice supplies a separate hourly interval amount, including
 	// zero; absent hourly input lets an interval CacheWritePrice override cover
 	// that bucket.
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"` // USD per hourly interval cache-write token
-	CacheReadPrice    *float64 `json:"cache_read_price"`     // USD per interval cache-read token
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly interval cache-write token
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
+	CacheReadPrice     *float64 `json:"cache_read_price"`      // USD per interval cache-read token
 	// InputMultiplier, OutputMultiplier, CacheWriteMultiplier, and
 	// CacheReadMultiplier scale inherited user token amounts when the
 	// corresponding explicit amount is absent. Provider statistics calculations
@@ -488,13 +496,13 @@ func pricingToResponse(p *routing.ModelPricingEntry) modelPricingResponse {
 		InputPrice:                   p.InputPrice,
 		OutputPrice:                  p.OutputPrice,
 		CacheWritePrice:              p.CacheWritePrice,
-		CacheWrite1hPrice:            p.CacheWrite1hPrice,
-		CacheReadPrice:               p.CacheReadPrice,
-		ImageInputPrice:              p.ImageInputPrice,
-		ImageOutputPrice:             p.ImageOutputPrice,
-		PerRequestPrice:              p.PerRequestPrice,
-		Intervals:                    intervals,
-		TimePricing:                  timePricingToResponse(p.TimePricing),
+		CacheWrite1hPrice:            p.CacheWrite1hPrice, CacheWrite30mPrice: p.CacheWrite30mPrice, CacheWrite12hPrice: p.CacheWrite12hPrice,
+		CacheReadPrice:   p.CacheReadPrice,
+		ImageInputPrice:  p.ImageInputPrice,
+		ImageOutputPrice: p.ImageOutputPrice,
+		PerRequestPrice:  p.PerRequestPrice,
+		Intervals:        intervals,
+		TimePricing:      timePricingToResponse(p.TimePricing),
 	}
 }
 
@@ -526,14 +534,14 @@ func timePricingToResponse(value *routing.TimePricingConfig) *timePricingRespons
 // them as read-only while encoding.
 func intervalToResponse(iv routing.PricingInterval) pricingIntervalResponse {
 	return pricingIntervalResponse{
-		ID:                   iv.ID,
-		MinTokens:            iv.MinTokens,
-		MaxTokens:            iv.MaxTokens,
-		TierLabel:            iv.TierLabel,
-		InputPrice:           iv.InputPrice,
-		OutputPrice:          iv.OutputPrice,
-		CacheWritePrice:      iv.CacheWritePrice,
-		CacheWrite1hPrice:    iv.CacheWrite1hPrice,
+		ID:                iv.ID,
+		MinTokens:         iv.MinTokens,
+		MaxTokens:         iv.MaxTokens,
+		TierLabel:         iv.TierLabel,
+		InputPrice:        iv.InputPrice,
+		OutputPrice:       iv.OutputPrice,
+		CacheWritePrice:   iv.CacheWritePrice,
+		CacheWrite1hPrice: iv.CacheWrite1hPrice, CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
 		CacheReadPrice:       iv.CacheReadPrice,
 		InputMultiplier:      iv.InputMultiplier,
 		OutputMultiplier:     iv.OutputMultiplier,
@@ -563,13 +571,13 @@ func pricingRequestToService(reqs []modelPricingRequest) []routing.ModelPricingE
 		intervals := make([]routing.PricingInterval, 0, len(r.Intervals))
 		for _, iv := range r.Intervals {
 			intervals = append(intervals, routing.PricingInterval{
-				MinTokens:            iv.MinTokens,
-				MaxTokens:            iv.MaxTokens,
-				TierLabel:            iv.TierLabel,
-				InputPrice:           iv.InputPrice,
-				OutputPrice:          iv.OutputPrice,
-				CacheWritePrice:      iv.CacheWritePrice,
-				CacheWrite1hPrice:    iv.CacheWrite1hPrice,
+				MinTokens:         iv.MinTokens,
+				MaxTokens:         iv.MaxTokens,
+				TierLabel:         iv.TierLabel,
+				InputPrice:        iv.InputPrice,
+				OutputPrice:       iv.OutputPrice,
+				CacheWritePrice:   iv.CacheWritePrice,
+				CacheWrite1hPrice: iv.CacheWrite1hPrice, CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
 				CacheReadPrice:       iv.CacheReadPrice,
 				InputMultiplier:      iv.InputMultiplier,
 				OutputMultiplier:     iv.OutputMultiplier,
@@ -591,13 +599,13 @@ func pricingRequestToService(reqs []modelPricingRequest) []routing.ModelPricingE
 			InputPrice:                   r.InputPrice,
 			OutputPrice:                  r.OutputPrice,
 			CacheWritePrice:              r.CacheWritePrice,
-			CacheWrite1hPrice:            r.CacheWrite1hPrice,
-			CacheReadPrice:               r.CacheReadPrice,
-			ImageInputPrice:              r.ImageInputPrice,
-			ImageOutputPrice:             r.ImageOutputPrice,
-			PerRequestPrice:              r.PerRequestPrice,
-			Intervals:                    intervals,
-			TimePricing:                  timePricingRequestToService(r.TimePricing),
+			CacheWrite1hPrice:            r.CacheWrite1hPrice, CacheWrite30mPrice: r.CacheWrite30mPrice, CacheWrite12hPrice: r.CacheWrite12hPrice,
+			CacheReadPrice:   r.CacheReadPrice,
+			ImageInputPrice:  r.ImageInputPrice,
+			ImageOutputPrice: r.ImageOutputPrice,
+			PerRequestPrice:  r.PerRequestPrice,
+			Intervals:        intervals,
+			TimePricing:      timePricingRequestToService(r.TimePricing),
 		})
 	}
 	return result
@@ -859,6 +867,8 @@ func (h *PricingHandler) GetModelDefaultPricing(c *gin.Context) {
 		"output_price":                    pricing.OutputPricePerToken,
 		"cache_write_price":               cacheWritePrice,
 		"cache_write_1h_price":            cacheWrite1hPrice,
+		"cache_write_30m_price":           pricing.CacheCreation30mPrice,
+		"cache_write_12h_price":           pricing.CacheCreation12hPrice,
 		"cache_read_price":                pricing.CacheReadPricePerToken,
 		"max_reasoning_effort_multiplier": pricing.MaxReasoningEffortMultiplier,
 		"image_input_price":               pricing.ImageInputPricePerToken,

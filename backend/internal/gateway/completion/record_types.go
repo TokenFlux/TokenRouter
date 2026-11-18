@@ -102,6 +102,8 @@ type Result struct {
 // TokenUsage carries protocol usage buckets. Entrypoints determine whether
 // input is total or uncached.
 type TokenUsage struct {
+	CacheCreation30mTokens *int // thirty-minute write count
+	CacheCreation12hTokens *int // twelve-hour write count
 	// InputTokens, CacheCreationInputTokens, and CacheReadInputTokens overlap for
 	// ordinary OpenAI total-input results; RecordOpenAI subtracts both cache buckets.
 	// NativeUsage and Anthropic results already report separate billable input.

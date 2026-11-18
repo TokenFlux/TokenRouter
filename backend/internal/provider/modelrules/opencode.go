@@ -18,7 +18,7 @@ var embeddedOpenCodeProtocols = sync.OnceValue(func() map[string]map[string]stri
 	if err != nil {
 		return nil
 	}
-	catalog, err := modelcatalog.Parse(raw)
+	catalog, err := modelcatalog.ParseV2(raw)
 	if err != nil {
 		return nil
 	}
@@ -60,6 +60,8 @@ func (v View) OpenCodeProtocols(mode string) map[string]string {
 		switch {
 		case offering.Operation == "decision":
 			routes[id] = "systemone"
+		case offering.Protocol != "":
+			routes[id] = offering.Protocol
 		case offering.SDK == "@ai-sdk/openai":
 			routes[id] = "openai_responses"
 		case offering.SDK == "@ai-sdk/openai-compatible":

@@ -41,7 +41,7 @@ func (c wsPlatformFrames) WriteFrame(ctx context.Context, typ coderws.MessageTyp
 // relayUsage copies upstream relay token counters into the gateway's usage
 // representation.
 func relayUsage(u openaiwsv2.Usage) wire.ForwardUsage {
-	return wire.ForwardUsage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheCreationInputTokens: u.CacheCreationInputTokens, CacheReadInputTokens: u.CacheReadInputTokens, ImageOutputTokens: u.ImageOutputTokens}
+	return wire.ForwardUsage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheCreationInputTokens: u.CacheCreationInputTokens, CacheWriteDetails: u.CacheWriteDetails, CacheReadInputTokens: u.CacheReadInputTokens, ImageOutputTokens: u.ImageOutputTokens}
 }
 
 // relayExitProjection copies relay exit cause, stage and output observations

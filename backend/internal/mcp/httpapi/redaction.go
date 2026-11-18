@@ -67,7 +67,7 @@ func buildMCPMetadataFields() map[string]mcpMetadataKind {
 		metadataNumber: `min_tokens max_tokens max_input_tokens max_output_tokens max_completion_tokens
 			input_tokens output_tokens total_tokens tokens budget_tokens reasoning_tokens
 			prompt_tokens completion_tokens cached_tokens cache_tokens cache_read_tokens cache_write_tokens
-			cache_creation_tokens cache_creation_5m_tokens cache_creation_1h_tokens cache_creation_input_tokens
+			cache_creation_tokens cache_creation_5m_tokens cache_creation_1h_tokens cache_creation_30m_tokens cache_creation_12h_tokens cache_creation_input_tokens
 			cache_read_input_tokens cache_write_input_tokens prompt_cache_hit_tokens prompt_cache_miss_tokens
 			image_input_tokens image_output_tokens image_tokens text_tokens audio_tokens
 			accepted_prediction_tokens rejected_prediction_tokens

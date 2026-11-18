@@ -89,6 +89,22 @@
             class="input mt-1 text-xs"
           />
         </div>
+        <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
+          <label class="text-xs text-gray-400">
+            {{ t('admin.pricing.form.cacheWriteLifetime', { ttl }) }}
+            <span class="text-gray-300">$/M</span>
+          </label>
+          <input
+            :value="interval[`cache_write_${ttl}_price`]"
+            @input="
+              emitField(`cache_write_${ttl}_price`, ($event.target as HTMLInputElement).value)
+            "
+            type="number"
+            step="any"
+            min="0"
+            class="input mt-1 text-xs"
+          />
+        </div>
         <div>
           <label class="text-xs text-gray-400"
             >{{ t('admin.pricing.form.cacheReadPrice', '缓存R') }}
@@ -214,6 +230,8 @@ const isEmpty = computed(() => {
     (iv.output_price == null || iv.output_price === '') &&
     (iv.cache_write_price == null || iv.cache_write_price === '') &&
     (iv.cache_write_1h_price == null || iv.cache_write_1h_price === '') &&
+    (iv.cache_write_30m_price == null || iv.cache_write_30m_price === '') &&
+    (iv.cache_write_12h_price == null || iv.cache_write_12h_price === '') &&
     (iv.cache_read_price == null || iv.cache_read_price === '') &&
     (iv.input_multiplier == null || iv.input_multiplier === '') &&
     (iv.output_multiplier == null || iv.output_multiplier === '') &&

@@ -1,6 +1,6 @@
 # 模型目录与官方补充
 
-默认价格与展示属性来自 models.dev 的 `https://models.dev/catalog.json?type=all`。`catalog.json.gz` 保存经过校验的离线快照，`model_supplements.json` 按型号保存价格、展示属性及其官方来源；两者通过 `go:embed` 编入二进制。启动时加载磁盘缓存或离线目录，后台使用 ETag 同步，完整验证成功后才一起发布价格、操作价格和属性。更新失败保留最近有效版本。
+默认价格与展示属性来自 models.dev 的 `https://models.dev/experimental/v2.0/api.json`。`catalog.json.gz` 保存经过校验的 v2 离线快照，`model_supplements.json` 按型号保存价格、展示属性及其官方来源；两者通过 `go:embed` 编入二进制。启动时加载磁盘缓存或离线目录，后台使用 ETag 同步，完整验证成功后才一起发布价格、操作价格和属性。更新失败保留最近有效版本。
 
 目录解析保留公共模型资料、识别出的原厂记录和运行时需要的服务记录。`origins.go` 将区域、套餐和独立品牌入口映射到模型作者，识别范围独立于当前网关支持的平台。原厂归属优先读取 `canonical_model_id`，缺失时查公共资料，再按原厂专用入口或混合目录中的自研家族、命名空间识别。未接入的视频、语音、图片等型号也会保留；厂商归属和依据见[原厂归属](../../../docs/interfaces/model_catalog_and_marketplace.md#model_catalog_origins)。
 

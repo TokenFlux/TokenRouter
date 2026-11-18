@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"strings"
+	"time"
 
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
@@ -41,6 +42,7 @@ type ProviderStatsSource interface {
 // ProviderStatsCostInput supplies model identity, usage, and forwarded
 // modifiers for provider cost.
 type ProviderStatsCostInput struct {
+	PricingAt time.Time // instant used for catalog calendar rates
 	// DisableCatalogFallback preserves unknown expense for cross-vendor aliases.
 	// Configured provider cards still apply, but another vendor's catalog cannot.
 	DisableCatalogFallback bool
@@ -120,7 +122,7 @@ func (r *PriceResolver) ResolveProviderStatsWithMode(ctx context.Context, input 
 	// Loaded configuration supplied no custom cost. Catalog calculation
 	// uses the upstream identity and forwarded modifiers as the
 	// remaining source for this provider base.
-	return r.calculator.ModelFileStatsCost(input.UpstreamModel, input.Tokens, input.ServiceTier, input.ReasoningEffort), purepricing.BillingModeToken
+	return r.calculator.modelFileStatsCostAt(input.UpstreamModel, input.Tokens, input.ServiceTier, input.ReasoningEffort, input.PricingAt), purepricing.BillingModeToken
 }
 
 // ModelFileStatsCost calculates catalog token cost at unit user rate using
@@ -129,7 +131,14 @@ func (r *PriceResolver) ResolveProviderStatsWithMode(ctx context.Context, input 
 // regardless of operation counts. Errors, absent breakdowns, and totals at or
 // below zero return nil; the custom-rule path can represent explicit zero.
 func (s *Calculator) ModelFileStatsCost(model string, tokens UsageTokens, serviceTier, effort string) *float64 {
-	breakdown, err := s.CalculateCostUnified(CostInput{Model: model, Tokens: tokens, RateMultiplier: 1, ServiceTier: purepricing.NormalizeBillingServiceTier(serviceTier), ReasoningEffort: effort})
+	return s.modelFileStatsCostAt(model, tokens, serviceTier, effort, time.Time{})
+}
+
+// modelFileStatsCostAt computes provider cost at the same instant as user billing.
+// A zero time delegates to the calculator clock. Only usable positive catalog
+// amounts produce a provider cost pointer, matching the established fallback.
+func (s *Calculator) modelFileStatsCostAt(model string, tokens UsageTokens, serviceTier, effort string, at time.Time) *float64 {
+	breakdown, err := s.CalculateCostUnified(CostInput{Model: model, Tokens: tokens, RateMultiplier: 1, ServiceTier: purepricing.NormalizeBillingServiceTier(serviceTier), ReasoningEffort: effort, PricingAt: at})
 	// Catalog lookup cannot represent an explicit free-cost override
 	// through this helper. An unavailable or nonpositive result leaves
 	// provider-cost selection to the usage consumer's existing nil

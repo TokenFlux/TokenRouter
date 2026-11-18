@@ -291,8 +291,9 @@ type ResponsesUsage struct {
 // ResponsesInputTokensDetails represents cached, audio, and cache-write input
 // token observations.
 type ResponsesInputTokensDetails struct {
-	CachedTokens int `json:"cached_tokens,omitempty"` // cache-read input token count
-	AudioTokens  int `json:"audio_tokens,omitempty"`  // audio input token count
+	CacheWriteDetails *CacheWriteTokensDetails `json:"cache_write_tokens_details,omitempty"` // upstream TTL write counters
+	CachedTokens      int                      `json:"cached_tokens,omitempty"`              // cache-read input token count
+	AudioTokens       int                      `json:"audio_tokens,omitempty"`               // audio input token count
 	// cache-creation input token count
 	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
 	CacheWriteTokens    int `json:"cache_write_tokens,omitempty"` // cache-write input token count

@@ -2682,11 +2682,11 @@ func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *t
 	require.Equal(t, "png", gjson.GetBytes(upstream.lastBody, "tools.0.output_format").String())
 }
 
-// TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOptions
-// sends legacy output limits and unsupported prompt-cache options through
-// native forwarding. It checks limit renaming, option removal and precedence
+// TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndPreservesPromptCacheOptions
+// sends legacy output limits and explicit cache lifetimes through native
+// forwarding. It checks limit renaming, TTL preservation, and precedence
 // of an already supplied max_output_tokens value.
-func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOptions(t *testing.T) {
+func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndPreservesPromptCacheOptions(t *testing.T) {
 	runForward := func(t *testing.T, body []byte) []byte {
 		t.Helper()
 		upstream := &auxiliaryHTTPRecorder{
@@ -2724,11 +2724,12 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 		return upstream.lastBody
 	}
 
-	t.Run("max_tokens 归一化为 max_output_tokens 并移除 prompt_cache_options", func(t *testing.T) {
-		out := runForward(t, []byte(`{"model":"gpt-5.4","stream":false,"max_tokens":256,"prompt_cache_options":{"enabled":true},"input":[{"type":"message","content":"hi"}]}`))
+	t.Run("preserve requested lifetime and normalize the legacy output limit", func(t *testing.T) {
+		out := runForward(t, []byte(`{"model":"gpt-6.2-sol","stream":false,"max_tokens":256,"prompt_cache_options":{"ttl":"12h"},"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi","prompt_cache_breakpoint":{"mode":"explicit","ttl":"30m"}}]}]}`))
 		require.Equal(t, int64(256), gjson.GetBytes(out, "max_output_tokens").Int())
 		require.False(t, gjson.GetBytes(out, "max_tokens").Exists())
-		require.False(t, gjson.GetBytes(out, "prompt_cache_options").Exists())
+		require.Equal(t, "12h", gjson.GetBytes(out, "prompt_cache_options.ttl").String())
+		require.Equal(t, "30m", gjson.GetBytes(out, "input.0.content.0.prompt_cache_breakpoint.ttl").String())
 	})
 
 	t.Run("同时存在时保留 max_output_tokens 丢弃 max_tokens", func(t *testing.T) {

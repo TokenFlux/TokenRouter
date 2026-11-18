@@ -25,16 +25,12 @@ import (
 // invalid HTTP candidates around a local supplement edit. Filtering must apply
 // to every publication, including disk startup, while manual zero prices survive.
 func TestCatalogFilteringAcrossHTTPAndLocalReload(t *testing.T) {
-	const first = `{"models":{"openai/public-only":{"limit":{"context":64}}},"providers":{
-		"openai":{"models":{"original":{"limit":{"context":128},"cost":{"input":1,"output":2}}}},
-		"google-vertex":{"models":{"original":{"limit":{"context":32},"cost":{"input":9,"output":10}}}},
-		"openrouter":{"models":{
-			"original":{"canonical_model_id":"openai/original","limit":{"context":2},"cost":{"input":7,"output":8}},
-			"relay-only":{"cost":{"input":7,"output":8}},
-			"manual":{"limit":{"context":2},"cost":{"input":7,"output":8}}
-		}}
-	}}`
-	second := strings.Replace(first, `"input":1,"output":2`, `"input":3,"output":4`, 1)
+	const first = `{
+	"openai":{"id":"openai","models":{"original":{"id":"original","type":"chat","capabilities":{},"limit":{"context":128},"cost":{"text":{"input":{"price":1},"output":{"price":2}}}},"public-only":{"id":"public-only","type":"chat","capabilities":{},"canonical_id":"openai/public-only","limit":{"context":64}}}},
+	"google-vertex":{"id":"google-vertex","models":{"original":{"id":"original","type":"chat","capabilities":{},"limit":{"context":32},"cost":{"text":{"input":{"price":9},"output":{"price":10}}}}}},
+	"openrouter":{"id":"openrouter","models":{"original":{"id":"original","type":"chat","capabilities":{},"canonical_id":"openai/original","limit":{"context":2},"cost":{"text":{"input":{"price":7},"output":{"price":8}}}},"relay-only":{"id":"relay-only","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":7},"output":{"price":8}}}},"manual":{"id":"manual","type":"chat","capabilities":{},"limit":{"context":2},"cost":{"text":{"input":{"price":7},"output":{"price":8}}}}}}
+}`
+	second := strings.Replace(first, `"input":{"price":1},"output":{"price":2}`, `"input":{"price":3},"output":{"price":4}`, 1)
 	var requests atomic.Int32
 	server := newLocalTestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch requests.Add(1) {
@@ -46,7 +42,7 @@ func TestCatalogFilteringAcrossHTTPAndLocalReload(t *testing.T) {
 		case 4:
 			assertCatalogResponse(t, w, r, `"v1"`, `"v2"`, second)
 		case 5:
-			assertCatalogResponse(t, w, r, `"v2"`, `"invalid"`, `{"providers":{"openai":{"models":{"bad":{"limit":{"context":-1}}}}}}`)
+			assertCatalogResponse(t, w, r, `"v2"`, `"invalid"`, `{"openai":{"id":"openai","models":{"bad":{"id":"bad","type":"chat","capabilities":{},"limit":{"context":-1}}}}}`)
 		case 6:
 			require.Equal(t, `"v2"`, r.Header.Get("If-None-Match"))
 			w.WriteHeader(http.StatusNotModified)

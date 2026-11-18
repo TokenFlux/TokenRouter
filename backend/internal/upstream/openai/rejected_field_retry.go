@@ -185,7 +185,8 @@ func NormalizeOpenAIResponsesRejectedFieldRetryBody(statusCode int, body, respon
 	cacheParamMatchesMessage := cacheMessageParam == "" || cacheParam == cacheMessageParam
 	cacheModelRejection := code == "invalid_parameter" || cacheMessageParam != ""
 	if cacheParam != "" && cacheParamMatchesMessage && cacheModelRejection {
-		if cacheParam == "prompt_cache_breakpoint" && gjson.GetBytes(body, cacheParam).Exists() {
+		if cacheParam == "prompt_cache_breakpoint" && gjson.GetBytes(body, cacheParam).Exists() &&
+			!hasOpenAIExplicitCacheTTL(body, cacheParam) {
 			retryBody, err := sjson.DeleteBytes(body, cacheParam)
 			if err != nil {
 				return nil, "", false, fmt.Errorf("delete rejected prompt_cache_breakpoint: %w", err)
@@ -430,7 +431,7 @@ func RemoveOpenAIResponsesRejectedCacheAtIndex(body []byte, index int) ([]byte, 
 		return nil, "", false, nil
 	}
 	cachePath := itemPath + ".prompt_cache_breakpoint"
-	if !gjson.GetBytes(body, cachePath).Exists() {
+	if !gjson.GetBytes(body, cachePath).Exists() || hasOpenAIExplicitCacheTTL(body, cachePath) {
 		return nil, "", false, nil
 	}
 	retryBody, err := sjson.DeleteBytes(body, cachePath)
@@ -438,6 +439,14 @@ func RemoveOpenAIResponsesRejectedCacheAtIndex(body []byte, index int) ([]byte, 
 		return nil, "", false, fmt.Errorf("delete rejected prompt_cache_breakpoint at input[%d]: %w", index, err)
 	}
 	return retryBody, "indexed prompt_cache_breakpoint parameter rejection", true, nil
+}
+
+// hasOpenAIExplicitCacheTTL reports whether a legacy repair would alter paid
+// cache retention. An explicit per-breakpoint or inherited request TTL keeps
+// the vendor rejection visible to the caller.
+func hasOpenAIExplicitCacheTTL(body []byte, breakpointPath string) bool {
+	return gjson.GetBytes(body, "prompt_cache_options.ttl").Exists() ||
+		gjson.GetBytes(body, breakpointPath+".ttl").Exists()
 }
 
 // NormalizeOpenAIResponsesRejectedNullContentAtIndex repairs only an object

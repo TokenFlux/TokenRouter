@@ -22,6 +22,11 @@ import (
 // Snapshots returned to callers own their nested detail values so later events
 // cannot change an earlier response retained by a converter or accumulator.
 
+const (
+	// cacheWriteDetailsPath names the native Responses TTL usage object.
+	cacheWriteDetailsPath = "input_tokens_details.cache_write_tokens_details"
+)
+
 var (
 	// Cache path lists define the shared precedence and presence checks used by
 	// raw accounting, typed usage decoding, and sparse stream accumulation.
@@ -203,6 +208,9 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 				a.usage.InputTokensDetails.CacheWriteTokens = current.CacheCreationInputTokens
 			}
 		}
+		if a.usage.InputTokensDetails.CacheWriteDetails != nil || value.Get(cacheWriteDetailsPath).Exists() {
+			_, a.usage.InputTokensDetails.CacheWriteDetails = ObserveCacheWriteDetails(value, a.usage.CacheCreationInputTokens, a.usage.InputTokensDetails.CacheWriteDetails)
+		}
 		if typedDetailsValid && usageHasAny(value, "input_tokens_details.audio_tokens", "prompt_tokens_details.audio_tokens") {
 			a.usage.InputTokensDetails.AudioTokens = current.InputTokensDetails.AudioTokens
 		}
@@ -275,6 +283,9 @@ func (a *UsageAccumulator) Snapshot() *ResponsesUsage {
 	value := a.usage
 	if value.InputTokensDetails != nil {
 		details := *value.InputTokensDetails
+		if details.CacheWriteDetails != nil {
+			details.CacheWriteDetails = new(*details.CacheWriteDetails)
+		}
 		value.InputTokensDetails = &details
 	}
 	if value.OutputTokensDetails != nil {
@@ -300,7 +311,8 @@ func PatchResponseUsage(body []byte, usage *ResponsesUsage) ([]byte, error) {
 	current, present := OpenAIUsageFromGJSON(gjson.GetBytes(body, "usage"))
 	selected := CopyForwardUsage(usage)
 	if (present && current.InputTokens == selected.InputTokens && current.OutputTokens == selected.OutputTokens &&
-		current.CacheReadInputTokens == selected.CacheReadInputTokens && current.CacheCreationInputTokens == selected.CacheCreationInputTokens) ||
+		current.CacheReadInputTokens == selected.CacheReadInputTokens && current.CacheCreationInputTokens == selected.CacheCreationInputTokens &&
+		equalCacheWriteDetails(current.CacheWriteDetails, selected.CacheWriteDetails)) ||
 		(!present && !OpenAIUsageHasTokens(&selected)) {
 		// Complete native usage requires no repair. Preserve its original byte
 		// spelling and optional-field choices when accumulation contributes no missing counts.
@@ -321,6 +333,20 @@ func PatchResponseUsage(body []byte, usage *ResponsesUsage) ([]byte, error) {
 		if gjson.GetBytes(body, "usage."+path).Exists() {
 			values["usage."+path] = usage.CacheCreationInputTokens
 		}
+	}
+	if selected.CacheWriteDetails != nil {
+		values["usage.input_tokens_details.cache_write_tokens"] = usage.CacheCreationInputTokens
+		values["usage."+cacheWriteDetailsPath+".ttl_30m_tokens"] = selected.CacheWriteDetails.Tokens30m
+		values["usage."+cacheWriteDetailsPath+".ttl_12h_tokens"] = selected.CacheWriteDetails.Tokens12h
+	}
+	if selected.CacheWriteDetails == nil && current.CacheWriteDetails != nil {
+		// The current aggregate cleared an earlier split. Remove only the old
+		// breakdown so patched JSON cannot imply those counts apply to the new total.
+		updated, err := sjson.DeleteBytes(body, "usage."+cacheWriteDetailsPath)
+		if err != nil {
+			return nil, err
+		}
+		body = updated
 	}
 	for path, value := range values {
 		updated, err := sjson.SetBytes(body, path, value)
@@ -344,13 +370,14 @@ func PatchResponseUsage(body []byte, usage *ResponsesUsage) ([]byte, error) {
 func normalizeResponsesCacheUsage(value gjson.Result, usage *ResponsesUsage) {
 	hasRead := usageHasAny(value, cacheReadDetailPaths...) || usageHasAny(value, cacheReadAliasPaths...)
 	hasWrite := usageHasAny(value, cacheWriteDetailPaths...) || usageHasAny(value, cacheWriteAliasPaths...)
-	if hasRead || hasWrite {
+	if hasRead || hasWrite || value.Get(cacheWriteDetailsPath).Exists() {
 		if usage.InputTokensDetails == nil {
 			usage.InputTokensDetails = &ResponsesInputTokensDetails{}
 		}
 		if hasRead {
 			usage.InputTokensDetails.CachedTokens = OpenAICacheReadTokensFromUsage(value)
 		}
+		_, usage.InputTokensDetails.CacheWriteDetails = ObserveCacheWriteDetails(value, 0, nil)
 		if hasWrite {
 			usage.CacheCreationInputTokens = OpenAICacheCreationTokensFromUsage(value)
 			usage.InputTokensDetails.CacheCreationTokens = usage.CacheCreationInputTokens

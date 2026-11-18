@@ -197,6 +197,8 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 
 		pricing := &CatalogModelPricing{
 			InputPricePresent:           entry.InputCostPerToken != nil,
+			CacheCreation30mPrice:       entry.CacheCreation30mPrice,
+			CacheCreation12hPrice:       entry.CacheCreation12hPrice,
 			OutputPricePresent:          entry.OutputCostPerToken != nil,
 			CatalogRules:                entry.Clone(),
 			CacheCreation1hPricePresent: entry.CacheCreationInputTokenCostAbove1hr != nil,
@@ -228,7 +230,11 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 		// models.dev publishes independent text buckets; an absent side keeps text
 		// settlement unavailable while separately declared media amounts remain usable.
 		if entry.Source == "models.dev" && (entry.InputCostPerToken == nil || entry.OutputCostPerToken == nil) {
-			pricing.TokenPricingAbsent = true
+			// An image-only output can supply a complete token quote without any
+			// text-output amount. Mixed-output entries still require both text sides.
+			completeImageRates := entry.Mode == "image_generation" && entry.OutputCostPerImageToken != nil &&
+				(entry.InputCostPerToken != nil || entry.InputCostPerImageToken != nil)
+			pricing.TokenPricingAbsent = !completeImageRates
 		}
 		// Legacy files may use supported_input_modalities. Use that list when the
 		// preferred list is empty so compatibility modality lookup can still identify inputs.

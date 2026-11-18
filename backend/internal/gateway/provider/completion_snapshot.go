@@ -238,6 +238,10 @@ func ProjectOpenAICompletionResult(v *forwardcore.OpenAIResult, a *provider.Reco
 	if v.AudioUsage != nil {
 		out.AudioUsage = &completion.AudioUsage{Mode: v.AudioUsage.Mode, DurationOrUnits: v.AudioUsage.DurationOrUnits}
 	}
+	if details := v.Usage.CacheWriteDetails; details.Matches(out.Usage.CacheCreationInputTokens) {
+		out.Usage.CacheCreation30mTokens = new(details.Tokens30m)
+		out.Usage.CacheCreation12hTokens = new(details.Tokens12h)
+	}
 	// Replace the token set together when the source was native Messages usage;
 	// its cache-duration and Speed fields must accompany that representation into billing.
 	if v.NativeUsage != nil {

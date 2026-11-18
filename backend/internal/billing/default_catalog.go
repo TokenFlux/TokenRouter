@@ -231,6 +231,10 @@ func defaultTokenPrices(base *pricing.ModelPricing, raw *pricing.CatalogModelPri
 	addOptional("cache_read", quote(UsageTokens{CacheReadTokens: 1}).CacheReadCost, readPresent)
 	addOptional("cache_write", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation5mTokens: 1}).CacheCreationCost, writePresent)
 	addOptional("cache_write_1h", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation1hTokens: 1}).CacheCreationCost, base.SupportsCacheBreakdown)
+	if base.CacheCreation30mPrice != nil || base.CacheCreation12hPrice != nil {
+		addOptional("cache_write_30m", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation30mTokens: new(1), CacheCreation12hTokens: new(0)}).CacheCreationCost, true)
+		addOptional("cache_write_12h", quote(UsageTokens{CacheCreationTokens: 1, CacheCreation30mTokens: new(0), CacheCreation12hTokens: new(1)}).CacheCreationCost, true)
+	}
 	addOptional("image_input", quote(UsageTokens{InputTokens: 1, ImageInputTokens: 1}).ImageInputCost, base.ImageInputPricePerToken > 0 || raw != nil && (raw.SupportsVision || raw.ImageInputPricePresent))
 	if raw != nil && raw.ImageCacheReadPricePresent {
 		addOptional("image_cache_read", quote(UsageTokens{CacheReadTokens: 1, ImageCacheReadTokens: 1}).CacheReadCost, true)

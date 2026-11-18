@@ -49,7 +49,7 @@ func provideModelAttributes(repo *postgres.ModelAttributeStore, catalog *provide
 func provideModelCatalogService(cfg *config.Config, remote provider.RemoteClient) (*provider.Service, error) {
 	options := provider.Options{
 		DataDir:               cfg.Storage.Dir,
-		RemoteURL:             cfg.ModelCatalog.CatalogURL,
+		RemoteURL:             modelcatalog.NormalizeRemoteURL(cfg.ModelCatalog.CatalogURL),
 		FallbackFile:          cfg.ModelCatalog.SupplementFile,
 		CheckIntervalMinutes:  cfg.ModelCatalog.CheckIntervalMinutes,
 		URLAllowlistEnabled:   cfg.Security.URLAllowlist.Enabled,

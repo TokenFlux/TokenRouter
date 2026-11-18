@@ -108,6 +108,19 @@ func (index Index) Search(query AttributeQuery) AttributePage {
 			continue
 		}
 		entry.Cost = cloneCost(entry.Cost)
+		entry.VideoPrices = maps.Clone(entry.VideoPrices)
+		entry.ImagePrices = maps.Clone(entry.ImagePrices)
+		entry.ServicePrices = slices.Clone(entry.ServicePrices)
+		for i := range entry.ServicePrices {
+			rate := &entry.ServicePrices[i]
+			rate.Factor = clonePointer(rate.Factor)
+			if rate.Cost != nil {
+				rate.Cost = new(cloneCost(*rate.Cost))
+			}
+			if rate.Factors != nil {
+				rate.Factors = new(cloneCost(*rate.Factors))
+			}
+		}
 		entry.Fast = clonePointer(entry.Fast)
 		if entry.Fast != nil {
 			*entry.Fast = cloneCost(*entry.Fast)
@@ -159,5 +172,12 @@ func cloneCost(cost Cost) Cost {
 	cost.Output = clonePointer(cost.Output)
 	cost.CacheRead = clonePointer(cost.CacheRead)
 	cost.CacheWrite = clonePointer(cost.CacheWrite)
+	cost.CacheWrite1h = clonePointer(cost.CacheWrite1h)
+	cost.CacheWrite30m = clonePointer(cost.CacheWrite30m)
+	cost.CacheWrite12h = clonePointer(cost.CacheWrite12h)
+	cost.ImageInput = clonePointer(cost.ImageInput)
+	cost.ImageRead = clonePointer(cost.ImageRead)
+	cost.ImageOutput = clonePointer(cost.ImageOutput)
+	cost.PerImage = clonePointer(cost.PerImage)
 	return cost
 }

@@ -1,6 +1,7 @@
 package modelrules
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -160,9 +161,9 @@ func TestViewPlatformRulesDoNotInferFutureModels(t *testing.T) {
 	require.NoError(t, err)
 	catalog, err := modelcatalog.Parse(body)
 	require.NoError(t, err)
-	require.Equal(t, "ed1c21db1a80af0b3206f458c0823357c9d7dd332f81557e74d5d6e83d4324f4", catalog.Version)
+	require.Equal(t, "0b4912a578f53bdafb9f4c7ac27d75f10e97e8a359a4ae8f4bcfccf545f9a49f", catalog.Version)
 	for _, target := range []Target{
-		{Platform: "openai", Model: "gpt-6.2-sol"},
+		{Platform: "openai", Model: "gpt-6.8-sol"},
 		{Platform: "grok", Model: "grok-latest"},
 		{Platform: "grok", Model: "grok-build-latest"},
 		{Platform: "zhipu", Model: "glm-9"},
@@ -279,6 +280,10 @@ func TestOpenCodeCanonicalMetadataKeepsOfferingAndPriceIdentities(t *testing.T) 
 	require.NoError(t, err)
 	catalog, err := modelcatalog.Parse(body)
 	require.NoError(t, err)
+	var supplements map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(modelcatalog.Supplements(), &supplements))
+	const author = "nvidia/nemotron-3.5-lightning"
+	require.NoError(t, catalog.ApplyAttributeSupplement(author, supplements[author]))
 	model := "nemotron-3.5-lightning-free"
 	resolved := NewView(catalog.Publication()).Resolve(Target{Platform: "opencode", ProviderType: "apikey", ProviderMode: "payg", Model: model, UpstreamProtocol: "openai_chat_completions"}, modelcatalog.Attributes{})
 	require.Equal(t, model, resolved.Target.Model)

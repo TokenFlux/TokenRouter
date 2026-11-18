@@ -331,7 +331,7 @@ model_catalog:
   # restores the embedded supplements.
   supplement_file: ""
   # URL for the models.dev catalog shared by prices and display attributes.
-  catalog_url: "https://models.dev/catalog.json?type=all"
+  catalog_url: "https://models.dev/experimental/v2.0/api.json"
 outbound_proxy:
   # Allow auxiliary services (update check, pricing data) to fallback to direct
   # connection when proxy initialization fails. Does NOT affect AI gateway connections.

@@ -47,6 +47,8 @@ export interface UsageLog {
   cache_read_tokens: number // Reused cache tokens.
   cache_creation_5m_tokens: number // Cache creation 5m tokens.
   cache_creation_1h_tokens: number // Cache creation 1h tokens.
+  cache_creation_30m_tokens?: number // Reported thirty-minute write tokens.
+  cache_creation_12h_tokens?: number // Reported twelve-hour write tokens.
 
   input_cost: number // Input token cost.
   output_cost: number // Output token cost.

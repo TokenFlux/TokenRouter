@@ -65,8 +65,10 @@ type UsageLog struct {
 	CacheCreationTokens int `json:"cache_creation_tokens"` // cache creation token count
 	CacheReadTokens     int `json:"cache_read_tokens"`     // cache read token count
 
-	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"` // five minute cache creation tokens
-	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"` // one hour cache creation tokens
+	CacheCreation5mTokens  int  `json:"cache_creation_5m_tokens"`            // five minute cache creation tokens
+	CacheCreation1hTokens  int  `json:"cache_creation_1h_tokens"`            // one hour cache creation tokens
+	CacheCreation30mTokens *int `json:"cache_creation_30m_tokens,omitempty"` // reported thirty-minute writes
+	CacheCreation12hTokens *int `json:"cache_creation_12h_tokens,omitempty"` // reported twelve-hour writes
 
 	InputCost             float64 `json:"input_cost"`              // standard input cost USD
 	OutputCost            float64 `json:"output_cost"`             // standard output cost USD

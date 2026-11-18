@@ -34,6 +34,7 @@ const BillingDefaultsKey = "_billing_defaults"
 // presence. Nil supplies no additional rule; catalog validation requires a
 // finite positive value for each supplied factor.
 type CatalogRules struct {
+	ServiceTierPrices []CatalogServicePrice `json:"service_tier_prices,omitempty"` // directory tier adjustments
 	// ImagePrices holds USD-per-image amounts under exact 1K, 2K, and 4K keys.
 	// Present zero is free; absent dimensions stay unpriced during catalog lookup.
 	// USD per image-size map
@@ -113,6 +114,12 @@ func copyOptional[T any](value *T) *T {
 func (r CatalogRules) Clone() CatalogRules {
 	r.ImagePrices = maps.Clone(r.ImagePrices)
 	r.VideoPrices = maps.Clone(r.VideoPrices)
+	r.ServiceTierPrices = slices.Clone(r.ServiceTierPrices)
+	for i := range r.ServiceTierPrices {
+		r.ServiceTierPrices[i].Factor = copyOptional(r.ServiceTierPrices[i].Factor)
+		r.ServiceTierPrices[i].Amounts = maps.Clone(r.ServiceTierPrices[i].Amounts)
+		r.ServiceTierPrices[i].Factors = maps.Clone(r.ServiceTierPrices[i].Factors)
+	}
 	r.FastMultiplier = copyOptional(r.FastMultiplier)
 	r.FlexMultiplier = copyOptional(r.FlexMultiplier)
 	r.MaxReasoningEffortMultiplier = copyOptional(r.MaxReasoningEffortMultiplier)

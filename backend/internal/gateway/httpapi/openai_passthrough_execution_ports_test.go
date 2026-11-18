@@ -615,3 +615,15 @@ func TestPassthroughSinkRecordsAppliedTurnState(t *testing.T) {
 	require.Equal(t, int64(42), owner)
 	require.Equal(t, "delivered-state", rec.Result().Header.Get(CodexTurnStateHeader))
 }
+
+// TestOpenAIRejectedExplicitCacheTTLIsNotRetried supplies a model rejection
+// for a cache breakpoint with a requested lifetime. The existing field
+// compatibility retry must leave the request for ordinary error delivery.
+func TestOpenAIRejectedExplicitCacheTTLIsNotRetried(t *testing.T) {
+	response := []byte(`{"error":{"code":"invalid_parameter","message":"input[0].prompt_cache_breakpoint is not supported on this model","param":"input[0].prompt_cache_breakpoint"}}`)
+	body := []byte(`{"prompt_cache_options":{"ttl":"30m"},"input":[{"type":"message","prompt_cache_breakpoint":{"ttl":"12h"}}]}`)
+	retry, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, response)
+	require.NoError(t, err)
+	require.False(t, changed)
+	require.Nil(t, retry)
+}

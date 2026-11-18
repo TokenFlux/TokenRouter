@@ -23,7 +23,7 @@ func TestPublishedCatalogViewsTrackSupplementsAndPreserveOldData(t *testing.T) {
 	dir := t.TempDir()
 	supplement := filepath.Join(dir, "supplement.json")
 	require.NoError(t, os.WriteFile(supplement, []byte(`{}`), 0o600))
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"openai":{"models":{"one":{"name":"First","limit":{"context":1000},"cost":{"input":2,"output":3}}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"openai":{"id":"openai","models":{"one":{"id":"one","type":"chat","capabilities":{},"name":"First","limit":{"context":1000},"cost":{"text":{"input":{"price":2},"output":{"price":3}}}}}}}`)}
 	service := NewService(Options{DataDir: dir, RemoteURL: "https://models.dev/catalog.json", FallbackFile: supplement}, remote)
 	require.NoError(t, service.ForceUpdate())
 	oldIndex, oldStatus := service.AttributeIndex()

@@ -564,7 +564,7 @@ func (s *Service) ForceUpdate() error {
 // catalogFilePath returns the models.dev cache filename within the configured
 // directory.
 func (s *Service) catalogFilePath() string {
-	return filepath.Join(s.currentOptions().DataDir, "models_dev_catalog.json")
+	return filepath.Join(s.currentOptions().DataDir, "models_dev_catalog_v2.json")
 }
 
 // ListModelNamesByProvider returns sorted price-entry names for a normalized,

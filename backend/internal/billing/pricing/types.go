@@ -22,6 +22,9 @@ import "time"
 // and PriorityCacheWritePresent retain supplied free priority amounts so zero
 // can select a bucket rather than inherit a standard amount.
 type ModelPricing struct {
+	ServiceTierPrices     []CatalogServicePrice // compiled directory tier prices
+	CacheCreation30mPrice *float64              // USD per thirty-minute write token
+	CacheCreation12hPrice *float64              // USD per twelve-hour write token
 	// TimePricing carries catalog daily rules. CalculateTokenCost evaluates them
 	// only for catalog-source resolution with its supplied model instant and
 	// location.
@@ -115,7 +118,9 @@ type ContextModelPrice struct {
 // normalized to a positive aggregate while missing details can use aggregate
 // charging.
 type UsageTokens struct {
-	InputTokens int // reported aggregate input-token count
+	CacheCreation30mTokens *int // thirty-minute write count
+	CacheCreation12hTokens *int // twelve-hour write count
+	InputTokens            int  // reported aggregate input-token count
 	// ImageInputTokens retains the upstream image input subset, including any
 	// ImageCacheReadTokens reported within it. Calculation removes that explicit
 	// cached subset before capping image input at the ordinary InputTokens bucket.
@@ -167,22 +172,28 @@ type CostBreakdown struct {
 // respective Fast units. Both sets include the caller's rate multiplier;
 // configured effort and time controls are carried separately.
 type ModelDisplayPricing struct {
-	PricingMode                   string  // display classification: token, image, video, or unknown
-	PriceStatus                   string  // priced or unpriced display state
-	InputPricePerToken            float64 // USD per text-input token
-	ImageInputPricePerToken       float64 // USD per image-input token
-	OutputPricePerToken           float64 // USD per text-output token
-	CacheWritePricePerToken       float64 // USD per short-TTL cache-write token
-	CacheWrite1hPricePerToken     float64 // USD per hourly cache-write token
-	CacheReadPricePerToken        float64 // USD per cache-read token
-	ImageOutputPricePerToken      float64 // USD per image-output token
-	FastInputPricePerToken        float64 // Fast USD per text-input token
-	FastImageInputPricePerToken   float64 // Fast USD per image-input token
-	FastOutputPricePerToken       float64 // Fast USD per text-output token
-	FastCacheWritePricePerToken   float64 // Fast USD per short-TTL cache-write token
-	FastCacheWrite1hPricePerToken float64 // Fast USD per hourly cache-write token
-	FastCacheReadPricePerToken    float64 // Fast USD per cache-read token
-	FastImageOutputPricePerToken  float64 // Fast USD per image-output token
+	CacheWrite30mPricePerToken     *float64               // USD per thirty-minute write token
+	CacheWrite12hPricePerToken     *float64               // USD per twelve-hour write token
+	FastCacheWrite30mPricePerToken *float64               // Fast USD per thirty-minute write token
+	FastCacheWrite12hPricePerToken *float64               // Fast USD per twelve-hour write token
+	Flex                           *ServiceTierTokenQuote // effective Flex token prices
+	Ultrafast                      *ServiceTierTokenQuote // effective Ultrafast token prices
+	PricingMode                    string                 // display classification: token, image, video, or unknown
+	PriceStatus                    string                 // priced or unpriced display state
+	InputPricePerToken             float64                // USD per text-input token
+	ImageInputPricePerToken        float64                // USD per image-input token
+	OutputPricePerToken            float64                // USD per text-output token
+	CacheWritePricePerToken        float64                // USD per short-TTL cache-write token
+	CacheWrite1hPricePerToken      float64                // USD per hourly cache-write token
+	CacheReadPricePerToken         float64                // USD per cache-read token
+	ImageOutputPricePerToken       float64                // USD per image-output token
+	FastInputPricePerToken         float64                // Fast USD per text-input token
+	FastImageInputPricePerToken    float64                // Fast USD per image-input token
+	FastOutputPricePerToken        float64                // Fast USD per text-output token
+	FastCacheWritePricePerToken    float64                // Fast USD per short-TTL cache-write token
+	FastCacheWrite1hPricePerToken  float64                // Fast USD per hourly cache-write token
+	FastCacheReadPricePerToken     float64                // Fast USD per cache-read token
+	FastImageOutputPricePerToken   float64                // Fast USD per image-output token
 	// ContextIntervals supplies separately displayed priced ranges when one flat
 	// price cannot represent all contexts. Amounts and upper-endpoint pointers
 	// reflect the chosen resolution.
@@ -221,7 +232,13 @@ type ModelDisplayPricing struct {
 // FastImageOutputPricePerToken supply their Fast amounts; all include the
 // supplied display rate.
 type ModelDisplayPricingInterval struct {
-	MinTokens int // excluded lower context-token endpoint
+	CacheWrite30mPricePerToken     *float64               // USD per thirty-minute write token
+	CacheWrite12hPricePerToken     *float64               // USD per twelve-hour write token
+	FastCacheWrite30mPricePerToken *float64               // Fast USD per thirty-minute write token
+	FastCacheWrite12hPricePerToken *float64               // Fast USD per twelve-hour write token
+	Flex                           *ServiceTierTokenQuote // effective Flex token prices
+	Ultrafast                      *ServiceTierTokenQuote // effective Ultrafast token prices
+	MinTokens                      int                    // excluded lower context-token endpoint
 	// MaxTokens is the included upper context endpoint; nil leaves the range
 	// unbounded. Display construction may retain the caller's endpoint pointer.
 	MaxTokens                     *int    // included upper context-token endpoint

@@ -111,7 +111,9 @@ type ModelPricingEntry struct {
 	// zero. When it is absent, a CacheWritePrice override also replaces the hourly
 	// amount.
 	// USD per hourly cache-write token
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"`
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
 	// USD per cache-read token
 	CacheReadPrice *float64 `json:"cache_read_price"`
 	// ImageInputPrice supplies the image-input subset rate. During token-card
@@ -210,7 +212,9 @@ type PricingInterval struct {
 	// details. An interval CacheWritePrice override also covers hourly amounts
 	// when this is nil.
 	// USD per hourly cache-write token
-	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"`
+	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`
+	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
+	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
 	// USD per interval cache-read token
 	CacheReadPrice *float64 `json:"cache_read_price"`
 	// interval input-price scaling factor
@@ -310,7 +314,7 @@ func (p *ModelPricingEntry) HasEffectivePricing() bool {
 		if p.InputPrice != nil ||
 			p.OutputPrice != nil ||
 			p.CacheWritePrice != nil ||
-			p.CacheWrite1hPrice != nil ||
+			p.CacheWrite1hPrice != nil || p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil ||
 			p.CacheReadPrice != nil ||
 			p.ImageInputPrice != nil ||
 			p.ImageOutputPrice != nil ||
@@ -325,7 +329,7 @@ func (p *ModelPricingEntry) HasEffectivePricing() bool {
 			if iv.InputPrice != nil ||
 				iv.OutputPrice != nil ||
 				iv.CacheWritePrice != nil ||
-				iv.CacheWrite1hPrice != nil ||
+				iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil ||
 				iv.CacheReadPrice != nil ||
 				iv.InputMultiplier != nil ||
 				iv.OutputMultiplier != nil ||
@@ -348,7 +352,7 @@ func (p ModelPricingEntry) Clone() ModelPricingEntry {
 	// while the cached source remains readable.
 	ClonePricingAmounts(&cp.PriceMultiplier, &cp.FastModeMultiplier, &cp.FastMultiplier, &cp.FlexMultiplier,
 		&cp.MaxReasoningEffortMultiplier, &cp.InputPrice, &cp.OutputPrice, &cp.CacheWritePrice,
-		&cp.CacheWrite1hPrice, &cp.CacheReadPrice, &cp.ImageInputPrice, &cp.ImageOutputPrice, &cp.PerRequestPrice)
+		&cp.CacheWrite1hPrice, &cp.CacheWrite30mPrice, &cp.CacheWrite12hPrice, &cp.CacheReadPrice, &cp.ImageInputPrice, &cp.ImageOutputPrice, &cp.PerRequestPrice)
 	if p.Models != nil {
 		cp.Models = make([]string, len(p.Models))
 		copy(cp.Models, p.Models)
@@ -358,7 +362,7 @@ func (p ModelPricingEntry) Clone() ModelPricingEntry {
 		copy(cp.Intervals, p.Intervals)
 		for i := range cp.Intervals {
 			iv := &cp.Intervals[i]
-			ClonePricingAmounts(&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite1hPrice,
+			ClonePricingAmounts(&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite1hPrice, &iv.CacheWrite30mPrice, &iv.CacheWrite12hPrice,
 				&iv.CacheReadPrice, &iv.InputMultiplier, &iv.OutputMultiplier, &iv.CacheWriteMultiplier,
 				&iv.CacheReadMultiplier, &iv.PerRequestPrice)
 			if iv.MaxTokens != nil {
@@ -472,6 +476,8 @@ func ValidateIntervalPrices(iv *PricingInterval, idx int) error {
 		{"output_price", iv.OutputPrice},
 		{"cache_write_price", iv.CacheWritePrice},
 		{"cache_write_1h_price", iv.CacheWrite1hPrice},
+		{"cache_write_30m_price", iv.CacheWrite30mPrice},
+		{"cache_write_12h_price", iv.CacheWrite12hPrice},
 		{"cache_read_price", iv.CacheReadPrice},
 		{"per_request_price", iv.PerRequestPrice},
 	}

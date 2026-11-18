@@ -36,7 +36,7 @@ app 通过 `provideSystemOneExecutor` 构造决策执行器，直接注入共享
 
 成功响应的用量缺失、为负、类型错误或超出整数范围时，答案照常交付。网关记录 `systemone.usage_invalid` 告警和关联请求的 `usage_unknown` 尝试，跳过资金结算及正常用量账单。有效的零用量按正常响应处理。该响应结束本次上游尝试。
 
-models.dev 的默认 JSON 接口会过滤 decision 等特殊模型。目录同步使用 `catalog.json?type=all`，离线快照保留原始资料，解析时保留 Jev 公共属性和原厂记录，并排除第三方渠道报价。`model_supplements.json` 在同一型号条目内保存 TypeSafe 直连的价格、缺失属性和核验来源，覆盖 `jev-latest`、`jev-preview`、`jev-1.13.0`、`jev-1.14.0`。目录已有值优先，渠道售价可通过价卡或本地补充按完整 ID 配置，明确零价保持有效。输入模态为文本和图片，输出为结构化决策，在当前模态分类中标为 text 并声明 structured_output。目录已有的图片能力和内嵌补充均保留，补充文件不覆盖目录的明确值。
+models.dev v2 默认发布 decision 等模型。离线快照保留 v2 原始记录，解析时保留 Jev 的原厂属性与报价。`model_supplements.json` 在同一型号条目内保存 TypeSafe 直连的价格、缺失属性和核验来源，覆盖 `jev-latest`、`jev-preview`、`jev-1.13.0`、`jev-1.14.0`。目录已有值优先，渠道售价可通过价卡或本地补充按完整 ID 配置，明确零价保持有效。输入模态为文本和图片，输出为结构化决策，在当前模态分类中标为 text 并声明 structured_output。目录已有的图片能力和内嵌补充均保留，补充文件不覆盖目录的明确值。
 
 ## 管理与展示
 

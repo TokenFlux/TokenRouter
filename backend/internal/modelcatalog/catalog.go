@@ -33,7 +33,7 @@ import (
 
 // RemoteURL identifies the complete models.dev catalog endpoint used when
 // configuring the application's remote catalog loader.
-const RemoteURL = "https://models.dev/catalog.json?type=all"
+const RemoteURL = "https://models.dev/experimental/v2.0/api.json"
 
 // offlineData and modelSupplements provide the catalog and official supplement
 // inputs shipped with each binary.
@@ -54,17 +54,25 @@ type Cost struct {
 	// Input, Output, CacheRead, and CacheWrite retain nil for missing prices and
 	// pointers to zero for declared free usage. Conversion to per-token billing
 	// prices belongs to the pricing consumer.
-	Input      *float64 `json:"input"`       // input USD per million tokens
-	Output     *float64 `json:"output"`      // output USD per million tokens
-	CacheRead  *float64 `json:"cache_read"`  // cache read USD per million tokens
-	CacheWrite *float64 `json:"cache_write"` // cache write USD per million tokens
+	Input         *float64 `json:"input"`       // input USD per million tokens
+	Output        *float64 `json:"output"`      // output USD per million tokens
+	CacheRead     *float64 `json:"cache_read"`  // cache read USD per million tokens
+	CacheWrite    *float64 `json:"cache_write"` // aggregate write USD per million tokens
+	CacheWrite1h  *float64 `json:"-"`           // USD per million hourly writes
+	CacheWrite30m *float64 `json:"-"`           // USD per million thirty-minute writes
+	CacheWrite12h *float64 `json:"-"`           // USD per million twelve-hour writes
+	ImageInput    *float64 `json:"-"`           // USD per million image input tokens
+	ImageRead     *float64 `json:"-"`           // USD per million cached image tokens
+	ImageOutput   *float64 `json:"-"`           // USD per million image output tokens
+	PerImage      *float64 `json:"-"`           // USD per image
 }
 
 // CostTier carries an explicit context threshold; consumers must not infer it
 // from compatibility field names.
 type CostTier struct {
-	Cost // context tier token prices
-	Tier struct {
+	Exclusive bool // normalized exclusive lower threshold
+	Cost           // context tier token prices
+	Tier      struct {
 		Type string `json:"type"` // context threshold tier
 		Size int    `json:"size"` // tokens
 	} `json:"tier"` // context price activation threshold
@@ -82,9 +90,12 @@ type Entry struct {
 	// Cost, Tiers, and Fast can share pointers and slices with a published
 	// catalog entry. Lookup and Rows copy attribute data; consumers that change
 	// prices also copy these price values, as Index.Search does.
-	Cost  Cost       `json:"-"` // base catalog token prices
-	Tiers []CostTier `json:"-"` // ordered context price tiers
-	Fast  *Cost      `json:"-"` // optional fast mode prices
+	Cost          Cost               `json:"-"` // base catalog token prices
+	Tiers         []CostTier         `json:"-"` // ordered context price tiers
+	Fast          *Cost              `json:"-"` // optional fast mode prices
+	ServicePrices []ServicePrice     `json:"-"` // supported directory service-tier rates
+	VideoPrices   map[string]float64 `json:"-"` // USD per output second by resolution
+	ImagePrices   map[string]float64 `json:"-"` // USD per image by size
 	// FirstParty records known endpoint authorship, subject to an explicit
 	// Canonical identity. Bare-name selection uses it to prefer an author's record.
 	FirstParty       bool `json:"-"`
@@ -97,6 +108,7 @@ type Entry struct {
 // Offering records a service model's declared SDK, operation and public identity.
 type Offering struct {
 	SDK              string // declared service SDK
+	Protocol         string // declared gateway protocol
 	Operation        string // model operation type
 	CanonicalModelID string // public attribute identity
 }
@@ -122,12 +134,29 @@ type Catalog struct {
 	publicEntries      map[string]Entry // public author model metadata
 }
 
+// sourceCatalog groups normalized provider offerings and public author metadata.
+type sourceCatalog struct {
+	PreferZaiGlobal bool                      `json:"-"`         // global Z.AI wins unqualified lookups
+	Providers       map[string]sourceProvider `json:"providers"` // service model collections
+	Models          map[string]sourceModel    `json:"models"`    // public author records
+}
+
+// sourceProvider groups normalized model records under one service identity.
+type sourceProvider struct {
+	NPM    json.RawMessage        `json:"npm"`    // default service SDK
+	Models map[string]sourceModel `json:"models"` // models keyed by exact ID
+}
+
 // sourceModel decodes the attributes and source-unit prices of one catalog record.
 type sourceModel struct {
-	Operation json.RawMessage `json:"type"`               // optional operation metadata
-	Provider  json.RawMessage `json:"provider"`           // optional model-specific SDK declaration
-	Name      string          `json:"name"`               // catalog model display name
-	Canonical string          `json:"canonical_model_id"` // declared public author identity
+	VideoPrices   map[string]float64 `json:"-"`                  // USD per output second by resolution
+	ImagePrices   map[string]float64 `json:"-"`                  // USD per output image by size
+	Protocol      string             `json:"-"`                  // resolved primary upstream protocol
+	ServicePrices []ServicePrice     `json:"-"`                  // normalized service-tier rates
+	Operation     json.RawMessage    `json:"type"`               // optional operation metadata
+	Provider      json.RawMessage    `json:"provider"`           // optional model-specific SDK declaration
+	Name          string             `json:"name"`               // catalog model display name
+	Canonical     string             `json:"canonical_model_id"` // declared public author identity
 	// Reasoning, ReasoningOptions, Interleaved, ToolCall, StructuredOutput,
 	// Temperature, and Attachment retain supplied false values and empty choices.
 	// Nil means the catalog has no declaration for that capability.
@@ -191,7 +220,7 @@ func (m sourceModel) offering(serviceSDK, publicIdentity string) Offering {
 	if m.Canonical != "" {
 		publicIdentity = m.Canonical
 	}
-	return Offering{SDK: sdk, Operation: optionalCatalogString(m.Operation), CanonicalModelID: publicIdentity}
+	return Offering{SDK: sdk, Protocol: m.Protocol, Operation: optionalCatalogString(m.Operation), CanonicalModelID: publicIdentity}
 }
 
 // optionalCatalogString reads catalog extension metadata when its value is text.
@@ -243,18 +272,22 @@ func Offline() ([]byte, error) {
 // records agree on one canonical identity. Callers apply supplements to the
 // returned mutable catalog before sharing its maps through views or indexes.
 func Parse(body []byte) (*Catalog, error) {
-	var source struct {
-		Providers map[string]struct {
-			NPM    json.RawMessage        `json:"npm"`    // default service SDK
-			Models map[string]sourceModel `json:"models"` // provider model identity records
-		} `json:"providers"` // catalog provider model collections
-		Models map[string]sourceModel `json:"models"` // public canonical model metadata
-	}
+	var source sourceCatalog
 	if err := json.Unmarshal(body, &source); err != nil {
 		return nil, err
 	}
+	if source.Providers == nil {
+		return ParseV2(body)
+	}
+	return buildCatalog(body, source)
+}
+
+// buildCatalog validates a common catalog projection and prepares its identity
+// indexes before publication. The raw bytes identify the originating snapshot,
+// while the normalized records supply provider-scoped capabilities and prices.
+func buildCatalog(body []byte, source sourceCatalog) (*Catalog, error) {
 	if len(source.Providers) == 0 {
-		return nil, fmt.Errorf("expected models.dev catalog with providers; legacy pricing JSON is only supported as a local supplement or override")
+		return nil, fmt.Errorf("expected a models.dev catalog with provider entries")
 	}
 	hash := sha256.Sum256(body)
 	catalog := &Catalog{Offerings: make(map[string]map[string]Offering, len(source.Providers)), Version: hex.EncodeToString(hash[:]), Entries: map[string]Entry{}, Providers: map[string]bool{}, Ambiguous: map[string]bool{}}
@@ -287,6 +320,11 @@ func Parse(body []byte) (*Catalog, error) {
 				return nil, fmt.Errorf("%s/%s: %w", provider, id, err)
 			}
 			entry = classifyModelOrigin(entry, source.Models)
+			// v2 lists both regional APIs. Keep existing unqualified Z.AI pricing on
+			// the global API and retain the mainland quote under its service identity.
+			if source.PreferZaiGlobal && entry.FirstParty && (provider == "zai" || provider == "zhipuai") {
+				entry.originalEndpoint = provider == "zai"
+			}
 			if !entry.FirstParty && !retainedServiceProvider(provider) {
 				continue
 			}
@@ -478,7 +516,7 @@ func (m sourceModel) entry(id, provider string) (Entry, error) {
 	if err := attrs.Validate(); err != nil {
 		return Entry{}, err
 	}
-	e := Entry{Model: id, Provider: provider, Canonical: m.Canonical, Source: "models.dev", Attributes: attrs, Cost: m.Cost.Cost, Tiers: m.Cost.Tiers}
+	e := Entry{Model: id, Provider: provider, Canonical: m.Canonical, Source: "models.dev", Attributes: attrs, Cost: m.Cost.Cost, Tiers: m.Cost.Tiers, ServicePrices: m.ServicePrices, VideoPrices: m.VideoPrices, ImagePrices: m.ImagePrices}
 	// The compatibility field names a fixed context threshold. Materialize that
 	// threshold for tier consumers when the catalog has supplied no explicit
 	// tier list.
@@ -509,7 +547,7 @@ func (m sourceModel) entry(id, provider string) (Entry, error) {
 	}
 	sort.Slice(e.Tiers, func(i, j int) bool { return e.Tiers[i].Tier.Size < e.Tiers[j].Tier.Size })
 	for i, tier := range e.Tiers {
-		if tier.Tier.Type != "context" || tier.Tier.Size <= 0 || i > 0 && tier.Tier.Size == e.Tiers[i-1].Tier.Size {
+		if tier.Tier.Type != "context" || (tier.Tier.Size < 0 || tier.Tier.Size == 0 && !tier.Exclusive) || i > 0 && tier.Tier.Size == e.Tiers[i-1].Tier.Size {
 			return Entry{}, fmt.Errorf("invalid context tier")
 		}
 		if err := validateCost(tier.Cost); err != nil {
@@ -523,7 +561,7 @@ func (m sourceModel) entry(id, provider string) (Entry, error) {
 // Nil prices remain unknown and zero prices remain declared free usage, so
 // attribute-only entries and free models are accepted.
 func validateCost(cost Cost) error {
-	for _, value := range []*float64{cost.Input, cost.Output, cost.CacheRead, cost.CacheWrite} {
+	for _, value := range []*float64{cost.Input, cost.Output, cost.CacheRead, cost.CacheWrite, cost.CacheWrite1h, cost.CacheWrite30m, cost.CacheWrite12h, cost.ImageInput, cost.ImageRead, cost.ImageOutput, cost.PerImage} {
 		if value != nil && (*value < 0 || math.IsInf(*value, 0) || math.IsNaN(*value)) {
 			return fmt.Errorf("invalid model price")
 		}

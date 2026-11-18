@@ -109,17 +109,20 @@ func TestUsageLog_SessionIDPersistence(t *testing.T) {
 	sessionID := "sess-" + uuid.NewString()
 
 	withSession := &usage.UsageLog{
-		UserID:       user.ID,
-		APIKeyID:     apiKey.ID,
-		ProviderID:   provider.ID,
-		RequestID:    uuid.NewString(),
-		Model:        "claude-3",
-		InputTokens:  10,
-		OutputTokens: 5,
-		TotalCost:    1.0,
-		ActualCost:   1.0,
-		SessionID:    &sessionID,
-		CreatedAt:    time.Now().UTC(),
+		UserID:                 user.ID,
+		APIKeyID:               apiKey.ID,
+		ProviderID:             provider.ID,
+		RequestID:              uuid.NewString(),
+		Model:                  "gpt-6.2-sol",
+		InputTokens:            10,
+		OutputTokens:           5,
+		CacheCreationTokens:    7,
+		CacheCreation30mTokens: new(0),
+		CacheCreation12hTokens: new(7),
+		TotalCost:              1.0,
+		ActualCost:             1.0,
+		SessionID:              &sessionID,
+		CreatedAt:              time.Now().UTC(),
 	}
 	_, err := repo.Create(ctx, withSession)
 	require.NoError(t, err)
@@ -146,12 +149,18 @@ func TestUsageLog_SessionIDPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.SessionID)
 	require.Equal(t, sessionID, *got.SessionID)
+	require.NotNil(t, got.CacheCreation30mTokens)
+	require.Zero(t, *got.CacheCreation30mTokens)
+	require.NotNil(t, got.CacheCreation12hTokens)
+	require.Equal(t, 7, *got.CacheCreation12hTokens)
 
 	// The second row omits session evidence; nullable scanning must keep that
 	// absence distinct from the first row's populated correlation text.
 	gotNone, err := repo.GetByID(ctx, withoutSession.ID)
 	require.NoError(t, err)
 	require.Nil(t, gotNone.SessionID)
+	require.Nil(t, gotNone.CacheCreation30mTokens)
+	require.Nil(t, gotNone.CacheCreation12hTokens)
 }
 
 // BenchmarkUserActivityWrites measures production batch construction and SQL

@@ -366,20 +366,14 @@ func TestCatalogRetainsRuntimeServiceRecords(t *testing.T) {
 func TestOfflineCatalogFiltering(t *testing.T) {
 	body, err := Offline()
 	require.NoError(t, err)
-	var source struct {
-		Models    map[string]json.RawMessage `json:"models"`    // public model metadata
-		Providers map[string]json.RawMessage `json:"providers"` // complete provider input
-	}
+	var source map[string]json.RawMessage
 	require.NoError(t, json.Unmarshal(body, &source))
-	catalog, err := Parse(body)
+	catalog, err := ParseV2(body)
 	require.NoError(t, err)
-	for id := range source.Models {
-		require.Contains(t, catalog.Entries, normalize(id))
-	}
 	page := NewIndex(catalog).Search(AttributeQuery{})
-	require.Less(t, len(page.Providers), len(source.Providers))
+	require.Less(t, len(page.Providers), len(source))
 	for _, provider := range []string{"openrouter", "302ai", "requesty"} {
-		require.Contains(t, source.Providers, provider)
+		require.Contains(t, source, provider)
 		require.True(t, catalog.Providers[provider])
 		require.NotContains(t, page.Providers, provider)
 		for _, entry := range page.Items {
@@ -398,7 +392,7 @@ func TestOfflineCatalogFiltering(t *testing.T) {
 		"stepfun-ai/step-3.5-flash", "stepfun-ai-step-plan/step-3.5-flash", "stepfun-step-plan/step-3.5-flash",
 		"xiaomi-token-plan-cn/mimo-v2.6-pro", "xiaomi-token-plan-ams/mimo-v2.6-pro", "xiaomi-token-plan-sgp/mimo-v2.6-pro",
 		"tencent-coding-plan/hunyuan-2.0-thinking", "tencent-tokenhub/hy3", "tencent-token-plan/hy3",
-		"bailing/Ling-1T", "longcat/LongCat-2.0", "nova/nova-2-lite-v1",
+		"longcat/LongCat-2.0", "nova/nova-2-lite-v1",
 		"arcee/trinity-large-thinking", "watsonx/ibm/granite-4-h-small",
 		"azure/phi-4", "azure-cognitive-services/phi-4", "github-copilot/mai-code-1.1-flash",
 		"inception/mercury-2", "morph/morph-v3-large", "sensenova/sensenova-6.8-flash-lite",
@@ -579,4 +573,18 @@ func TestUnknownServiceMetadataDoesNotInvalidatePrices(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, new(8192), entry.Attributes.InputLimit)
 	require.Empty(t, catalog.Publication().Offering("openai", "gpt-4").SDK)
+}
+
+// TestNormalizeRemoteCatalogURL updates known official URLs and keeps
+// configured mirror or local-only locations. Explicit model-type filtering
+// survives the endpoint switch without touching credential-bearing URLs.
+func TestNormalizeRemoteCatalogURL(t *testing.T) {
+	for input, want := range map[string]string{
+		"https://models.dev/catalog.json?type=all": RemoteURL + "?type=all",
+		"https://models.dev/api.json?type=chat":    RemoteURL + "?type=chat",
+		"https://mirror.example/catalog.json":      "https://mirror.example/catalog.json",
+		"":                                         "",
+	} {
+		require.Equal(t, want, NormalizeRemoteURL(input))
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
 )
@@ -162,7 +163,23 @@ func (c *Catalog) ApplyAttributeSupplement(model string, body json.RawMessage) e
 	if !exists {
 		entry = Entry{Model: model, Provider: supplement.Provider, Source: "local_supplement"}
 	}
-	c.Entries[key] = fillAttributeSupplement(entry, *supplement.Attributes)
+	entry = fillAttributeSupplement(entry, *supplement.Attributes)
+	c.Entries[key] = entry
+	// A verified supplement can restore a public author identity missing from
+	// v2 provider offerings. Restrict it to an explicit author-qualified key so
+	// a relay's qualified price and capability entry cannot become public metadata.
+	lab, _, qualified := strings.Cut(key, "/")
+	if qualified && supplement.Provider == lab && catalogProviderOrigin(lab).lab == lab {
+		if _, published := c.publicEntries[key]; !published {
+			if c.publicEntries == nil {
+				c.publicEntries = map[string]Entry{}
+			}
+			c.publicEntries[key] = Entry{
+				Model: key, Provider: lab, Canonical: key,
+				Source: "local_supplement", Attributes: entry.Attributes, AttributeSources: entry.AttributeSources,
+			}
+		}
+	}
 	return nil
 }
 

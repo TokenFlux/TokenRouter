@@ -97,8 +97,10 @@ type UsageLog struct {
 	// CacheCreation5mTokens and CacheCreation1hTokens describe TTL-specific
 	// creation buckets. TotalTokens uses CacheCreationTokens once, keeping these
 	// detail counters outside its four-counter sum.
-	CacheCreation5mTokens int `gorm:"column:cache_creation_5m_tokens"` // five minute cache creation tokens
-	CacheCreation1hTokens int `gorm:"column:cache_creation_1h_tokens"` // one hour cache creation tokens
+	CacheCreation5mTokens  int  `gorm:"column:cache_creation_5m_tokens"` // five minute cache creation tokens
+	CacheCreation1hTokens  int  `gorm:"column:cache_creation_1h_tokens"` // one hour cache creation tokens
+	CacheCreation30mTokens *int // reported thirty-minute writes
+	CacheCreation12hTokens *int // reported twelve-hour writes
 
 	ImageInputTokens     int     // image input token count
 	ImageCacheReadTokens int     // explicit cached image token subset

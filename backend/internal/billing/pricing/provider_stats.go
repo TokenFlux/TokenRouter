@@ -252,12 +252,14 @@ func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *fl
 		// remain zero instead of inheriting user-card defaults or catalog prices.
 		if iv := FindMatchingInterval(validIntervals, totalTokens); iv != nil {
 			p = &ModelPricingEntry{
-				InputPrice:        iv.InputPrice,
-				OutputPrice:       iv.OutputPrice,
-				CacheWritePrice:   iv.CacheWritePrice,
-				CacheWrite1hPrice: iv.CacheWrite1hPrice,
-				CacheReadPrice:    iv.CacheReadPrice,
-				ImageOutputPrice:  pricing.ImageOutputPrice,
+				InputPrice:         iv.InputPrice,
+				OutputPrice:        iv.OutputPrice,
+				CacheWritePrice:    iv.CacheWritePrice,
+				CacheWrite1hPrice:  iv.CacheWrite1hPrice,
+				CacheWrite30mPrice: iv.CacheWrite30mPrice,
+				CacheWrite12hPrice: iv.CacheWrite12hPrice,
+				CacheReadPrice:     iv.CacheReadPrice,
+				ImageOutputPrice:   pricing.ImageOutputPrice,
 			}
 		}
 	}
@@ -273,7 +275,10 @@ func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *fl
 	cacheCreationCost := float64(tokens.CacheCreationTokens) * deref(p.CacheWritePrice)
 	// An hourly amount enables detail pricing, including free hourly usage;
 	// missing positive details retain the aggregate short-rate amount.
-	if p.CacheWrite1hPrice != nil {
+	if short, long, ok := openAIWriteBreakdown(tokens); ok && (p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil) {
+		cacheCreationCost = float64(short)*cacheWriteRate(p.CacheWrite30mPrice, deref(p.CacheWritePrice)) +
+			float64(long)*cacheWriteRate(p.CacheWrite12hPrice, deref(p.CacheWritePrice))
+	} else if p.CacheWrite1hPrice != nil {
 		cache5m, cache1h := NormalizeCacheCreationBreakdown(tokens)
 		if cache5m > 0 || cache1h > 0 {
 			cacheCreationCost = float64(cache5m)*deref(p.CacheWritePrice) +
@@ -299,7 +304,7 @@ func HasAnyTokenStatsPrice(pricing *ModelPricingEntry) bool {
 	return pricing != nil && (pricing.InputPrice != nil ||
 		pricing.OutputPrice != nil ||
 		pricing.CacheWritePrice != nil ||
-		pricing.CacheWrite1hPrice != nil ||
+		pricing.CacheWrite1hPrice != nil || pricing.CacheWrite30mPrice != nil || pricing.CacheWrite12hPrice != nil ||
 		pricing.CacheReadPrice != nil ||
 		pricing.ImageOutputPrice != nil)
 }

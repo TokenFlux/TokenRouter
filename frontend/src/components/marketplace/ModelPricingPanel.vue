@@ -28,7 +28,7 @@
         <div
           v-if="
             selectableIntervals.length > 0 ||
-            hasFastPricing ||
+            availableServiceTiers.length > 0 ||
             hasMaxEffortPricing ||
             timeOptions.length > 0
           "
@@ -53,25 +53,27 @@
           </div>
           <div
             v-segmented
-            v-if="hasFastPricing"
+            v-if="availableServiceTiers.length > 0"
             class="segmented max-w-full flex-wrap"
             data-testid="pricing-fast-switch"
           >
             <button
               type="button"
               class="segmented-item px-2 py-0.5 text-xs font-semibold"
-              :class="{ 'segmented-item-active': !fastMode }"
-              @click="fastMode = false"
+              :class="{ 'segmented-item-active': selectedServiceTier === 'standard' }"
+              @click="selectedServiceTier = 'standard'"
             >
               {{ t('marketplace.pricingStandard') }}
             </button>
             <button
+              v-for="tier in availableServiceTiers"
+              :key="tier.key"
               type="button"
               class="segmented-item px-2 py-0.5 text-xs font-semibold"
-              :class="{ 'segmented-item-active': fastMode }"
-              @click="fastMode = true"
+              :class="{ 'segmented-item-active': selectedServiceTier === tier.key }"
+              @click="selectedServiceTier = tier.key"
             >
-              {{ t('marketplace.pricingFast') }}
+              {{ tier.label }}
             </button>
           </div>
           <div
@@ -164,6 +166,7 @@ import type {
   MarketplaceModel,
   MarketplaceModelPricing,
   MarketplacePricingInterval,
+  MarketplaceServiceTierPricing,
 } from '@/api/marketplace.types'
 
 // ModelPricingPanel.vue presents public model prices inside an expandable
@@ -194,7 +197,7 @@ const { balanceUnitName } = useBalanceDisplay()
 // Panel visibility and quote selectors remain local to the mounted component;
 // closing the collapse preserves these choices for the next expansion.
 const expanded = ref(false)
-const fastMode = ref(false)
+const selectedServiceTier = ref('standard')
 const maxEffortMode = ref(false)
 const selectedIntervalIndex = ref(0)
 
@@ -230,9 +233,7 @@ function formatPerImage(value: number): string {
 // tokenPricingRowsFromValues emits positive standard token prices in display order.
 // Missing, nonfinite, and zero values produce no row here. The caller supplies
 // explicit zero fallback rows when the overall quote is marked priced.
-function tokenPricingRowsFromValues(
-  pricing: MarketplaceModelPricing | MarketplacePricingInterval,
-): PricingRow[] {
+function tokenPricingRowsFromValues(pricing: MarketplaceServiceTierPricing): PricingRow[] {
   const rows: PricingRow[] = []
 
   if (hasPositiveValue(pricing.input_price_per_token)) {
@@ -256,7 +257,25 @@ function tokenPricingRowsFromValues(
       value: formatPerMillion(pricing.output_price_per_token),
     })
   }
-  if (hasPositiveValue(pricing.cache_write_price_per_token)) {
+  if (pricing.cache_write_30m_price_per_token != null) {
+    rows.push({
+      key: 'cache_write_30m',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
+      value: formatPerMillion(pricing.cache_write_30m_price_per_token),
+    })
+  }
+  if (pricing.cache_write_12h_price_per_token != null) {
+    rows.push({
+      key: 'cache_write_12h',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
+      value: formatPerMillion(pricing.cache_write_12h_price_per_token),
+    })
+  }
+  if (
+    pricing.cache_write_30m_price_per_token == null &&
+    pricing.cache_write_12h_price_per_token == null &&
+    hasPositiveValue(pricing.cache_write_price_per_token)
+  ) {
     rows.push({
       key: 'cache_write',
       label: t('marketplace.cacheWrite'),
@@ -317,7 +336,25 @@ function fastTokenPricingRows(
       value: formatPerMillion(pricing.fast_output_price_per_token),
     })
   }
-  if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
+  if (pricing.fast_cache_write_30m_price_per_token != null) {
+    rows.push({
+      key: 'fast_cache_write_30m',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
+      value: formatPerMillion(pricing.fast_cache_write_30m_price_per_token),
+    })
+  }
+  if (pricing.fast_cache_write_12h_price_per_token != null) {
+    rows.push({
+      key: 'fast_cache_write_12h',
+      label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
+      value: formatPerMillion(pricing.fast_cache_write_12h_price_per_token),
+    })
+  }
+  if (
+    pricing.fast_cache_write_30m_price_per_token == null &&
+    pricing.fast_cache_write_12h_price_per_token == null &&
+    hasPositiveValue(pricing.fast_cache_write_price_per_token)
+  ) {
     rows.push({
       key: 'fast_cache_write',
       label: t('marketplace.fastCacheWrite'),
@@ -441,9 +478,24 @@ const standardRows = computed<PricingRow[]>(() => {
 // positive fast fields exposes the speed selector to the user.
 const fastRows = computed(() => fastTokenPricingRows(activeSource.value))
 
-const hasFastPricing = computed(
-  () => pricingKind(props.model.pricing) === 'token' && fastRows.value.length > 0,
-)
+// Only tiers with a price for the selected context receive a control.
+const availableServiceTiers = computed(() => {
+  if (pricingKind(props.model.pricing) !== 'token') return []
+  const { flex, ultrafast } = activeSource.value
+  return [
+    { key: 'fast', label: t('marketplace.pricingFast'), rows: fastRows.value },
+    {
+      key: 'flex',
+      label: t('marketplace.pricingFlex'),
+      rows: flex ? tokenPricingRowsFromValues(flex) : [],
+    },
+    {
+      key: 'ultrafast',
+      label: t('marketplace.pricingUltrafast'),
+      rows: ultrafast ? tokenPricingRowsFromValues(ultrafast) : [],
+    },
+  ].filter(({ rows }) => rows.length > 0)
+})
 
 // TimeOption describes a displayed time-pricing interval and its token multiplier.
 interface TimeOption {
@@ -604,10 +656,9 @@ const timePricingNote = computed(() => {
   return t(key, { timezone: timePricing.timezone })
 })
 
-const activeRows = computed(() => {
-  if (fastMode.value && fastRows.value.length > 0) {
-    return fastRows.value
-  }
-  return standardRows.value
-})
+const activeRows = computed(
+  () =>
+    availableServiceTiers.value.find((tier) => tier.key === selectedServiceTier.value)?.rows ??
+    standardRows.value,
+)
 </script>

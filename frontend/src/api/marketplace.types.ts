@@ -15,6 +15,19 @@ export type MarketplacePriceStatus = 'priced' | 'unpriced'
 
 // MarketplacePricingInterval supplies token prices within one context-length pricing
 // interval.
+/** Effective token rates for one directory service tier. */
+export interface MarketplaceServiceTierPricing {
+  input_price_per_token?: number // USD per ordinary input token.
+  output_price_per_token?: number // USD per output token.
+  cache_read_price_per_token?: number // USD per cache-read token.
+  cache_write_price_per_token?: number // USD per aggregate cache write.
+  cache_write_1h_price_per_token?: number // USD per hourly cache write.
+  cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
+  cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
+  image_input_price_per_token?: number // USD per image input token.
+  image_output_price_per_token?: number // USD per image output token.
+}
+
 export interface MarketplacePricingInterval {
   min_tokens: number // Minimum context token count.
   max_tokens?: number | null // Maximum context token count.
@@ -23,6 +36,12 @@ export interface MarketplacePricingInterval {
   output_price_per_token?: number // Output price per token.
   cache_write_price_per_token?: number // Cache write price per token.
   cache_write_1h_price_per_token?: number // Cache write 1h price per token.
+  cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
+  cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
+  fast_cache_write_30m_price_per_token?: number // Fast USD per thirty-minute cache write.
+  fast_cache_write_12h_price_per_token?: number // Fast USD per twelve-hour cache write.
+  flex?: MarketplaceServiceTierPricing // Effective Flex token rates.
+  ultrafast?: MarketplaceServiceTierPricing // Effective Ultrafast token rates.
   cache_read_price_per_token?: number // Cache read price per token.
   image_output_price_per_token?: number // Image output price per token.
   fast_input_price_per_token?: number // Fast input price per token.
@@ -62,6 +81,12 @@ export interface MarketplaceModelPricing {
   output_price_per_token?: number // Output price per token.
   cache_write_price_per_token?: number // Cache write price per token.
   cache_write_1h_price_per_token?: number // Cache write 1h price per token.
+  cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
+  cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
+  fast_cache_write_30m_price_per_token?: number // Fast USD per thirty-minute cache write.
+  fast_cache_write_12h_price_per_token?: number // Fast USD per twelve-hour cache write.
+  flex?: MarketplaceServiceTierPricing // Effective Flex token rates.
+  ultrafast?: MarketplaceServiceTierPricing // Effective Ultrafast token rates.
   cache_read_price_per_token?: number // Cache read price per token.
   image_output_price_per_token?: number // Image output price per token.
   fast_input_price_per_token?: number // Fast input price per token.

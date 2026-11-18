@@ -2159,7 +2159,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 // provider-auth stage, provider scope, request header identity and sanitized
 // client presentation with next-provider action.
 func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t *testing.T) {
-	body := []byte(`{"model":"gpt-image-1","prompt":"draw a cat"}`)
+	body := []byte(`{"model":"gpt-image-1.5","prompt":"draw a cat"}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))

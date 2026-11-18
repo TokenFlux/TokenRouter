@@ -84,11 +84,11 @@ func TestStoreExportBatchReaderKeysetCursorAndCachedOwnedTeamLookup(t *testing.T
 	require.Empty(t, batch2)
 }
 
-// makeMockUsageLogRow builds a 73-column row matching usageLogSelectColumns for sqlmock tests.
+// makeMockUsageLogRow builds a 75-column row matching usageLogSelectColumns for sqlmock tests.
 func makeMockUsageLogRow(id, userID int64, createdAt time.Time) []driver.Value {
 	return []driver.Value{
 		id, userID, userID, nil, int64(3), int64(4), "req_test", "gpt-5.4", "gpt-5.4", nil,
-		nil, nil, 10, 20, 0, 0, 0, 0,
+		nil, nil, 10, 20, 0, 0, 0, 0, nil, nil,
 		0, 0.0, 0, 0.0, 0.001, 0.002, 0.0, 0.0, 0.003, 0.003, 0.0, 0.003,
 		nil, 1.0, nil, int16(0), int16(usage.RequestTypeStream), true, false, nil, nil, nil,
 		nil, 0, 0, 0, nil, nil, nil, nil, nil, 0,

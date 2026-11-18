@@ -13,6 +13,8 @@ import (
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // Responses terminal observation can precede client delivery or arrive during a
@@ -659,7 +661,7 @@ func TestOpenAICacheCreationTokensFromUsageNestedZeroWins(t *testing.T) {
 	t.Parallel()
 
 	usage := gjson.Parse(`{"input_tokens_details":{"cache_write_tokens":0},"cache_creation_input_tokens":19}`)
-	require.Zero(t, openAICacheCreationTokensFromUsage(usage))
+	require.Zero(t, openai.OpenAICacheCreationTokensFromUsage(usage))
 }
 
 // TestEmitTurnCompleteCoverage exercises callback eligibility for progress,

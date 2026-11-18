@@ -218,7 +218,7 @@ func observeUsageWrite(ctx context.Context, state, message string, p *timing.Per
 // when positive, otherwise one is used. The returned optional value distinguishes
 // no statistics price from an explicitly zero provider expense; settlement later
 // multiplies that selected base by the executing provider's rate.
-func (s *Recorder) applyProviderStatsCost(ctx context.Context, row *UsageLog, providerID, groupID int64, upstream, requested, mapped string, tokens UsageTokens) {
+func (s *Recorder) applyProviderStatsCost(ctx context.Context, row *UsageLog, providerID, groupID int64, upstream, requested, mapped string, tokens UsageTokens, at time.Time) {
 	if upstream == "" {
 		upstream = requested
 	}
@@ -236,6 +236,6 @@ func (s *Recorder) applyProviderStatsCost(ctx context.Context, row *UsageLog, pr
 		return
 	}
 	row.ProviderStatsCost = source.ResolveProviderStats(ctx, billing.ProviderStatsCostInput{
-		PreferRequestedModel: row.Platform == "qoder", ProviderID: providerID, GroupID: groupID, UpstreamModel: upstream, RequestedModel: requested, MappedModel: mapped, Tokens: tokens, RequestCount: count, ServiceTier: stringValueOrEmpty(row.ServiceTier), ReasoningEffort: stringValueOrEmpty(row.ReasoningEffort),
+		PricingAt: at, PreferRequestedModel: row.Platform == "qoder", ProviderID: providerID, GroupID: groupID, UpstreamModel: upstream, RequestedModel: requested, MappedModel: mapped, Tokens: tokens, RequestCount: count, ServiceTier: stringValueOrEmpty(row.ServiceTier), ReasoningEffort: stringValueOrEmpty(row.ReasoningEffort),
 	})
 }

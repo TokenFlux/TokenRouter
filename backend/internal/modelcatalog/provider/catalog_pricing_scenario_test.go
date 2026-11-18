@@ -708,7 +708,7 @@ func TestModelsCatalogGeminiImageTextPricing(t *testing.T) {
 				display := billingpricing.BuildTokenDisplayPricing(value, 1)
 				require.InDelta(t, tc.textPrice, display.OutputPricePerToken, 1e-12)
 				require.InDelta(t, tc.imagePrice, display.ImageOutputPricePerToken, 1e-12)
-				require.Equal(t, "local_supplement", service.GetModelPricing(model).PriceSources["output"])
+				require.Equal(t, "models.dev", service.GetModelPricing(model).Source)
 			})
 		}
 	}
@@ -723,10 +723,10 @@ func TestModelsCatalogGeminiImageSupplementPrecedence(t *testing.T) {
 	// fixture gives the original Google record an image bucket and the hosted
 	// service a separate ordinary output rate for checking supplement precedence
 	// across those services.
-	const fixture = `{"providers":{
-		"google":{"models":{"gemini-image-test":{"cost":{"input":2,"output":150},"modalities":{"output":["text","image"]}}}},
-		"google-vertex":{"models":{"gemini-image-test":{"cost":{"input":1,"output":9},"modalities":{"output":["text","image"]}}}}
-	}}`
+	const fixture = `{
+	"google":{"id":"google","models":{"gemini-image-test":{"id":"gemini-image-test","type":"chat","capabilities":{},"modalities":{"output":["text","image"]},"cost":{"text":{"input":{"price":2},"output":{"price":150}}}}}},
+	"google-vertex":{"id":"google-vertex","models":{"gemini-image-test":{"id":"gemini-image-test","type":"chat","capabilities":{},"modalities":{"output":["text","image"]},"cost":{"text":{"input":{"price":1},"output":{"price":9}}}}}}
+}`
 	service := NewService(Options{
 		DataDir:      dir,
 		RemoteURL:    "https://models.dev/catalog.json",
@@ -817,7 +817,7 @@ func TestModelsCatalogExplicitZeroImageOutput(t *testing.T) {
 	dir := t.TempDir()
 	supplement := filepath.Join(dir, "supplement.json")
 	require.NoError(t, os.WriteFile(supplement, []byte(`{"gemini-image-test":{"output_cost_per_token":0.000012}}`), 0o600))
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"google":{"models":{"gemini-image-test":{"cost":{"input":2,"output":0},"modalities":{"output":["text","image"]}}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"google":{"id":"google","models":{"gemini-image-test":{"id":"gemini-image-test","type":"chat","capabilities":{},"modalities":{"output":["text","image"]},"cost":{"text":{"input":{"price":2},"output":{"price":0}}}}}}}`)}
 	service := NewService(Options{
 		DataDir:      dir,
 		RemoteURL:    "https://models.dev/catalog.json",
@@ -962,7 +962,7 @@ func TestJevOfflineCatalogPricesKeepProviderIdentity(t *testing.T) {
 		require.InDelta(t, 4.2e-8, p.InputCostPerToken, 1e-15)
 		require.Zero(t, p.OutputCostPerToken)
 		require.Zero(t, p.CacheReadInputTokenCost)
-		require.Equal(t, "local_supplement", p.PriceSources["input"])
+		require.Equal(t, "models.dev", p.Source)
 		attributes := service.ModelAttributes(model)
 		require.NotNil(t, attributes.InputModalities)
 		require.NotNil(t, attributes.OutputModalities)
@@ -981,7 +981,7 @@ func TestJevOfflineCatalogPricesKeepProviderIdentity(t *testing.T) {
 	require.NotContains(t, service.ModelIDs(), "opencode/jev-1.13-free")
 	attributes := service.ModelAttributes("jev-latest")
 	require.NotNil(t, attributes.DisplayName)
-	require.Equal(t, "Jev", *attributes.DisplayName)
+	require.Equal(t, "Jev Latest", *attributes.DisplayName)
 	require.Equal(t, 64000, *attributes.Context)
 	require.Nil(t, service.GetModelPricing("jev-unknown-version"))
 }
@@ -991,7 +991,7 @@ func TestJevOfflineCatalogPricesKeepProviderIdentity(t *testing.T) {
 // zero, must win over embedded supplementation while the hosted service keeps
 // its own input price.
 func TestJevCatalogPricesOverrideSupplement(t *testing.T) {
-	remote := &catalogRemoteFixture{body: []byte(`{"providers":{"typesafe":{"models":{"jev-latest":{"cost":{"input":0.084,"output":0}},"jev-preview":{"cost":{"input":0,"output":0}}}},"ollama-cloud":{"models":{"jev-preview":{"cost":{"input":5,"output":2}}}}}}`)}
+	remote := &catalogRemoteFixture{body: []byte(`{"typesafe":{"id":"typesafe","models":{"jev-latest":{"id":"jev-latest","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":0.084},"output":{"price":0}}}},"jev-preview":{"id":"jev-preview","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":0},"output":{"price":0}}}}}},"ollama-cloud":{"id":"ollama-cloud","models":{"jev-preview":{"id":"jev-preview","type":"chat","capabilities":{},"cost":{"text":{"input":{"price":5},"output":{"price":2}}}}}}}`)}
 	service := NewService(Options{DataDir: t.TempDir(), RemoteURL: "https://models.dev/catalog.json?type=all"}, remote)
 	require.NoError(t, service.ForceUpdate())
 	require.InDelta(t, 8.4e-8, service.GetModelPricing("jev-latest").InputCostPerToken, 1e-15)
@@ -1007,17 +1007,69 @@ func TestJevCatalogPricesOverrideSupplement(t *testing.T) {
 // and display name.
 func TestUnifiedModelSupplementPublishesPriceAndAttributes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "models.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"jev-preview":{"provider":"typesafe","input_cost_per_token":0.0000001,"output_cost_per_token":0,"attributes":{"display_name":"Custom preview","context":128000,"input_modalities":["text"]}}}`), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"jev-custom-preview":{"provider":"typesafe","input_cost_per_token":0.0000001,"output_cost_per_token":0,"attributes":{"display_name":"Custom preview","context":128000,"input_modalities":["text"],"output_modalities":["text"]}}}`), 0o600))
 	service := NewService(Options{DataDir: t.TempDir(), FallbackFile: path}, nil)
 	require.NoError(t, service.Initialize())
 	defer service.Stop()
-	require.InDelta(t, 1e-7, service.GetModelPricing("jev-preview").InputCostPerToken, 1e-15)
-	attrs := service.ModelAttributes("jev-preview")
+	require.InDelta(t, 1e-7, service.GetModelPricing("jev-custom-preview").InputCostPerToken, 1e-15)
+	attrs := service.ModelAttributes("jev-custom-preview")
 	require.Equal(t, "Custom preview", *attrs.DisplayName)
 	require.Equal(t, 128000, *attrs.Context)
 	require.Equal(t, []string{"text"}, *attrs.OutputModalities)
-	require.NoError(t, os.WriteFile(path, []byte(`{"jev-preview":{"input_cost_per_token":2,"attributes":{"input_modalities":["invalid"]}}}`), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`{"jev-custom-preview":{"input_cost_per_token":2,"attributes":{"input_modalities":["invalid"]}}}`), 0o600))
 	require.Error(t, service.ForceUpdate())
-	require.InDelta(t, 1e-7, service.GetModelPricing("jev-preview").InputCostPerToken, 1e-15)
-	require.Equal(t, "Custom preview", *service.ModelAttributes("jev-preview").DisplayName)
+	require.InDelta(t, 1e-7, service.GetModelPricing("jev-custom-preview").InputCostPerToken, 1e-15)
+	require.Equal(t, "Custom preview", *service.ModelAttributes("jev-custom-preview").DisplayName)
+}
+
+// TestV2GPT62CacheWritesUseAbsoluteRates checks the downloaded model's base
+// and long context write prices, and evaluates dated Ultrafast at the actual
+// Pacific-time changeover. The quote must preserve both underlying durations.
+func TestV2GPT62CacheWritesUseAbsoluteRates(t *testing.T) {
+	service := newOfflinePricingFixture(t)
+	value := catalogPriceForTest(t, service, "gpt-6.2-sol")
+	require.InDelta(t, 2.5e-6, *value.CacheCreation30mPrice, 1e-13)
+	require.InDelta(t, 5e-6, *value.CacheCreation12hPrice, 1e-13)
+	mixed := billingpricing.UsageTokens{
+		InputTokens: 1000, CacheReadTokens: 4000, CacheCreationTokens: 7000,
+		CacheCreation30mTokens: new(3000), CacheCreation12hTokens: new(4000),
+	}
+	before := time.Date(2027, 3, 1, 7, 59, 59, 0, time.UTC)
+	after := before.Add(time.Second)
+	short := billingpricing.ComputeTokenBreakdownAt(value, mixed, 1, "", true, before)
+	require.InDelta(t, 0.0275, short.CacheCreationCost, 1e-12)
+	require.InDelta(t, 0.0299, short.TotalCost, 1e-12)
+	mixed.InputTokens = 261000
+	onBoundary := billingpricing.ComputeTokenBreakdownAt(value, mixed, 1, "", true, before)
+	require.InDelta(t, short.CacheCreationCost, onBoundary.CacheCreationCost, 1e-12)
+	mixed.InputTokens++
+	long := billingpricing.ComputeTokenBreakdownAt(value, mixed, 1, "", true, before)
+	require.InDelta(t, 0.055, long.CacheCreationCost, 1e-12)
+
+	promotional := billingpricing.ComputeTokenBreakdownAt(value, mixed, 1, "ultrafast", true, before)
+	regular := billingpricing.ComputeTokenBreakdownAt(value, mixed, 1, "ultrafast", true, after)
+	require.InDelta(t, long.CacheCreationCost*3, promotional.CacheCreationCost, 1e-12)
+	require.InDelta(t, long.CacheCreationCost*6, regular.CacheCreationCost, 1e-12)
+	display := billingpricing.BuildTokenDisplayPricing(value, 1)
+	require.NotEmpty(t, display.ContextIntervals)
+	require.InDelta(t, 5e-6, *display.ContextIntervals[0].CacheWrite12hPricePerToken, 1e-13)
+}
+
+// TestV2CacheWriteOverridesKeepUniformFallback combines a legacy manual
+// amount with an explicit free 12h rate. It checks detailed and aggregate
+// user charges and a provider-cost card using the same policy.
+func TestV2CacheWriteOverridesKeepUniformFallback(t *testing.T) {
+	service := newOfflinePricingFixture(t)
+	value := catalogPriceForTest(t, service, "gpt-6.2-sol")
+	card := &billingpricing.ModelPricingEntry{CacheWritePrice: new(6e-6), CacheWrite12hPrice: new(0.0)}
+	effective := billingpricing.ApplyConfigPrice(value, card)
+	tokens := billingpricing.UsageTokens{
+		CacheCreationTokens: 5000, CacheCreation30mTokens: new(3000), CacheCreation12hTokens: new(2000),
+	}
+	mixed := billingpricing.ComputeTokenBreakdown(effective, tokens, 1, "", true)
+	require.InDelta(t, 0.018, mixed.CacheCreationCost, 1e-12)
+	require.InDelta(t, 0.018, *billingpricing.CalculateStatsCost(card, tokens, 1), 1e-12)
+	tokens.CacheCreation30mTokens = nil
+	aggregate := billingpricing.ComputeTokenBreakdown(effective, tokens, 1, "", true)
+	require.InDelta(t, 0.03, aggregate.CacheCreationCost, 1e-12)
 }

@@ -137,6 +137,10 @@ func (UsageLog) Fields() []ent.Field {
 		// One-hour cache-creation token count.
 		field.Int("cache_creation_1h_tokens").
 			Default(0),
+		// Reported thirty-minute writes, or NULL when the split is unavailable.
+		field.Int("cache_creation_30m_tokens").Optional().Nillable(),
+		// Reported twelve-hour writes, or NULL when the split is unavailable.
+		field.Int("cache_creation_12h_tokens").Optional().Nillable(),
 
 		// USD input-token cost.
 		field.Float("input_cost").

@@ -118,7 +118,7 @@ database:
 
 ### 模型目录与价格补充
 
-模型目录使用 `model_catalog.catalog_url`（默认 `https://models.dev/catalog.json?type=all`）和 `model_catalog.check_interval_minutes`（默认 10 分钟），自动同步价格和模型属性。旧的键名和环境值只在 v1 升级时迁移。
+模型目录使用 `model_catalog.catalog_url`（默认 `https://models.dev/experimental/v2.0/api.json`）和 `model_catalog.check_interval_minutes`（默认 10 分钟），自动同步价格和模型属性。旧的键名和环境值只在 v1 升级时迁移。
 
 已知的 Wei-Shaw、BerriAI 公共旧价格地址，在 v1 升级时转换为 models.dev 地址，并补上新的下载域名；自定义地址保持不变，需要返回 models.dev 的目录格式。升级结果写回配置文件。官方模型补充通过 `go:embed` 编进二进制，同一个型号条目包含价格字段和 `attributes`。`model_catalog.supplement_file` 默认为空，用于指定相同格式的自定义补充。旧的相对资源路径和 `/app/resources/` 打包路径，只在原文件不存在时，迁移到同目录的 `model_pricing_supplements.json`；已存在的文件和其他自定义路径保持不变。旧路径变换写入升级后的文件；目标文件也不存在时，使用内嵌的补充。旧的目录缓存不再加载，也不会被删除。
 
@@ -131,7 +131,7 @@ database:
 
 模型属性档案的 rules JSONB 同时用于展示、客户端导出和请求参数处理。每条规则可增加可选的路线匹配条件，已有规则默认适用于所有路线。编辑器保存字段覆盖；停用档案或移除字段后恢复目录与平台默认值。完整解析顺序与预览接口见[模型属性配置](model_catalog_and_marketplace.md#model_attributes)。
 
-精确配置为旧官方目录地址 `https://models.dev/catalog.json` 时，v1 升级器补上 `?type=all`。带查询参数的地址和自定义镜像按配置读取。
+加载时将 models.dev 官方旧目录路径 `/catalog.json` 和 `/api.json` 映射到 v2，沿用原 URL 的模型类型筛选。自定义镜像的地址保持原样，必须返回 v2 提供商目录。
 
 ### 国产供应商用量监控
 
