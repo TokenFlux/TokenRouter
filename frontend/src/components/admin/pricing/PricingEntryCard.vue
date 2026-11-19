@@ -172,7 +172,7 @@
             "
           >
             <div>
-              <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-xs font-medium leading-4 text-gray-500 dark:text-gray-400">
                 {{ t('admin.pricing.form.models', '模型列表') }} <span class="text-red-500">*</span>
               </label>
               <ModelTagInput
@@ -187,7 +187,7 @@
               />
             </div>
             <div>
-              <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-xs font-medium leading-4 text-gray-500 dark:text-gray-400">
                 {{ t('admin.pricing.form.billingMode', '计费模式') }}
               </label>
               <Select
@@ -198,7 +198,7 @@
               />
             </div>
             <div>
-              <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-xs font-medium leading-4 text-gray-500 dark:text-gray-400">
                 {{ t('admin.pricing.form.priceMultiplier', '定价倍率') }}
               </label>
               <input
@@ -212,7 +212,7 @@
               />
             </div>
             <div v-if="props.showFastModeMultiplier && entry.billing_mode === 'token'">
-              <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label class="block text-xs font-medium leading-4 text-gray-500 dark:text-gray-400">
                 {{ t('admin.pricing.form.fastModeMultiplier', 'Fast 模式倍率') }}
               </label>
               <input

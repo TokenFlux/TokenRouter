@@ -1,34 +1,38 @@
 <template>
   <div>
-    <!-- The container matches input backgrounds and borders; long model tags wrap while their remove controls remain visible. -->
+    <!-- The container matches 36px input height on a single row while allowing multiple model tags to wrap cleanly. -->
     <TransitionGroup
       name="motion-list"
       @before-leave="prepareListLeave"
       @before-enter="restoreEnteringElement"
+      @click="focusInput"
       tag="div"
-      class="relative flex min-h-9 flex-wrap gap-2 rounded-control border border-primary-900/10 bg-white p-2 transition duration-fast focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-950 dark:focus-within:border-dark-400 dark:focus-within:ring-white/6"
+      data-testid="model-tag-container"
+      class="relative flex min-h-9 cursor-text flex-wrap items-center gap-1.5 rounded-control border border-primary-900/10 bg-white px-2.5 py-1 transition duration-fast hover:border-black/20 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-950 dark:hover:border-dark-500 dark:focus-within:border-dark-400 dark:focus-within:ring-white/6"
     >
       <span
         v-for="(model, idx) in models"
         :key="model"
-        class="inline-flex max-w-full items-center gap-2 rounded-compact px-2 py-1 text-sm"
+        class="inline-flex max-w-full items-center gap-1 rounded-compact px-2 py-0.5 text-xs font-medium leading-5"
         :class="getPlatformTagClass(props.platform || '')"
       >
         <span class="min-w-0 break-all">{{ model }}</span>
         <button
           type="button"
-          @click="removeModel(idx)"
+          @click.stop="removeModel(idx)"
           :aria-label="`${t('common.delete')} ${model}`"
-          class="shrink-0 rounded-compact opacity-70 hover:bg-black/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-white/10"
+          class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-compact opacity-70 transition-colors hover:bg-black/10 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-white/10"
         >
           <Icon name="x" size="xs" />
         </button>
       </span>
       <input
         key="model-input"
+        ref="inputRef"
         v-model="inputValue"
         type="text"
-        class="min-w-0 flex-1 basis-32 border-none bg-transparent text-sm outline-none placeholder:text-gray-400 dark:text-white"
+        class="min-w-0 flex-1 basis-28 border-none bg-transparent py-0 text-sm leading-5 text-gray-900 outline-none placeholder:text-primary-900/45 dark:text-dark-50 dark:placeholder:text-dark-400"
+        :class="models.length === 0 ? 'px-1.5' : 'px-1'"
         :aria-label="ariaLabel || placeholder || t('admin.pricing.form.modelInputHint')"
         :placeholder="models.length === 0 ? placeholder : ''"
         @keydown.enter.prevent="addModel"
@@ -37,7 +41,7 @@
         @paste="handlePaste"
       />
     </TransitionGroup>
-    <p v-if="showHint !== false" class="mt-1 text-xs text-gray-400">
+    <p v-if="showHint !== false" class="input-hint">
       {{
         t(
           'admin.pricing.form.modelInputHint',
@@ -55,23 +59,28 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { getPlatformTagClass } from './types'
 
-// ModelTagInput.vue edits ordered model patterns as removable tags for pricing and routing
-// forms. Direct additions trim one value, while pasted lists split commas, semicolons, and
-// newlines. Duplicate values are omitted and updates replace the parent's model array.
+// ModelTagInput.vue edits ordered model patterns as removable tags for pricing, attribute, and
+// routing forms. Direct additions trim one value, while pasted lists split commas, semicolons,
+// and newlines. Duplicate values are omitted and updates replace the parent's model array.
 
 // t resolves the current locale messages used by labels, validation, and action notifications.
 const { t } = useI18n()
 
 // props supplies parent-owned editor values and display controls consumed by the fields below.
-const props = defineProps<{
-  models: string[] // ordered model patterns
-  ariaLabel?: string // accessible input label
-  placeholder?: string // empty input hint
-  platform?: string // provider platform identifier
-  // showHint defaults to visible. Compact price cards suppress the instruction
-  // below the field while keeping tag entry and batch paste available.
-  showHint?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    models: string[] // ordered model patterns
+    ariaLabel?: string // accessible input label
+    placeholder?: string // empty input hint
+    platform?: string // provider platform identifier
+    // showHint defaults to visible. Compact price cards suppress the instruction
+    // below the field while keeping tag entry and batch paste available.
+    showHint?: boolean
+  }>(),
+  {
+    showHint: true,
+  },
+)
 
 // emit forwards typed edits and actions to the parent that owns the displayed draft.
 const emit = defineEmits<{
@@ -81,8 +90,14 @@ const emit = defineEmits<{
 }>()
 
 // inputValue holds unfinished model text until an add or paste operation publishes the parsed
-// tag list.
+// tag list, while inputRef targets the embedded text input when clicking container whitespace.
 const inputValue = ref('')
+const inputRef = ref<HTMLInputElement | null>(null)
+
+// focusInput directs pointer clicks on the tag container padding to the embedded text input.
+function focusInput() {
+  inputRef.value?.focus()
+}
 
 // addModel appends the trimmed input when it is nonempty and absent from the list. Existing
 // values are not duplicated, and a nonempty attempted addition clears the text input afterward.

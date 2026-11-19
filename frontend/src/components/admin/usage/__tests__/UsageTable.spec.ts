@@ -94,6 +94,11 @@ const messages: Record<string, string> = {
   'requests.copied': 'Request ID copied',
   'admin.usage.cacheWriteAnomalyBadge': 'Anomaly',
   'admin.usage.cacheWriteAnomalyLabel': 'Cache Write Anomaly',
+  'admin.usage.cacheWriteAnomalyKindPartial': 'Partial split',
+  'admin.usage.cacheWriteAnomalyKindExceeds': 'Exceeds total',
+  'admin.usage.cacheWriteAnomalyKindMissingTotal': 'Missing total',
+  'admin.usage.cacheWriteAnomalyRawTotal': 'Reported total',
+  'admin.usage.cacheWriteAnomalyRawSplit': 'Reported {short} / {long}',
   'admin.usage.cacheWriteAnomalyPartial': 'Partial breakdown (raw {raw})',
   'admin.usage.cacheWriteAnomalyMissingTotal': 'Missing total (raw {raw})',
   'admin.usage.cacheWriteAnomalyExceeds': 'Exceeds total (raw {raw})',
@@ -105,8 +110,13 @@ vi.mock('vue-i18n', async () => {
     ...actual,
     useI18n: () => ({
       t: (key: string, params?: Record<string, string>) => {
-        const template = messages[key] ?? key
-        return params?.raw ? template.replace('{raw}', params.raw) : template
+        let rendered = messages[key] ?? key
+        if (params) {
+          for (const [k, v] of Object.entries(params)) {
+            rendered = rendered.replace(`{${k}}`, v)
+          }
+        }
+        return rendered
       },
     }),
   }
@@ -1333,7 +1343,37 @@ it('renders administrator cache-write anomaly badges and raw upstream tooltip de
 
   const detail = wrapper.get('[data-testid="cache-write-anomaly-detail"]')
   expect(detail.text()).toContain('Cache Write Anomaly')
-  expect(detail.text()).toContain('Partial breakdown (raw total:311, 5m:211, 1h:0)')
+  expect(detail.text()).toContain('Partial split')
+  expect(detail.text()).toContain('Reported total')
+  expect(detail.text()).toContain('311')
+  expect(detail.text()).toContain('Reported 5m / 1h')
+  expect(detail.text()).toContain('211 / 0')
+
+  await wrapper.setProps({
+    data: [
+      {
+        ...baseImageRow,
+        request_id: 'req-openai-anomaly',
+        model: 'gpt-6.2-sol',
+        billing_mode: 'token',
+        image_count: 0,
+        cache_creation_tokens: 12000,
+        cache_creation_30m_tokens: 9000,
+        cache_creation_12h_tokens: 3000,
+        cache_write_anomaly: {
+          kind: 'partial_breakdown' as const,
+          reported_total: 12000,
+          reported_30m: 6000,
+          reported_12h: 3000,
+        },
+      },
+    ],
+  })
+  await wrapper.find('.group.relative').trigger('mouseenter')
+  await nextTick()
+  const openaiDetail = wrapper.get('[data-testid="cache-write-anomaly-detail"]')
+  expect(openaiDetail.text()).toContain('Reported 30m / 12h')
+  expect(openaiDetail.text()).toContain('6,000 / 3,000')
 
   await wrapper.setProps({
     data: [

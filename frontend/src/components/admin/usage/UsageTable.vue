@@ -609,16 +609,6 @@
                 <span class="font-medium text-white">{{ bucket.tokens.toLocaleString() }}</span>
               </div>
               <div
-                v-if="tokenTooltipData && tokenTooltipData.cache_write_anomaly"
-                data-testid="cache-write-anomaly-detail"
-                class="flex items-center justify-between gap-4"
-              >
-                <span class="text-gray-400">{{ t('admin.usage.cacheWriteAnomalyLabel') }}</span>
-                <span class="font-medium text-amber-400">{{
-                  formatCacheWriteAnomalyText(tokenTooltipData.cache_write_anomaly)
-                }}</span>
-              </div>
-              <div
                 v-if="tokenTooltipData && tokenTooltipData.cache_ttl_overridden"
                 class="flex items-center justify-between gap-4"
               >
@@ -642,6 +632,32 @@
                 <span class="text-gray-400">{{ t('admin.usage.cacheReadTokens') }}</span>
                 <span class="font-medium text-white">{{
                   tokenTooltipData.cache_read_tokens.toLocaleString()
+                }}</span>
+              </div>
+            </div>
+            <div
+              v-if="tokenTooltipData && tokenTooltipData.cache_write_anomaly"
+              data-testid="cache-write-anomaly-detail"
+              class="space-y-1 rounded-compact bg-amber-500/10 px-2 py-1.5 ring-1 ring-inset ring-amber-500/20"
+            >
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-amber-300">{{ t('admin.usage.cacheWriteAnomalyLabel') }}</span>
+                <span class="font-medium text-amber-400">{{
+                  cacheWriteAnomalyKindLabel(tokenTooltipData.cache_write_anomaly.kind)
+                }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('admin.usage.cacheWriteAnomalyRawTotal') }}</span>
+                <span class="font-medium tabular-nums text-amber-200">{{
+                  tokenTooltipData.cache_write_anomaly.reported_total.toLocaleString()
+                }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{
+                  cacheWriteAnomalyRawSplitLabel(tokenTooltipData.cache_write_anomaly)
+                }}</span>
+                <span class="font-medium tabular-nums text-amber-200">{{
+                  cacheWriteAnomalyRawSplitValue(tokenTooltipData.cache_write_anomaly)
                 }}</span>
               </div>
             </div>
@@ -1409,15 +1425,50 @@ function cacheWriteBuckets(row: AdminUsageLog): CacheWriteBucket[] {
   return buckets
 }
 
+// cacheWriteAnomalyKindLabel resolves the compact localized status label for an upstream
+// cache-write discrepancy category.
+function cacheWriteAnomalyKindLabel(
+  kind: NonNullable<AdminUsageLog['cache_write_anomaly']>['kind'],
+): string {
+  if (kind === 'partial_breakdown') return t('admin.usage.cacheWriteAnomalyKindPartial')
+  if (kind === 'missing_total') return t('admin.usage.cacheWriteAnomalyKindMissingTotal')
+  return t('admin.usage.cacheWriteAnomalyKindExceeds')
+}
+
+// cacheWriteAnomalyRawSplitLabel names the reported short and long TTL pair for the compact
+// anomaly diagnostic section inside the token detail tooltip.
+function cacheWriteAnomalyRawSplitLabel(
+  anomaly: NonNullable<AdminUsageLog['cache_write_anomaly']>,
+): string {
+  const isOpenAI = anomaly.reported_30m != null || anomaly.reported_12h != null
+  return t('admin.usage.cacheWriteAnomalyRawSplit', {
+    short: isOpenAI ? '30m' : '5m',
+    long: isOpenAI ? '12h' : '1h',
+  })
+}
+
+// cacheWriteAnomalyRawSplitValue formats the raw upstream short and long TTL counts, keeping
+// omitted optional OpenAI pointers distinguishable as '-' rather than zero.
+function cacheWriteAnomalyRawSplitValue(
+  anomaly: NonNullable<AdminUsageLog['cache_write_anomaly']>,
+): string {
+  if (anomaly.reported_30m != null || anomaly.reported_12h != null) {
+    const shortText = anomaly.reported_30m != null ? anomaly.reported_30m.toLocaleString() : '-'
+    const longText = anomaly.reported_12h != null ? anomaly.reported_12h.toLocaleString() : '-'
+    return `${shortText} / ${longText}`
+  }
+  return `${(anomaly.reported_5m ?? 0).toLocaleString()} / ${(anomaly.reported_1h ?? 0).toLocaleString()}`
+}
+
 // formatCacheWriteAnomalyText formats administrator cache-write anomaly kind and raw upstream
-// counts for hover badges and token detail tooltips.
+// counts for inline badge hover titles.
 function formatCacheWriteAnomalyText(
   anomaly: NonNullable<AdminUsageLog['cache_write_anomaly']>,
 ): string {
   const parts: string[] = [`total:${anomaly.reported_total.toLocaleString()}`]
   if (anomaly.reported_30m != null || anomaly.reported_12h != null) {
-    parts.push(`30m:${(anomaly.reported_30m ?? 0).toLocaleString()}`)
-    parts.push(`12h:${(anomaly.reported_12h ?? 0).toLocaleString()}`)
+    parts.push(`30m:${anomaly.reported_30m != null ? anomaly.reported_30m.toLocaleString() : '-'}`)
+    parts.push(`12h:${anomaly.reported_12h != null ? anomaly.reported_12h.toLocaleString() : '-'}`)
   } else {
     parts.push(`5m:${(anomaly.reported_5m ?? 0).toLocaleString()}`)
     parts.push(`1h:${(anomaly.reported_1h ?? 0).toLocaleString()}`)
