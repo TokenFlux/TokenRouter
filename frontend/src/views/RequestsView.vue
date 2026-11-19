@@ -8,7 +8,7 @@ import Skeleton from '@/components/common/Skeleton.vue'
 import RequestIdSearch from '@/components/common/RequestIdSearch.vue'
 import SettingsNotice from '@/components/common/settings/SettingsNotice.vue'
 import RequestDetailCard from '@/components/requests/RequestDetailCard.vue'
-import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
+import OpsErrorDetailModal from '@/components/ops/OpsErrorDetailModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { findRequests, type RequestDetail } from '@/api/requests'
 

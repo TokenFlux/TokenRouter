@@ -678,6 +678,8 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { downloadBlob } from '@/utils/download'
+import { formatYamlString, parseTlsProfileYaml } from './tlsFingerprintYaml'
 
 /**
  * TLSFingerprintProfilesModal.vue manages TLS fingerprint profiles and collector sessions used
@@ -739,6 +741,19 @@ const collectorActionLoading = ref(false)
 const collectorSessionLoading = ref(false)
 const collectorCapturesLoading = ref(false)
 let collectorPollTimer: number | null = null
+let collectorPollGeneration = 0
+let yamlPasteTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * clearYamlPasteTimer cancels any deferred paste-to-parse callback before closing
+ * or unmounting the dialog.
+ */
+const clearYamlPasteTimer = () => {
+  if (yamlPasteTimer !== null) {
+    clearTimeout(yamlPasteTimer)
+    yamlPasteTimer = null
+  }
+}
 
 /**
  * fieldInputs keeps ordered TLS arrays as editable comma-separated strings; submission parses
@@ -821,6 +836,7 @@ watch(
       loadCollectorStatus()
     } else {
       stopCollectorPolling()
+      clearYamlPasteTimer()
     }
   },
   { immediate: true },
@@ -828,6 +844,7 @@ watch(
 
 onUnmounted(() => {
   stopCollectorPolling()
+  clearYamlPasteTimer()
 })
 
 /**
@@ -949,30 +966,35 @@ const createCollectorSession = async () => {
 }
 
 /**
- * refreshCollectorCaptures fetches captures for the currently available session token. Failures
- * are logged while prior captures remain visible; calls can overlap because the loading flag is
- * feedback rather than a dispatch lock.
+ * refreshCollectorCaptures fetches captures for the active session token while
+ * guarding completion with collectorPollGeneration and session identity so
+ * stopping the collector or switching sessions drops in-flight responses.
  */
 const refreshCollectorCaptures = async () => {
-  if (!collectorSession.value) return
+  const sessionToken = collectorSession.value?.token
+  if (!sessionToken) return
+  const pollGeneration = collectorPollGeneration
   collectorCapturesLoading.value = true
   try {
-    // Each response replaces the current capture list; the polling interval may have dispatched
-    // another request before this one settles.
-    collectorCaptures.value = await adminAPI.tlsFingerprintProfiles.listCollectorCaptures(
-      collectorSession.value.token,
-    )
+    const records = await adminAPI.tlsFingerprintProfiles.listCollectorCaptures(sessionToken)
+    if (
+      pollGeneration === collectorPollGeneration &&
+      collectorSession.value?.token === sessionToken
+    ) {
+      collectorCaptures.value = records
+    }
   } catch (error: any) {
     console.error('Error loading TLS fingerprint captures:', error)
   } finally {
-    collectorCapturesLoading.value = false
+    if (pollGeneration === collectorPollGeneration) {
+      collectorCapturesLoading.value = false
+    }
   }
 }
 
 /**
  * startCollectorPolling replaces the current interval and requests captures immediately, then
- * every three seconds. Interval cleanup stops future dispatch but does not cancel requests
- * already in progress or guard late responses.
+ * every three seconds under a fresh collectorPollGeneration.
  */
 const startCollectorPolling = () => {
   stopCollectorPolling()
@@ -985,14 +1007,13 @@ const startCollectorPolling = () => {
 }
 
 /**
- * stopCollectorPolling clears the active interval and its handle when present. Hiding,
- * unmounting, and stopping the collector call it to prevent future polling ticks while
- * outstanding requests settle independently.
+ * stopCollectorPolling advances collectorPollGeneration and clears the active interval so
+ * hiding, unmounting, or stopping the collector rejects any in-flight capture responses.
  */
 function stopCollectorPolling() {
+  collectorPollGeneration++
+  collectorCapturesLoading.value = false
   if (collectorPollTimer) {
-    // Stop future capture requests when ownership ends; already dispatched promises still
-    // follow their normal response publication path.
     window.clearInterval(collectorPollTimer)
     collectorPollTimer = null
   }
@@ -1050,23 +1071,15 @@ const copyText = async (text: string) => {
 }
 
 /**
- * downloadCA downloads the currently selected collector CA as a PEM file. It creates a
- * temporary Blob URL and anchor, triggers the download, then removes the anchor and revokes the
- * URL.
+ * downloadCA downloads the currently selected collector CA as a PEM file using
+ * the shared browser Blob download helper.
  */
 const downloadCA = () => {
   if (!activeCAPEM.value) return
-  const blob = new Blob([activeCAPEM.value], { type: 'application/x-pem-file' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'tokenrouter-tls-collector-ca.pem'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  // Release the temporary download resource after the synthetic click so repeated certificate
-  // downloads do not retain Blob URL allocations.
-  URL.revokeObjectURL(url)
+  downloadBlob(
+    new Blob([activeCAPEM.value], { type: 'application/x-pem-file' }),
+    'tokenrouter-tls-collector-ca.pem',
+  )
 }
 
 /**
@@ -1090,116 +1103,46 @@ const formatClientKind = (kind: string) => {
 }
 
 /**
- * parseYamlInput applies recognized flat profile fields from the pasted YAML-like text to the
- * current draft. It skips blank lines, comments, and unmatched structures, accepts inline
- * comma-separated arrays, and parses simple quoted scalars. A nonempty parsed name determines
- * the success toast.
- *
- * Assignments occur while lines are scanned, so a missing name can report failure after other
- * recognized fields have already changed. Numeric-array text is retained for later numeric
- * parsing during submission. This reader supports the profile exporter structure and simple
- * collector output, not arbitrary nested YAML, multiline scalars, or general quoted-array
- * parsing.
+ * parseYamlInput validates recognized flat TLS profile fields in an isolated
+ * draft first and commits them to form and fieldInputs only when a nonempty
+ * profile name was parsed, keeping invalid pastes from leaving half-modified
+ * form fields.
  */
 const parseYamlInput = () => {
   const text = yamlInput.value.trim()
   if (!text) return
 
-  // Read recognized flat field lines from the export shape; unsupported YAML structures are
-  // skipped instead of interpreted as nested configuration.
-  const lines = text.split('\n')
-
-  let foundName = false
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    // Empty lines and YAML comments contain no profile fields.
-    if (!trimmed || trimmed.startsWith('#')) continue
-
-    // Accept scalar or inline-array values on a single field line.
-    const match = trimmed.match(/^(\w+):\s*(.+)$/)
-    if (!match) continue
-
-    const [, key, rawValue] = match
-    const value = rawValue.trim()
-
-    switch (key) {
-      case 'name': {
-        // Decode the exported scalar before deciding whether a usable profile name was found,
-        // keeping quoted names in their editable text representation.
-        const unquoted = parseYamlScalar(value)
-        if (unquoted) {
-          form.name = unquoted
-          foundName = true
-        }
-        break
-      }
-      case 'description':
-        form.description = parseYamlScalar(value) || null
-        break
-      case 'enable_grease':
-        form.enable_grease = value === 'true'
-        break
-      case 'cipher_suites':
-      case 'curves':
-      case 'point_formats':
-      case 'signature_algorithms':
-      case 'supported_versions':
-      case 'key_share_groups':
-      case 'psk_modes':
-      case 'extensions': {
-        // Keep numeric array tokens as editor text here; submission later applies the decimal
-        // or hexadecimal parser to build the API array.
-        const arrMatch = value.match(/^\[(.*)?\]$/)
-        if (arrMatch) {
-          const inner = arrMatch[1] || ''
-          fieldInputs[key as keyof typeof fieldInputs] = inner
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s.length > 0)
-            .join(', ')
-        }
-        break
-      }
-      case 'alpn_protocols': {
-        // Convert the simple inline protocol array to comma-separated editor text; this limited
-        // reader treats commas as separators even inside quoted values.
-        const arrMatch = value.match(/^\[(.*)?\]$/)
-        if (arrMatch) {
-          const inner = arrMatch[1] || ''
-          fieldInputs.alpn_protocols = inner
-            .split(',')
-            .map((s) => s.trim().replace(/^["']|["']$/g, ''))
-            .filter((s) => s.length > 0)
-            .join(', ')
-        }
-        break
-      }
-    }
-  }
-
-  if (foundName) {
-    appStore.showSuccess(t('admin.tlsFingerprintProfiles.form.yamlParsed'))
-  } else {
+  const parsed = parseTlsProfileYaml(text, form, fieldInputs)
+  if (!parsed) {
     appStore.showError(t('admin.tlsFingerprintProfiles.form.yamlParseFailed'))
+    return
   }
+
+  form.name = parsed.name
+  form.description = parsed.description
+  form.enable_grease = parsed.enable_grease
+  Object.assign(fieldInputs, parsed.fieldInputs)
+  appStore.showSuccess(t('admin.tlsFingerprintProfiles.form.yamlParsed'))
 }
 
 /**
- * handleYamlPaste schedules parsing fifty milliseconds after the paste event. The delay lets
- * v-model receive pasted text before the parser reads yamlInput; the timeout is not retained
- * for cancellation.
+ * handleYamlPaste schedules parsing fifty milliseconds after the paste event so
+ * v-model receives the pasted text, cancelling any prior pending paste timer.
  */
 const handleYamlPaste = () => {
-  setTimeout(() => parseYamlInput(), 50)
+  clearYamlPasteTimer()
+  yamlPasteTimer = setTimeout(() => {
+    yamlPasteTimer = null
+    parseYamlInput()
+  }, 50)
 }
 
 /**
- * closeFormModal closes both profile editors, clears edit selection, and resets their shared
- * draft. Successful writes invoke it before refreshing the profile list, while failed writes
- * leave the draft available.
+ * closeFormModal closes both profile editors, clears edit selection, cancels any
+ * pending YAML paste timer, and resets the shared draft.
  */
 const closeFormModal = () => {
+  clearYamlPasteTimer()
   showCreateModal.value = false
   showEditModal.value = false
   editingProfile.value = null
@@ -1253,37 +1196,6 @@ const formatNumericArray = (arr: number[] | null | undefined): string =>
  * numeric editing.
  */
 const formatPlainNumericArray = (arr: number[] | null | undefined): string => (arr ?? []).join(', ')
-
-/**
- * parseYamlScalar reads simple quoted or plain scalar text and treats empty, null, or tilde as
- * empty. Double quotes use JSON decoding with outer-quote removal on failure; single quotes
- * collapse doubled apostrophes.
- */
-const parseYamlScalar = (value: string): string => {
-  const trimmed = value.trim()
-  if (!trimmed || trimmed === 'null' || trimmed === '~') return ''
-
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      // If quoted text is not valid JSON, keep its inner text available for manual correction
-      // instead of failing the entire paste.
-      return trimmed.replace(/^"|"$/g, '')
-    }
-  }
-
-  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-    return trimmed.slice(1, -1).replace(/''/g, "'")
-  }
-
-  return trimmed
-}
-
-/**
- * formatYamlString encodes profile text as a JSON-quoted YAML scalar.
- */
-const formatYamlString = (value: string): string => JSON.stringify(value)
 
 /**
  * formatYamlNumericArray exports a numeric array with a caller-selected element formatter.

@@ -405,15 +405,16 @@ function onClearRequested(): void {
 }
 
 /**
- * onClearLocalData clears studio storage before resetting the displayed canvas.
- * Success shows confirmation feedback; failures leave the studio error
- * available and show an error toast after the confirmation closes.
+ * onClearLocalData clears studio storage before resetting the displayed canvas
+ * without writing an empty scene back into IndexedDB. Success shows
+ * confirmation feedback; failures leave the studio error available and show an
+ * error toast after the confirmation closes.
  */
 async function onClearLocalData(): Promise<void> {
   showClearConfirm.value = false
   try {
     await studio.clearLocalData()
-    canvasRef.value?.resetCanvas()
+    canvasRef.value?.resetScene()
     appStore.showSuccess(t('creative.history.clearSuccess'))
   } catch {
     /**

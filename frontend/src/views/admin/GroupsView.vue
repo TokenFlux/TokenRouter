@@ -399,6 +399,7 @@ import { loadProtocolCatalog } from '@/api/admin/protocolCapabilities'
 import type { AdminGroup } from '@/api/groups.types'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -468,89 +469,36 @@ const allColumns = computed<Column[]>(() => [
 const toggleableColumns = computed(() =>
   allColumns.value.filter((col) => !ALWAYS_VISIBLE_COLUMNS.has(col.key)),
 )
-const hiddenColumns = reactive<Set<string>>(new Set())
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 
 // getValidHiddenColumnKeys returns the set of columns the administrator may hide.
 const getValidHiddenColumnKeys = () => new Set(toggleableColumns.value.map((col) => col.key))
 
-// saveColumnsToStorage persists the current hidden-column selection and then its version.
-const saveColumnsToStorage = () => {
-  try {
-    const validKeys = getValidHiddenColumnKeys()
-    const keys = [...hiddenColumns].filter((key) => validKeys.has(key))
-    // Write hidden keys before the version marker so a stored version matches the saved list.
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify(keys))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (error) {
-    console.error('Failed to save group column settings:', error)
-  }
-}
+const {
+  hiddenColumns,
+  loadSavedColumns,
+  toggleColumn: togglePersistedColumn,
+  isColumnVisible,
+} = usePersistedTableColumns({
+  storageKey: HIDDEN_COLUMNS_KEY,
+  defaultHiddenColumns: DEFAULT_HIDDEN_COLUMNS,
+  alwaysVisibleColumns: ALWAYS_VISIBLE_COLUMNS,
+  getValidColumnKeys: getValidHiddenColumnKeys,
+  migration: {
+    versionKey: COLUMN_SETTINGS_VERSION_KEY,
+    currentVersion: COLUMN_SETTINGS_VERSION,
+    versionNewHiddenColumns: VERSION_NEW_HIDDEN_COLUMNS,
+  },
+})
 
-// loadSavedColumns restores valid hidden columns and applies pending preference migrations.
-const loadSavedColumns = () => {
-  hiddenColumns.clear()
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    const validKeys = getValidHiddenColumnKeys()
-
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) {
-        parsed
-          .filter((key): key is string => typeof key === 'string' && validKeys.has(key))
-          .forEach((key) => hiddenColumns.add(key))
-      }
-
-      const parsedVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
-      const storedVersion =
-        Number.isSafeInteger(parsedVersion) && parsedVersion >= 1 ? parsedVersion : 1
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        let mutated = false
-        for (let version = storedVersion + 1; version <= COLUMN_SETTINGS_VERSION; version++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[version] ?? []) {
-            if (validKeys.has(key) && !hiddenColumns.has(key)) {
-              hiddenColumns.add(key)
-              mutated = true
-            }
-          }
-        }
-        if (mutated) {
-          saveColumnsToStorage()
-        } else {
-          localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-        }
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-        if (validKeys.has(key)) hiddenColumns.add(key)
-      })
-      saveColumnsToStorage()
-    }
-  } catch (error) {
-    console.error('Failed to load group column settings:', error)
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-  }
-}
-
-// isColumnVisible reports whether a column is absent from hiddenColumns.
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const hasVisibleUsageColumn = computed(() => isColumnVisible('usage'))
 const hasVisibleCapacityColumn = computed(() => isColumnVisible('capacity'))
 
 // toggleColumn flips visibility for an optional column and loads its summary when revealed.
 const toggleColumn = (key: string) => {
-  const validKeys = getValidHiddenColumnKeys()
-  if (!validKeys.has(key)) return
-
-  const wasHidden = hiddenColumns.has(key)
-  if (wasHidden) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
+  const wasHidden = togglePersistedColumn(key)
+  if (wasHidden === null) return
 
   if (wasHidden && key === 'usage') {
     loadUsageSummary()

@@ -2239,375 +2239,19 @@
         </template>
       </BaseDialog>
 
-      <BaseDialog
-        :show="inputDetailRow !== null"
-        :title="t('admin.riskControl.inputDetailTitle')"
-        width="wide"
+      <RiskControlInputDetailModal
+        :row="inputDetailRow"
+        :loading="inputDetailLoading"
+        :media-object-u-r-ls="mediaObjectURLs"
         @close="closeInputDetail"
-      >
-        <div v-if="inputDetailRow" class="space-y-5">
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.time')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{
-                formatDateTime(inputDetailRow.created_at)
-              }}</p>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.user')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{
-                inputDetailRow.user_email || '-'
-              }}</p>
-              <p
-                v-if="inputDetailRow.team_id"
-                class="mt-1 text-xs text-gray-500 dark:text-gray-400"
-                data-test="moderation-detail-team-attribution"
-              >
-                {{
-                  t('admin.riskControl.teamAttribution', {
-                    teamId: inputDetailRow.team_id,
-                    billingUserId: inputDetailRow.billing_user_id ?? '-',
-                  })
-                }}
-              </p>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.result')
-              }}</p>
-              <span
-                class="mt-1 inline-flex rounded-compact px-2 py-1 text-xs font-medium"
-                :class="resultBadgeClass(inputDetailRow)"
-              >
-                {{ resultLabel(inputDetailRow) }}
-              </span>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.highest')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">
-                {{ inputDetailRow.highest_category || '-' }} /
-                {{ percent(inputDetailRow.highest_score) }}
-              </p>
-            </div>
-            <div
-              v-if="inputDetailRow.matched_keyword"
-              class="rounded-control border border-red-100 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-900/20"
-            >
-              <p class="text-xs font-medium text-red-500 dark:text-red-300">{{
-                t('admin.riskControl.matchedKeyword')
-              }}</p>
-              <p
-                class="mt-1 truncate text-sm font-semibold text-red-700 dark:text-red-200"
-                :title="inputDetailRow.matched_keyword"
-                >{{ inputDetailRow.matched_keyword }}</p
-              >
-            </div>
-          </div>
+      />
 
-          <ContentSkeleton v-if="inputDetailLoading" variant="article" :rows="2" class="py-4" />
-
-          <div v-else class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                  t('admin.riskControl.inputDetailContent')
-                }}</p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ inputDetailRow.endpoint || '-' }} · {{ inputDetailRow.provider || '-' }} /
-                  {{ inputDetailRow.model || '-' }}
-                </p>
-                <RequestIdLink
-                  v-if="inputDetailRow.request_id"
-                  :value="inputDetailRow.request_id"
-                  class="mt-1.5"
-                />
-              </div>
-              <span
-                v-if="inputDetailRow.group_name"
-                class="inline-flex rounded-compact bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/20 dark:text-sky-300"
-              >
-                {{ inputDetailRow.group_name }}
-              </span>
-            </div>
-
-            <div
-              v-if="!inputDetailRow.content_complete"
-              class="border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
-            >
-              {{ t('admin.riskControl.historicalContentTruncated') }}
-            </div>
-            <div
-              v-if="inputDetailRow.audit_complete === false"
-              class="border-l-4 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-200"
-            >
-              {{
-                t('admin.riskControl.auditIncomplete', {
-                  count: inputDetailRow.failed_unit_count || 0,
-                })
-              }}
-            </div>
-
-            <div
-              v-if="inputDetailRow.input_items?.length"
-              class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-dark-700 dark:border-dark-700"
-            >
-              <section v-for="item in inputDetailRow.input_items" :key="item.index" class="py-4">
-                <div
-                  class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400"
-                >
-                  <span>{{ detailSourceLabel(item.source) }}</span>
-                  <span>·</span>
-                  <span>{{ detailTypeLabel(item.type) }}</span>
-                </div>
-                <pre
-                  class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100"
-                  >{{ detailItemContent(item) }}</pre>
-              </section>
-            </div>
-            <pre
-              v-else
-              class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100"
-              >{{ inputDetailText }}</pre>
-
-            <div v-if="inputDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <figure
-                v-for="media in inputDetailRow.media"
-                :key="media.id"
-                class="overflow-hidden border border-gray-200 dark:border-dark-700"
-              >
-                <img
-                  v-if="mediaObjectURLs[media.id]"
-                  :src="mediaObjectURLs[media.id]"
-                  :alt="t('admin.riskControl.reviewImage')"
-                  class="aspect-video w-full bg-gray-100 object-contain dark:bg-dark-900"
-                />
-                <div
-                  v-else
-                  class="flex aspect-video items-center justify-center bg-gray-100 px-4 text-center text-xs text-gray-500 dark:bg-dark-900 dark:text-gray-400"
-                >
-                  {{ media.snapshot_error || t('admin.riskControl.mediaUnavailable') }}
-                </div>
-                <figcaption
-                  class="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400"
-                >
-                  {{ detailSourceLabel(media.source) }} · {{ formatByteSize(media.byte_size) }}
-                </figcaption>
-              </figure>
-            </div>
-
-            <div v-if="inputDetailRow.failed_units?.length" class="space-y-2">
-              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                t('admin.riskControl.failedUnits')
-              }}</p>
-              <div
-                v-for="unit in inputDetailRow.failed_units"
-                :key="`${unit.type}-${unit.index}`"
-                class="border-l-2 border-red-400 pl-3 text-sm text-gray-700 dark:text-gray-300"
-              >
-                {{ unit.type }}[{{ unit.index }}]: {{ unit.error }}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <template #footer>
-          <div class="flex justify-end">
-            <button type="button" class="btn btn-secondary" @click="closeInputDetail">{{
-              t('common.close')
-            }}</button>
-          </div>
-        </template>
-      </BaseDialog>
-
-      <BaseDialog
-        :show="cyberDetailRow !== null"
-        :title="t('admin.riskControl.cyberDetailTitle')"
-        width="wide"
+      <RiskControlCyberDetailModal
+        :row="cyberDetailRow"
+        :loading="cyberDetailLoading"
+        :media-object-u-r-ls="mediaObjectURLs"
         @close="closeCyberDetail"
-      >
-        <div v-if="cyberDetailRow" class="space-y-5">
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.time')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{
-                formatDateTime(cyberDetailRow.created_at)
-              }}</p>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.table.user')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{
-                cyberDetailRow.user_email || '-'
-              }}</p>
-              <p
-                v-if="cyberDetailRow.team_id"
-                class="mt-1 text-xs text-gray-500 dark:text-gray-400"
-                data-test="cyber-detail-team-attribution"
-              >
-                {{
-                  t('admin.riskControl.teamAttribution', {
-                    teamId: cyberDetailRow.team_id,
-                    billingUserId: cyberDetailRow.billing_user_id ?? '-',
-                  })
-                }}
-              </p>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.cyberProvider')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{{
-                cyberDetailRow.provider_name || '-'
-              }}</p>
-            </div>
-            <div
-              class="rounded-surface border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/70"
-            >
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{
-                t('admin.riskControl.cyberStatus')
-              }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-gray-900 dark:text-white"
-                >HTTP {{ cyberDetailRow.upstream_status || '-' }}</p
-              >
-            </div>
-          </div>
-
-          <ContentSkeleton v-if="cyberDetailLoading" variant="article" :rows="2" class="py-4" />
-
-          <div v-else class="space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                  t('admin.riskControl.cyberPrompt')
-                }}</p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ cyberDetailRow.endpoint || '-' }} · openai / {{ cyberDetailRow.model || '-' }}
-                </p>
-                <RequestIdLink
-                  v-if="cyberDetailRow.request_id"
-                  :value="cyberDetailRow.request_id"
-                  class="mt-1.5"
-                />
-              </div>
-              <span
-                v-if="cyberDetailRow.group_name"
-                class="inline-flex rounded-compact bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/20 dark:text-sky-300"
-              >
-                {{ cyberDetailRow.group_name }}
-              </span>
-            </div>
-            <div
-              v-if="!cyberDetailRow.content_complete"
-              class="border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
-            >
-              {{ t('admin.riskControl.historicalContentTruncated') }}
-            </div>
-            <div
-              v-if="cyberDetailRow.input_items?.length"
-              class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-dark-700 dark:border-dark-700"
-            >
-              <section v-for="item in cyberDetailRow.input_items" :key="item.index" class="py-4">
-                <div
-                  class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400"
-                >
-                  <span>{{ detailSourceLabel(item.source) }}</span>
-                  <span>·</span>
-                  <span>{{ detailTypeLabel(item.type) }}</span>
-                </div>
-                <pre
-                  class="max-h-panel overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100"
-                  >{{ detailItemContent(item) }}</pre>
-              </section>
-            </div>
-            <pre
-              v-else
-              class="max-h-menu overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100"
-              >{{ cyberPromptText }}</pre>
-
-            <div v-if="cyberDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <figure
-                v-for="media in cyberDetailRow.media"
-                :key="media.id"
-                class="overflow-hidden border border-gray-200 dark:border-dark-700"
-              >
-                <img
-                  v-if="mediaObjectURLs[media.id]"
-                  :src="mediaObjectURLs[media.id]"
-                  :alt="t('admin.riskControl.reviewImage')"
-                  class="aspect-video w-full bg-gray-100 object-contain dark:bg-dark-900"
-                />
-                <div
-                  v-else
-                  class="flex aspect-video items-center justify-center bg-gray-100 px-4 text-center text-xs text-gray-500 dark:bg-dark-900 dark:text-gray-400"
-                >
-                  {{ media.snapshot_error || t('admin.riskControl.mediaUnavailable') }}
-                </div>
-                <figcaption
-                  class="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400"
-                >
-                  {{ detailSourceLabel(media.source) }} · {{ formatByteSize(media.byte_size) }}
-                </figcaption>
-              </figure>
-            </div>
-          </div>
-
-          <div
-            v-if="!cyberDetailLoading"
-            class="border-t border-gray-200 pt-4 dark:border-dark-700"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{
-                  t('admin.riskControl.cyberWarning')
-                }}</p>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ cyberDetailRow.endpoint || '-' }} · openai / {{ cyberDetailRow.model || '-' }}
-                </p>
-              </div>
-              <span
-                v-if="cyberDetailRow.group_name"
-                class="inline-flex rounded-compact bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-900/20 dark:text-sky-300"
-              >
-                {{ cyberDetailRow.group_name }}
-              </span>
-            </div>
-            <pre
-              class="mt-4 max-h-panel overflow-auto whitespace-pre-wrap break-words rounded-control bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50"
-              >{{ cyberDetailText }}</pre>
-          </div>
-        </div>
-
-        <template #footer>
-          <div class="flex justify-end">
-            <button type="button" class="btn btn-secondary" @click="closeCyberDetail">{{
-              t('common.close')
-            }}</button>
-          </div>
-        </template>
-      </BaseDialog>
+      />
     </div>
   </AppLayout>
 </template>
@@ -2629,12 +2273,31 @@ import {
   parseBlockedKeywords,
 } from './risk-control/configDraft'
 import type { APIKeysWriteMode, APIKeyMetadataDraft } from './risk-control/configDraft'
+import RiskControlCyberDetailModal from './risk-control/RiskControlCyberDetailModal.vue'
+import RiskControlInputDetailModal from './risk-control/RiskControlInputDetailModal.vue'
+import {
+  apiKeyRowKey,
+  apiKeyStatusBadgeClass,
+  apiKeyStatusDotClass,
+  apiKeyStatusLabel as formatApiKeyStatusLabel,
+  apiKeyStatusMeta as formatApiKeyStatusMeta,
+  formatNumber,
+  formatRiskDateTime as formatDateTime,
+  latencyText,
+  normalizeDateTimeLocal,
+  percent,
+  percentWidth,
+  resultBadgeClass,
+  resultLabel as formatResultLabel,
+  violationCountText as formatViolationCountText,
+  workerDotClass,
+  workerSlotClass,
+  type WorkerSlotState,
+} from './risk-control/riskControlPresentation'
 import { useRiskControlDetails } from './risk-control/useRiskControlDetails'
-import RequestIdLink from '@/components/common/RequestIdLink.vue'
 import { vSegmented } from '@/directives/segmented'
 import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import Skeleton from '@/components/common/Skeleton.vue'
-import ContentSkeleton from '@/components/common/ContentSkeleton.vue'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -2651,8 +2314,6 @@ import type {
   ContentModerationAPIKeyStatus,
   ContentModerationConfig,
   ContentModerationCyberWarning,
-  ContentModerationInputItem,
-  ContentModerationMedia,
   CyberSummary,
   ContentModerationLog,
   ContentModerationModelFilterType,
@@ -2666,7 +2327,6 @@ import type { Proxy } from '@/api/admin/proxies.types'
 import type { SelectOption } from '@/types/ui'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatDateTime as formatDateTimeValue } from '@/utils/format'
 
 /**
  * RiskControlView.vue presents moderation configuration, audit records, and
@@ -2689,8 +2349,6 @@ type SettingsTab =
   'basic' | 'scope' | 'runtime' | 'response' | 'riskThresholds' | 'keywords' | 'retention'
 /** RecordTab identifies which audit record list currently owns the shared pagination controls. */
 type RecordTab = 'moderation' | 'cyber'
-/** WorkerSlotState describes whether a displayed runtime worker is active, idle, or disabled. */
-type WorkerSlotState = 'active' | 'idle' | 'disabled'
 /** OverviewIcon restricts summary card icons to the supported risk overview symbols. */
 type OverviewIcon = 'shield' | 'key' | 'users' | 'document'
 /** OverviewItem contains labels, values, and styling for one risk summary card. */
@@ -3222,25 +2880,6 @@ const riskThresholdRows = computed<RiskThresholdRow[]>(() =>
   })),
 )
 
-// Detail summary text keeps moderation excerpts, upstream warnings, and submitted
-// cyber prompts in separate visible sections.
-const inputDetailText = computed(() => {
-  if (!inputDetailRow.value) return '-'
-  return inputDetailRow.value.input_excerpt || inputDetailRow.value.error || '-'
-})
-
-const cyberDetailText = computed(() => {
-  if (!cyberDetailRow.value) return '-'
-  return cyberDetailRow.value.warning_text || '-'
-})
-
-// Cyber prompts and upstream warning text are separate fields because the submitted
-// input and refusal explain different parts of the record.
-const cyberPromptText = computed(() => {
-  if (!cyberDetailRow.value) return '-'
-  return cyberDetailRow.value.prompt_excerpt || '-'
-})
-
 // Runtime cards derive bounded queue widths, mode visibility, worker counts, and
 // per-credential call load from current status.
 const queueUsagePercent = computed(
@@ -3630,44 +3269,6 @@ function inputSummaryText(row: ContentModerationLog): string {
  */
 function cyberSummaryText(row: ContentModerationCyberWarning): string {
   return row.prompt_excerpt || row.warning_text || '-'
-}
-
-/**
- * detailSourceLabel returns the localized user or tool audit source label.
- */
-function detailSourceLabel(
-  source: ContentModerationInputItem['source'] | ContentModerationMedia['source'],
-): string {
-  return source === 'tool' ? t('admin.riskControl.sourceTool') : t('admin.riskControl.sourceUser')
-}
-
-/**
- * detailTypeLabel returns the localized image or text input label.
- */
-function detailTypeLabel(type: ContentModerationInputItem['type']): string {
-  return type === 'image' ? t('admin.riskControl.typeImage') : t('admin.riskControl.typeText')
-}
-
-/**
- * detailItemContent selects the image reference or text for one input item.
- * An empty selected value displays a dash, allowing the detail list to retain the
- * item's source and type metadata.
- */
-function detailItemContent(item: ContentModerationInputItem): string {
-  return item.type === 'image' ? item.image_ref || '-' : item.text || '-'
-}
-
-/**
- * formatByteSize formats stored media size using bytes, kilobytes, or megabytes.
- * Nonpositive and nonfinite values display zero bytes, while larger units use one
- * decimal place with base-1024 conversion.
- */
-function formatByteSize(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '0 B'
-  // Media sizes use binary multiples for the displayed units.
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
 /**
@@ -4102,169 +3703,21 @@ function modeDescription(mode: ModerationMode): string {
 }
 
 /**
- * resultLabel describes a moderation row using action precedence before flagged state.
- * Keyword, hash, and standard blocks remain distinguishable; errors precede ordinary
- * hits, and unflagged rows use the pass label.
+ * resultLabel delegates localized moderation action labels to riskControlPresentation.
  */
-function resultLabel(row: ContentModerationLog): string {
-  if (row.action === 'keyword_block') return t('admin.riskControl.action.keywordBlock')
-  if (row.action === 'hash_block') return t('admin.riskControl.action.hashBlock')
-  if (row.action === 'block') return t('admin.riskControl.action.block')
-  if (row.action === 'error' || row.error) return t('admin.riskControl.action.error')
-  if (row.flagged) return t('admin.riskControl.result.hit')
-  return t('admin.riskControl.result.pass')
-}
+const resultLabel = (row: ContentModerationLog): string => formatResultLabel(row, t)
 
 /**
- * resultBadgeClass selects colors for the moderation row's effective action.
- * Blocked actions share red styling, errors use amber, ordinary hits use pink,
- * and remaining rows use the green pass styling.
+ * apiKeyStatusLabel delegates localized API-key health status labels to riskControlPresentation.
  */
-function resultBadgeClass(row: ContentModerationLog): string {
-  if (row.action === 'keyword_block')
-    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-  if (row.action === 'hash_block')
-    return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-  if (row.action === 'block') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-  if (row.action === 'error' || row.error)
-    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-  if (row.flagged) return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
-  return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-}
+const apiKeyStatusLabel = (statusValue: ContentModerationAPIKeyStatus['status']): string =>
+  formatApiKeyStatusLabel(statusValue, t)
 
 /**
- * workerSlotClass returns the card colors for one displayed worker state.
+ * apiKeyStatusMeta delegates API-key health detail formatting to riskControlPresentation.
  */
-function workerSlotClass(state: WorkerSlotState): string {
-  if (state === 'active') {
-    return 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900/60 dark:bg-sky-900/20 dark:text-sky-300'
-  }
-  if (state === 'idle') {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300'
-  }
-  return 'border-gray-100 bg-white text-gray-400 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-500'
-}
-
-/**
- * workerDotClass returns the indicator color for one displayed worker state.
- */
-function workerDotClass(state: WorkerSlotState): string {
-  if (state === 'active') return 'bg-sky-500'
-  if (state === 'idle') return 'bg-emerald-500'
-  return 'bg-gray-300 dark:bg-dark-500'
-}
-
-/**
- * percent formats an audit score ratio as a one-decimal percentage label.
- * Nonfinite scores display a dash, while finite values remain unclamped so the
- * label reflects the value returned by the audit.
- */
-function percent(value: number): string {
-  if (!Number.isFinite(value)) return '-'
-  // Audit score ratios become one-decimal percentage labels.
-  return `${(value * 100).toFixed(1)}%`
-}
-
-/**
- * percentWidth formats an audit score ratio as a bounded bar width.
- * Nonfinite scores use zero width, and finite ratios are constrained to the
- * zero-to-one-hundred percentage range supported by the bar.
- */
-function percentWidth(value: number): string {
-  if (!Number.isFinite(value)) return '0%'
-  // Score ratios are clamped before becoming percentage bar widths.
-  return `${Math.min(100, Math.max(0, value * 100)).toFixed(1)}%`
-}
-
-/**
- * latencyText formats a measured moderation latency with its millisecond unit.
- * Null and undefined measurements display a dash, while zero remains a measured
- * value that can be shown as zero milliseconds.
- */
-function latencyText(value: number | null): string {
-  if (value === null || value === undefined) return '-'
-  return `${value} ms`
-}
-
-/**
- * apiKeyRowKey distinguishes saved and test rows using hash or row index.
- * When a row has no hash, its position supplies the suffix within that row kind
- * so the displayed collections can coexist.
- */
-function apiKeyRowKey(row: ContentModerationAPIKeyStatus, index: number): string {
-  return `${row.configured ? 'saved' : 'test'}-${row.key_hash || index}`
-}
-
-/**
- * apiKeyStatusLabel returns the localized label for a credential health status.
- * Unrecognized status values use the unknown label so the table can still render
- * a row with unexpected runtime data.
- */
-function apiKeyStatusLabel(statusValue: ContentModerationAPIKeyStatus['status']): string {
-  const labels: Record<ContentModerationAPIKeyStatus['status'], string> = {
-    ok: t('admin.riskControl.apiKeyStatusOk'),
-    error: t('admin.riskControl.apiKeyStatusError'),
-    frozen: t('admin.riskControl.apiKeyStatusFrozen'),
-    unknown: t('admin.riskControl.apiKeyStatusUnknown'),
-  }
-  return labels[statusValue] ?? labels.unknown
-}
-
-/**
- * apiKeyStatusBadgeClass returns badge colors for a credential health status.
- * Unrecognized statuses use the unknown styling, matching the label used when
- * runtime data does not contain one of the supported statuses.
- */
-function apiKeyStatusBadgeClass(statusValue: ContentModerationAPIKeyStatus['status']): string {
-  const classes: Record<ContentModerationAPIKeyStatus['status'], string> = {
-    ok: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
-    error: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
-    frozen: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300',
-    unknown: 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300',
-  }
-  return classes[statusValue] ?? classes.unknown
-}
-
-/**
- * apiKeyStatusDotClass returns the dot color for a credential health status.
- * Unrecognized statuses use the gray unknown color, matching the status badge's
- * handling of values outside the supported status set.
- */
-function apiKeyStatusDotClass(statusValue: ContentModerationAPIKeyStatus['status']): string {
-  const classes: Record<ContentModerationAPIKeyStatus['status'], string> = {
-    ok: 'bg-emerald-500',
-    error: 'bg-amber-500',
-    frozen: 'bg-red-500',
-    unknown: 'bg-gray-400',
-  }
-  return classes[statusValue] ?? classes.unknown
-}
-
-/**
- * apiKeyStatusMeta builds the credential health detail line for the settings table.
- * Positive latency and HTTP status appear when available; freeze expiry takes
- * precedence over last-check time, with untested text otherwise.
- */
-function apiKeyStatusMeta(row: ContentModerationAPIKeyStatus): string {
-  const parts: string[] = []
-  parts.push(t('admin.riskControl.apiKeyFailureCount', { count: row.failure_count || 0 }))
-  if (row.last_latency_ms > 0) {
-    parts.push(t('admin.riskControl.apiKeyLatency', { ms: row.last_latency_ms }))
-  }
-  if (row.last_http_status > 0) {
-    parts.push(t('admin.riskControl.apiKeyHTTPStatus', { status: row.last_http_status }))
-  }
-  if (row.frozen_until) {
-    parts.push(t('admin.riskControl.apiKeyFrozenUntil', { time: formatDateTime(row.frozen_until) }))
-  } else if (row.last_checked_at) {
-    parts.push(
-      t('admin.riskControl.apiKeyLastChecked', { time: formatDateTime(row.last_checked_at) }),
-    )
-  } else {
-    parts.push(t('admin.riskControl.apiKeyNotTested'))
-  }
-  return parts.join(' / ')
-}
+const apiKeyStatusMeta = (row: ContentModerationAPIKeyStatus): string =>
+  formatApiKeyStatusMeta(row, t)
 
 /**
  * resetAPIKeyMetadataDrafts replaces editable metadata from configured credential rows.
@@ -4301,8 +3754,6 @@ function ensureAPIKeyMetadataDraft(row: ContentModerationAPIKeyStatus): APIKeyMe
 
 /**
  * apiKeyDraftPriority returns the stored row's editable priority by credential hash.
- * Access initializes a missing draft from the row, while later reads retain
- * the administrator's unsaved priority edits.
  */
 function apiKeyDraftPriority(row: ContentModerationAPIKeyStatus): number {
   return ensureAPIKeyMetadataDraft(row).priority
@@ -4310,8 +3761,6 @@ function apiKeyDraftPriority(row: ContentModerationAPIKeyStatus): number {
 
 /**
  * apiKeyDraftNote returns the stored row's editable note by credential hash.
- * Access initializes a missing draft from the row, while later reads retain
- * the administrator's unsaved annotation text.
  */
 function apiKeyDraftNote(row: ContentModerationAPIKeyStatus): string {
   return ensureAPIKeyMetadataDraft(row).note
@@ -4319,8 +3768,6 @@ function apiKeyDraftNote(row: ContentModerationAPIKeyStatus): string {
 
 /**
  * setApiKeyDraftPriority normalizes the input value into the row's metadata draft.
- * The numeric conversion uses the shared priority defaults and limits, and the
- * resulting value remains unsaved until configuration submission.
  */
 function setApiKeyDraftPriority(row: ContentModerationAPIKeyStatus, event: Event) {
   ensureAPIKeyMetadataDraft(row).priority = normalizeAPIKeyPriority(
@@ -4330,11 +3777,8 @@ function setApiKeyDraftPriority(row: ContentModerationAPIKeyStatus, event: Event
 
 /**
  * setApiKeyDraftNote copies the note input into its credential metadata draft.
- * The draft is limited to two hundred characters immediately, and request
- * construction trims surrounding whitespace before saving the annotation.
  */
 function setApiKeyDraftNote(row: ContentModerationAPIKeyStatus, event: Event) {
-  // The metadata field stores at most two hundred characters.
   ensureAPIKeyMetadataDraft(row).note = (event.target as HTMLInputElement).value.slice(0, 200)
 }
 
@@ -4346,51 +3790,16 @@ function resetRiskThresholds() {
 }
 
 /**
- * formatThresholdPercent formats a bounded threshold percentage with one decimal
- * place. Nonfinite input becomes zero through the shared clamp, so the threshold
- * label remains valid while its editor value is incomplete.
+ * formatThresholdPercent formats a bounded threshold percentage with one decimal place.
  */
 function formatThresholdPercent(value: number): string {
   return `${clampPercent(value).toFixed(1)}%`
 }
 
 /**
- * violationCountText returns the localized count for a flagged moderation record.
- * An unflagged record displays a dash; flagged rows with an absent or zero count
- * use one as the displayed count.
+ * violationCountText delegates flagged violation count formatting to riskControlPresentation.
  */
-function violationCountText(row: ContentModerationLog): string {
-  if (!row.flagged) return '-'
-  return t('admin.riskControl.violationCount', { count: row.violation_count || 1 })
-}
-
-/**
- * normalizeDateTimeLocal converts a browser date input into an ISO timestamp.
- * Empty or invalid values return undefined so list requests omit those filters;
- * valid values use the Date parser's local-time interpretation.
- */
-function normalizeDateTimeLocal(value: string): string | undefined {
-  if (!value) return undefined
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return undefined
-  return date.toISOString()
-}
-
-/**
- * formatDateTime formats stored timestamps with the shared date presentation helper.
- * An empty formatted result displays a dash so optional timestamps keep a visible
- * placeholder in audit rows and credential metadata.
- */
-function formatDateTime(value: string): string {
-  return formatDateTimeValue(value) || '-'
-}
-
-/**
- * formatNumber renders a numeric count using the browser's default number locale.
- */
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat().format(value)
-}
+const violationCountText = (row: ContentModerationLog): string => formatViolationCountText(row, t)
 
 // Start initialization and periodic health refresh for this page instance; polling
 // continues while settings or detail dialogs are open.

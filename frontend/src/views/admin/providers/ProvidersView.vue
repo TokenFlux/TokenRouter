@@ -771,6 +771,8 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { supportsUpstreamUsageQuery } from '@/utils/upstreamUsage'
+import { downloadJsonBlob, formatExportTimestamp } from '@/utils/download'
+import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import {
   useStepUp,
@@ -805,6 +807,11 @@ import ScheduledTestsPanel from '@/views/admin/providers/testing/ScheduledTestsP
 import type { SelectOption } from '@/components/common/Select.vue'
 import ProviderStatusIndicator from '@/views/admin/providers/table/ProviderStatusIndicator.vue'
 import ProviderUsageCell from '@/views/admin/providers/table/ProviderUsageCell.vue'
+import {
+  getAntigravityTierBadgeClass,
+  getAntigravityTierId,
+  getAntigravityTierLabelKey,
+} from '@/views/admin/providers/table/providerUsagePresentation'
 import ProviderTodayStatsCell from '@/views/admin/providers/table/ProviderTodayStatsCell.vue'
 import ProviderGroupsCell from '@/views/admin/providers/table/ProviderGroupsCell.vue'
 import ProviderCapacityCell from '@/views/admin/providers/table/ProviderCapacityCell.vue'
@@ -931,10 +938,8 @@ const providerToolsDropdownStyle = computed(() => ({
   left: `${providerToolsDropdownPosition.left}px`,
   width: `${providerToolsDropdownPosition.width}px`,
 }))
-// hiddenColumns controls rendered table columns; the default list and storage
-// keys restore the administrator preference and track its scheduler-score
-// migration.
-const hiddenColumns = reactive<Set<string>>(new Set())
+// DEFAULT_HIDDEN_COLUMNS and storage keys configure per-administrator provider
+// column visibility and its scheduler-score default-hidden migration.
 const DEFAULT_HIDDEN_COLUMNS = [
   'today_stats',
   'proxy',
@@ -945,6 +950,21 @@ const DEFAULT_HIDDEN_COLUMNS = [
 const HIDDEN_COLUMNS_KEY = 'provider-hidden-columns'
 const HIDDEN_COLUMNS_VERSION_KEY = 'provider-hidden-columns-version'
 const HIDDEN_COLUMNS_CURRENT_VERSION = 'scheduler-score-hidden-by-default'
+
+const {
+  hiddenColumns,
+  loadSavedColumns,
+  toggleColumn: togglePersistedColumn,
+  isColumnVisible,
+} = usePersistedTableColumns({
+  storageKey: HIDDEN_COLUMNS_KEY,
+  defaultHiddenColumns: DEFAULT_HIDDEN_COLUMNS,
+  migration: {
+    versionKey: HIDDEN_COLUMNS_VERSION_KEY,
+    currentVersion: HIDDEN_COLUMNS_CURRENT_VERSION,
+    newHiddenColumns: ['scheduler_score'],
+  },
+})
 
 // Auto refresh settings
 // The refresh dropdown stores its trigger, containment root, and computed
@@ -1011,57 +1031,6 @@ const formatSchedulerScoreGroup = (score: ProviderSchedulerGroupScore): string =
   if ('group_name' in score && score.group_name) return score.group_name
   if ('group_id' in score && score.group_id != null) return `#${score.group_id}`
   return t('admin.providers.schedulerScore.ungrouped')
-}
-
-// loadSavedColumns adds saved hidden-column preferences to the active set and
-// applies the scheduler-score visibility migration when its version is absent
-// or outdated. Migrated preferences are persisted before the version marker,
-// so a failed preference write leaves the migration eligible for another visit.
-//
-// Missing preferences add defaults and write the version marker. Any read,
-// parse, or write failure adds defaults to the set already accumulated in memory;
-// earlier storage writes remain committed, including preferences written before
-// a failed version update. Call this during page setup before rendering columns.
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed.forEach((key) => {
-        hiddenColumns.add(key)
-      })
-      // Older preferences can include scheduler scores by default; recording this version prevents later reloads from overriding an administrator visibility choice again.
-      if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
-        hiddenColumns.add('scheduler_score')
-        localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-        localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-        hiddenColumns.add(key)
-      })
-      localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-    }
-  } catch (e) {
-    console.error('Failed to load saved columns:', e)
-    // Retain any preferences already restored and add defaults after failure;
-    // partial storage writes are left intact for the next setup attempt.
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-      hiddenColumns.add(key)
-    })
-  }
-}
-
-// saveColumnsToStorage persists hidden column keys together with the visibility
-// migration version. Storage failures are logged while the reactive
-// hidden-column set continues controlling the current table presentation.
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
 }
 
 // clampDropdownLeft keeps a dropdown inside the viewport with a sixteen-pixel
@@ -1141,13 +1110,8 @@ if (typeof window !== 'undefined') {
 // changing scheduler-score visibility reloads rows with the corresponding
 // server field selection.
 const toggleColumn = (key: string) => {
-  const wasHidden = hiddenColumns.has(key)
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
+  const wasHidden = togglePersistedColumn(key)
+  if (wasHidden === null) return
   if ((key === 'today_stats' || key === 'usage') && wasHidden) {
     refreshTodayStatsBatch().catch((error) => {
       console.error('Failed to load provider today stats after showing column:', error)
@@ -1161,9 +1125,6 @@ const toggleColumn = (key: string) => {
     })
   }
 }
-
-// isColumnVisible reports whether a column is absent from the hidden set.
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 
 // The list controller loads rows and invokes these callbacks at reconciliation
 // points; callbacks resolve selection, usage, and modal state when requests
@@ -1546,37 +1507,11 @@ function getOpenAIAuthMode(row: any): string | undefined {
   return typeof authMode === 'string' && authMode.trim() ? authMode : undefined
 }
 
-// getAntigravityTierFromRow reads the tier ID from Antigravity load-code-assist
-// metadata. A string paid-tier ID takes precedence over the current-tier ID;
-// unsupported rows or missing metadata return null.
-function getAntigravityTierFromRow(row: any): string | null {
-  if (row.platform !== 'antigravity') return null
-  const extra = row.extra as Record<string, unknown> | undefined
-  if (!extra) return null
-  const lca = extra.load_code_assist as Record<string, unknown> | undefined
-  if (!lca) return null
-  const paid = lca.paidTier as Record<string, unknown> | undefined
-  if (paid && typeof paid.id === 'string') return paid.id
-  const current = lca.currentTier as Record<string, unknown> | undefined
-  if (current && typeof current.id === 'string') return current.id
-  return null
-}
-
 // getAntigravityTierLabel translates a recognized Antigravity tier into its
-// visible label. Free, Pro, and Ultra tiers have labels; unknown or absent tier
-// IDs return null for the table.
+// visible label through the shared provider-usage presentation rules.
 function getAntigravityTierLabel(row: any): string | null {
-  const tier = getAntigravityTierFromRow(row)
-  switch (tier) {
-    case 'free-tier':
-      return t('admin.providers.tier.free')
-    case 'g1-pro-tier':
-      return t('admin.providers.tier.pro')
-    case 'g1-ultra-tier':
-      return t('admin.providers.tier.ultra')
-    default:
-      return null
-  }
+  const key = getAntigravityTierLabelKey(getAntigravityTierId(row))
+  return key ? t(key) : null
 }
 
 // providerDisplayEmail chooses the email shown in the provider name cell.
@@ -1598,20 +1533,9 @@ function providerHomepageUrl(row: Provider): string {
 }
 
 // getAntigravityTierClass chooses the theme-aware badge classes for a
-// recognized tier. Free, Pro, and Ultra receive their configured palettes;
-// missing or unknown tiers return an empty class string.
+// recognized tier through the shared provider-usage presentation rules.
 function getAntigravityTierClass(row: any): string {
-  const tier = getAntigravityTierFromRow(row)
-  switch (tier) {
-    case 'free-tier':
-      return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
-    case 'g1-pro-tier':
-      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    case 'g1-ultra-tier':
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    default:
-      return ''
-  }
+  return getAntigravityTierBadgeClass(getAntigravityTierId(row))
 }
 
 // allColumns defines available table fields and server-sortable columns using
@@ -2199,15 +2123,6 @@ const handleProviderUpdated = (updatedProvider: Provider) => {
   patchProviderInList(updatedProvider)
   enterAutoRefreshSilentWindow()
 }
-// formatExportTimestamp formats one local-time sample as a sortable numeric
-// filename suffix. Month, day, hour, minute, and second fields are zero-padded
-// so provider exports retain a consistent naming pattern.
-const formatExportTimestamp = () => {
-  const now = new Date()
-  // pad2 pads one timestamp field to two decimal characters.
-  const pad2 = (value: number) => String(value).padStart(2, '0')
-  return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
-}
 // openExportDataDialog opens provider export configuration with proxy inclusion
 // enabled. Every invocation resets that preference, so reopening the dialog
 // starts from the inclusion default even after a previous export disabled it.
@@ -2240,16 +2155,7 @@ const handleExportData = async () => {
       ),
     )
     const timestamp = formatExportTimestamp()
-    const filename = `tokenrouter-provider-${timestamp}.json`
-    const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    // Release the temporary download URL after dispatching the link click; the
-    // export payload itself remains owned by this completed action.
-    URL.revokeObjectURL(url)
+    downloadJsonBlob(dataPayload, `tokenrouter-provider-${timestamp}.json`)
     // The backend omits Spark shadows from credential exports because their
     // parent supplies credentials; report how many selected providers are
     // absent from the downloaded payload.

@@ -249,12 +249,14 @@
 
             <template #cell-location="{ row }">
               <div class="flex items-center gap-2">
-                <img
-                  v-if="row.country_code"
-                  :src="flagUrl(row.country_code)"
-                  :alt="row.country || row.country_code"
-                  class="h-4 w-6 rounded-compact"
-                />
+                <span
+                  v-if="countryCodeToFlagEmoji(row.country_code)"
+                  role="img"
+                  :aria-label="row.country || row.country_code"
+                  class="text-base leading-none"
+                >
+                  {{ countryCodeToFlagEmoji(row.country_code) }}
+                </span>
                 <!-- Location text establishes the baseline used by the label in the mobile table card. -->
                 <span
                   v-if="formatLocation(row)"
@@ -845,166 +847,25 @@
       @imported="handleDataImported"
     />
 
-    <BaseDialog
+    <ProxyQualityReportModal
       :show="showQualityReportDialog"
-      :title="t('admin.proxies.qualityReportTitle')"
-      width="normal"
+      :proxy-name="qualityReportProxy?.name"
+      :report="qualityReport"
       @close="closeQualityReportDialog"
-    >
-      <div v-if="qualityReport" class="space-y-4">
-        <div
-          class="rounded-surface border border-gray-200 bg-gray-50 p-4 dark:border-dark-600 dark:bg-dark-800"
-        >
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <div class="text-sm text-gray-500 dark:text-gray-400">
-                {{ qualityReportProxy?.name || '-' }}
-              </div>
-              <div class="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                {{ qualityReport.summary }}
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="text-2xl font-semibold text-gray-900 dark:text-white">
-                {{ qualityReport.score }}
-              </div>
-              <div class="text-xs text-gray-500 dark:text-gray-400">
-                {{ t('admin.proxies.qualityGrade', { grade: qualityReport.grade }) }}
-              </div>
-            </div>
-          </div>
-          <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
-            <div>{{ t('admin.proxies.qualityExitIP') }}: {{ qualityReport.exit_ip || '-' }}</div>
-            <div>{{ t('admin.proxies.qualityCountry') }}: {{ qualityReport.country || '-' }}</div>
-            <div>
-              {{ t('admin.proxies.qualityBaseLatency') }}:
-              {{
-                typeof qualityReport.base_latency_ms === 'number'
-                  ? `${qualityReport.base_latency_ms}ms`
-                  : '-'
-              }}
-            </div>
-            <div>
-              {{ t('admin.proxies.qualityCheckedAt') }}:
-              <!-- Convert report Unix seconds to browser milliseconds for localized display. -->
-              {{ new Date(qualityReport.checked_at * 1000).toLocaleString() }}
-            </div>
-          </div>
-        </div>
+    />
 
-        <div
-          class="max-h-80 overflow-auto rounded-control border border-gray-200 dark:border-dark-600"
-        >
-          <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
-            <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
-              <tr>
-                <th class="whitespace-nowrap px-3 py-2 text-left">
-                  {{ t('admin.proxies.qualityTableTarget') }}
-                </th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">
-                  {{ t('admin.proxies.qualityTableStatus') }}
-                </th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">HTTP</th>
-                <th class="whitespace-nowrap px-3 py-2 text-left">
-                  {{ t('admin.proxies.qualityTableLatency') }}
-                </th>
-                <th class="px-3 py-2 text-left">{{ t('admin.proxies.qualityTableMessage') }}</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
-              <tr v-for="item in qualityReport.items" :key="item.target">
-                <td class="whitespace-nowrap px-3 py-2 text-gray-900 dark:text-white">
-                  {{ qualityTargetLabel(item.target) }}
-                </td>
-                <td class="whitespace-nowrap px-3 py-2">
-                  <span class="badge whitespace-nowrap" :class="qualityStatusClass(item.status)">{{
-                    qualityStatusLabel(item.status)
-                  }}</span>
-                </td>
-                <td class="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
-                  {{ item.http_status ?? '-' }}
-                </td>
-                <td class="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">
-                  {{ typeof item.latency_ms === 'number' ? `${item.latency_ms}ms` : '-' }}
-                </td>
-                <td class="px-3 py-2 text-gray-600 dark:text-gray-300">
-                  <span>{{ item.message || '-' }}</span>
-                  <span v-if="item.cf_ray" class="ml-1 text-xs text-gray-400"
-                    >(cf-ray: {{ item.cf_ray }})</span
-                  >
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex justify-end">
-          <button @click="closeQualityReportDialog" class="btn btn-secondary">
-            {{ t('common.close') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
-
-    <!-- Proxy Providers Dialog -->
-    <BaseDialog
+    <ProxyProvidersModal
       :show="showProvidersModal"
-      :title="t('admin.proxies.providersTitle', { name: providersProxy?.name || '' })"
-      width="normal"
+      :proxy-name="providersProxy?.name"
+      :loading="providersLoading"
+      :providers="proxyProviders"
       @close="closeProvidersModal"
-    >
-      <div
-        v-if="!providersLoading && proxyProviders.length === 0"
-        class="py-6 text-center text-sm text-gray-500"
-      >
-        {{ t('admin.proxies.providersEmpty') }}
-      </div>
-      <div v-else class="max-h-80 overflow-auto">
-        <table
-          :aria-busy="providersLoading"
-          class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700"
-        >
-          <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
-            <tr>
-              <th class="px-4 py-2 text-left">{{ t('admin.proxies.providerName') }}</th>
-              <th class="px-4 py-2 text-left">{{ t('admin.providers.columns.platformType') }}</th>
-              <th class="px-4 py-2 text-left">{{ t('admin.proxies.providerNotes') }}</th>
-            </tr>
-          </thead>
-          <TableSkeletonBody v-if="providersLoading" :columns="3" cell-class="px-3 py-2" />
-          <tbody
-            v-else
-            class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900"
-          >
-            <tr v-for="provider in proxyProviders" :key="provider.id">
-              <td class="px-4 py-2 font-medium text-gray-900 dark:text-white">
-                {{ provider.name }}
-              </td>
-              <td class="px-4 py-2">
-                <PlatformTypeBadge :platform="provider.platform" :type="provider.type" />
-              </td>
-              <td class="px-4 py-2 text-gray-600 dark:text-gray-300">
-                {{ provider.notes || '-' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <template #footer>
-        <div class="flex justify-end">
-          <button @click="closeProvidersModal" class="btn btn-secondary">
-            {{ t('common.close') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
+    />
     <TotpStepUpDialog :controller="proxyExportStepUp" />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1031,7 +892,8 @@ import FilterField from '@/components/common/FilterField.vue'
 import FilterOptions from '@/components/common/FilterOptions.vue'
 import type { FilterOption } from '@/components/common/filterPanel'
 import Icon from '@/components/icons/Icon.vue'
-import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
+import ProxyProvidersModal from './proxies/ProxyProvidersModal.vue'
+import ProxyQualityReportModal from './proxies/ProxyQualityReportModal.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { useSwipeSelect } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -1044,7 +906,16 @@ import {
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { formatDateTime } from '@/utils/format'
+import { countryCodeToFlagEmoji } from '@/utils/countryFlag'
+import { downloadJsonBlob, formatExportTimestamp } from '@/utils/download'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
+import {
+  EXPIRY_PRESETS,
+  addDaysToBase,
+  daysFromBase,
+  formatStoredTimestampToLocalDate,
+  parseLocalExpiryDateToUnixSeconds,
+} from './proxies/proxyExpiry'
 
 // ProxiesView.vue manages proxy records, imports, exports, connection checks, and provider
 // associations. Create and edit drafts include authentication and expiry settings, while table
@@ -1619,11 +1490,9 @@ const handleCreateProxy = async () => {
       // Blank input sends null; the create endpoint stores the new proxy without
       // an authentication password.
       password: createForm.password.trim() || null, // nullable authentication password
-      // Convert browser milliseconds to Unix seconds for the API; blank date text
-      // sends null for no expiry on this request.
-      expires_at: createForm.expires_at
-        ? Math.floor(new Date(createForm.expires_at).getTime() / 1000)
-        : null,
+      // Convert local YYYY-MM-DD input to local-midnight Unix seconds for the API;
+      // blank date text sends null for no expiry on this request.
+      expires_at: parseLocalExpiryDateToUnixSeconds(createForm.expires_at),
       fallback_mode: createForm.fallback_mode, // expiry routing choice
       // Submit the selected replacement only for proxy fallback; all other modes
       // send null for this identifier.
@@ -1653,7 +1522,7 @@ const handleEdit = (proxy: Proxy) => {
   editForm.username = proxy.username || ''
   editForm.password = proxy.password || ''
   editForm.status = proxy.status === 'expired' ? 'inactive' : proxy.status
-  editForm.expires_at = proxy.expires_at ? proxy.expires_at.slice(0, 10) : ''
+  editForm.expires_at = formatStoredTimestampToLocalDate(proxy.expires_at)
   editForm.fallback_mode = proxy.fallback_mode || 'none'
   editForm.backup_proxy_id = proxy.backup_proxy_id ?? null
   editForm.expiry_warn_days = proxy.expiry_warn_days ?? 7
@@ -1704,11 +1573,9 @@ const handleUpdateProxy = async () => {
       // that empty decoded value.
       username: editForm.username.trim() || null, // nullable authentication username
       status: editForm.status, // configured activation status
-      // Convert browser milliseconds to Unix seconds for the API; blank date text
-      // sends null for expiry clearing on this request.
-      expires_at: editForm.expires_at
-        ? Math.floor(new Date(editForm.expires_at).getTime() / 1000)
-        : null,
+      // Convert local YYYY-MM-DD input to local-midnight Unix seconds for the API;
+      // blank date text sends null for expiry clearing on this request.
+      expires_at: parseLocalExpiryDateToUnixSeconds(editForm.expires_at),
       fallback_mode: editForm.fallback_mode, // expiry routing choice
       // Submit the selected replacement only for proxy fallback; all other modes
       // send null for this identifier.
@@ -1803,9 +1670,6 @@ const formatLocation = (proxy: Proxy) => {
   const parts = [proxy.country, proxy.city].filter(Boolean) as string[]
   return parts.join(' · ')
 }
-
-// flagUrl builds the country flag asset URL from a lowercase country code.
-const flagUrl = (code: string) => `https://unpkg.com/flag-icons/flags/4x3/${code.toLowerCase()}.svg`
 
 // startTestingProxy publishes a new progress set containing the proxy connection-check ID.
 const startTestingProxy = (proxyId: number) => {
@@ -1993,70 +1857,10 @@ const closeQualityReportDialog = () => {
   qualityReport.value = null
 }
 
-// qualityStatusClass maps a check-step status to its badge color class. Passed steps use
-// success, warnings use warning, and challenge or unrecognized statuses use the danger class
-// for display.
-const qualityStatusClass = (status: string) => {
-  if (status === 'pass') return 'badge-success'
-  if (status === 'warn') return 'badge-warning'
-  if (status === 'challenge') return 'badge-danger'
-  return 'badge-danger'
-}
-
-// qualityStatusLabel translates the displayed check-step status. Pass, warning, and challenge
-// use their matching labels, while every remaining value uses the failure label in the report
-// table.
-const qualityStatusLabel = (status: string) => {
-  if (status === 'pass') return t('admin.proxies.qualityStatusPass')
-  if (status === 'warn') return t('admin.proxies.qualityStatusWarn')
-  if (status === 'challenge') return t('admin.proxies.qualityStatusChallenge')
-  return t('admin.proxies.qualityStatusFail')
-}
-
-// Expiry presets count from today during creation and from the proxy creation date during
-// editing; expires_at date text remains the draft source.
-const EXPIRY_PRESETS = [7, 30, 90, 180]
-// toLocalDateStr formats a Date using its local calendar year, month, and day.
-const toLocalDateStr = (dt: Date): string => {
-  const y = dt.getFullYear()
-  const m = String(dt.getMonth() + 1).padStart(2, '0')
-  const d = String(dt.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-// baseDateOrToday creates local midnight for a supplied calendar date or today. Empty text
-// chooses the current date, and resetting time components lets expiry controls add days from
-// their selected base.
-const baseDateOrToday = (baseDateStr: string): Date => {
-  const base = baseDateStr ? new Date(`${baseDateStr}T00:00:00`) : new Date()
-  base.setHours(0, 0, 0, 0)
-  return base
-}
-
-// addDaysToBase returns a local calendar date after the requested positive day count. Empty,
-// zero, or negative counts return empty text for no expiry, while valid counts use calendar
-// date arithmetic.
-const addDaysToBase = (baseDateStr: string, n: number | null): string => {
-  const days = Number(n)
-  if (!days || days <= 0) return ''
-  const dt = baseDateOrToday(baseDateStr)
-  dt.setDate(dt.getDate() + days)
-  return toLocalDateStr(dt)
-}
-
-// daysFromBase converts expiry date text into a rounded day count from local midnight. Missing
-// target dates return null, and rounding elapsed milliseconds accommodates the nearby hour
-// differences introduced by daylight-saving transitions.
-const daysFromBase = (baseDateStr: string, targetDateStr: string): number | null => {
-  if (!targetDateStr) return null
-  const target = new Date(`${targetDateStr}T00:00:00`)
-  // Round elapsed milliseconds to whole days across nearby daylight-saving hour shifts.
-  return Math.round((target.getTime() - baseDateOrToday(baseDateStr).getTime()) / 86400000)
-}
-// Editing derives the base calendar date from created_at; an absent timestamp leaves the
+// Editing derives the base local calendar date from created_at; an absent timestamp leaves the
 // day-count helper using today as its base.
 const editBaseDate = computed(() =>
-  editingProxy.value?.created_at ? editingProxy.value.created_at.slice(0, 10) : '',
+  formatStoredTimestampToLocalDate(editingProxy.value?.created_at),
 )
 // createExpiresDays and editExpiresDays expose day-count controls backed by expires_at date
 // text, using today or the saved creation date as their base.
@@ -2100,26 +1904,6 @@ const qualityOverallLabel = (status?: string) => {
   if (status === 'warn') return t('admin.proxies.qualityStatusWarn')
   if (status === 'challenge') return t('admin.proxies.qualityStatusChallenge')
   return t('admin.proxies.qualityStatusFail')
-}
-
-// qualityTargetLabel translates base connectivity and labels known vendor check targets.
-// Unknown targets retain their raw value, allowing returned report items to remain visible when
-// they lack a local label.
-const qualityTargetLabel = (target: string) => {
-  switch (target) {
-    case 'base_connectivity':
-      return t('admin.proxies.qualityTargetBase')
-    case 'openai':
-      return 'OpenAI'
-    case 'anthropic':
-      return 'Anthropic'
-    case 'gemini':
-      return 'Gemini'
-    case 'grok':
-      return 'Grok'
-    default:
-      return target
-  }
 }
 
 // fetchAllProxiesForBatch reads matching proxies across pages of two hundred records. It
@@ -2255,22 +2039,9 @@ const handleBatchQualityCheck = async () => {
   }
 }
 
-// formatExportTimestamp returns a local timestamp used to name the downloaded proxy file.
-const formatExportTimestamp = () => {
-  const now = new Date()
-  // pad2 formats a timestamp component with at least two decimal digits.
-  const pad2 = (value: number) => String(value).padStart(2, '0')
-  return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
-}
-
 // handleExportData exports selected proxies or the current query through step-up verification.
-// A pending export suppresses another start. Successful data becomes a JSON Blob whose
-// temporary URL is clicked as a named download and then revoked.
-//
-// User-canceled verification produces no error notification, while blocked verification and
-// other failures use their corresponding messages. Finally releases export state and closes
-// confirmation regardless of the outcome, leaving selection and filters available for a later
-// attempt.
+// A pending export suppresses another start. Successful data downloads as formatted JSON and
+// revokes its temporary Blob URL immediately.
 const handleExportData = async () => {
   if (exportingData.value) return
   exportingData.value = true
@@ -2285,16 +2056,7 @@ const handleExportData = async () => {
       ),
     )
     const timestamp = formatExportTimestamp()
-    const filename = `tokenrouter-proxy-${timestamp}.json`
-    const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
-    // The download needs a temporary browser URL; revoke it after the link click so the
-    // completed export does not retain the Blob reference.
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadJsonBlob(dataPayload, `tokenrouter-proxy-${timestamp}.json`)
     appStore.showSuccess(t('admin.proxies.dataExported'))
   } catch (error: any) {
     if (isStepUpCancelled(error)) {

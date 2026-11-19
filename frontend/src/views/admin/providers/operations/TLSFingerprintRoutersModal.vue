@@ -440,11 +440,12 @@
 <script setup lang="ts">
 import TableSkeletonBody from '@/components/common/TableSkeletonBody.vue'
 import Toggle from '@/components/common/Toggle.vue'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { useClipboard } from '@/composables/useClipboard'
+import { formatYamlString, parseYamlScalar } from './tlsFingerprintYaml'
 import type { TLSFingerprintProfile } from '@/api/admin/tlsFingerprintProfile'
 import type {
   TLSFingerprintRouter,
@@ -512,6 +513,18 @@ const showDeleteDialog = ref(false)
 const editingRouter = ref<TLSFingerprintRouter | null>(null)
 const deletingRouter = ref<TLSFingerprintRouter | null>(null)
 const yamlInput = ref('')
+let yamlPasteTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * clearYamlPasteTimer cancels any deferred router YAML paste timer before closing
+ * or unmounting the dialog.
+ */
+function clearYamlPasteTimer() {
+  if (yamlPasteTimer !== null) {
+    clearTimeout(yamlPasteTimer)
+    yamlPasteTimer = null
+  }
+}
 
 /**
  * form owns router metadata, optional dedicated user agents and profile identifiers, and an
@@ -579,10 +592,16 @@ watch(
     if (visible) {
       void loadRouters()
       void loadProfiles()
+    } else {
+      clearYamlPasteTimer()
     }
   },
   { immediate: true },
 )
+
+onUnmounted(() => {
+  clearYamlPasteTimer()
+})
 
 /**
  * normalizeRules returns copied rule records with defaults for missing fields and trimmed
@@ -707,6 +726,7 @@ function handleEdit(router: TLSFingerprintRouter) {
  * draft.
  */
 function closeFormModal() {
+  clearYamlPasteTimer()
   showCreateModal.value = false
   showEditModal.value = false
   editingRouter.value = null
@@ -735,32 +755,6 @@ function moveRule(index: number, target: number) {
   if (target < 0 || target >= form.rules.length) return
   const [rule] = form.rules.splice(index, 1)
   form.rules.splice(target, 0, rule)
-}
-
-/**
- * parseYamlScalar decodes simple JSON-style or YAML-single-quoted scalars, treating empty and
- * null markers as empty. Invalid double-quoted JSON falls back to its inner text so paste
- * processing can continue.
- */
-function parseYamlScalar(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed || trimmed === 'null' || trimmed === '~') return ''
-
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      // Keep malformed double-quoted input as inner text so the remaining draft can be
-      // inspected and corrected through the editor.
-      return trimmed.replace(/^"|"$/g, '')
-    }
-  }
-
-  if (trimmed.startsWith("'") && trimmed.endsWith("'")) {
-    return trimmed.slice(1, -1).replace(/''/g, "'")
-  }
-
-  return trimmed
 }
 
 /**
@@ -1065,18 +1059,15 @@ function parseYamlInput() {
 }
 
 /**
- * handleYamlPaste delays parsing by fifty milliseconds so v-model can receive the pasted text.
- * The timeout is not retained for cancellation, and parsing reads the draft value when it runs.
+ * handleYamlPaste delays parsing by fifty milliseconds so v-model can receive the pasted text,
+ * replacing any pending paste timer so closing or unmounting can cancel it cleanly.
  */
 function handleYamlPaste() {
-  setTimeout(() => parseYamlInput(), 50)
-}
-
-/**
- * formatYamlString encodes router text using JSON quoting for YAML scalar output.
- */
-function formatYamlString(value: string): string {
-  return JSON.stringify(value)
+  clearYamlPasteTimer()
+  yamlPasteTimer = setTimeout(() => {
+    yamlPasteTimer = null
+    parseYamlInput()
+  }, 50)
 }
 
 /**

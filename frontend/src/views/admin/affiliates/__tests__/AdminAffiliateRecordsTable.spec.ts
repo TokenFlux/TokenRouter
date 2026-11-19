@@ -1,7 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import AdminAffiliateRecordsTable from '../affiliates/AdminAffiliateRecordsTable.vue'
+import AdminAffiliateRecordsTable from '../AdminAffiliateRecordsTable.vue'
 
 // AdminAffiliateRecordsTable.spec.ts checks balance-unit and currency rendering across
 // affiliate record types and the user overview. Mocked endpoints provide invitation,

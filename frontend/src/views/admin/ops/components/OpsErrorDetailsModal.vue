@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
-import OpsErrorLogTable from './OpsErrorLogTable.vue'
+import OpsErrorLogTable from '@/components/ops/OpsErrorLogTable.vue'
 import { opsAPI, type OpsErrorLog } from '@/api/admin/ops'
 import { buildOpsErrorTimeParams } from '../utils/opsErrorParams'
 

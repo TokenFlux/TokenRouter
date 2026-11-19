@@ -650,4 +650,26 @@ describe('CreativeCanvas 本地恢复与快照持久化', () => {
     expect(storeMocks.saveSceneJson).not.toHaveBeenCalled()
     wrapper.unmount()
   })
+
+  /**
+   * Local studio storage is wiped while the canvas has dirty uploaded content.
+   * Calling resetScene clears the live canvas and suppresses subsequent pagehide
+   * and unmount flushes so wiped IndexedDB storage stays empty.
+   */
+  it('清空本地数据后 resetScene 不再在隐藏或卸载时写回 IndexedDB', async () => {
+    const wrapper = mountCanvas()
+    await flushPromises()
+
+    await (wrapper.vm as any).addUploadedImage(new Blob(['source'], { type: 'image/png' }))
+    storeMocks.saveSceneJson.mockClear()
+
+    ;(wrapper.vm as any).resetScene()
+    expect((wrapper.vm as any).imageCount).toBe(0)
+
+    window.dispatchEvent(new Event('pagehide'))
+    wrapper.unmount()
+    await flushPromises()
+
+    expect(storeMocks.saveSceneJson).not.toHaveBeenCalled()
+  })
 })

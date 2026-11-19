@@ -11,16 +11,18 @@ import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
-import {
-  opsAPI,
-  type OpsDashboardOverview,
-  type OpsMetricThresholds,
-  type OpsRealtimeTrafficSummary,
-} from '@/api/admin/ops'
+import type { OpsDashboardOverview, OpsMetricThresholds } from '@/api/admin/ops.types'
 import type { OpsRequestDetailsPreset } from './OpsRequestDetailsModal.vue'
 import { useAdminSettingsStore } from '@/stores'
 import { formatBytes, formatNumber } from '@/utils/format'
 import { buildOpsPlatformOptions } from '../platformOptions'
+import { useOpsRealtimeTraffic } from '../composables/useOpsRealtimeTraffic'
+import {
+  buildOpsDiagnosisReport,
+  formatDateTimeLocalInput,
+  parseDateTimeLocalInputToISO,
+  type DiagnosisItem,
+} from '../utils/opsDiagnosis'
 import { formatMemorySizeMB } from '../utils/opsFormatters'
 
 // OpsDashboardHeader.vue presents dashboard filters, traffic summaries, health
@@ -254,16 +256,16 @@ function handleGroupChange(val: string | number | boolean | null) {
 }
 
 // handleTimeRangeChange opens an editor for custom ranges or emits the chosen
-// preset. The editor starts with the previous hour encoded as sliced ISO
-// timestamp strings and defers publication until confirmation.
+// preset. The editor starts with the previous hour encoded in local calendar
+// time and defers publication until confirmation.
 function handleTimeRangeChange(val: string | number | boolean | null) {
   const newValue = String(val || '1h')
   if (newValue === 'custom') {
-    // Seed the editor with a one-hour interval.
+    // Seed the editor with a one-hour local interval without UTC offset drift.
     const now = new Date()
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-    customStartTimeInput.value = oneHourAgo.toISOString().slice(0, 16)
-    customEndTimeInput.value = now.toISOString().slice(0, 16)
+    customStartTimeInput.value = formatDateTimeLocalInput(oneHourAgo)
+    customEndTimeInput.value = formatDateTimeLocalInput(now)
     showCustomTimeRangeDialog.value = true
   } else {
     emit('update:timeRange', newValue)
@@ -271,17 +273,15 @@ function handleTimeRangeChange(val: string | number | boolean | null) {
 }
 
 // handleCustomTimeRangeConfirm converts both editor inputs into ISO timestamps
-// before publishing the selection. Empty inputs leave the editor open; parseable
-// values are expected because conversion errors are not caught.
+// before publishing the selection. Empty or invalid inputs leave the editor open.
 //
 // The timestamp event precedes the custom-mode event so the parent range watcher
 // can see both bounds when it builds query parameters. This ordering also
-// supports editing bounds while custom mode is already selected. The editor
-// closes after both events have been emitted to its owner.
+// supports editing bounds while custom mode is already selected.
 function handleCustomTimeRangeConfirm() {
-  if (!customStartTimeInput.value || !customEndTimeInput.value) return
-  const startTime = new Date(customStartTimeInput.value).toISOString()
-  const endTime = new Date(customEndTimeInput.value).toISOString()
+  const startTime = parseDateTimeLocalInputToISO(customStartTimeInput.value)
+  const endTime = parseDateTimeLocalInputToISO(customEndTimeInput.value)
+  if (!startTime || !endTime) return
   // Emit custom time range first so the parent can build correct API params when
   // it reacts to timeRange switching to "custom".
   emit('update:customTimeRange', startTime, endTime)
@@ -386,63 +386,14 @@ function getThresholdColorClass(level: ThresholdLevel): string {
 const totalRequestsLabel = computed(() => formatNumber(overview.value?.request_count_total ?? 0))
 const totalTokensLabel = computed(() => formatNumber(overview.value?.token_consumed ?? 0))
 
-// Realtime request state stores the short-window result and suppresses
-// concurrent reads through its busy flag until completion.
-const realtimeTrafficSummary = ref<OpsRealtimeTrafficSummary | null>(null)
-const realtimeTrafficLoading = ref(false)
-
-// makeZeroRealtimeTrafficSummary constructs an empty measurement for the current
-// filters and window. Start and end share the current ISO timestamp, and all
-// traffic values are zero for disabled monitoring.
-function makeZeroRealtimeTrafficSummary(): OpsRealtimeTrafficSummary {
-  const now = new Date().toISOString()
-  return {
-    window: realtimeWindow.value,
-    start_time: now,
-    end_time: now,
-    platform: props.platform,
-    group_id: props.groupId,
-    qps: { current: 0, peak: 0, avg: 0 },
-    tps: { current: 0, peak: 0, avg: 0 },
-  }
-}
-
-// loadRealtimeTrafficSummary queries the current short traffic window unless a
-// read is already busy. Disabled monitoring publishes a zero summary, and a
-// disabled API response updates the local monitoring flag.
-//
-// The response summary replaces the prior snapshot, while retrieval failure
-// clears it and logs the error. The busy guard suppresses requests triggered
-// during an active read; there is no generation comparison when that read
-// completes, so a filter change can precede publication of the older query
-// result.
-async function loadRealtimeTrafficSummary() {
-  if (realtimeTrafficLoading.value) return
-  if (!adminSettingsStore.opsRealtimeMonitoringEnabled) {
-    realtimeTrafficSummary.value = makeZeroRealtimeTrafficSummary()
-    return
-  }
-  realtimeTrafficLoading.value = true
-  try {
-    const res = await opsAPI.getRealtimeTrafficSummary(
-      realtimeWindow.value,
-      props.platform,
-      props.groupId,
-    )
-    if (res && res.enabled === false) {
-      adminSettingsStore.setOpsRealtimeMonitoringEnabledLocal(false)
-    }
-    realtimeTrafficSummary.value = res?.summary ?? null
-  } catch (err) {
-    // Clear the failed realtime snapshot so current-rate defaults and
-    // unavailable peak labels reflect the missing result instead of the previous
-    // window.
-    console.error('[OpsDashboardHeader] Failed to load realtime traffic summary', err)
-    realtimeTrafficSummary.value = null
-  } finally {
-    realtimeTrafficLoading.value = false
-  }
-}
+const { realtimeTrafficSummary, loadRealtimeTrafficSummary, applyDisabledMonitoringState } =
+  useOpsRealtimeTraffic({
+    window: realtimeWindow,
+    getPlatform: () => props.platform,
+    getGroupId: () => props.groupId,
+    isMonitoringEnabled: () => adminSettingsStore.opsRealtimeMonitoringEnabled,
+    onServerDisabled: () => adminSettingsStore.setOpsRealtimeMonitoringEnabledLocal(false),
+  })
 
 watch(
   () => [realtimeWindow.value, props.platform, props.groupId] as const,
@@ -456,13 +407,11 @@ watch(
   () => adminSettingsStore.opsRealtimeMonitoringEnabled,
   (enabled) => {
     if (!enabled) {
-      // Keep UI stable when realtime monitoring is turned off.
-      realtimeTrafficSummary.value = makeZeroRealtimeTrafficSummary()
+      applyDisabledMonitoringState()
     } else {
       loadRealtimeTrafficSummary()
     }
   },
-  { immediate: true },
 )
 
 // Realtime traffic refresh follows the parent (OpsDashboard) refresh cadence.
@@ -609,208 +558,11 @@ const dashOffset = computed(() => {
   return circumference.value - (score / 100) * circumference.value
 })
 
-// DiagnosisItem carries a translated severity, consequence, and optional action
-// for the health report.
-interface DiagnosisItem {
-  type: 'critical' | 'warning' | 'info' // diagnostic severity display band
-  message: string // translated diagnostic message text
-  impact: string // translated diagnostic consequence text
-  action?: string // optional translated recovery suggestion
-}
-
-// diagnosisReport combines resource, latency, error-rate, SLA, and score
-// observations into an ordered report. An absent overview yields no entries,
-// while an idle system returns an informational item before evaluating other
-// measurements.
-//
-// Resource conditions are appended first and health-score conditions last. Each
-// rule uses the fixed cutoffs in this computation, independently of configurable
-// metric badge thresholds. If no condition produces a report item, a healthy
-// informational entry fills the report so the populated header retains an
-// explanation.
-const diagnosisReport = computed<DiagnosisItem[]>(() => {
-  const ov = overview.value
-  if (!ov) return []
-
-  const report: DiagnosisItem[] = []
-
-  if (isSystemIdle.value) {
-    report.push({
-      type: 'info',
-      message: t('admin.ops.diagnosis.idle'),
-      impact: t('admin.ops.diagnosis.idleImpact'),
-    })
-    return report
-  }
-
-  // Resource diagnostics (highest priority)
-  const sm = ov.system_metrics
-  if (sm) {
-    if (sm.db_ok === false) {
-      report.push({
-        type: 'critical',
-        message: t('admin.ops.diagnosis.dbDown'),
-        impact: t('admin.ops.diagnosis.dbDownImpact'),
-        action: t('admin.ops.diagnosis.dbDownAction'),
-      })
-    }
-    if (sm.redis_ok === false) {
-      report.push({
-        type: 'warning',
-        message: t('admin.ops.diagnosis.redisDown'),
-        impact: t('admin.ops.diagnosis.redisDownImpact'),
-        action: t('admin.ops.diagnosis.redisDownAction'),
-      })
-    }
-
-    const cpuPct = sm.cpu_usage_percent ?? 0
-    if (cpuPct > 90) {
-      report.push({
-        type: 'critical',
-        message: t('admin.ops.diagnosis.cpuCritical', { usage: cpuPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.cpuCriticalImpact'),
-        action: t('admin.ops.diagnosis.cpuCriticalAction'),
-      })
-    } else if (cpuPct > 80) {
-      report.push({
-        type: 'warning',
-        message: t('admin.ops.diagnosis.cpuHigh', { usage: cpuPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.cpuHighImpact'),
-        action: t('admin.ops.diagnosis.cpuHighAction'),
-      })
-    }
-
-    const memPct = sm.memory_usage_percent ?? 0
-    if (memPct > 90) {
-      report.push({
-        type: 'critical',
-        message: t('admin.ops.diagnosis.memoryCritical', { usage: memPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.memoryCriticalImpact'),
-        action: t('admin.ops.diagnosis.memoryCriticalAction'),
-      })
-    } else if (memPct > 85) {
-      report.push({
-        type: 'warning',
-        message: t('admin.ops.diagnosis.memoryHigh', { usage: memPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.memoryHighImpact'),
-        action: t('admin.ops.diagnosis.memoryHighAction'),
-      })
-    }
-
-    const diskPct = sm.disk_usage_percent ?? 0
-    if (diskPct > 95) {
-      report.push({
-        type: 'critical',
-        message: t('admin.ops.diagnosis.diskCritical', { usage: diskPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.diskCriticalImpact'),
-        action: t('admin.ops.diagnosis.diskCriticalAction'),
-      })
-    } else if (diskPct > 85) {
-      report.push({
-        type: 'warning',
-        message: t('admin.ops.diagnosis.diskHigh', { usage: diskPct.toFixed(1) }),
-        impact: t('admin.ops.diagnosis.diskHighImpact'),
-        action: t('admin.ops.diagnosis.diskHighAction'),
-      })
-    }
-  }
-
-  const ttftP99 = ov.ttft?.p99_ms ?? 0
-  // The diagnostic warning uses a fixed 500-millisecond first-token cutoff.
-  if (ttftP99 > 500) {
-    report.push({
-      type: 'warning',
-      message: t('admin.ops.diagnosis.ttftHigh', { ttft: ttftP99.toFixed(0) }),
-      impact: t('admin.ops.diagnosis.ttftHighImpact'),
-      action: t('admin.ops.diagnosis.ttftHighAction'),
-    })
-  }
-
-  // Error rate diagnostics (adjusted thresholds) Convert upstream error ratios
-  // into percentage-point diagnostic thresholds.
-  const upstreamRatePct = (ov.upstream_error_rate ?? 0) * 100
-  if (upstreamRatePct > 5) {
-    report.push({
-      type: 'critical',
-      message: t('admin.ops.diagnosis.upstreamCritical', { rate: upstreamRatePct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.upstreamCriticalImpact'),
-      action: t('admin.ops.diagnosis.upstreamCriticalAction'),
-    })
-  } else if (upstreamRatePct > 2) {
-    report.push({
-      type: 'warning',
-      message: t('admin.ops.diagnosis.upstreamHigh', { rate: upstreamRatePct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.upstreamHighImpact'),
-      action: t('admin.ops.diagnosis.upstreamHighAction'),
-    })
-  }
-
-  // Convert request error ratios into percentage-point diagnostic thresholds.
-  const errorPct = (ov.error_rate ?? 0) * 100
-  if (errorPct > 3) {
-    report.push({
-      type: 'critical',
-      message: t('admin.ops.diagnosis.errorHigh', { rate: errorPct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.errorHighImpact'),
-      action: t('admin.ops.diagnosis.errorHighAction'),
-    })
-  } else if (errorPct > 0.5) {
-    report.push({
-      type: 'warning',
-      message: t('admin.ops.diagnosis.errorElevated', { rate: errorPct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.errorElevatedImpact'),
-      action: t('admin.ops.diagnosis.errorElevatedAction'),
-    })
-  }
-
-  // SLA diagnostics Convert SLA ratios into percentage-point diagnostic
-  // thresholds.
-  const slaPct = (ov.sla ?? 0) * 100
-  if (slaPct < 90) {
-    report.push({
-      type: 'critical',
-      message: t('admin.ops.diagnosis.slaCritical', { sla: slaPct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.slaCriticalImpact'),
-      action: t('admin.ops.diagnosis.slaCriticalAction'),
-    })
-  } else if (slaPct < 98) {
-    report.push({
-      type: 'warning',
-      message: t('admin.ops.diagnosis.slaLow', { sla: slaPct.toFixed(2) }),
-      impact: t('admin.ops.diagnosis.slaLowImpact'),
-      action: t('admin.ops.diagnosis.slaLowAction'),
-    })
-  }
-
-  // Health score diagnostics (lowest priority)
-  if (healthScoreValue.value != null) {
-    if (healthScoreValue.value < 60) {
-      report.push({
-        type: 'critical',
-        message: t('admin.ops.diagnosis.healthCritical', { score: healthScoreValue.value }),
-        impact: t('admin.ops.diagnosis.healthCriticalImpact'),
-        action: t('admin.ops.diagnosis.healthCriticalAction'),
-      })
-    } else if (healthScoreValue.value < 90) {
-      report.push({
-        type: 'warning',
-        message: t('admin.ops.diagnosis.healthLow', { score: healthScoreValue.value }),
-        impact: t('admin.ops.diagnosis.healthLowImpact'),
-        action: t('admin.ops.diagnosis.healthLowAction'),
-      })
-    }
-  }
-
-  if (report.length === 0) {
-    report.push({
-      type: 'info',
-      message: t('admin.ops.diagnosis.healthy'),
-      impact: t('admin.ops.diagnosis.healthyImpact'),
-    })
-  }
-
-  return report
-})
+// diagnosisReport evaluates resource, TTFT, error-rate, SLA, and health-score
+// observations using operator-configured thresholds with default fallbacks.
+const diagnosisReport = computed<DiagnosisItem[]>(() =>
+  buildOpsDiagnosisReport(overview.value ?? null, props.thresholds, isSystemIdle.value, t),
+)
 
 // formatTimeShort renders valid heartbeat timestamps in the browser local time
 // format. Missing or invalid timestamps return a dash so the job details can

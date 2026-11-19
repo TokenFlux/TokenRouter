@@ -307,19 +307,30 @@ const ASSET_PROTOCOL = 'asset://'
 const SELECTION_COLOR = '#12A7E8'
 const SELECTION_FILL = 'rgba(18, 167, 232, 0.08)'
 /**
- * Apply selection defaults before either new images or restored objects are
- * constructed so both use the same interaction appearance.
+ * fabricSelectionDefaultsApplied tracks whether Fabric's shared interactive
+ * selection style has been configured during canvas mount.
  */
-Object.assign(InteractiveFabricObject.ownDefaults, {
-  borderColor: SELECTION_COLOR,
-  borderScaleFactor: 1.5,
-  cornerColor: '#ffffff',
-  cornerStrokeColor: SELECTION_COLOR,
-  cornerStyle: 'circle',
-  cornerSize: 10,
-  transparentCorners: false,
-  padding: 0,
-})
+let fabricSelectionDefaultsApplied = false
+
+/**
+ * ensureFabricSelectionDefaults configures Fabric's shared interactive object
+ * selection handles once before the first Canvas instance is constructed so
+ * importing CreativeCanvas has no module-evaluation side effects.
+ */
+function ensureFabricSelectionDefaults(): void {
+  if (fabricSelectionDefaultsApplied) return
+  fabricSelectionDefaultsApplied = true
+  Object.assign(InteractiveFabricObject.ownDefaults, {
+    borderColor: SELECTION_COLOR,
+    borderScaleFactor: 1.5,
+    cornerColor: '#ffffff',
+    cornerStrokeColor: SELECTION_COLOR,
+    cornerStyle: 'circle',
+    cornerSize: 10,
+    transparentCorners: false,
+    padding: 0,
+  })
+}
 /**
  * MASK_COLOR, MASK_TINT, MASK_OPACITY, and MASK_PREVIEW_TINT separate exported
  * stroke pixels from the translucent drawing preview.
@@ -871,6 +882,7 @@ onMounted(() => {
   const element = canvasElRef.value
   const container = containerRef.value
   if (!element || !container) return
+  ensureFabricSelectionDefaults()
   canvas = new Canvas(element, {
     width: Math.max(container.clientWidth, 320),
     height: Math.max(container.clientHeight, 320),
@@ -2730,48 +2742,80 @@ async function downloadSelected(): Promise<void> {
 }
 
 /**
- * resetCanvas clears image state and invalidates any pending scene restoration.
- * The generation changes before objects are removed, so later restoration
- * checks reject their captured generation. Runtime references, mask undo
- * history, and cached Blobs are cleared alongside the canvas, and the viewport
- * returns to its default transform. The empty scene is then marked dirty and
- * flushed immediately, making a successful clear the snapshot used on the next
- * page visit.
+ * clearCanvasScene clears in-memory objects, mask strokes, cached Blobs, and
+ * pending save timers without writing to IndexedDB. Holding
+ * sceneRestoreInProgress across canvas.clear() suppresses object:removed
+ * persistence callbacks while advancing sceneRevision and clearing sceneDirty
+ * keeps subsequent pagehide or unmount handlers from flushing an empty scene
+ * back into wiped local storage.
  */
-function resetCanvas(): void {
-  if (!canvas) return
+function clearCanvasScene(): boolean {
+  if (sceneSaveTimer) {
+    clearTimeout(sceneSaveTimer)
+    sceneSaveTimer = null
+  }
+  sceneRevision++
+  sceneDirty = false
+  if (!canvas) return false
   stopGIFPlayback()
   /**
    * Invalidate recovery before clearing scene state, so pending reads fail their
    * generation check when they resume after the user reset.
    */
   sceneRestoreGeneration++
-  sceneRestoreInProgress = false
-  stopPanAnim()
-  inpaintAnchor.value = null
-  paintSuspended.value = false
-  editRefs.value = []
-  if (boxSelectMode.value) setBoxSelectMode(false)
-  removeResolutionTag()
-  refOutlines.clear()
-  maskUndoStack.length = 0
-  canUndoMask.value = false
-  maskClipRect = null
-  exitPainting()
-  removeAnchorOutline()
-  canvas.discardActiveObject()
-  canvas.clear()
-  canvas.backgroundColor = ''
-  canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-  syncDotGrid()
-  hasMaskStrokes.value = false
-  lastPlaced = null
-  runtimeBlobs.clear()
-  selectedImage.value = null
-  selectedObjectCount.value = 0
-  syncImageCount()
-  sceneReady.value = true
-  canvas.requestRenderAll()
+  sceneRestoreInProgress = true
+  try {
+    stopPanAnim()
+    inpaintAnchor.value = null
+    paintSuspended.value = false
+    editRefs.value = []
+    if (boxSelectMode.value) setBoxSelectMode(false)
+    removeResolutionTag()
+    refOutlines.clear()
+    maskUndoStack.length = 0
+    canUndoMask.value = false
+    maskClipRect = null
+    exitPainting()
+    removeAnchorOutline()
+    canvas.discardActiveObject()
+    canvas.clear()
+    canvas.backgroundColor = ''
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
+    syncDotGrid()
+    hasMaskStrokes.value = false
+    lastPlaced = null
+    runtimeBlobs.clear()
+    selectedImage.value = null
+    selectedObjectCount.value = 0
+    syncImageCount()
+    sceneReady.value = true
+    canvas.requestRenderAll()
+  } finally {
+    sceneRestoreInProgress = false
+  }
+  if (sceneSaveTimer) {
+    clearTimeout(sceneSaveTimer)
+    sceneSaveTimer = null
+  }
+  sceneDirty = false
+  return true
+}
+
+/**
+ * resetScene clears the live canvas and discards pending scene persistence
+ * after studio local storage has already been wiped by clearLocalData.
+ */
+function resetScene(): void {
+  clearCanvasScene()
+}
+
+/**
+ * resetCanvas clears image state, invalidates any pending scene restoration,
+ * and immediately persists the emptied scene snapshot so the next visit opens a
+ * blank canvas while keeping local asset history intact.
+ */
+function resetCanvas(): void {
+  if (!clearCanvasScene()) return
   scheduleSceneSave()
   flushSceneSave()
 }
@@ -3025,6 +3069,7 @@ defineExpose({
   getEditRefBlobs,
   getMaskBlob,
   resetCanvas,
+  resetScene,
   clearMask,
   openFilePicker: () => fileInputRef.value?.click(),
   hasMaskStrokes,

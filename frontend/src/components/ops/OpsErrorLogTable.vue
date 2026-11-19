@@ -230,7 +230,7 @@ import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import type { OpsErrorLog } from '@/api/admin/ops'
 import type { Column } from '@/components/common/table/types'
-import { getSeverityClass, formatDateTime } from '../utils/opsFormatters'
+import { getSeverityClass, formatDateTime } from './opsErrorFormatting'
 import { mapErrorCategory } from '@/utils/errorCategory'
 import { mapErrorSortKey, statusCodeBadgeClass } from '@/utils/errorBadges'
 

@@ -13,13 +13,13 @@
 | `api/`、`api/admin/` | HTTP 客户端、领域请求和响应类型；管理员专有接口位于 admin |
 | `stores/` | 认证、应用设置、公告、订阅、支付等跨页面状态 |
 | `pluginHost/` | 共享 Vue 运行时、插件资源加载、页面能力与 SDK 控件适配 |
-| `views/` | 路由页面，以及按业务归组的页面私有控制器和组件 |
+| `views/` | 路由页面，以及按业务归组的页面私有控制器、组件和辅助实现（如管理端的 `providers/`、`groups/`、`settings/`、`plugins/`、`ops/`、`orders/`、`affiliates/`、`risk-control/`、`mcp/`、`proxies/`，用户端的 `payment/`、`keys/`，公共首页的 `home/`） |
 | `components/common/` | 基础控件与显示组件；表格及其列类型、列顺序逻辑共同放在 table |
 | `components/layout/` | 应用外壳、导航和页面布局 |
 | `components/plugin/` | manifest 字段表单、权限展示和配置数值校验，供插件管理与后续领域表单复用 |
-| `components/<业务>/` | 多个页面共同使用的领域组件；调用方的角色由路由和 API 决定 |
-| `composables/` | 跨页面组合式状态和生命周期逻辑；引导步骤与其控制器放在 onboarding |
-| `utils/` | 共用的转换、格式、存储和浏览器辅助实现；支付规则放在 payment |
+| `components/<业务>/` | 多个页面共同使用的领域组件（如 `admin/`、`announcements/`、`auth/`、`charts/`、`creative/`、`Guide/`、`keys/`、`marketplace/`、`ops/`、`payment/`、`provider/`、`requests/`、`team/`、`usage/`、`user/`）；调用方的角色由路由和 API 决定 |
+| `composables/` | 跨页面组合式状态和生命周期逻辑（含表格列持久化、断点共享、剪贴板、步进验证等）；引导步骤与其控制器放在 onboarding |
+| `utils/` | 共用的转换、格式、下载、离线国旗、存储和浏览器辅助实现；支付规则放在 payment |
 | `i18n/` | 语言目录、错误文案、运营内容翻译和语言切换编排 |
 | `types/` | 跨领域 UI 类型和环境声明 |
 | `style.css`、`styles/`、`components/icons/` | 全局设计变量、附属样式和统一图标接口 |
@@ -36,17 +36,17 @@
 
 支付页面的私有选择和结账逻辑放在页面业务目录，纯支付规则放在 `utils/payment/`。用户结账组件位于 `components/payment/`；提供商配置、密钥字段和管理操作位于 `components/admin/payment/`。跨角色的规则共同维护，管理端配置保持自己的归属。
 
-代理选择器归 `components/admin/proxy/`，系统版本操作归 `components/admin/system/`，公告归 `components/announcements/`，验证码归 `components/auth/`。分组表单规则与模型属性组件分别在 `components/admin/group/` 和 `components/admin/model-attributes/` 中维护，页面通过这些模块使用表单能力。
+代理选择器归 `components/admin/proxy/`，代理页面的过期推算和详情弹窗归 `views/admin/proxies/`；系统版本操作归 `components/admin/system/`，公告归 `components/announcements/`，验证码归 `components/auth/`。分组草稿与页面弹窗归 `views/admin/groups/`，共享分组表单规则与模型属性组件分别在 `components/admin/group/` 和 `components/admin/model-attributes/` 中维护。运维看板、订单账单、推广返利、风控审核、MCP 管理、用户密钥和公共首页的私有模块分别位于 `views/admin/{ops,orders,affiliates,risk-control,mcp}/`、`views/user/keys/` 和 `views/home/`；同时被请求查询、管理端用量和运维看板复用的错误日志表格与错误详情弹窗放在 `components/ops/`。
 
 <a id="dependency_ownership"></a>
 
 ## 类型所有权与依赖方向
 
-API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`。已经定义在 API 实现文件中的局部类型继续跟随实现；调用方直接导入实际所有者。公共响应和分页类型在 `api/common.types.ts`，纯 UI 记录在 `types/ui.ts`。模型属性的领域常量与其类型共同维护，运行时消费者使用普通 import，仅使用类型的消费者使用 `import type`。
+API 记录按所属领域维护在 `api/*.types.ts` 或 `api/admin/*.types.ts`（包括 `api/admin/settings.types.ts`、`api/admin/ops.types.ts` 和 `api/admin/providers.types.ts`），对应的客户端实现文件导出或透传这些类型供调用方按领域引用。已经定义在 API 实现文件中的局部类型继续跟随实现；调用方直接导入实际所有者。公共响应和分页类型在 `api/common.types.ts`，纯 UI 记录在 `types/ui.ts`。模型属性的领域常量与其类型共同维护，运行时消费者使用普通 import，仅使用类型的消费者使用 `import type`。
 
 类型循环反映实际响应关系：`api/identity.types.ts` 与 `api/subscriptions.types.ts` 通过 `User`、`UserSubscription` 互相引用；`api/admin/providers.types.ts` 与 `api/admin/proxies.types.ts` 通过代理记录、提供商平台和类型互相引用。这两组关系使用 type-only import，保留 HTTP 字段和可空性。
 
-依赖检查集中在 `frontend/scripts/check-imports.mjs`：API 模块不能依赖页面、组件、store、router、composable 或 pluginHost；组件不能依赖 view 或 pluginHost 实现；pluginHost 可组合 API、store 和共享组件，但不能导入 view；共享 composable 不能依赖组件实现。页面私有目录只允许自己的文件、登记的页面所有者及准确的路由入口导入。跨模块行为测试的必要访问按准确的文件与目标记录例外。
+依赖检查集中在 `frontend/scripts/check-imports.mjs`：API 模块不能依赖页面、组件、store、router、composable 或 pluginHost；组件不能依赖 view 或 pluginHost 实现；pluginHost 可组合 API、store 和共享组件，但不能导入 view；共享 composable 不能依赖组件实现。13 个页面私有目录（`views/admin/{plugins,providers,groups,settings,risk-control,ops,orders,affiliates,mcp,proxies}/`、`views/user/{payment,keys}/` 和 `views/home/`）只允许目录内部文件、登记的页面所有者及准确的路由入口导入。跨模块行为测试的必要访问按准确的文件与目标记录例外。
 
 `i18n/index.ts` 在发布语言后动态加载 `router/title`、`router/index`、`stores/app`、`stores/auth` 、`stores/adminSettings` 和 `stores/plugins`，刷新页面标题并发送语言变化事件。需要持久化账户语言时再加载 `api/client`，按语言代次和用户身份串行写入偏好。这些准确的运行时依赖保持原来的初始化时序；它们不属于 API 向页面依赖的例外。共享工具中存在响应式缓存和浏览器 I/O，阅读调用方后再决定是否提取纯规则。
 

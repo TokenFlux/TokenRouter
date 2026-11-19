@@ -2051,5 +2051,82 @@ describe('ProviderUsageCell', () => {
     expect(wrapper.text()).toContain('7d|56')
     expect(wrapper.text()).not.toContain('7d S')
     expect(wrapper.text()).not.toContain('7d F')
+    wrapper.unmount()
+  })
+
+  // Virtualized scrolling rebinds a mounted cell from provider 4001 to 4002 while
+  // provider 4001's local usage query is still in flight. Resolving the stale 4001
+  // query later must not overwrite provider 4002's displayed usage.
+  it('ignores stale local usage responses after virtualized row provider switch', async () => {
+    let resolveFirst!: (value: unknown) => void
+    const firstPromise = new Promise((resolve) => {
+      resolveFirst = resolve
+    })
+    getUsage.mockReturnValueOnce(firstPromise).mockResolvedValueOnce({
+      source: 'passive',
+      five_hour: { utilization: 88, resets_at: '2026-07-03T10:00:00Z' },
+    })
+
+    const wrapper = mount(ProviderUsageCell, {
+      props: {
+        provider: makeProvider({
+          id: 4001,
+          platform: 'anthropic',
+          type: 'oauth',
+          proxy: {
+            id: 1,
+            name: 'p1',
+            protocol: 'http',
+            host: '10.0.0.1',
+            port: 8080,
+            status: 'active',
+            created_at: '',
+            updated_at: '',
+          },
+          extra: {},
+        }),
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>',
+          },
+          ProviderQuotaInfo: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.setProps({
+      provider: makeProvider({
+        id: 4002,
+        platform: 'anthropic',
+        type: 'oauth',
+        proxy: {
+          id: 2,
+          name: 'p2',
+          protocol: 'http',
+          host: '10.0.0.2',
+          port: 8080,
+          status: 'active',
+          created_at: '',
+          updated_at: '',
+        },
+        extra: {},
+      }),
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('5h|88')
+
+    resolveFirst({
+      source: 'passive',
+      five_hour: { utilization: 12, resets_at: '2026-07-03T10:00:00Z' },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('5h|88')
+    expect(wrapper.text()).not.toContain('5h|12')
+    wrapper.unmount()
   })
 })

@@ -138,11 +138,24 @@ test('private ownership admits declared entries and rejects external implementat
   )
   for (const [directory, owner] of [
     ['src/views/user/payment/', 'src/views/user/PaymentView.vue'],
+    ['src/views/user/keys/', 'src/views/user/KeysView.vue'],
+    ['src/views/home/', 'src/views/HomeView.vue'],
+    ['src/views/admin/mcp/', 'src/views/admin/McpManagementView.vue'],
+    ['src/views/admin/proxies/', 'src/views/admin/ProxiesView.vue'],
     ['src/views/admin/risk-control/', 'src/views/admin/RiskControlView.vue'],
   ]) {
     assert.equal(importViolation(owner, `${directory}privateHelper`), null)
     assert.equal(importViolation(`${directory}child.ts`, `${directory}privateHelper`), null)
     assert.ok(importViolation('src/views/unrelated.vue', `${directory}privateHelper`))
+  }
+  for (const [directory, entry] of [
+    ['src/views/admin/ops/', 'src/views/admin/ops/OpsDashboard.vue'],
+    ['src/views/admin/orders/', 'src/views/admin/orders/AdminOrdersView.vue'],
+    ['src/views/admin/affiliates/', 'src/views/admin/affiliates/AdminAffiliateInvitesView.vue'],
+  ]) {
+    assert.equal(importViolation('src/router/routes/admin.ts', entry), null)
+    assert.ok(importViolation('src/router/routes/admin.ts', `${directory}privateHelper`))
+    assert.ok(importViolation('src/views/RequestsView.vue', `${directory}privateHelper`))
   }
   assert.equal(
     importViolation(

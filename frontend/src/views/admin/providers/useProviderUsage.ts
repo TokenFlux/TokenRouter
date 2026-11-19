@@ -1,9 +1,9 @@
-import { ref, onMounted, onUnmounted, type Ref } from 'vue'
+import { ref, onUnmounted, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { useDesktopTableViewport } from '@/composables/useDesktopTableViewport'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
-import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import type { Provider, ProviderUsageInfo, WindowStats } from '@/api/admin/providers.types'
 
 // useProviderUsage.ts coordinates daily statistics and desktop usage requests
@@ -53,13 +53,8 @@ export function useProviderUsage(
   // usage cells can refresh their own displayed observations.
   const usageManualRefreshToken = ref(0)
 
-  // isDesktopViewport gates cell batching; the media-query reference and listener
-  // follow the mounted page and are released together during teardown.
-  const isDesktopViewport = ref(
-    typeof window === 'undefined' ? true : window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY).matches,
-  )
-  let desktopViewportMediaQuery: MediaQueryList | null = null
-  let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
+  // isDesktopViewport gates cell batching through the shared viewport listener.
+  const isDesktopViewport = useDesktopTableViewport()
 
   // usageBatchByProviderId, usageBatchErrorByProviderId, and
   // usageBatchLoadingByProviderId publish independent provider cells;
@@ -427,39 +422,14 @@ export function useProviderUsage(
       bulkUsageLoading.value = false
     }
   }
-  onMounted(() => {
-    if (typeof window !== 'undefined') {
-      desktopViewportMediaQuery = window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY)
-      isDesktopViewport.value = desktopViewportMediaQuery.matches
-      desktopViewportListener = (event: MediaQueryListEvent) => {
-        isDesktopViewport.value = event.matches
-      }
-      // Register one media-query listener using the supported browser API;
-      // teardown mirrors that choice to release the same callback.
-      if (typeof desktopViewportMediaQuery.addEventListener === 'function') {
-        desktopViewportMediaQuery.addEventListener('change', desktopViewportListener)
-      } else {
-        desktopViewportMediaQuery.addListener(desktopViewportListener)
-      }
-    }
-  })
   onUnmounted(() => {
-    // Cancel queued work before releasing the page media listener, preventing
-    // another batch from starting after the provider page unmounts.
+    // Cancel queued work when the provider page unmounts so pending batches
+    // cannot start after teardown.
     if (usageBatchFlushTimer !== null) {
       clearTimeout(usageBatchFlushTimer)
       usageBatchFlushTimer = null
     }
     pendingUsageBatchIds.clear()
-    if (desktopViewportMediaQuery && desktopViewportListener) {
-      if (typeof desktopViewportMediaQuery.removeEventListener === 'function') {
-        desktopViewportMediaQuery.removeEventListener('change', desktopViewportListener)
-      } else {
-        desktopViewportMediaQuery.removeListener(desktopViewportListener)
-      }
-    }
-    desktopViewportListener = null
-    desktopViewportMediaQuery = null
   })
   return {
     todayStatsByProviderId,

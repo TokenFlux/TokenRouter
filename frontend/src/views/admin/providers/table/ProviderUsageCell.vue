@@ -794,8 +794,26 @@ import { buildOpenAIUsageRefreshKey } from '@/utils/providerUsageRefresh'
 import { isUpstreamUsageQueryEnabled } from '@/utils/upstreamUsage'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
-import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
+import { useDesktopTableViewport } from '@/composables/useDesktopTableViewport'
 import Icon from '@/components/icons/Icon.vue'
+import {
+  ANTIGRAVITY_CLAUDE_MODELS,
+  ANTIGRAVITY_FLASH_MODELS,
+  ANTIGRAVITY_IMAGE_MODELS,
+  ANTIGRAVITY_PRO_MODELS,
+  buildGeminiUsageBars,
+  buildLocalQuotaBar,
+  getAntigravityTierBadgeClass,
+  getAntigravityTierId,
+  getAntigravityTierLabelKey,
+  hasAntigravityIneligibleTiers,
+  resolveQoderEnterpriseUrl,
+  summarizeAntigravityFamilyUsage,
+  summarizeGeminiChannel,
+  summarizeGrokUsage,
+  summarizeQoderQuota,
+  type QuotaBarInfo,
+} from './providerUsagePresentation'
 import UsageProgressBar from './UsageProgressBar.vue'
 import ProviderQuotaInfo from './ProviderQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
@@ -910,22 +928,31 @@ const emit = defineEmits<{
  * the mounted row begins automatic usage loading.
  */
 const { t } = useI18n()
-const canUseMatchMedia = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-/**
- * getDesktopViewportMatches reads the shared desktop breakpoint when matchMedia is available.
- * Environments without that browser API default to desktop behavior, allowing usage loading
- * without a viewport observer dependency.
- */
-const getDesktopViewportMatches = () =>
-  canUseMatchMedia ? window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY).matches : true
+const isDesktopViewport = useDesktopTableViewport()
 
 /**
- * unmounted suppresses ordinary queued-load publication after teardown; request activity,
- * observations, and viewport-entry state remain local to the mounted cell.
+ * unmounted, localUsageRequestSeq, and copyFeedbackTimer guard asynchronous
+ * usage responses and clipboard timers against component teardown and virtualized
+ * row-identity switches.
  */
 const unmounted = ref(false)
+let localUsageRequestSeq = 0
+let copyFeedbackTimer: ReturnType<typeof setTimeout> | null = null
+
+/**
+ * clearCopyFeedbackTimer cancels any pending verification-URL copy badge reset.
+ */
+const clearCopyFeedbackTimer = () => {
+  if (copyFeedbackTimer !== null) {
+    clearTimeout(copyFeedbackTimer)
+    copyFeedbackTimer = null
+  }
+}
+
 onBeforeUnmount(() => {
   unmounted.value = true
+  localUsageRequestSeq++
+  clearCopyFeedbackTimer()
 })
 
 /**
@@ -937,17 +964,14 @@ const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<ProviderUsageInfo | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
-const isDesktopViewport = ref(getDesktopViewportMatches())
 const hasEnteredViewport = ref(false)
 const pendingAutoLoad = ref(false)
 const pendingAutoLoadSource = ref<'passive' | 'active' | undefined>(undefined)
 
 /**
- * Viewport handles belong to this row and are released on unmount; visibility observation
- * defers eligible mobile loads until first entry.
+ * visibilityObserver defers eligible mobile loads until first viewport entry and
+ * is disconnected on teardown or desktop transitions.
  */
-let desktopViewportMediaQuery: MediaQueryList | null = null
-let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
 let visibilityObserver: IntersectionObserver | null = null
 
 /**
@@ -1064,16 +1088,8 @@ const shouldLazyLoadOnMobile = computed(() => {
 })
 
 /**
- * AntigravityUsageResult summarizes utilization and earliest reset for one model family.
- */
-interface AntigravityUsageResult {
-  utilization: number // observed utilization percentage
-  resetTime: string | null // earliest reported reset timestamp
-}
-
-/**
  * Antigravity quota availability requires a nonempty returned quota map; family summaries then
- * select matching model observations from that map.
+ * select matching model observations through providerUsagePresentation.
  */
 const hasAntigravityQuotaFromAPI = computed(() => {
   return (
@@ -1081,83 +1097,17 @@ const hasAntigravityQuotaFromAPI = computed(() => {
   )
 })
 
-/**
- * getAntigravityUsageFromAPI summarizes recognized model observations for one display family.
- * It chooses the highest observed utilization and the lexically earliest nonempty reset
- * timestamp among matching models. A missing quota map or no matching entries returns null.
- *
- * A matching entry with zero utilization still produces a result even when no reset is present,
- * keeping observed zero separate from an unknown family. The reset and utilization can
- * originate from different model entries, so the summary represents conservative family-level
- * display values rather than one model's complete observation.
- */
-const getAntigravityUsageFromAPI = (modelNames: string[]): AntigravityUsageResult | null => {
-  const quota = usageInfo.value?.antigravity_quota
-  if (!quota) return null
-
-  let maxUtilization = 0
-  let earliestReset: string | null = null
-
-  for (const model of modelNames) {
-    const modelQuota = quota[model]
-    if (!modelQuota) continue
-
-    if (modelQuota.utilization > maxUtilization) {
-      maxUtilization = modelQuota.utilization
-    }
-    if (modelQuota.reset_time) {
-      if (!earliestReset || modelQuota.reset_time < earliestReset) {
-        earliestReset = modelQuota.reset_time
-      }
-    }
-  }
-
-  // A matching zero-use observation still represents known quota; return null only when none of
-  // the requested model entries exists.
-  if (maxUtilization === 0 && earliestReset === null) {
-    const hasAnyData = modelNames.some((m) => quota[m])
-    if (!hasAnyData) return null
-  }
-
-  return {
-    utilization: maxUtilization,
-    resetTime: earliestReset,
-  }
-}
-
-/**
- * Antigravity family summaries group Pro, Flash, image, and Claude model identifiers into
- * separate utilization and earliest-reset bars for the table.
- */
 const antigravity3ProUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI(['gemini-3-pro-low', 'gemini-3-pro-high', 'gemini-3-pro-preview']),
+  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_PRO_MODELS),
 )
-
-// Gemini 3 Flash from API
-const antigravity3FlashUsageFromAPI = computed(() => getAntigravityUsageFromAPI(['gemini-3-flash']))
-
-// Gemini Image from API
+const antigravity3FlashUsageFromAPI = computed(() =>
+  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_FLASH_MODELS),
+)
 const antigravity3ImageUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI([
-    'gemini-2.5-flash-image',
-    'gemini-3.1-flash-image',
-    'gemini-3-pro-image',
-  ]),
+  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_IMAGE_MODELS),
 )
-
-// Claude from API (all Claude model variants)
 const antigravityClaudeUsageFromAPI = computed(() =>
-  getAntigravityUsageFromAPI([
-    'claude-fable-5-1',
-    'claude-fable-5',
-    'claude-sonnet-4-5',
-    'claude-opus-4-5-thinking',
-    'claude-sonnet-4-6',
-    'claude-opus-4-6',
-    'claude-opus-4-6-thinking',
-    'claude-opus-4-7',
-    'claude-opus-4-8',
-  ]),
+  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_CLAUDE_MODELS),
 )
 
 /**
@@ -1169,635 +1119,52 @@ const aiCreditsDisplay = computed(() => {
   if (!credits || credits.length === 0) return null
   const total = credits.reduce((sum, credit) => sum + (credit.amount ?? 0), 0)
   if (total <= 0) return null
-  // Credit badges show whole amounts to fit the compact row.
   return total.toFixed(0)
 })
 
 /**
- * Antigravity tier presentation prefers a string paidTier identifier, then currentTier, keeping
- * missing entitlement metadata distinct from a recognized free tier.
+ * Gemini, Antigravity, Qoder, and Grok presentation projections derive badge
+ * labels, quota-policy keys, and progress bars from providerUsagePresentation.
  */
-const antigravityTier = computed(() => {
-  const extra = props.provider.extra as Record<string, unknown> | undefined
-  if (!extra) return null
-
-  const loadCodeAssist = extra.load_code_assist as Record<string, unknown> | undefined
-  if (!loadCodeAssist) return null
-
-  // Prefer the paid entitlement identifier when present so a concurrent currentTier marker does
-  // not hide the paid subscription label.
-  const paidTier = loadCodeAssist.paidTier as Record<string, unknown> | undefined
-  if (paidTier && typeof paidTier.id === 'string') {
-    return paidTier.id
-  }
-
-  const currentTier = loadCodeAssist.currentTier as Record<string, unknown> | undefined
-  if (currentTier && typeof currentTier.id === 'string') {
-    return currentTier.id
-  }
-
-  return null
-})
-
-/**
- * Gemini tier and OAuth markers identify the saved channel, including the legacy project_id
- * rule used when an explicit oauth_type is absent.
- */
-const geminiTier = computed(() => {
-  if (props.provider.platform !== 'gemini') return null
-  const creds = props.provider.credentials as GeminiCredentials | undefined
-  return creds?.tier_id || null
-})
-
-const geminiOAuthType = computed(() => {
-  if (props.provider.platform !== 'gemini') return null
-  const creds = props.provider.credentials as GeminiCredentials | undefined
-  return (creds?.oauth_type || '').trim() || null
-})
-
-const isGeminiCodeAssist = computed(() => {
-  if (props.provider.platform !== 'gemini') return false
-  const creds = props.provider.credentials as GeminiCredentials | undefined
-  return creds?.oauth_type === 'code_assist' || (!creds?.oauth_type && !!creds?.project_id)
-})
-
-/**
- * Gemini channel and level labels normalize saved current or legacy credential markers into
- * concise channel-specific subscription descriptions for the table.
- */
-const geminiChannelShort = computed((): 'ai studio' | 'gcp' | 'google one' | 'client' | null => {
-  if (props.provider.platform !== 'gemini') return null
-
-  // API Key providers are AI Studio.
-  if (props.provider.type === 'apikey') return 'ai studio'
-
-  if (geminiOAuthType.value === 'google_one') return 'google one'
-  if (isGeminiCodeAssist.value) return 'gcp'
-  if (geminiOAuthType.value === 'ai_studio') return 'client'
-
-  // Credentials with an unrecognized legacy OAuth marker use the AI Studio channel label until
-  // a recognized channel is supplied.
-  return 'ai studio'
-})
-
-const geminiUserLevel = computed((): string | null => {
-  if (props.provider.platform !== 'gemini') return null
-
-  const tier = (geminiTier.value || '').toString().trim()
-  const tierLower = tier.toLowerCase()
-  const tierUpper = tier.toUpperCase()
-
-  // Google One: free / pro / ultra
-  if (geminiOAuthType.value === 'google_one') {
-    if (tierLower === 'google_one_free') return 'free'
-    if (tierLower === 'google_ai_pro') return 'pro'
-    if (tierLower === 'google_ai_ultra') return 'ultra'
-
-    // Interpret older tier spellings within this channel so saved credentials retain their
-    // subscription label until refreshed metadata replaces them.
-    if (tierUpper === 'AI_PREMIUM' || tierUpper === 'GOOGLE_ONE_STANDARD') return 'pro'
-    if (tierUpper === 'GOOGLE_ONE_UNLIMITED') return 'ultra'
-    if (
-      tierUpper === 'FREE' ||
-      tierUpper === 'GOOGLE_ONE_BASIC' ||
-      tierUpper === 'GOOGLE_ONE_UNKNOWN' ||
-      tierUpper === ''
-    )
-      return 'free'
-
-    return null
-  }
-
-  // GCP Code Assist: standard / enterprise
-  if (isGeminiCodeAssist.value) {
-    if (tierLower === 'gcp_enterprise') return 'enterprise'
-    if (tierLower === 'gcp_standard') return 'standard'
-
-    // Map legacy credential markers within the selected channel so existing records continue to
-    // show their saved subscription level.
-    if (tierUpper.includes('ULTRA') || tierUpper.includes('ENTERPRISE')) return 'enterprise'
-    return 'standard'
-  }
-
-  // AI Studio (API Key) and Client OAuth: free / paid
-  if (props.provider.type === 'apikey' || geminiOAuthType.value === 'ai_studio') {
-    if (tierLower === 'aistudio_paid') return 'paid'
-    if (tierLower === 'aistudio_free') return 'free'
-
-    // Map legacy credential markers within the selected channel so existing records continue to
-    // show their saved subscription level.
-    if (tierUpper.includes('PAID') || tierUpper.includes('PAYG') || tierUpper.includes('PAY'))
-      return 'paid'
-    if (tierUpper.includes('FREE')) return 'free'
-    if (props.provider.type === 'apikey') return 'free'
-    return null
-  }
-
-  return null
-})
-
-/**
- * Gemini label and palette combine normalized channel and level; quota-policy text and links
- * follow the same saved channel interpretation.
- */
-const geminiAuthTypeLabel = computed(() => {
-  if (props.provider.platform !== 'gemini') return null
-  if (!geminiChannelShort.value) return null
-  return geminiUserLevel.value
-    ? `${geminiChannelShort.value} ${geminiUserLevel.value}`
-    : geminiChannelShort.value
-})
-
-const geminiTierClass = computed(() => {
-  // Use channel+level to choose a stable color without depending on raw tier_id variants.
-  const channel = geminiChannelShort.value
-  const level = geminiUserLevel.value
-
-  if (channel === 'client' || channel === 'ai studio') {
-    return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-  }
-
-  if (channel === 'google one') {
-    if (level === 'ultra')
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    if (level === 'pro') return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
-  }
-
-  if (channel === 'gcp') {
-    if (level === 'enterprise')
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-  }
-
-  return ''
-})
-
-/**
- * Gemini quota-policy labels describe the selected saved channel and level, while the
- * documentation link follows official Code Assist or AI Studio ownership.
- */
-const geminiQuotaPolicyChannel = computed(() => {
-  if (geminiOAuthType.value === 'google_one') {
-    return t('admin.providers.gemini.quotaPolicy.rows.googleOne.channel')
-  }
-  if (isGeminiCodeAssist.value) {
-    return t('admin.providers.gemini.quotaPolicy.rows.gcp.channel')
-  }
-  return t('admin.providers.gemini.quotaPolicy.rows.aiStudio.channel')
-})
-
-const geminiQuotaPolicyLimits = computed(() => {
-  const tierLower = (geminiTier.value || '').toString().trim().toLowerCase()
-
-  if (geminiOAuthType.value === 'google_one') {
-    if (tierLower === 'google_ai_ultra' || geminiUserLevel.value === 'ultra') {
-      return t('admin.providers.gemini.quotaPolicy.rows.googleOne.limitsUltra')
-    }
-    if (tierLower === 'google_ai_pro' || geminiUserLevel.value === 'pro') {
-      return t('admin.providers.gemini.quotaPolicy.rows.googleOne.limitsPro')
-    }
-    return t('admin.providers.gemini.quotaPolicy.rows.googleOne.limitsFree')
-  }
-
-  if (isGeminiCodeAssist.value) {
-    if (tierLower === 'gcp_enterprise' || geminiUserLevel.value === 'enterprise') {
-      return t('admin.providers.gemini.quotaPolicy.rows.gcp.limitsEnterprise')
-    }
-    return t('admin.providers.gemini.quotaPolicy.rows.gcp.limitsStandard')
-  }
-
-  // AI Studio (API Key / custom OAuth)
-  if (tierLower === 'aistudio_paid' || geminiUserLevel.value === 'paid') {
-    return t('admin.providers.gemini.quotaPolicy.rows.aiStudio.limitsPaid')
-  }
-  return t('admin.providers.gemini.quotaPolicy.rows.aiStudio.limitsFree')
-})
-
-const geminiQuotaPolicyDocsUrl = computed(() => {
-  if (geminiOAuthType.value === 'google_one' || isGeminiCodeAssist.value) {
-    return 'https://developers.google.com/gemini-code-assist/resources/quotas'
-  }
-  return 'https://ai.google.dev/pricing'
-})
-
-/**
- * Shared Gemini pool observations or Google One and Code Assist channels select the single
- * daily bar; other records expose available Pro and Flash daily bars.
- */
-const geminiUsesSharedDaily = computed(() => {
-  if (props.provider.platform !== 'gemini') return false
-  // Google One and Code Assist select the shared pool presentation even when only minute
-  // metadata is currently available from the response.
-  return (
-    !!usageInfo.value?.gemini_shared_daily ||
-    !!usageInfo.value?.gemini_shared_minute ||
-    geminiOAuthType.value === 'google_one' ||
-    isGeminiCodeAssist.value
-  )
-})
-
-/**
- * geminiUsageBars uses returned daily observations for either the shared pool or model
- * families, carrying each window reset and optional local statistics into its bar.
- */
-const geminiUsageBars = computed(() => {
-  if (props.provider.platform !== 'gemini') return []
-  if (!usageInfo.value) return []
-
-  const bars: Array<{
-    key: string // stable usage bar identifier
-    label: string // compact usage window label
-    utilization: number // observed utilization percentage
-    resetsAt: string | null // quota reset timestamp or null
-    windowStats?: WindowStats | null // optional local window observations
-    color: 'indigo' | 'emerald' // usage window label palette
-  }> = []
-
-  if (geminiUsesSharedDaily.value) {
-    const sharedDaily = usageInfo.value.gemini_shared_daily
-    if (sharedDaily) {
-      bars.push({
-        key: 'shared_daily',
-        label: '1d',
-        utilization: sharedDaily.utilization,
-        resetsAt: sharedDaily.resets_at,
-        windowStats: sharedDaily.window_stats,
-        color: 'indigo',
-      })
-    }
-    return bars
-  }
-
-  const pro = usageInfo.value.gemini_pro_daily
-  if (pro) {
-    bars.push({
-      key: 'pro_daily',
-      label: 'pro',
-      utilization: pro.utilization,
-      resetsAt: pro.resets_at,
-      windowStats: pro.window_stats,
-      color: 'indigo',
-    })
-  }
-
-  const flash = usageInfo.value.gemini_flash_daily
-  if (flash) {
-    bars.push({
-      key: 'flash_daily',
-      label: 'flash',
-      utilization: flash.utilization,
-      resetsAt: flash.resets_at,
-      windowStats: flash.window_stats,
-      color: 'emerald',
-    })
-  }
-
-  return bars
-})
-
-/**
- * GrokQuotaBarInfo pairs billing utilization with its reset and optional local usage
- * observations.
- */
-interface GrokQuotaBarInfo {
-  utilization: number // observed utilization percentage
-  resetsAt: string | null // quota reset timestamp or null
-  windowStats?: WindowStats | null // optional local window observations
-}
-
-/**
- * QoderQuotaProgressLike identifies the shared shape of Qoder quota pool observations.
- */
-type QoderQuotaProgressLike = NonNullable<
-  NonNullable<ProviderUsageInfo['qoder_quota']>['user_quota']
->
-// qoderEnterpriseURL exposes only a browser-safe HTTPS destination. Native deep links
-// use their HTTPS fallback, and a missing destination leaves a descriptive label.
-const qoderEnterpriseURL = computed(() => {
-  const view = usageInfo.value?.qoder_quota?.enterprise
-  const candidate = view?.open_mode === 'externalBrowser' ? view.detail_url : view?.fallback_url
-  if (!candidate) return undefined
-  try {
-    const parsed = new URL(candidate)
-    return parsed.protocol === 'https:' && !parsed.username && !parsed.password
-      ? candidate
-      : undefined
-  } catch {
-    // A malformed upstream destination still needs an informative usage view, so
-    // retain its label without creating a clickable or executable navigation target.
-    return undefined
-  }
-})
-
-/**
- * qoderQuotaPoolCapacity derives one pool capacity from its available observations. A positive
- * total has precedence, followed by a positive cap; otherwise used and remaining amounts are
- * added with missing components treated as zero.
- *
- * An explicit zero total can therefore fall through to the derived amount, and an entirely
- * absent pool amount produces zero as well. Callers pair this numeric result with
- * qoderQuotaPoolHasCapacity so the display can distinguish a measured zero from unknown
- * capacity.
- */
-const qoderQuotaPoolCapacity = (pool: QoderQuotaProgressLike) => {
-  if (pool.total && pool.total > 0) return pool.total
-  if (pool.cap && pool.cap > 0) return pool.cap
-  return (pool.used ?? 0) + (pool.remaining ?? 0)
-}
-
-/**
- * qoderQuotaPoolHasCapacity reports whether any capacity observation is present on a Qoder
- * pool. Explicit zero counts as known data, allowing the label to distinguish zero capacity
- * from missing observations.
- */
-const qoderQuotaPoolHasCapacity = (pool: QoderQuotaProgressLike) => {
-  return pool.total != null || pool.cap != null || pool.used != null || pool.remaining != null
-}
-
-/**
- * Qoder summaries combine user, add-on, and organization pools, keeping a separate
- * known-capacity flag so a present zero differs from missing capacity.
- */
-const qoderQuotaPools = computed<QoderQuotaProgressLike[]>(() => {
-  const quota = usageInfo.value?.qoder_quota
-  return [quota?.user_quota, quota?.add_on_quota, quota?.org_resource_package].filter(
-    (pool): pool is QoderQuotaProgressLike => !!pool,
-  )
-})
-
-/**
- * qoderQuotaAggregate sums available pool observations, prefers positive derived total for
- * utilization, and otherwise uses the supplied overall or first-pool percentage.
- */
-const qoderQuotaAggregate = computed(() => {
-  const pools = qoderQuotaPools.value
-  if (pools.length === 0) return null
-
-  const used = pools.reduce((sum, pool) => sum + (pool.used ?? 0), 0)
-  const remaining = pools.reduce((sum, pool) => sum + (pool.remaining ?? 0), 0)
-  const total = pools.reduce((sum, pool) => sum + qoderQuotaPoolCapacity(pool), 0)
-  const totalKnown = pools.some(qoderQuotaPoolHasCapacity)
-  const unit = pools.find((pool) => pool.unit)?.unit || 'credits'
-  const utilization =
-    total > 0
-      ? (used / total) * 100
-      : (usageInfo.value?.qoder_quota?.total_usage_percentage ?? pools[0]?.percentage ?? 0)
-
-  return { used, remaining, total, totalKnown, unit, utilization }
-})
-
-/**
- * Qoder bar geometry clamps utilization while its amount label distinguishes an observed total
- * from unknown capacity and retains the reported pool unit.
- */
-const qoderQuotaUsageBar = computed(() => {
-  const quota = usageInfo.value?.qoder_quota
-  const utilization = qoderQuotaAggregate.value?.utilization ?? quota?.total_usage_percentage ?? 0
-  return {
-    utilization: Math.max(0, Math.min(100, utilization)),
-    resetsAt: quota?.expires_at || null,
-  }
-})
-const qoderQuotaCreditsLabel = computed(() => {
-  const quota = qoderQuotaAggregate.value
-  if (!quota) return '-'
-  const used = formatCompactNumber(quota.used)
-  const total = quota.totalKnown ? formatCompactNumber(quota.total) : 'unknown'
-  const unit = quota.unit
-  return `${used}/${total} ${unit}`
-})
-/**
- * Grok billing observations and local seven-day or monthly usage statistics feed separate
- * upstream utilization bars and local accounting chips.
- */
-const grokBilling = computed(() => usageInfo.value?.grok_billing || null)
-const grokLocalUsage7d = computed(
-  () => usageInfo.value?.grok_local_usage_7d || usageInfo.value?.seven_day?.window_stats || null,
+const antigravityTier = computed(() => getAntigravityTierId(props.provider))
+const geminiChannelSummary = computed(() => summarizeGeminiChannel(props.provider))
+const geminiAuthTypeLabel = computed(() => geminiChannelSummary.value.authTypeLabel)
+const geminiTierClass = computed(() => geminiChannelSummary.value.tierClass)
+const geminiQuotaPolicyChannel = computed(() => t(geminiChannelSummary.value.quotaPolicyChannelKey))
+const geminiQuotaPolicyLimits = computed(() => t(geminiChannelSummary.value.quotaPolicyLimitsKey))
+const geminiQuotaPolicyDocsUrl = computed(() => geminiChannelSummary.value.quotaPolicyDocsUrl)
+const geminiUsageBars = computed(() =>
+  buildGeminiUsageBars(props.provider.platform, geminiChannelSummary.value, usageInfo.value),
 )
-const grokLocalUsageMonthly = computed(
-  () =>
-    usageInfo.value?.grok_local_usage_monthly || usageInfo.value?.thirty_day?.window_stats || null,
-)
-/**
- * The Grok weekly bar requires a weekly period and measured usage percentage; the monthly bar
- * prefers used_percent before deriving a ratio from cents.
- */
-const grokWeeklyBillingBar = computed((): GrokQuotaBarInfo | null => {
-  const billing = grokBilling.value
-  if (billing?.period_type?.toLowerCase() !== 'weekly' || billing.usage_percent == null) {
-    return null
-  }
-  return {
-    // Keep the weekly bar within its available percentage range.
-    utilization: Math.min(100, Math.max(0, billing.usage_percent)),
-    resetsAt: billing.period_end || null,
-    windowStats: grokLocalUsage7d.value,
-  }
-})
 
-/**
- * grokMonthlyBillingBar suppresses duplicate weekly-only data and pairs a usable monthly
- * percentage with the billing or general period-end timestamp.
- */
-const grokMonthlyBillingBar = computed((): GrokQuotaBarInfo | null => {
-  const billing = grokBilling.value
-  if (!billing) return null
-  let utilization: number | null = null
-  if (billing.used_percent != null && Number.isFinite(billing.used_percent)) {
-    utilization = billing.used_percent
-  } else if (
-    billing.monthly_limit_cents != null &&
-    billing.monthly_limit_cents > 0 &&
-    billing.used_cents != null
-  ) {
-    utilization = (billing.used_cents / billing.monthly_limit_cents) * 100
-  }
-  if (utilization == null) return null
-  // Weekly observations without a monthly limit already have a weekly bar, so they cannot
-  // establish a separate monthly allowance display.
-  if (billing.period_type?.toLowerCase() === 'weekly' && billing.monthly_limit_cents == null) {
-    return null
-  }
-  return {
-    // Keep the monthly bar within its available percentage range.
-    utilization: Math.min(100, Math.max(0, utilization)),
-    resetsAt: billing.billing_period_end || billing.period_end || null,
-    windowStats: grokLocalUsageMonthly.value,
-  }
-})
-/**
- * formatGrokMoney formats Grok money values with magnitude-dependent decimal precision and
- * compact suffixes. Missing or NaN values display zero; smaller values keep more fractional
- * digits in the concise billing line.
- */
-const formatGrokMoney = (value?: number | null) => {
-  if (value == null || Number.isNaN(value)) return '0'
-  // Larger money amounts use fewer decimals in the compact billing line.
-  if (value >= 1000) return formatCompactNumber(value)
-  if (value >= 100) return value.toFixed(0)
-  if (value >= 10) return value.toFixed(1)
-  return value.toFixed(2)
-}
+const qoderEnterpriseURL = computed(() => resolveQoderEnterpriseUrl(usageInfo.value))
+const qoderSummary = computed(() => summarizeQoderQuota(usageInfo.value))
+const qoderQuotaUsageBar = computed(() => qoderSummary.value.usageBar)
+const qoderQuotaCreditsLabel = computed(() => qoderSummary.value.creditsLabel)
 
-/**
- * Grok money lines require positive finite prepaid or limit values, prefer major-unit amounts,
- * and convert cent observations when major-unit fields are absent.
- */
-const grokPrepaidMoneyLine = computed(() => {
-  const billing = grokBilling.value
-  if (!billing) return null
-  const prepaid = billing.prepaid_balance
-  const showPrepaid = prepaid != null && Number.isFinite(prepaid) && prepaid > 0
-  const limitRaw =
-    billing.monthly_limit != null
-      ? billing.monthly_limit
-      : billing.monthly_limit_cents != null
-        ? // Use major currency units when the response supplies cents.
-          billing.monthly_limit_cents / 100
-        : null
-  const showUsedLimit = limitRaw != null && Number.isFinite(limitRaw) && limitRaw > 0
-  if (!showPrepaid && !showUsedLimit) return null
-  const used =
-    billing.monthly_used != null
-      ? billing.monthly_used
-      : billing.used_cents != null
-        ? // Match the limit display unit before formatting used money.
-          billing.used_cents / 100
-        : 0
-  return {
-    showPrepaid,
-    showUsedLimit,
-    prepaid: showPrepaid ? formatGrokMoney(prepaid) : null,
-    used: showUsedLimit ? formatGrokMoney(used) : null,
-    limit: showUsedLimit ? formatGrokMoney(limitRaw) : null,
-  }
-})
-/**
- * grokPlanLabelIsFree recognizes labels containing the free or basic substrings. Callers
- * supply lowercase labels because matching is case-sensitive; the helper accepts surrounding
- * whitespace without trimming it.
- */
-const grokPlanLabelIsFree = (value: string) => value.includes('free') || value.includes('basic')
-/**
- * grokPlanLabelIsPaid recognizes nonempty normalized labels that are neither free nor unknown.
- * Callers trim and lowercase labels before invoking it, so matching follows the shared plan
- * classification rules.
- */
-const grokPlanLabelIsPaid = (value: string) => {
-  return value !== '' && !grokPlanLabelIsFree(value) && !value.includes('unknown')
-}
-/**
- * Grok free-plan classification gives a recognized subscription tier precedence, then billing
- * observations and plan labels, before falling back to the presence of billing data.
- */
-const grokIsFree = computed(() => {
-  if (props.provider.platform !== 'grok' || props.provider.type !== 'oauth') return false
-  const billing = grokBilling.value
-  const plan = (billing?.plan || '').trim().toLowerCase()
-  const tier = (usageInfo.value?.subscription_tier || '').trim().toLowerCase()
-  const entitlement = (usageInfo.value?.grok_entitlement_status || '').toLowerCase()
-  if (grokPlanLabelIsFree(tier)) return true
-  if (grokPlanLabelIsPaid(tier)) return false
-  if (
-    billing?.usage_percent != null ||
-    billing?.used_percent != null ||
-    (billing?.monthly_limit_cents != null && billing.monthly_limit_cents > 0)
-  )
-    return false
-  if (grokPlanLabelIsPaid(plan)) return false
-  if (grokPlanLabelIsFree(plan) || grokPlanLabelIsFree(entitlement)) return true
-  return billing != null
-})
-/**
- * Free Grok usage uses the local twenty-four-hour token observation and a positive configured
- * limit; unknown quota labels remain separate from measured bar values.
- */
-const grokFreeQuotaUsage = computed(() => usageInfo.value?.grok_local_usage_24h || null)
-const grokFreeTokenBar = computed(() => {
-  if (!grokIsFree.value || !grokFreeQuotaUsage.value) return null
-  const limit = usageInfo.value?.grok_free_token_limit
-  if (typeof limit !== 'number' || limit <= 0) return null
-  const used = Math.max(0, grokFreeQuotaUsage.value.tokens || 0)
-  // Convert observed tokens to bounded allowance utilization for bar geometry.
-  return { utilization: Math.min(100, (used / limit) * 100), limit }
-})
-/**
- * Grok quota availability treats a usable free-token bar or paid billing observation as known,
- * then consults the saved quota snapshot state.
- */
-const grokQuotaUnknown = computed(() => {
-  if (props.provider.platform !== 'grok') return false
-  if (grokIsFree.value) {
-    return !grokFreeTokenBar.value
-  }
-  if (grokWeeklyBillingBar.value || grokMonthlyBillingBar.value || grokPrepaidMoneyLine.value) {
-    return false
-  }
-  return usageInfo.value?.grok_quota_snapshot_state !== 'observed'
-})
+const grokSummary = computed(() => summarizeGrokUsage(props.provider, usageInfo.value))
+const grokWeeklyBillingBar = computed(() => grokSummary.value.weeklyBillingBar)
+const grokMonthlyBillingBar = computed(() => grokSummary.value.monthlyBillingBar)
+const grokPrepaidMoneyLine = computed(() => grokSummary.value.prepaidMoneyLine)
+const grokIsFree = computed(() => grokSummary.value.isFree)
+const grokFreeQuotaUsage = computed(() => grokSummary.value.freeQuotaUsage)
+const grokFreeTokenBar = computed(() => grokSummary.value.freeTokenBar)
+const grokQuotaUnknown = computed(() => grokSummary.value.quotaUnknown)
 const grokQuotaUnknownLabel = computed(() => {
   return usageInfo.value?.grok_quota_snapshot_state === 'no_headers'
     ? t('admin.providers.usageWindow.grokNoHeaders')
     : t('admin.providers.usageWindow.grokUnknown')
 })
-/**
- * grokRetryAfterLabel displays positive retry delays in seconds below one minute and rounds
- * longer delays upward to whole minutes.
- */
-const grokRetryAfterLabel = computed(() => {
-  const seconds = usageInfo.value?.grok_retry_after_seconds
-  if (seconds == null || seconds <= 0) return null
-  if (seconds < 60) return `${seconds}s`
-  // Round retry delays upward so a partial minute remains visible.
-  const minutes = Math.ceil(seconds / 60)
-  return `${minutes}m`
-})
+const grokRetryAfterLabel = computed(() => grokSummary.value.retryAfterLabel)
 
-/**
- * Antigravity recognized tier labels and palettes distinguish free, Pro, and Ultra entitlement
- * markers; unrecognized markers omit the tier badge.
- */
 const antigravityTierLabel = computed(() => {
-  switch (antigravityTier.value) {
-    case 'free-tier':
-      return t('admin.providers.tier.free')
-    case 'g1-pro-tier':
-      return t('admin.providers.tier.pro')
-    case 'g1-ultra-tier':
-      return t('admin.providers.tier.ultra')
-    default:
-      return null
-  }
+  const key = getAntigravityTierLabelKey(antigravityTier.value)
+  return key ? t(key) : null
 })
-
-const antigravityTierClass = computed(() => {
-  switch (antigravityTier.value) {
-    case 'free-tier':
-      return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
-    case 'g1-pro-tier':
-      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    case 'g1-ultra-tier':
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    default:
-      return ''
-  }
-})
-
-/**
- * hasIneligibleTiers detects a nonempty ineligibleTiers array in saved Code Assist metadata so
- * the template can explain unavailable entitlement.
- */
-const hasIneligibleTiers = computed(() => {
-  const extra = props.provider.extra as Record<string, unknown> | undefined
-  if (!extra) return false
-
-  const loadCodeAssist = extra.load_code_assist as Record<string, unknown> | undefined
-  if (!loadCodeAssist) return false
-
-  const ineligibleTiers = loadCodeAssist.ineligibleTiers as unknown[] | undefined
-  return Array.isArray(ineligibleTiers) && ineligibleTiers.length > 0
-})
+const antigravityTierClass = computed(() => getAntigravityTierBadgeClass(antigravityTier.value))
+const hasIneligibleTiers = computed(() =>
+  hasAntigravityIneligibleTiers(props.provider.extra as Record<string, unknown> | undefined),
+)
 
 /**
  * Authorization feedback distinguishes forbidden verification or violation states, missing
@@ -1843,19 +1210,20 @@ const forbiddenBadgeClass = computed(() => {
  */
 const linkCopied = ref(false)
 /**
- * copyValidationURL copies a present verification URL and briefly shows success feedback.
- * Clipboard failures are ignored, leaving the visible link available for direct opening or
- * manual copying by the administrator.
+ * copyValidationURL copies a present verification URL and briefly shows success feedback,
+ * replacing any prior timer so repeated clicks or row teardown cannot fire stale callbacks.
  */
 const copyValidationURL = async () => {
   if (!validationURL.value) return
   try {
     await navigator.clipboard.writeText(validationURL.value)
     linkCopied.value = true
-    // Reset copy feedback after its display interval; the callback changes presentation state
-    // but does not own the verification URL resource.
-    setTimeout(() => {
-      linkCopied.value = false
+    clearCopyFeedbackTimer()
+    copyFeedbackTimer = setTimeout(() => {
+      copyFeedbackTimer = null
+      if (!unmounted.value) {
+        linkCopied.value = false
+      }
     }, COPY_FEEDBACK_MS)
   } catch {
     // Keep the verification link usable after clipboard rejection; copy feedback stays
@@ -1900,14 +1268,9 @@ const syncManagedUsageState = () => {
 
 /**
  * loadUsage obtains usage through the parent batch loader or the local request queue for
- * eligible providers. Parent-managed calls forward the force intent and return after
- * delegation. Local calls reuse a fresh cache entry unless bypassCache is requested, then
- * publish a successful queued response and its cache timestamp.
- *
- * Queued completion checks the unmounted flag before writing display or cache state. That check
- * protects component teardown but does not distinguish provider changes or competing requests
- * within the same mounted instance. Failures set a generic display error and retain previous
- * usage, while finally clears loading when the component is still mounted.
+ * eligible providers. Local requests capture both localUsageRequestSeq and provider.id so a
+ * virtualized row switch or a newer manual refresh rejects stale responses while still
+ * populating _usageCache under the queried provider's own ID.
  */
 const loadUsage = async (options?: {
   source?: 'passive' | 'active' // optional active or passive query
@@ -1919,17 +1282,23 @@ const loadUsage = async (options?: {
     return
   }
 
-  // Reuse a fresh instance-local observation before entering the shared request queue so
-  // rerenders need no additional upstream request.
+  const requestProvider = props.provider
+  const requestProviderId = requestProvider.id
+
+  // Reuse a fresh instance-local observation before entering the shared request queue and
+  // advance localUsageRequestSeq so any earlier in-flight request cannot overwrite it.
   if (!options?.bypassCache) {
-    const cached = _usageCache.get(props.provider.id)
+    const cached = _usageCache.get(requestProviderId)
     if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL) {
+      localUsageRequestSeq++
       usageInfo.value = cached.data
+      error.value = null
       loading.value = false
       return
     }
   }
 
+  const requestSeq = ++localUsageRequestSeq
   loading.value = true
   error.value = null
 
@@ -1939,22 +1308,32 @@ const loadUsage = async (options?: {
      */
     const fetchFn = () =>
       options?.source
-        ? adminAPI.providers.getUsage(props.provider.id, options.source)
-        : adminAPI.providers.getUsage(props.provider.id)
-    // The shared queue bounds concurrent usage work; the unmount check below suppresses
-    // publication after this cell loses ownership of its display.
-    const result = await enqueueUsageRequest(props.provider, fetchFn)
+        ? adminAPI.providers.getUsage(requestProviderId, options.source)
+        : adminAPI.providers.getUsage(requestProviderId)
+    const result = await enqueueUsageRequest(requestProvider, fetchFn)
     if (!unmounted.value) {
-      usageInfo.value = result
-      _usageCache.set(props.provider.id, { data: result, ts: Date.now() })
+      _usageCache.set(requestProviderId, { data: result, ts: Date.now() })
+      if (requestSeq === localUsageRequestSeq && props.provider.id === requestProviderId) {
+        usageInfo.value = result
+      }
     }
   } catch (e: any) {
-    if (!unmounted.value) {
+    if (
+      !unmounted.value &&
+      requestSeq === localUsageRequestSeq &&
+      props.provider.id === requestProviderId
+    ) {
       error.value = t('common.error')
       console.error('Failed to load usage:', e)
     }
   } finally {
-    if (!unmounted.value) loading.value = false
+    if (
+      !unmounted.value &&
+      requestSeq === localUsageRequestSeq &&
+      props.provider.id === requestProviderId
+    ) {
+      loading.value = false
+    }
   }
 }
 
@@ -2043,21 +1422,33 @@ const attachVisibilityObserver = () => {
 }
 
 /**
- * loadActiveUsage explicitly queries fresh active usage and publishes the returned observation
- * to local state and cache. Failures are logged while existing data remains visible; this path
- * has no unmount or request-generation guard.
+ * loadActiveUsage explicitly queries fresh active usage and guards response publication
+ * with localUsageRequestSeq and provider.id so virtualized row switches or unmount drop
+ * stale active-query results.
  */
 const loadActiveUsage = async () => {
+  const requestProviderId = props.provider.id
+  const requestSeq = ++localUsageRequestSeq
   activeQueryLoading.value = true
   error.value = null
   try {
-    const result = await adminAPI.providers.getUsage(props.provider.id, 'active', true)
-    usageInfo.value = result
-    _usageCache.set(props.provider.id, { data: result, ts: Date.now() })
+    const result = await adminAPI.providers.getUsage(requestProviderId, 'active', true)
+    if (!unmounted.value) {
+      _usageCache.set(requestProviderId, { data: result, ts: Date.now() })
+      if (requestSeq === localUsageRequestSeq && props.provider.id === requestProviderId) {
+        usageInfo.value = result
+      }
+    }
   } catch (e: any) {
     console.error('Failed to load active usage:', e)
   } finally {
-    activeQueryLoading.value = false
+    if (
+      !unmounted.value &&
+      requestSeq === localUsageRequestSeq &&
+      props.provider.id === requestProviderId
+    ) {
+      activeQueryLoading.value = false
+    }
   }
 }
 
@@ -2071,51 +1462,16 @@ const handleGrokProbed = async () => {
 }
 
 /**
- * QuotaBarInfo describes local spending utilization and its optional reset timestamp.
+ * makeQuotaBar delegates local spending percentage and periodic deadline derivation to
+ * providerUsagePresentation.
  */
-interface QuotaBarInfo {
-  utilization: number // observed utilization percentage
-  resetsAt: string | null // quota reset timestamp or null
-}
-
-/**
- * makeQuotaBar builds utilization and an optional reset timestamp for one local spending limit.
- * Positive limits divide effective usage into a percentage; nonpositive limits yield zero. A
- * missing startKey leaves the quota without a periodic deadline.
- *
- * Fixed periods use the server's reset_at metadata. Rolling periods add one, seven, or thirty
- * elapsed days to the saved start, matching daily, weekly, or monthly display windows. Missing
- * starts keep the timestamp null until accounting initializes a period. The calculation uses
- * supplied effective usage and does not reset consumption when the derived deadline passes.
- */
-const makeQuotaBar = (used: number, limit: number, startKey?: string): QuotaBarInfo => {
-  const utilization = limit > 0 ? (used / limit) * 100 : 0
-  let resetsAt: string | null = null
-  if (startKey) {
-    const extra = props.provider.extra as Record<string, unknown> | undefined
-    const prefix = startKey.replace(/_start$/, '')
-    const mode = (extra?.[`${prefix}_reset_mode`] as string) || 'rolling'
-
-    if (mode === 'fixed') {
-      // Fixed schedules publish their next reset from the server, keeping this display
-      // consistent with calendar-based accounting decisions and configured timezone.
-      const resetAtKey = `${prefix}_reset_at`
-      resetsAt = (extra?.[resetAtKey] as string) || null
-    } else {
-      // Rolling periods begin at the saved accounting start, so an uninitialized period keeps
-      // its reset time absent until usage starts.
-      const startStr = extra?.[startKey] as string | undefined
-      if (startStr) {
-        const startDate = new Date(startStr)
-        // Convert rolling quota days to elapsed milliseconds for the deadline.
-        const days = prefix === 'quota_daily' ? 1 : prefix === 'quota_weekly' ? 7 : 30
-        const periodMs = days * 24 * 60 * 60 * 1000
-        resetsAt = new Date(startDate.getTime() + periodMs).toISOString()
-      }
-    }
-  }
-  return { utilization, resetsAt }
-}
+const makeQuotaBar = (used: number, limit: number, startKey?: string): QuotaBarInfo =>
+  buildLocalQuotaBar(
+    props.provider.extra as Record<string, unknown> | undefined,
+    used,
+    limit,
+    startKey,
+  )
 
 /**
  * Local quota visibility requires an API-key or Bedrock provider with at least one positive
@@ -2172,21 +1528,6 @@ const handleOllamaCloudUsageUpdated = (state: NonNullable<Provider['ollama_cloud
 }
 
 onMounted(() => {
-  // Keep viewport mode synchronized with the shared breakpoint; teardown removes the matching
-  // modern or legacy media-query listener for this cell.
-  if (canUseMatchMedia) {
-    desktopViewportMediaQuery = window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY)
-    isDesktopViewport.value = desktopViewportMediaQuery.matches
-    desktopViewportListener = (event: MediaQueryListEvent) => {
-      isDesktopViewport.value = event.matches
-    }
-    if (typeof desktopViewportMediaQuery.addEventListener === 'function') {
-      desktopViewportMediaQuery.addEventListener('change', desktopViewportListener)
-    } else {
-      desktopViewportMediaQuery.addListener(desktopViewportListener)
-    }
-  }
-
   if (isBatchManaged.value) {
     syncManagedUsageState()
     requestParentBatchUsage()
@@ -2209,7 +1550,7 @@ watch(
   () => {
     syncManagedUsageState()
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 watch(isBatchManaged, (managed, wasManaged) => {
@@ -2238,9 +1579,23 @@ watch(
     ) {
       return
     }
-    if (!managed || !shouldFetchUsage.value) return
-    syncManagedUsageState()
-    requestParentBatchUsage()
+    // Invalidate in-flight local requests and clear previous-row state when virtual
+    // scrolling rebinds this cell to a different provider record.
+    localUsageRequestSeq++
+    activeQueryLoading.value = false
+    if (managed) {
+      syncManagedUsageState()
+      if (shouldFetchUsage.value) {
+        requestParentBatchUsage()
+      }
+      return
+    }
+    usageInfo.value = null
+    error.value = null
+    loading.value = false
+    if (!shouldFetchUsage.value) return
+    const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
+    requestAutoLoad(source)
   },
   { flush: 'post' },
 )
@@ -2304,16 +1659,6 @@ watch(isDesktopViewport, (isDesktop) => {
 
 onUnmounted(() => {
   detachVisibilityObserver()
-  // Remove the listener registered by this row before clearing its handles so later viewport
-  // changes cannot update the unmounted cell.
-  if (desktopViewportMediaQuery && desktopViewportListener) {
-    if (typeof desktopViewportMediaQuery.removeEventListener === 'function') {
-      desktopViewportMediaQuery.removeEventListener('change', desktopViewportListener)
-    } else {
-      desktopViewportMediaQuery.removeListener(desktopViewportListener)
-    }
-  }
-  desktopViewportListener = null
-  desktopViewportMediaQuery = null
+  clearCopyFeedbackTimer()
 })
 </script>

@@ -1349,36 +1349,11 @@
       @cancel="cancelRotate"
     />
 
-    <!-- Show the returned secret after rotation so the user can copy it into clients immediately. -->
-    <BaseDialog
-      :show="rotatedKey !== null"
-      :title="t('keys.keyRotatedSuccess')"
-      width="narrow"
+    <KeyRotatedSecretModal
+      :rotated-key="rotatedKey"
       @close="rotatedKey = null"
-    >
-      <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('keys.rotatedKeyHint') }}</p>
-        <code
-          class="block break-all rounded-surface bg-gray-50 p-4 text-sm text-gray-900 dark:bg-dark-800 dark:text-gray-100"
-        >
-          {{ rotatedKey?.key }}
-        </code>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button type="button" class="btn btn-secondary" @click="rotatedKey = null">
-            {{ t('common.close') }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary"
-            @click="rotatedKey && copyToClipboard(rotatedKey.key, rotatedKey.id)"
-          >
-            {{ t('common.copy') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
+      @copy="copyToClipboard"
+    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -1450,106 +1425,21 @@
       @delete="confirmDelete"
     />
 
-    <!-- Client and model choices follow the available protocols. -->
-    <BaseDialog
-      :show="showCcsClientSelect"
-      :title="t('keys.ccsClientSelect.title')"
-      width="narrow"
+    <KeyCcSwitchImportModal
+      :key-row="pendingCcsRow"
+      :groups="groups"
+      :public-settings="publicSettings"
       @close="closeCcsClientSelect"
-    >
-      <div class="space-y-4">
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-          {{ t('keys.ccsClientSelect.description') }}
-        </p>
-        <Select v-model="ccClient" :options="ccClientOptions" />
-        <Select
-          v-model="ccModel"
-          :options="ccModelOptions"
-          searchable
-          :placeholder="t('keys.useKeyModal.selectModel')"
-        />
-        <p v-if="!ccModelOptions.length" class="input-hint">{{ t('keys.useKeyModal.noModels') }}</p>
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="!ccModel"
-          @click="handleCcsClientSelect(ccClient)"
-        >
-          {{ t('common.confirm') }}
-        </button>
-      </div>
-      <template #footer>
-        <div class="flex justify-end">
-          <button @click="closeCcsClientSelect" class="btn btn-secondary">
-            {{ t('common.cancel') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
+    />
 
-    <!-- Group Selector Dropdown (Teleported to body to avoid overflow clipping) -->
-    <Teleport to="body">
-      <MotionTransition name="dropdown-fade">
-        <div
-          v-if="groupSelectorKeyId !== null && dropdownPosition"
-          :inert="!(groupSelectorKeyId !== null && dropdownPosition) || undefined"
-          ref="dropdownRef"
-          class="dropdown animate-in fade-in slide-in-from-top-2 fixed z-teleport-dropdown w-max max-w-[calc(100vw-16px)] overflow-hidden duration-normal sm:min-w-[380px] py-0"
-          style="pointer-events: auto !important"
-          :style="{
-            top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
-            bottom:
-              dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
-            left: dropdownPosition.left + 'px',
-          }"
-        >
-          <!-- Group search uses the shared input so its surface and focus treatment follow the current global theme. -->
-          <div class="border-b border-gray-100 p-2 dark:border-dark-700">
-            <SearchInput
-              v-model="groupSearchQuery"
-              :placeholder="t('keys.searchGroup')"
-              @click.stop
-            />
-          </div>
-          <!-- Group list -->
-          <div class="max-h-80 overflow-y-auto p-1.5">
-            <button
-              v-for="option in filteredGroupOptions"
-              :key="option.value ?? 'null'"
-              @click="changeGroup(selectedKeyForGroup!, option.value)"
-              :class="[
-                'flex w-full items-center justify-between rounded-control px-3 py-2.5 text-sm transition-colors',
-                'border-b border-gray-100 last:border-0 dark:border-dark-700',
-                selectedKeyForGroup?.group_id === option.value ||
-                (!selectedKeyForGroup?.group_id && option.value === null)
-                  ? 'bg-primary-50 dark:bg-primary-500/8 dark:text-primary-500'
-                  : 'hover:bg-gray-100 dark:hover:bg-dark-700',
-              ]"
-              :title="option.description || undefined"
-            >
-              <GroupOptionItem
-                :name="option.label"
-                :display-brand="option.displayBrand"
-                :rate-multiplier="option.rate"
-                :user-rate-multiplier="option.userRate"
-                :description="option.description"
-                :selected="
-                  selectedKeyForGroup?.group_id === option.value ||
-                  (!selectedKeyForGroup?.group_id && option.value === null)
-                "
-              />
-            </button>
-            <!-- Empty state when search has no results -->
-            <div
-              v-if="filteredGroupOptions.length === 0"
-              class="py-4 text-center text-sm text-gray-400 dark:text-gray-500"
-            >
-              {{ t('keys.noGroupFound') }}
-            </div>
-          </div>
-        </div>
-      </MotionTransition>
-    </Teleport>
+    <KeyGroupSelectorDropdown
+      ref="groupSelectorDropdownRef"
+      :open="groupSelectorKeyId !== null"
+      :selected-key="selectedKeyForGroup"
+      :options="allGroupOptions"
+      :position="dropdownPosition"
+      @select="changeGroup"
+    />
   </AppLayout>
 </template>
 
@@ -1557,15 +1447,7 @@
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import Skeleton from '@/components/common/Skeleton.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
-import {
-  watch,
-  ref,
-  reactive,
-  computed,
-  onMounted,
-  onUnmounted,
-  type ComponentPublicInstance,
-} from 'vue'
+import { watch, ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
@@ -1573,6 +1455,7 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import { useClipboard } from '@/composables/useClipboard'
 import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -1621,20 +1504,19 @@ import {
   validateModelMappingRows,
   type ModelMappingRow,
 } from '@/utils/modelMappingRules'
-import { resolveProviderBrand } from '@/utils/providerBrand'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { groupForKeyConfig } from '@/utils/clientConfig'
+import KeyCcSwitchImportModal from './keys/KeyCcSwitchImportModal.vue'
+import KeyGroupSelectorDropdown from './keys/KeyGroupSelectorDropdown.vue'
+import KeyRotatedSecretModal from './keys/KeyRotatedSecretModal.vue'
 import {
-  buildCcSwitchImportDeeplink,
-  buildCcSwitchUsageScript,
-  type CcSwitchClientType,
-} from '@/utils/ccswitchImport'
-import {
-  availableClients,
-  CLIENT_LABELS,
-  clientProtocol,
-  modelsForProtocol,
-  groupForKeyConfig,
-} from '@/utils/clientConfig'
+  buildKeyGroupOptions,
+  compositeGroupChipClass,
+  concurrencyTone,
+  formatKeyResetCountdown,
+  resolveKeyGroupWithModels,
+  visibleCompositeGroups,
+} from './keys/keysPresentation'
 
 // KeysView.vue manages API-key listings and the forms used to create, update,
 // rotate, and remove keys for the selected ownership scope. The page coordinates
@@ -1682,7 +1564,7 @@ const router = useRouter()
 const scope = ref<DataScope>(route?.query?.scope === 'team' ? 'team' : 'personal')
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
-const { balanceUnitName, balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
+const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
 
 // formatBalancePair formats used and limit amounts with independently selected precision.
 // The caller can omit spaces around the separator for compact table cells while retaining
@@ -1696,47 +1578,6 @@ const formatBalancePair = (
 ) => {
   const separator = spaced ? ' / ' : '/'
   return `${formatBalanceAmount(used, { fractionDigits: usedDigits })}${separator}${formatBalanceAmount(limit, { fractionDigits: limitDigits })}`
-}
-
-// COMPOSITE_GROUP_PREVIEW_LIMIT bounds ordinary inline mapping previews, while a single
-// extra mapping is shown directly to avoid a one-item remainder.
-const COMPOSITE_GROUP_PREVIEW_LIMIT = 4
-
-// visibleCompositeGroups selects the inline composite mapping preview from a key row. At
-// most one mapping above the nominal limit remains fully visible; larger sets show the
-// leading slice.
-const visibleCompositeGroups = (row: ApiKey) => {
-  const groups = row.composite_groups ?? []
-  if (groups.length <= COMPOSITE_GROUP_PREVIEW_LIMIT + 1) {
-    return groups
-  }
-  return groups.slice(0, COMPOSITE_GROUP_PREVIEW_LIMIT)
-}
-
-// compositeGroupChipClass chooses the same provider-brand palette used by ordinary group
-// badges. An absent or whitespace-only brand uses the neutral badge surface and inset border
-// for the composite mapping chip.
-const compositeGroupChipClass = (displayBrand?: string | null) => {
-  const brand = displayBrand?.trim()
-  if (!brand) {
-    return 'ring-1 ring-inset bg-gray-100 text-gray-900 ring-gray-200 dark:bg-dark-800 dark:text-dark-50 dark:ring-dark-600'
-  }
-  return `ring-1 ring-inset ${resolveProviderBrand(brand).badgeClass}`
-}
-
-// concurrencyTone colors key occupancy using the configured concurrency cap. Full occupancy
-// is red, eighty percent is amber, and unlimited or lower occupancy uses the ordinary green
-// indicator and muted text.
-const concurrencyTone = (row: ApiKey) => {
-  const current = row.current_concurrency ?? 0
-  const limit = row.concurrency_limit ?? 0
-  if (limit > 0 && current >= limit) {
-    return { dot: 'bg-red-500', text: 'font-medium text-red-600 dark:text-red-400' }
-  }
-  if (limit > 0 && current >= limit * 0.8) {
-    return { dot: 'bg-amber-500', text: 'font-medium text-amber-600 dark:text-amber-400' }
-  }
-  return { dot: 'bg-emerald-500', text: 'text-gray-500 dark:text-dark-300' }
 }
 
 // concurrencyTitle formats the active request count against a finite cap or unlimited label.
@@ -1782,89 +1623,24 @@ const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
   3: ['id'],
 }
 
-// toggleableColumns excludes mandatory identity and action columns; hiddenColumns holds the
-// current in-memory preference set consumed by the table.
+// toggleableColumns excludes mandatory identity and action columns while
+// usePersistedTableColumns manages the reactive hidden-column preference set.
 const toggleableColumns = computed(() =>
   allColumns.value.filter((column) => !ALWAYS_VISIBLE_COLUMNS.has(column.key)),
 )
-const hiddenColumns = reactive<Set<string>>(new Set())
-
-// loadSavedColumns restores valid hidden-column preferences and applies versioned defaults
-// for newly introduced low-frequency fields. Mandatory columns stay visible and unknown
-// saved keys are removed from the in-memory set. A missing preference starts with default
-// hidden columns; older versions add only their documented migrations before persistence.
-// Invalid storage or parsing reports an error and adds default hidden fields, keeping the
-// table usable when preferences cannot be restored.
-const loadSavedColumns = () => {
-  hiddenColumns.clear()
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    const validColumnKeys = new Set(allColumns.value.map((column) => column.key))
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed
-        .filter(
-          (key) =>
-            typeof key === 'string' && validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key),
-        )
-        .forEach((key) => hiddenColumns.add(key))
-      const rawStoredVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
-      // Treat invalid stored versions as version one so the defined hidden-column migrations still apply to returning users with unusable preference metadata.
-      const storedVersion =
-        Number.isInteger(rawStoredVersion) && rawStoredVersion >= 1 ? rawStoredVersion : 1
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        for (let version = storedVersion + 1; version <= COLUMN_SETTINGS_VERSION; version++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[version] ?? []) {
-            if (validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key)) {
-              hiddenColumns.add(key)
-            }
-          }
-        }
-        saveColumnsToStorage()
-      } else {
-        localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-    }
-  } catch (error) {
-    // Restore default hidden columns after storage or parsing failure so table
-    // presentation remains usable even when saved preferences cannot be read.
-    console.error('Failed to load API key table columns:', error)
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-  }
-}
-
-// saveColumnsToStorage persists the current hidden set and settings version. Storage failure
-// is logged while the reactive preference remains active for the current page, so column
-// toggles still affect the visible table.
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (error) {
-    // Keep the current reactive column choices after persistence failure;
-    // logging the error lets the user continue working with this page's layout.
-    console.error('Failed to save API key table columns:', error)
-  }
-}
-
-// toggleColumn changes visibility for a nonmandatory column and saves the resulting
-// preference. Name and action columns are ignored because the table requires them for record
-// identity and operations.
-const toggleColumn = (key: string) => {
-  if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
-}
-
-// isColumnVisible reports whether the current hidden-column set excludes this key.
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+const { hiddenColumns, loadSavedColumns, toggleColumn, isColumnVisible } = usePersistedTableColumns(
+  {
+    storageKey: HIDDEN_COLUMNS_KEY,
+    defaultHiddenColumns: DEFAULT_HIDDEN_COLUMNS,
+    alwaysVisibleColumns: ALWAYS_VISIBLE_COLUMNS,
+    getValidColumnKeys: () => new Set(allColumns.value.map((column) => column.key)),
+    migration: {
+      versionKey: COLUMN_SETTINGS_VERSION_KEY,
+      currentVersion: COLUMN_SETTINGS_VERSION,
+      versionNewHiddenColumns: VERSION_NEW_HIDDEN_COLUMNS,
+    },
+  },
+)
 
 // columns filters localized definitions using the current preferences while preserving
 // mandatory columns and their existing order in the table.
@@ -1927,7 +1703,6 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showTfCliImportDialog = ref(false)
-const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const tfImportKey = ref<ApiKey | null>(null)
@@ -1945,7 +1720,7 @@ const groupSelectorKeyId = ref<number | null>(null)
 // panels and per-key group-button positioning.
 const publicSettings = ref<PublicSettings | null>(null)
 const teamFeatureEnabled = computed(() => publicSettings.value?.team_enabled !== false)
-const dropdownRef = ref<HTMLElement | null>(null)
+const groupSelectorDropdownRef = ref<InstanceType<typeof KeyGroupSelectorDropdown> | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{
   // top measures pixels from the viewport top; upward placement omits this
@@ -2237,23 +2012,12 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
   onFilterChange()
 }
 
-// buildGroupOptions adds display branding and account-specific rates to selectable routing
-// groups.
-const buildGroupOptions = (source: Group[]) =>
-  source.map((group) => ({
-    value: group.id,
-    label: group.display_name || group.name,
-    search_terms: group.search_terms,
-    description: group.description,
-    displayBrand: group.display_brand?.trim() || null,
-    rate: group.rate_multiplier,
-    userRate: userGroupRates.value[group.id] ?? null,
-  }))
-
 // formGroupOptions uses server-approved form groups while allGroupOptions retains the
 // broader list for filtering and ordinary inline group selection.
-const formGroupOptions = computed(() => buildGroupOptions(formGroups.value))
-const allGroupOptions = computed(() => buildGroupOptions(groups.value))
+const formGroupOptions = computed(() =>
+  buildKeyGroupOptions(formGroups.value, userGroupRates.value),
+)
+const allGroupOptions = computed(() => buildKeyGroupOptions(groups.value, userGroupRates.value))
 
 // onCompositeModeChange switches between single-group and prefix-mapped form
 // representations. Enabling creates an initial mapping from the current group when needed,
@@ -2334,22 +2098,6 @@ const compositeFormError = computed(() => {
     if (error) return error
   }
   return ''
-})
-
-// groupSearchQuery filters the inline selector across search terms, display labels,
-// branding, and descriptions while retaining all options for an empty query.
-const groupSearchQuery = ref('')
-const filteredGroupOptions = computed(() => {
-  const query = groupSearchQuery.value.trim().toLowerCase()
-  if (!query) return allGroupOptions.value
-  return allGroupOptions.value.filter((opt) => {
-    return (
-      opt.search_terms?.some((text) => text.toLowerCase().includes(query)) ||
-      opt.label.toLowerCase().includes(query) ||
-      (opt.displayBrand && opt.displayBrand.toLowerCase().includes(query)) ||
-      (opt.description && opt.description.toLowerCase().includes(query))
-    )
-  })
 })
 
 // pruneFormGroupBindings clears a disallowed single group and removes composite bindings
@@ -2844,7 +2592,6 @@ const openGroupSelector = (key: ApiKey) => {
       }
     }
     groupSelectorKeyId.value = key.id
-    groupSearchQuery.value = ''
   }
 }
 
@@ -2878,7 +2625,10 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
 const closeGroupSelector = (event: MouseEvent) => {
   const target = event.target as HTMLElement
   // Treat group triggers and panel contents as internal clicks while independently dismissing column settings when the click leaves its own root.
-  if (!target.closest('.group\\/dropdown') && !dropdownRef.value?.contains(target)) {
+  if (
+    !target.closest('.group\\/dropdown') &&
+    !groupSelectorDropdownRef.value?.containsTarget(target)
+  ) {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
   }
@@ -3249,20 +2999,9 @@ const resetRateLimitUsage = async () => {
   }
 }
 
-// groupWithModels resolves the group catalog used by client configuration and applies key
-// redirects through groupForKeyConfig. Available group data overrides embedded key metadata;
-// ungrouped or missing keys return undefined.
-const groupWithModels = (key: ApiKey | null): Group | undefined => {
-  if (!key?.group_id) return undefined
-  const available = groups.value.find((group) => group.id === key.group_id)
-  return groupForKeyConfig(
-    available ? { ...key.group, ...available } : (key.group ?? undefined),
-    key.model_mapping,
-  )
-}
 // Selected single and composite group views combine loaded catalog metadata with key
 // redirects before passing capabilities to client configuration instructions.
-const selectedKeyGroup = computed(() => groupWithModels(selectedKey.value))
+const selectedKeyGroup = computed(() => resolveKeyGroupWithModels(selectedKey.value, groups.value))
 const selectedCompositeGroups = computed(() =>
   (selectedKey.value?.composite_groups ?? []).map((binding) => ({
     ...binding,
@@ -3272,104 +3011,20 @@ const selectedCompositeGroups = computed(() =>
     ),
   })),
 )
-// Client-import state retains its chosen client and model, deriving options from the pending
-// key's effective group capabilities before opening an external protocol link.
-const ccClient = ref<CcSwitchClientType>('claude')
-const ccModel = ref('')
-const ccGroup = computed(() => groupWithModels(pendingCcsRow.value))
-const ccClientOptions = computed(() =>
-  availableClients(ccGroup.value?.allowed_protocols ?? [])
-    .filter((client) => client !== 'opencode')
-    .map((client) => ({ value: client, label: CLIENT_LABELS[client] })),
-)
-const ccModelOptions = computed(() => {
-  const protocol = clientProtocol(ccClient.value, ccGroup.value?.allowed_protocols ?? [])
-  return protocol
-    ? modelsForProtocol(ccGroup.value, protocol).map((model) => ({ value: model, label: model }))
-    : []
-})
-watch(ccClientOptions, (options) => {
-  if (!options.some((option) => option.value === ccClient.value))
-    ccClient.value = (options[0]?.value as CcSwitchClientType) ?? 'claude'
-})
-watch(ccModelOptions, (options) => {
-  if (!options.some((option) => option.value === ccModel.value))
-    ccModel.value = options[0]?.value ?? ''
-})
-// importToCcswitch retains the key and opens the client-import choice dialog.
+
+// importToCcswitch selects the target key row to open KeyCcSwitchImportModal.
 const importToCcswitch = (row: ApiKey) => {
   pendingCcsRow.value = row
-  showCcsClientSelect.value = true
 }
 
-// executeCcsImport builds the external client link using the selected model, key, endpoint,
-// and balance usage script. It opens that custom protocol in the current window and
-// schedules a focus-based installation hint. The focus probe is a heuristic: remaining focus
-// after the delay reports the client-not-installed message, while synchronous open failures
-// use the same feedback. The timer is not owned by the component cleanup.
-const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
-  const baseUrl = publicSettings.value?.api_base_url || window.location.origin
-
-  const usageScript = buildCcSwitchUsageScript(baseUrl, balanceUnitName.value)
-  const providerName = (publicSettings.value?.site_name || 'tokenrouter').trim() || 'tokenrouter'
-  const deeplink = buildCcSwitchImportDeeplink({
-    baseUrl,
-    model: ccModel.value,
-    clientType,
-    providerName,
-    apiKey: row.key,
-    usageScript,
-  })
-
-  try {
-    window.open(deeplink, '_self')
-
-    // Probe focus after opening the custom protocol as an installation hint; browser focus behavior is only an approximation of whether a handler launched.
-    setTimeout(() => {
-      if (document.hasFocus()) {
-        // Remaining page focus triggers the installation hint, although it is not definitive proof that the external application failed to open.
-        appStore.showError(t('keys.ccSwitchNotInstalled'))
-      }
-    }, 100)
-  } catch {
-    appStore.showError(t('keys.ccSwitchNotInstalled'))
-  }
-}
-
-// handleCcsClientSelect launches import only when a pending key and currently offered model
-// remain selected. It closes the choice dialog and clears the pending record whether import
-// runs or is skipped.
-const handleCcsClientSelect = (clientType: CcSwitchClientType) => {
-  if (
-    pendingCcsRow.value &&
-    ccModelOptions.value.some((option) => option.value === ccModel.value)
-  ) {
-    executeCcsImport(pendingCcsRow.value, clientType)
-  }
-  showCcsClientSelect.value = false
-  pendingCcsRow.value = null
-}
-
-// closeCcsClientSelect closes the client chooser and releases its pending key record.
+// closeCcsClientSelect closes KeyCcSwitchImportModal and releases its pending key record.
 const closeCcsClientSelect = () => {
-  showCcsClientSelect.value = false
   pendingCcsRow.value = null
 }
 
-// formatResetTime formats a reset timestamp against the page's minute-updated clock. Missing
-// timestamps return empty text, elapsed windows report reset-now, and future durations
-// display days, hours, or remaining minutes.
+// formatResetTime delegates reset countdown formatting to keysPresentation.
 function formatResetTime(resetAt: string | null): string {
-  if (!resetAt) return ''
-  const diff = new Date(resetAt).getTime() - now.value.getTime()
-  if (diff <= 0) return t('keys.resetNow')
-  // Truncate elapsed milliseconds to complete units for the compact countdown.
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  const mins = Math.floor((diff % 3600000) / 60000)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${mins}m`
-  return `${mins}m`
+  return formatKeyResetCountdown(resetAt, now.value, t('keys.resetNow'))
 }
 
 onMounted(async () => {

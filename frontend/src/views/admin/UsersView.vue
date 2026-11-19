@@ -875,6 +875,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useTableSelection } from '@/composables/useTableSelection'
 import { Z_INDEX } from '@/constants/overlay'
@@ -1023,10 +1024,8 @@ const toggleableColumns = computed(() =>
   allColumns.value.filter((col) => col.key !== 'email' && col.key !== 'actions'),
 )
 
-// hiddenColumns stores keys excluded from display; defaults, retired keys, and
-// forced-visible keys govern restoring this preference.
-const hiddenColumns = reactive<Set<string>>(new Set())
-
+// DEFAULT_HIDDEN_COLUMNS, retired keys, forced-visible keys, and versioned
+// storage markers govern restoring per-administrator user-table column choices.
 const DEFAULT_HIDDEN_COLUMNS = [
   'notes',
   'groups',
@@ -1042,8 +1041,6 @@ const DEFAULT_HIDDEN_COLUMNS = [
 const REMOVED_COLUMNS = new Set(['last_login_at'])
 const FORCED_VISIBLE_COLUMNS = new Set<string>()
 
-// Column preference keys and version additions migrate saved hidden-column choices when
-// new optional columns acquire default-hidden behavior.
 const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
 const COLUMN_SETTINGS_VERSION_KEY = 'user-column-settings-version'
 const COLUMN_SETTINGS_VERSION = 4
@@ -1052,101 +1049,42 @@ const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
   4: ['usage_qoder'],
 }
 
-// loadSavedColumns restores hidden keys and applies unapplied column-preference
-// versions. Removed and forced-visible keys are filtered from stored values before
-// version additions are considered. Each unseen version contributes its default-hidden
-// keys, and changed preferences are saved with the current version. Missing storage
-// applies first-visit defaults; parsing or storage failures log the error and add
-// defaults to the in-memory set so rendering can continue.
-const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      parsed
-        .filter((key) => !REMOVED_COLUMNS.has(key) && !FORCED_VISIBLE_COLUMNS.has(key))
-        .forEach((key) => hiddenColumns.add(key))
-
-      // Apply each unseen hidden-column addition once so older saved choices gain
-      // newly default-hidden columns while keeping their existing selections.
-      const storedVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
-      if (storedVersion < COLUMN_SETTINGS_VERSION) {
-        let mutated = false
-        for (let v = storedVersion + 1; v <= COLUMN_SETTINGS_VERSION; v++) {
-          for (const key of VERSION_NEW_HIDDEN_COLUMNS[v] ?? []) {
-            if (REMOVED_COLUMNS.has(key) || FORCED_VISIBLE_COLUMNS.has(key)) continue
-            if (!hiddenColumns.has(key)) {
-              hiddenColumns.add(key)
-              mutated = true
-            }
-          }
-        }
-        // Persist migrated hidden keys before advancing the version so later visits
-        // know which default-hidden additions have already been applied.
-        if (mutated) saveColumnsToStorage()
-        else localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-      }
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-    }
-  } catch (e) {
-    // Use default hidden columns after storage or JSON failure so saved display
-    // preferences cannot prevent the account table from rendering.
-    console.error('Failed to load saved columns:', e)
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-  }
-}
-
-// saveColumnsToStorage persists the current hidden-column keys and then their schema
-// version. The version describes which default-hidden additions have been applied,
-// so the keys are written before that marker advances. Both writes share one error
-// handler, but browser storage does not make them atomic; a failure can leave an
-// earlier successful write in place. The current in-memory visibility remains
-// active, and the error is logged for diagnosis.
-const saveColumnsToStorage = () => {
-  try {
-    // Write hidden keys before their version marker because the marker describes
-    // which column additions are already represented by the saved set.
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (e) {
-    // A storage error keeps the current hidden set in memory so administrators can
-    // continue using the chosen columns during this session.
-    console.error('Failed to save columns:', e)
-  }
-}
+const {
+  hiddenColumns,
+  loadSavedColumns,
+  toggleColumn: togglePersistedColumn,
+  isColumnVisible,
+} = usePersistedTableColumns({
+  storageKey: HIDDEN_COLUMNS_KEY,
+  defaultHiddenColumns: DEFAULT_HIDDEN_COLUMNS,
+  alwaysVisibleColumns: FORCED_VISIBLE_COLUMNS,
+  removedColumns: REMOVED_COLUMNS,
+  migration: {
+    versionKey: COLUMN_SETTINGS_VERSION_KEY,
+    currentVersion: COLUMN_SETTINGS_VERSION,
+    versionNewHiddenColumns: VERSION_NEW_HIDDEN_COLUMNS,
+  },
+})
 
 // isForcedVisibleColumn reports membership in the configured fixed-visibility key set.
 const isForcedVisibleColumn = (key: string) => FORCED_VISIBLE_COLUMNS.has(key)
+
 // toggleColumn changes visibility unless the column is forced visible, then persists
 // preferences. Revealing usage or attribute columns refreshes current-page secondary
-// data, changing subscription visibility reloads users, and revealing groups requests
-// their choices.
+// data, and revealing groups loads available group choices; user rows already carry
+// subscriptions from listUsers(include_subscriptions: true).
 const toggleColumn = (key: string) => {
-  if (FORCED_VISIBLE_COLUMNS.has(key)) return
-  const wasHidden = hiddenColumns.has(key)
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
+  const wasHidden = togglePersistedColumn(key)
+  if (wasHidden === null) return
   // Revealing a secondary-data column starts its missing lookup so cells can populate
   // even when the primary user page has not changed.
   if (wasHidden && (key === 'usage' || key.startsWith('usage_') || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
-  if (key === 'subscriptions') {
-    loadUsers()
-  }
   if (wasHidden && key === 'groups') {
     loadAllGroups()
   }
 }
-
-// isColumnVisible reports whether a column key is absent from hidden settings.
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 // USAGE_COLUMN_KEYS fixes header control order, while USAGE_COLUMN_PLATFORMS maps
 // aggregate usage to null and platform columns to provider families.
 const USAGE_COLUMN_KEYS: readonly string[] = [

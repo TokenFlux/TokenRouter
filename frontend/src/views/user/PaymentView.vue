@@ -638,7 +638,7 @@ import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
-import PurchaseSkeleton from './purchase/PurchaseSkeleton.vue'
+import PurchaseSkeleton from './payment/PurchaseSkeleton.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useCountUp } from '@/composables/useCountUp'
 import {

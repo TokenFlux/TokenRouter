@@ -360,7 +360,7 @@ import {
   getErrorSummary,
   type ErrorSummary,
   type PayloadSource,
-} from '../utils/errorDetailPresentation'
+} from './errorDetailPresentation'
 
 // OpsErrorDetailModal.vue presents an error summary, request context, upstream
 // attempts, and collapsible response evidence in investigation order. Stored
