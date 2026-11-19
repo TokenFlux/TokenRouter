@@ -9,17 +9,18 @@ import (
 	"strings"
 	"time"
 
+	infra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 )
 
 // ops_repo_dashboard.go builds dashboard overviews from raw observations or
 // covered hourly aggregates and raw fragments.
 // Dashboard counts and latency samples are separate observations, so a latency
-// query can time out while counts remain usable. Recognized deadline errors
-// produce missing latency values and can replace nonpositive current or peak
-// rates with whole-window estimates; cancellation and other query failures
-// reject the response. Raw statements execute independently and do not provide
-// one shared snapshot.
+// query can exhaust its own budget while the request remains usable. That
+// deadline leaves latency unavailable and can replace nonpositive current or
+// peak rates with whole-window estimates in raw overviews. Caller cancellation
+// and other latency errors still reject the query. Raw statements execute
+// independently and do not provide one shared snapshot.
 //
 // Automatic selection reads covered stable UTC hours with raw fragments around
 // them, then combines counts additively and latency summaries approximately.
@@ -36,6 +37,12 @@ import (
 const (
 	opsRawLatencyQueryTimeout = 2 * time.Second         // raw latency child budget
 	opsRawPeakQueryTimeout    = 1500 * time.Millisecond // raw peak child budget
+)
+
+// errOpsRawLatencyTimeout allows both dashboard paths to omit latency when its
+// own budget expires while the parent request is still active.
+var (
+	errOpsRawLatencyTimeout = errors.New("raw dashboard latency query exceeded its budget")
 )
 
 // opsDashboardPartial holds additive counts and approximate latency summaries
@@ -164,11 +171,10 @@ func (r *Store) GetDashboardOverview(ctx context.Context, filter *ops.OpsDashboa
 // and nonnil filter. Usage and error counts execute separately, and
 // zero-or-negative window seconds select one second for average-rate division.
 //
-// Latency and peak queries have child budgets. Only errors wrapping
-// context.DeadlineExceeded permit degraded results; cancellation and other
-// errors reject the response. A latency timeout produces absent measurements,
-// and any recognized optional timeout can replace nonpositive current rates
-// with averages and peaks with the greater of current and average, including an
+// Latency and peak queries have child budgets. Exhausting the latency budget
+// leaves measurements absent while the parent request is still active. Any
+// recognized optional timeout can replace nonpositive current rates with
+// averages and peaks with the greater of current and average, including an
 // actual observed zero. Current uses the minute before end independently of
 // start. Ratios divide by success plus SLA errors and round to four decimals,
 // with zero denominators yielding zero and no upper clamp.
@@ -182,20 +188,14 @@ func (r *Store) getDashboardOverviewRaw(ctx context.Context, filter *ops.OpsDash
 		return nil, err
 	}
 
-	// Use a child latency budget and release it after querying. Recognized
-	// deadline failure leaves counts available, while missing measurements remain
-	// absent for consumers.
-	latencyCtx, cancelLatency := context.WithTimeout(ctx, opsRawLatencyQueryTimeout)
-	duration, ttft, _, err := r.queryUsageLatency(latencyCtx, filter, start, end)
-	cancelLatency()
+	duration, ttft, _, err := r.queryUsageLatency(ctx, filter, start, end)
 	if err != nil {
-		if isQueryTimeoutErr(err) {
-			degraded = true
-			duration = ops.OpsPercentiles{}
-			ttft = ops.OpsPercentiles{}
-		} else {
+		if err != errOpsRawLatencyTimeout {
 			return nil, err
 		}
+		// Keep counts and continue building the overview. The missing measurements
+		// stay empty, and the rate calculations can use the existing estimates.
+		degraded = true
 	}
 
 	errorTotal, businessLimited, errorCountSLA, upstreamExcl, upstream429, upstream529, err := r.queryErrorCounts(ctx, filter, start, end)
@@ -844,7 +844,7 @@ func aggregateHourlyRows(rows []opsHourlyMetricsRow) opsDashboardPartial {
 
 // queryRawPartial combines raw usage counts, latency measurements, and error
 // categories for one segment using separate statements. A usable Store and
-// nonnil filter are required. Recognized latency deadline errors leave counts
+// nonnil filter are required. Exhausting the latency budget leaves counts
 // available while returning absent duration/TTFT measurements and zero
 // TTFT sample weight.
 //
@@ -859,23 +859,11 @@ func (r *Store) queryRawPartial(ctx context.Context, filter *ops.OpsDashboardFil
 		return nil, err
 	}
 
-	// Use a child latency budget and release it after querying. Recognized
-	// deadline failure leaves counts available, while missing measurements remain
-	// absent for consumers.
-	latencyCtx, cancelLatency := context.WithTimeout(ctx, opsRawLatencyQueryTimeout)
-	duration, ttft, ttftSampleCount, err := r.queryUsageLatency(latencyCtx, filter, start, end)
-	cancelLatency()
-	if err != nil {
-		if isQueryTimeoutErr(err) {
-			// A recognized latency deadline discards unavailable measurement values and
-			// their TTFT weight. Counts already read remain usable for this
-			// segment's additive totals.
-			duration = ops.OpsPercentiles{}
-			ttft = ops.OpsPercentiles{}
-			ttftSampleCount = 0
-		} else {
-			return nil, err
-		}
+	// A segment that exhausts the latency budget still contributes its counts.
+	// The empty measurements and zero TTFT weight leave other segments' summaries usable.
+	duration, ttft, ttftSampleCount, err := r.queryUsageLatency(ctx, filter, start, end)
+	if err != nil && err != errOpsRawLatencyTimeout {
+		return nil, err
 	}
 
 	errorTotal, businessLimited, errorCountSLA, upstreamExcl, upstream429, upstream529, err := r.queryErrorCounts(ctx, filter, start, end)
@@ -1069,13 +1057,22 @@ FROM (SELECT * FROM usage_logs WHERE request_source = 'user') ul
 // still contributes.
 //
 // Percentiles and means are rounded into newly allocated native-int pointers,
-// preserving absence as nil. Maximum SQL integers narrow unchecked to native
-// int. The returned sample count weights TTFT summaries when combining
-// raw fragments with saved hours; query failure rejects all measurements. The
-// caller owns its cancellation and any optional latency child budget.
+// preserving absence as nil. The returned sample count weights TTFT summaries
+// when combining raw fragments with saved hours. If the query reaches its own
+// deadline while the parent remains active, errOpsRawLatencyTimeout accompanies
+// empty summaries and a zero sample count. Other query failures are returned
+// to the caller.
 func (r *Store) queryUsageLatency(ctx context.Context, filter *ops.OpsDashboardFilter, start, end time.Time) (duration ops.OpsPercentiles, ttft ops.OpsPercentiles, ttftSampleCount int64, err error) {
 	join, where, args, _ := buildUsageWhere(filter, start, end, 1)
+	// Materialize the two measurements after filtering. PostgreSQL can reuse the
+	// computed TTFT across aggregates without decoding the same timing JSON for each one.
 	q := `
+WITH latency_samples AS MATERIALIZED (
+  SELECT duration_ms, ` + usageTTFTSQL("ul") + ` AS ttft_ms
+  FROM (SELECT * FROM usage_logs WHERE request_source = 'user') ul
+  ` + join + `
+  ` + where + `
+)
 SELECT
   percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_p50,
   percentile_cont(0.90) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_p90,
@@ -1083,16 +1080,14 @@ SELECT
   percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_p99,
   AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_avg,
   MAX(duration_ms) AS duration_max,
-  percentile_cont(0.50) WITHIN GROUP (ORDER BY ` + usageTTFTSQL("") + `) FILTER (WHERE ` + usageTTFTSQL("") + ` IS NOT NULL) AS ttft_p50,
-  percentile_cont(0.90) WITHIN GROUP (ORDER BY ` + usageTTFTSQL("") + `) FILTER (WHERE ` + usageTTFTSQL("") + ` IS NOT NULL) AS ttft_p90,
-  percentile_cont(0.95) WITHIN GROUP (ORDER BY ` + usageTTFTSQL("") + `) FILTER (WHERE ` + usageTTFTSQL("") + ` IS NOT NULL) AS ttft_p95,
-  percentile_cont(0.99) WITHIN GROUP (ORDER BY ` + usageTTFTSQL("") + `) FILTER (WHERE ` + usageTTFTSQL("") + ` IS NOT NULL) AS ttft_p99,
-  AVG(` + usageTTFTSQL("") + `) FILTER (WHERE ` + usageTTFTSQL("") + ` IS NOT NULL) AS ttft_avg,
-  MAX(` + usageTTFTSQL("") + `) AS ttft_max,
-  COUNT(` + usageTTFTSQL("") + `) AS ttft_sample_count
-FROM (SELECT * FROM usage_logs WHERE request_source = 'user') ul
-` + join + `
-` + where
+  percentile_cont(0.50) WITHIN GROUP (ORDER BY ttft_ms) FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p50,
+  percentile_cont(0.90) WITHIN GROUP (ORDER BY ttft_ms) FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p90,
+  percentile_cont(0.95) WITHIN GROUP (ORDER BY ttft_ms) FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p95,
+  percentile_cont(0.99) WITHIN GROUP (ORDER BY ttft_ms) FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_p99,
+  AVG(ttft_ms) FILTER (WHERE ttft_ms IS NOT NULL) AS ttft_avg,
+  MAX(ttft_ms) AS ttft_max,
+  COUNT(ttft_ms) AS ttft_sample_count
+FROM latency_samples`
 
 	var dP50, dP90, dP95, dP99 sql.NullFloat64
 	var dAvg sql.NullFloat64
@@ -1101,10 +1096,20 @@ FROM (SELECT * FROM usage_logs WHERE request_source = 'user') ul
 	var tAvg sql.NullFloat64
 	var tMax sql.NullInt64
 	var tCount int64
-	if err := r.db.QueryRowContext(ctx, q, args...).Scan(
+	// Reserve the child deadline for latency so later counts and rates can use
+	// the parent context. Release the timer after the query and its error classification.
+	latencyCtx, cancel := context.WithTimeout(ctx, opsRawLatencyQueryTimeout)
+	defer cancel()
+	if err := r.db.QueryRowContext(latencyCtx, q, args...).Scan(
 		&dP50, &dP90, &dP95, &dP99, &dAvg, &dMax,
 		&tP50, &tP90, &tP95, &tP99, &tAvg, &tMax, &tCount,
 	); err != nil {
+		// lib/pq can surface cancellation as SQLSTATE 57014. Check the child's
+		// deadline and the parent's status before treating that code as recoverable.
+		if latencyCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil &&
+			(isQueryTimeoutErr(err) || infra.SQLState(err) == "57014") {
+			return ops.OpsPercentiles{}, ops.OpsPercentiles{}, 0, errOpsRawLatencyTimeout
+		}
 		return ops.OpsPercentiles{}, ops.OpsPercentiles{}, 0, err
 	}
 
@@ -1242,10 +1247,9 @@ FROM combined`
 	return qpsPeak, tpsPeak, nil
 }
 
-// isQueryTimeoutErr reports whether err wraps context.DeadlineExceeded for
-// optional-query degradation. It does not inspect caller context or driver
-// message text; cancellation and unrelated SQL errors therefore remain ordinary
-// failures.
+// isQueryTimeoutErr recognizes an error in the context.DeadlineExceeded chain.
+// Optional rate queries use this check directly. The latency query also checks
+// the owning context and accepts a typed driver cancellation when its budget expires.
 func isQueryTimeoutErr(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
 }
