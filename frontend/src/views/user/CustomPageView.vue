@@ -116,6 +116,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { buildApiUrl } from '@/api/client'
+import { fetchPageMarkdown } from '@/api/pages'
 import { COPY_FEEDBACK_MS } from '@/constants/ui'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
 import { useMediaQuery } from '@vueuse/core'
@@ -290,20 +291,14 @@ async function fetchAndRenderMarkdown(slug: string) {
   tocItems.value = []
   activeHeadingId.value = ''
   try {
-    const resp = await fetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
-      headers: {
-        'Accept-Language': locale.value,
-        ...(authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {}),
-      },
-    })
+    const resp = await fetchPageMarkdown(slug)
     if (generation !== markdownGeneration) return
     if (!resp.ok) {
       renderedHtml.value = `<p class="text-red-500">${t('customPage.markdownNotFound')}</p>`
       return
     }
-    let raw = await resp.text()
-    if (generation !== markdownGeneration) return
-    const contentLanguage = resp.headers.get('Content-Language') || ''
+    let raw = resp.text
+    const contentLanguage = resp.contentLanguage
 
     // Rewrite eligible Markdown image destinations before parsing so the generated
     // HTML points to the same page and language as the fetched document response.

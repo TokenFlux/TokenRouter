@@ -89,4 +89,50 @@ describe('decision image submission', () => {
     })
     expect(fetch.mock.calls[0][1].headers).not.toHaveProperty('TypeSafe-Danger-Zone-Images')
   })
+
+  // An expired administrator access token can reject the initial SSE handshake with HTTP 401.
+  // When a refresh token is stored, openProviderTestStream rotates credentials via /auth/refresh
+  // once and retries the SSE stream with the replacement bearer token.
+  it('refreshes auth token once and retries SSE stream on HTTP 401', async () => {
+    localStorage.setItem('auth_token', 'expired-token')
+    localStorage.setItem('refresh_token', 'valid-refresh')
+    localStorage.setItem('auth_user', JSON.stringify({ id: 7 }))
+
+    const axiosMod = await import('axios')
+    const postSpy = vi.spyOn(axiosMod.default, 'post').mockResolvedValueOnce({
+      data: {
+        code: 0,
+        data: {
+          access_token: 'rotated-token',
+          refresh_token: 'rotated-refresh',
+          expires_in: 3600,
+          token_type: 'Bearer',
+        },
+      },
+    } as any)
+
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('Unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response('data: {"type":"test_complete","success":true}\n'))
+    vi.stubGlobal('fetch', fetch)
+
+    const run = createProviderTestRun()
+    await executeProviderTest({
+      providerId: 9,
+      providerName: 'OpenAI',
+      body: { model_id: 'gpt-5' },
+      run,
+      signal: new AbortController().signal,
+      t: (key) => key,
+    })
+
+    expect(run.status).toBe('success')
+    expect(postSpy).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer expired-token')
+    expect(fetch.mock.calls[1][1].headers.Authorization).toBe('Bearer rotated-token')
+    localStorage.clear()
+    postSpy.mockRestore()
+  })
 })

@@ -85,10 +85,11 @@ export const paymentAPI = {
   },
 
   /**
-   * getOrder retrieves a specific order by ID and returns the server result.
+   * getOrder retrieves a specific order by numeric or route-query ID and returns
+   * the server result.
    */
-  getOrder(id: number) {
-    return apiClient.get<PaymentOrder>(`/payment/orders/${id}`)
+  getOrder(id: number | string) {
+    return apiClient.get<PaymentOrder>(`/payment/orders/${encodeURIComponent(String(id))}`)
   },
 
   /**

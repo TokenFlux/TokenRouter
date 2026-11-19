@@ -477,8 +477,13 @@ import { useRoute as useMotionRoute } from 'vue-router'
 
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { testDatabase, testRedis, install, type InstallRequest } from '@/api/setup'
-import { buildGatewayUrl } from '@/api/client'
+import {
+  testDatabase,
+  testRedis,
+  install,
+  probeSetupRestartReady,
+  type InstallRequest,
+} from '@/api/setup'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -727,24 +732,14 @@ async function waitForServiceRestart() {
     try {
       // Probe the setup endpoint because HTTP availability alone does not imply
       // normal application mode; restart transitions can also fail at the transport level.
-      const response = await fetch(buildGatewayUrl('/setup/status'), {
-        method: 'GET',
-        cache: 'no-store',
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        // Accept response data that does not mark setup as required; this existing
-        // truthiness check also accepts an omitted flag rather than validating its presence.
-        if (data.data && !data.data.needs_setup) {
-          serviceReady.value = true
-          // Leave the readiness message visible briefly before navigating to login;
-          // the scheduled timeout retains the existing behavior after this function returns.
-          setTimeout(() => {
-            window.location.href = '/login'
-          }, 1500)
-          return
-        }
+      if (await probeSetupRestartReady()) {
+        serviceReady.value = true
+        // Leave the readiness message visible briefly before navigating to login;
+        // the scheduled timeout retains the existing behavior after this function returns.
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 1500)
+        return
       }
     } catch {
       // Restart-time transport or decoding failures leave another probe eligible;

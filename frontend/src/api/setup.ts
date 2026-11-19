@@ -125,3 +125,19 @@ export async function install(config: InstallRequest): Promise<InstallResponse> 
   const response = await setupClient.post('/setup/install', config)
   return response.data.data
 }
+
+/**
+ * probeSetupRestartReady polls /setup/status with no-store cache control after
+ * installation acceptance and reports whether normal application mode is ready.
+ */
+export async function probeSetupRestartReady(): Promise<boolean> {
+  const response = await fetch(buildGatewayUrl('/setup/status'), {
+    method: 'GET',
+    cache: 'no-store',
+  })
+  if (!response.ok) {
+    return false
+  }
+  const payload = await response.json()
+  return Boolean(payload?.data && !payload.data.needs_setup)
+}

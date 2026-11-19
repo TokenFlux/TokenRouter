@@ -56,7 +56,6 @@
 </template>
 
 <script setup lang="ts">
-import { getLocale } from '@/i18n'
 import { vContentReveal } from '@/directives/contentReveal'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -65,7 +64,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import { buildApiUrl } from '@/api/client'
+import { paymentAPI } from '@/api/payment'
 
 /**
  * StripePopupView.vue initializes a wallet checkout after a same-origin opener supplies
@@ -265,12 +264,13 @@ function stopPolling() {
 }
 
 /**
- * pollOrderStatus fetches the order with the current browser authentication token and
- * locale. It rejects overlapping ticks, switches PROCESSING to the slower cadence, and
- * stops polling for payment-success or terminal failure statuses. HTTP failures and
- * exceptions leave the next interval available to retry. PAID and RECHARGING display
- * payment success, while the backend remains responsible for fulfillment; the popup
- * schedules closing after accepting that success state.
+ * pollOrderStatus fetches the order through paymentAPI using the shared client's
+ * authentication, token refresh, and locale interceptors. It rejects overlapping ticks,
+ * switches PROCESSING to the slower cadence, and stops polling for payment-success or
+ * terminal failure statuses. HTTP failures and exceptions leave the next interval
+ * available to retry. PAID and RECHARGING display payment success, while the backend
+ * remains responsible for fulfillment; the popup schedules closing after accepting
+ * that success state.
  */
 async function pollOrderStatus() {
   // Polling can outlast its interval, so the in-flight guard keeps subsequent ticks from
@@ -278,19 +278,8 @@ async function pollOrderStatus() {
   if (pollInFlight) return
   pollInFlight = true
   try {
-    // The popup reads auth_token when polling because its direct order fetch needs the same
-    // authenticated context as the opener.
-    const token = localStorage.getItem('auth_token') || ''
-    const res = await fetch(buildApiUrl(`/payment/orders/${orderId}`), {
-      headers: {
-        'Accept-Language': getLocale(),
-        ...(token ? { Authorization: 'Bearer ' + token } : {}),
-      },
-      credentials: 'include',
-    })
-    if (!res.ok) return
-    const data = await res.json()
-    const status = data?.data?.status
+    const res = await paymentAPI.getOrder(orderId)
+    const status = res.data?.status
     if (status === 'PROCESSING') {
       hint.value = t('payment.result.processing')
       startPolling(PROCESSING_POLL_INTERVAL_MS)

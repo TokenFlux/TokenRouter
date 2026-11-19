@@ -1,6 +1,5 @@
 import { reactive } from 'vue'
-import { buildApiUrl } from '@/api/client'
-import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
+import { openProviderTestStream } from '@/api/admin/providers'
 import type {
   SystemOneTestPayload,
   SystemOneTestPreview,
@@ -312,17 +311,11 @@ export async function executeProviderTest(options: {
         Object.values(decision.questions).some((question) => question.type === 'box'))
     // Choosing images or Box in this administrator form explicitly opts this test into the
     // experimental upstream feature. Private image names and associations never leave the browser.
-    const response = await fetch(buildApiUrl(`/admin/providers/${options.providerId}/test`), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        'Content-Type': 'application/json',
-        [ADMIN_UI_REQUEST_HEADER]: '1',
-        ...(usesImages ? { 'TypeSafe-Danger-Zone-Images': 'true' } : {}),
-      },
-      body: JSON.stringify(requestBody),
-      signal: options.signal,
-    })
+    const response = await openProviderTestStream(
+      options.providerId,
+      requestBody as Record<string, unknown>,
+      { usesImages, signal: options.signal },
+    )
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }

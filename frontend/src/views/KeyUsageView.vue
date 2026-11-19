@@ -650,7 +650,7 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import Skeleton from '@/components/common/Skeleton.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useTheme } from '@/composables/useTheme'
-import { buildGatewayUrl } from '@/api/client'
+import { fetchGatewayKeyUsage } from '@/api/usage'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
 
@@ -1415,22 +1415,20 @@ function getBrowserTimezone(): string {
 async function fetchUsage(key: string): Promise<any> {
   const requestedLocale = getLocale()
   const dateParams = getDateParams()
-  const url = buildGatewayUrl('/v1/usage') + (dateParams ? '?' + dateParams : '')
-  const res = await fetch(url, {
-    headers: { Authorization: 'Bearer ' + key, 'Accept-Language': requestedLocale },
-  })
-  // Unreadable JSON becomes null so HTTP errors can still use their status-based message,
-  // while successful unreadable responses retain the null result.
-  const data = await res.json().catch(() => null)
+  const res = await fetchGatewayKeyUsage(key, dateParams, requestedLocale)
   // Retry before interpreting response status when language changes during retrieval,
   // preventing messages from the earlier locale from becoming the published result.
   if (requestedLocale !== getLocale()) return fetchUsage(key)
   if (!res.ok) {
     const message =
-      data?.error?.message || data?.message || `${t('keyUsage.queryFailed')} (${res.status})`
-    throw new Error(localizedErrorMessage(data?.error?.code || data?.reason, res.status, message))
+      res.data?.error?.message ||
+      res.data?.message ||
+      `${t('keyUsage.queryFailed')} (${res.status})`
+    throw new Error(
+      localizedErrorMessage(res.data?.error?.code || res.data?.reason, res.status, message),
+    )
   }
-  return data
+  return res.data
 }
 
 useLocaleRefresh(async () => {

@@ -1,4 +1,6 @@
-import { apiClient } from '../client'
+import { ADMIN_UI_REQUEST_HEADER } from '../adminUIRequest'
+import { apiClient, buildApiUrl } from '../client'
+import { refreshAuthTokens } from '../tokenRefresh'
 import type {
   AdminDataImportResult,
   AdminDataPayload,
@@ -1014,6 +1016,56 @@ export async function refreshOllamaCloudUsage(id: number): Promise<OllamaCloudUs
 }
 
 /**
+ * openProviderTestStream posts a streaming administrator provider connection
+ * test using fetch so the caller can read SSE lines incrementally. When the
+ * initial handshake returns HTTP 401 and a refresh token is stored, it rotates
+ * the browser session once through refreshAuthTokens and retries with the
+ * replacement access token before returning the final HTTP Response.
+ */
+export async function openProviderTestStream(
+  providerId: number,
+  requestBody: Record<string, unknown>,
+  options: {
+    usesImages?: boolean // Opt into TypeSafe experimental image test mode.
+    signal?: AbortSignal // Caller-owned stream cancellation signal.
+  } = {},
+): Promise<Response> {
+  const serializedBody = JSON.stringify(requestBody)
+  const buildHeaders = (accessToken: string | null): Record<string, string> => ({
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    [ADMIN_UI_REQUEST_HEADER]: '1',
+    ...(options.usesImages ? { 'TypeSafe-Danger-Zone-Images': 'true' } : {}),
+  })
+
+  const sentToken = localStorage.getItem('auth_token')
+  const url = buildApiUrl(`/admin/providers/${providerId}/test`)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: buildHeaders(sentToken),
+    body: serializedBody,
+    signal: options.signal,
+  })
+
+  if (response.status === 401 && localStorage.getItem('refresh_token')) {
+    try {
+      // Rotate expired administrator tokens once before surfacing an SSE 401 failure,
+      // falling back to the original 401 response when token rotation fails.
+      const tokens = await refreshAuthTokens({ failedAccessToken: sentToken })
+      return await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(tokens.access_token),
+        body: serializedBody,
+        signal: options.signal,
+      })
+    } catch {
+      return response
+    }
+  }
+  return response
+}
+
+/**
  * providersAPI groups this module's HTTP operations for callers using the
  * module's named or default API object.
  */
@@ -1072,6 +1124,7 @@ export const providersAPI = {
   deleteOllamaCloudUsageSession,
   setOllamaCloudUsageAutoRefresh,
   refreshOllamaCloudUsage,
+  openProviderTestStream,
 }
 
 export default providersAPI

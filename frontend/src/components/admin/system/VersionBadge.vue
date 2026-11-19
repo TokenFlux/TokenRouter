@@ -661,6 +661,7 @@ import DOMPurify from 'dompurify'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   performUpdate,
+  probeServiceHealth,
   restartService,
   getRollbackVersions,
   rollback as rollbackAPI,
@@ -1112,11 +1113,7 @@ async function checkServiceAndReload() {
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await fetch('/health', {
-        method: 'GET',
-        cache: 'no-cache',
-      })
-      if (response.ok) {
+      if (await probeServiceHealth()) {
         // Service is back, reload page
         window.location.reload()
         return

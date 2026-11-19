@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import { buildApiUrl } from './url'
+import { buildApiUrl, buildGatewayUrl } from './url'
 import type {
   UsageLog,
   UsageQueryParams,
@@ -465,6 +465,36 @@ export function triggerExportDownloadUrl(downloadUrl: string, fileName?: string)
 }
 
 /**
+ * GatewayKeyUsageHTTPResult holds HTTP status metadata and the decoded JSON
+ * payload (or null when unreadable) returned by the public /v1/usage endpoint.
+ */
+export interface GatewayKeyUsageHTTPResult {
+  ok: boolean // True when the gateway returned a 2xx HTTP status.
+  status: number // HTTP response status code.
+  data: any // Parsed JSON payload, or null when response JSON is unreadable.
+}
+
+/**
+ * fetchGatewayKeyUsage queries the public /v1/usage gateway endpoint using an
+ * API key as the Bearer credential rather than the browser's user JWT session.
+ * Unreadable JSON bodies resolve to null data so callers can still inspect HTTP
+ * status codes without triggering session-expiry redirects.
+ */
+export async function fetchGatewayKeyUsage(
+  apiKey: string,
+  dateParams: string,
+  requestedLocale: string,
+): Promise<GatewayKeyUsageHTTPResult> {
+  const url = buildGatewayUrl('/v1/usage') + (dateParams ? '?' + dateParams : '')
+  const res = await fetch(url, {
+    headers: { Authorization: 'Bearer ' + apiKey, 'Accept-Language': requestedLocale },
+  })
+  // Convert non-JSON error pages to null data so callers still map HTTP status codes to localized error messages.
+  const data = await res.json().catch(() => null)
+  return { ok: res.ok, status: res.status, data }
+}
+
+/**
  * usageAPI groups user usage records, rankings, dashboard summaries, error reads,
  * and background export task endpoints for module consumers.
  */
@@ -484,6 +514,7 @@ export const usageAPI = {
   cancelExportTask,
   createExportDownloadTicket,
   triggerExportDownloadUrl,
+  fetchGatewayKeyUsage,
 }
 
 export default usageAPI

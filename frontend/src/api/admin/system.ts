@@ -122,6 +122,18 @@ export async function restartService(): Promise<{
 }
 
 /**
+ * probeServiceHealth sends an uncached GET probe to /health during post-update
+ * or post-restart readiness polling, returning true only on a 2xx response.
+ */
+export async function probeServiceHealth(): Promise<boolean> {
+  const response = await fetch('/health', {
+    method: 'GET',
+    cache: 'no-cache',
+  })
+  return response.ok
+}
+
+/**
  * systemAPI groups server update and rollback requests for callers using the
  * module's named or default API object.
  */
@@ -131,6 +143,7 @@ export const systemAPI = {
   getRollbackVersions,
   rollback,
   restartService,
+  probeServiceHealth,
 }
 
 export default systemAPI

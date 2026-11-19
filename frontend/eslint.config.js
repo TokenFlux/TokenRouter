@@ -51,4 +51,20 @@ export default tseslint.config(
       'vue/no-use-v-if-with-v-for': 'off',
     },
   },
+  {
+    files: ['src/views/**/*.{ts,tsx,vue}', 'src/components/**/*.{ts,tsx,vue}'],
+    ignores: ['**/__tests__/**', '**/*.spec.ts', '**/*.test.ts'],
+    rules: {
+      // Views and components delegate HTTP and streaming transport to src/api/ modules so
+      // authentication, locale headers, and 401 token refresh stay centralized.
+      'no-restricted-globals': [
+        'error',
+        {
+          name: 'fetch',
+          message:
+            'Place HTTP and streaming requests in src/api/ instead of calling fetch directly from views or components.',
+        },
+      ],
+    },
+  },
 )
