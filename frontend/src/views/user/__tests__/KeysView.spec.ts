@@ -9,7 +9,8 @@ import KeysView from '../KeysView.vue'
 // KeysView.spec.ts exercises the production key-management page with controlled API
 // responses and slot-preserving table and dialog substitutes. Tests cover persisted columns,
 // separate list and usage loading, owner restrictions, rotation, billing-group choices,
-// composite mappings, model redirects, and create or update payloads.
+// composite mappings, model redirects, and create or update payloads. Expiration
+// cases check what the form sends when a user enables, clears, or disables expiry.
 
 // Hoisted API and action spies share request state with the production page, while each case
 // supplies exact records and deferred promises for its behavior.
@@ -71,6 +72,7 @@ const messages: Record<string, string> = {
   'keys.apiKeyLimitReached': 'API key limit reached',
   'keys.created': 'Created',
   'keys.expiresAt': 'Expires',
+  'keys.expirationDateHint': enDashboard.keys.expirationDateHint,
   'keys.group': 'Group',
   'keys.groupRequired': 'Group required',
   'keys.selectGroup': 'Select a group',
@@ -860,6 +862,71 @@ describe('user KeysView column settings', () => {
     await flushPromises()
 
     expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ status: 'inactive' }))
+  })
+
+  // Enabling expiration in either creation scope applies the 30-day default immediately.
+  // Saving the form without clicking a preset must carry that lifetime to the API.
+  it.each(['personal', 'team'])(
+    'creates a %s key with the default 30-day expiry',
+    async (scope) => {
+      routeQuery.scope = scope
+      getAvailableGroups.mockResolvedValue([{ id: 42, name: 'Test group', platform: 'openai' }])
+      vi.setSystemTime(new Date(2026, 0, 7, 12))
+      try {
+        const wrapper = await mountView()
+        await getButtonByText(wrapper, 'Create API Key').trigger('click')
+        await wrapper.get('[data-tour="key-form-name"]').setValue('expiring-key')
+        const groupSelect = wrapper
+          .findAllComponents({ name: 'Select' })
+          .find((select) => select.attributes('data-tour') === 'key-form-group')!
+        await groupSelect.vm.$emit('update:modelValue', 42)
+        await wrapper.get('#key-expiration').trigger('click')
+
+        expect(wrapper.get<HTMLInputElement>('input[type="datetime-local"]').element.value).toBe(
+          '2026-02-06T12:00',
+        )
+        await wrapper.get('form#key-form').trigger('submit')
+        await flushPromises()
+
+        expect(createKey).toHaveBeenCalledWith(
+          expect.objectContaining({ scope, group_id: 42, expires_in_days: 30 }),
+        )
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
+
+  // Clearing the date while expiration remains enabled blocks the update. The
+  // user can still explicitly remove the saved expiry by turning the switch off.
+  it('requires a date when editing a key with expiration enabled', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [{ ...createApiKey(), group_id: 42, expires_at: '2027-01-01T00:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Edit').trigger('click')
+    const expirationToggle = wrapper.get('#key-expiration')
+    const date = wrapper.get<HTMLInputElement>('input[type="datetime-local"]')
+    const initialDate = date.element.value
+    expect(initialDate).not.toBe('')
+
+    await expirationToggle.trigger('click')
+    await expirationToggle.trigger('click')
+    const reopenedDate = wrapper.get<HTMLInputElement>('input[type="datetime-local"]')
+    expect(reopenedDate.element.value).toBe(initialDate)
+    await reopenedDate.setValue('')
+    await wrapper.get('form#key-form').trigger('submit')
+    expect(showError).toHaveBeenCalledWith(enDashboard.keys.expirationDateHint)
+    expect(updateKey).not.toHaveBeenCalled()
+
+    await expirationToggle.trigger('click')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledWith(1, expect.objectContaining({ expires_at: '' }))
   })
 
   // A key has active requests and no finite concurrency cap. The test protects its compact

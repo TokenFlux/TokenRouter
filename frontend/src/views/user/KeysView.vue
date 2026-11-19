@@ -1247,10 +1247,11 @@
             </div>
             <Toggle
               id="key-expiration"
-              v-model="formData.enable_expiration"
+              :model-value="formData.enable_expiration"
               size="sm"
               off-tone="soft"
               aria-describedby="key-expiration-hint"
+              @update:model-value="setExpirationEnabled"
             />
           </div>
 
@@ -1289,9 +1290,20 @@
 
             <!-- Date picker (always show for precise adjustment) -->
             <div>
-              <label class="input-label">{{ t('keys.expirationDate') }}</label>
-              <input v-model="formData.expiration_date" type="datetime-local" class="input" />
-              <p class="input-hint">{{ t('keys.expirationDateHint') }}</p>
+              <label for="key-expiration-date" class="input-label">{{
+                t('keys.expirationDate')
+              }}</label>
+              <input
+                id="key-expiration-date"
+                v-model="formData.expiration_date"
+                type="datetime-local"
+                class="input"
+                aria-describedby="key-expiration-date-hint"
+                required
+              />
+              <p id="key-expiration-date-hint" class="input-hint">
+                {{ t('keys.expirationDateHint') }}
+              </p>
             </div>
 
             <!-- Current expiration display (only in edit mode) -->
@@ -1815,10 +1827,10 @@ const formData = ref({
   rate_limit_5h: null as number | null, // Five-hour spending amount cap.
   rate_limit_1d: null as number | null, // One-day spending amount cap.
   rate_limit_7d: null as number | null, // Seven-day spending amount cap.
-  // enable_expiration gates expiration_date in buildKeyFormPayload, while
-  // expiration_preset identifies the shortcut that fills that date or custom
-  // input. Disabling retains the draft date; disabled or empty dates omit
-  // creation expiry and submit an empty string to clear expiry when editing.
+  // enable_expiration makes expiration_date required at submission. In a new
+  // draft, enabling expiry applies the selected expiration_preset when the date
+  // is blank and the preset is a day shortcut. Disabling retains the draft date
+  // for later use and submits the operation's no-expiry value.
   enable_expiration: false, // Expiration input enabled flag.
   expiration_preset: '30' as '7' | '30' | '90' | 'custom', // Selected day shortcut or custom.
   expiration_date: '', // Browser-local expiration datetime text.
@@ -2812,10 +2824,9 @@ const onScopeChange = () => {
   ])
 }
 
-// handleSubmit validates integer request limits, model redirects, composite mappings,
-// billing selection, and required group identity before submission. Custom-secret checks
-// apply only to creation; accepted drafts delegate payload conversion and persistence to
-// submitKeyForm.
+// handleSubmit validates request limits, routing, billing, and any enabled expiration
+// before submission. Custom-secret checks apply only to creation. Accepted drafts
+// delegate payload conversion and persistence to submitKeyForm.
 const handleSubmit = async () => {
   // Empty numeric controls submit zero; other request caps must fit the nonnegative signed 32-bit integer range accepted by persistence.
   const requestLimits = [formData.value.concurrency_limit, formData.value.rpm_limit]
@@ -2849,6 +2860,11 @@ const handleSubmit = async () => {
   // Single-group keys require a selected group, including drafts converted from composite mode, so an implicit stale binding cannot enter the submitted payload.
   if (!formData.value.is_composite && formData.value.group_id === null) {
     appStore.showError(t('keys.groupRequired'))
+    return
+  }
+
+  if (formData.value.enable_expiration && !formData.value.expiration_date) {
+    appStore.showError(t('keys.expirationDateHint'))
     return
   }
 
@@ -2933,6 +2949,22 @@ const closeModals = () => {
 // confirmResetQuota opens the quota-reset confirmation for the currently selected edit key.
 const confirmResetQuota = () => {
   showResetQuotaDialog.value = true
+}
+
+// setExpirationEnabled updates the switch and applies the selected day shortcut
+// when enabling a blank create draft. It preserves entered dates across toggles
+// and leaves date selection to the user in edit mode or with the custom preset.
+const setExpirationEnabled = (enabled: boolean) => {
+  const form = formData.value
+  form.enable_expiration = enabled
+  if (
+    enabled &&
+    !showEditModal.value &&
+    !form.expiration_date &&
+    form.expiration_preset !== 'custom'
+  ) {
+    setExpirationDays(Number(form.expiration_preset))
+  }
 }
 
 // setExpirationDays stores the shortcut and derives a local datetime expiration from today.
