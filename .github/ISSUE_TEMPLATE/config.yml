@@ -1,6 +1,9 @@
 # Adapted from QuantumNous/new-api; see .github/NOTICE.templates.md for source and license.
 blank_issues_enabled: false
 contact_links:
+  - name: Security Vulnerability
+    url: https://github.com/TokenFlux/TokenRouter/security/advisories/new
+    about: Do not open a public issue for security vulnerabilities. Submit a private report through GitHub Security Advisories (see SECURITY.md).
   - name: Documentation
     url: https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/index.md
     about: Check the documentation before opening an issue to see whether it addresses your problem.
