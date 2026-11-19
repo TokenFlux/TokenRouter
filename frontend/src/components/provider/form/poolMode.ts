@@ -1,7 +1,8 @@
-// poolMode.ts normalizes provider pool retry counts and HTTP status-code drafts. Parsing
-// accepts comma or whitespace separators, filters invalid codes, and sorts unique
-// results. Count normalization supplies the default for non-finite input and clamps
-// finite integers to the supported range.
+// poolMode.ts normalizes provider pool retry counts and HTTP status-code drafts.
+// The form displays the gateway defaults and accepts an override. Parsing accepts
+// comma or whitespace separators, filters invalid codes, and sorts unique results.
+// Count normalization supplies the default for non-finite input and clamps finite
+// integers to the supported range.
 
 // DEFAULT_POOL_MODE_RETRY_COUNT supplies three retries when a saved count is missing or
 // cannot represent a finite number.
@@ -9,9 +10,9 @@ export const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 // MAX_POOL_MODE_RETRY_COUNT limits normalized retry counts to ten and supplies the upper
 // bound shown by the shared input.
 export const MAX_POOL_MODE_RETRY_COUNT = 10
-// DEFAULT_POOL_MODE_RETRY_STATUS_CODES supplies authentication, forbidden, and rate-limit
-// response examples for new provider pool retry drafts.
-export const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
+// DEFAULT_POOL_MODE_RETRY_STATUS_CODES mirrors the gateway defaults for the
+// provider form's status-code placeholder and help text.
+export const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429, 502, 503]
 
 // collectStatusCodes converts iterable values into sorted unique integer HTTP status
 // codes. Numeric strings are trimmed before conversion, and values outside 100 through

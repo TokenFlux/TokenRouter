@@ -33,7 +33,7 @@ const (
 // normalized result.
 // Runtime readers share the exported slice, so callers synchronize any changes
 // to these defaults with request handling.
-var DefaultPoolModeRetryableStatusCodes = []int{401, 403, 429}
+var DefaultPoolModeRetryableStatusCodes = []int{401, 403, 429, 502, 503}
 
 // IsCustomErrorCodesEnabled reads the API Key custom-error handling switch.
 // Other types, absent credentials, missing keys, and nonboolean values return

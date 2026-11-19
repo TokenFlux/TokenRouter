@@ -215,9 +215,9 @@ func TestGetPoolModeRetryStatusCodes(t *testing.T) {
 }
 
 // TestIsPoolModeRetryableStatus_Provider compares default inheritance,
-// configured replacement, and an explicit empty override. Membership follows
-// the default in unconfigured fixtures, and the empty override disables
-// matching for the tested default status.
+// configured replacement, and an explicit empty override. Unconfigured
+// providers match 502 and 503, while configured lists control membership even
+// when they omit a default status or contain no entries.
 func TestIsPoolModeRetryableStatus_Provider(t *testing.T) {
 	tests := []struct {
 		name       string  // test case display name
@@ -234,10 +234,16 @@ func TestIsPoolModeRetryableStatus_Provider(t *testing.T) {
 			expected:   true,
 		},
 		{
-			name:       "unconfigured_uses_default_502_false",
+			name:       "unconfigured_uses_default_502",
 			provider:   &Record{Credentials: map[string]any{"pool_mode": true}},
 			statusCode: 502,
-			expected:   false,
+			expected:   true,
+		},
+		{
+			name:       "unconfigured_uses_default_503",
+			provider:   &Record{Credentials: map[string]any{"pool_mode": true}},
+			statusCode: 503,
+			expected:   true,
 		},
 		{
 			name: "configured_list_overrides_default_401_dropped",
@@ -248,11 +254,11 @@ func TestIsPoolModeRetryableStatus_Provider(t *testing.T) {
 			expected:   false,
 		},
 		{
-			name: "configured_list_overrides_default_502_added",
+			name: "configured_list_adds_520",
 			provider: &Record{
-				Credentials: map[string]any{"pool_mode_retry_status_codes": []any{float64(502), float64(503)}},
+				Credentials: map[string]any{"pool_mode_retry_status_codes": []any{float64(520)}},
 			},
-			statusCode: 502,
+			statusCode: 520,
 			expected:   true,
 		},
 		{
@@ -260,7 +266,7 @@ func TestIsPoolModeRetryableStatus_Provider(t *testing.T) {
 			provider: &Record{
 				Credentials: map[string]any{"pool_mode_retry_status_codes": []any{}},
 			},
-			statusCode: 429,
+			statusCode: 503,
 			expected:   false,
 		},
 	}

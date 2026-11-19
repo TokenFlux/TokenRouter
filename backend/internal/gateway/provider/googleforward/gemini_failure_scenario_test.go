@@ -79,12 +79,12 @@ func TestGeminiFinalFailureProtocols(t *testing.T) {
 				"custom_error_codes":         []any{float64(429)},
 			},
 		},
-		{name: "pool_default", status: 503, credentials: map[string]any{"pool_mode": true}, raw: true},
+		{name: "pool_default", status: 503, credentials: map[string]any{"pool_mode": true}, raw: true, retry: true},
 		{
-			name: "pool", status: 503, raw: true, retry: true,
+			name: "pool_override_excludes_default", status: 503, raw: true,
 			credentials: map[string]any{
 				"pool_mode":                    true,
-				"pool_mode_retry_status_codes": []any{float64(503)},
+				"pool_mode_retry_status_codes": []any{float64(429)},
 			},
 		},
 		{

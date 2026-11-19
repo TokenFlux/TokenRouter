@@ -2294,8 +2294,9 @@ func TestOpenAIStreamingResponseFailedBeforeOutputReturnsFailover(t *testing.T) 
 }
 
 // TestOpenAIStreamingResponseFailedCapacityBeforeOutputReturnsFailover
-// supplies capacity wording to an API-key pool target without listed retry
-// statuses. It checks typed same-provider recovery before any client output.
+// supplies capacity wording to an API-key pool target with an empty retry list.
+// It checks that the capacity classifier permits same-provider recovery before
+// any client output even when status-code matching is disabled.
 func TestOpenAIStreamingResponseFailedCapacityBeforeOutputReturnsFailover(t *testing.T) {
 	cfg := &responsesFixtureOptions{Response: OpenAIResponseOptions{StreamDataIntervalTimeout: 0, MaxLineSize: OpenAIResponseDefaultMaxLineSize}}
 	svc := newResponsesFixture(responsesFixtureInputs{options: cfg})
@@ -2314,8 +2315,6 @@ func TestOpenAIStreamingResponseFailedCapacityBeforeOutputReturnsFailover(t *tes
 		Header: http.Header{"X-Request-Id": []string{"rid-capacity"}},
 	}
 
-	// Pool retry codes omit 502, so this same-provider eligibility flag comes
-	// from transient capacity handling; the fixture does not execute outer retries.
 	provider := &gatewayprovider.ExecutionProvider{
 		Record: providercore.Record{
 			LoadLocation: time.LoadLocation, ID: 1,
@@ -2323,7 +2322,8 @@ func TestOpenAIStreamingResponseFailedCapacityBeforeOutputReturnsFailover(t *tes
 			Type:     capability.ProviderTypeAPIKey,
 			Name:     "pool-provider",
 			Credentials: map[string]any{
-				"pool_mode": true,
+				"pool_mode":                    true,
+				"pool_mode_retry_status_codes": []any{},
 			},
 		},
 	}
