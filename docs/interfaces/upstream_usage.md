@@ -123,7 +123,7 @@ API Key 提供商（包括 Kimi、Zhipu、DeepSeek）的用量栏，按以下顺
 
 成功和失败的状态统一保存在 `extra.cn_usage_monitor_snapshot`。快照包括版本、适配器、完整的查询身份 hash、最近一次成功的归一化数据、最近一次尝试的时间和脱敏后的错误码；失败时只更新尝试时间和错误，最近一次成功的数据保留。provider/postgres 用提供商的 `updated_at` 做 CAS，并在同一条 SQL 里写 scheduler outbox。凭据、平台、模式、协议、代理、Base URL、TLS 或查询配置变化时，清掉旧快照；读取方也会重新计算身份 hash，旧身份的数据不会被使用。
 
-余额模式下，余额低于 `balance_threshold` 时，监控写入一个带身份 hash 的临时不可调度原因；余额恢复到阈值以上时，只清除同一个身份创建的那个状态。健康状态的暂停和恢复，同样以读取时的 `updated_at` 做条件写入，恢复时还检查原因是否一致；管理员换了凭据或有其他健康写入之后，旧的观测结果无法覆盖新的状态。事务提交后尽力写 outbox，健康状态和 Redis 的更新不在同一个事务里。coding 模式的百分比窗口快照，用于已有的额度阈值和重置时间判断，它表示的是百分比，不是货币余额。
+余额模式下，余额低于 `provider.usage_monitor.pause_below_balance` 时，监控写入一个带身份 hash 的临时不可调度原因；余额恢复到阈值以上时，只清除同一个身份创建的那个状态。健康状态的暂停和恢复，同样以读取时的 `updated_at` 做条件写入，恢复时还检查原因是否一致；管理员换了凭据或有其他健康写入之后，旧的观测结果无法覆盖新的状态。事务提交后尽力写 outbox，健康状态和 Redis 的更新不在同一个事务里。coding 模式的百分比窗口快照，用于已有的额度阈值和重置时间判断，它表示的是百分比，不是货币余额。
 
 官方域名可以直接监控；自定义中继只有在开启 URL allowlist、并且 host 命中 `security.url_allowlist.upstream_hosts` 时，后台才会自动访问。监控复用提供商的代理、TLS 指纹、受保护的 Header Override 和通用的 `UpstreamUsageService` 查询服务。
 

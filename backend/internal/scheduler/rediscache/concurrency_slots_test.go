@@ -15,11 +15,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// Live leases temporarily overlap regular reservations during session
-// creation, then remain counted against ordinary provider/user admission.
-// Unit scenarios check transfer, expiry and batch counts, including Redis
-// command order and the two activity windows. An optional Redis benchmark
-// compares counted sorted-set members with SCAN occurrences at fixed sizes.
+// Batch concurrency and load tests exercise ordinary and Live sorted-set
+// pruning cutoffs, command ordering, duplicate identities, and per-command
+// error propagation when an earlier wait key returns redis.Nil. An optional
+// Redis benchmark compares sorted-set counting with SCAN traversal.
 
 // benchSlotTTLMinutes selects the ordinary activity window used to prune
 // seeded members during timed counts; extended runs can outlive those
@@ -429,76 +428,85 @@ func newBenchmarkRedisClient(b *testing.B) *redis.Client {
 	return client
 }
 
-// TestLiveLeaseReplacesRegularSlotsAndCountsTowardLimits reserves ordinary
-// provider/user slots before acquiring a replacement Live lease. It checks
-// counted Live occupancy, ordinary-provider rejection, successful renewal and
-// provider admission after Live release.
-func TestLiveLeaseReplacesRegularSlotsAndCountsTowardLimits(t *testing.T) {
-	redisServer := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
-	regular := NewConcurrencyCache(client, 15, 900)
-	live, ok := regular.(scheduler.LiveConcurrencyCache)
-	require.True(t, ok)
+// TestLoadBatchCommandErrorsPropagate verifies that GetProvidersLoadBatch and
+// GetUsersLoadBatch surface a later slot command error (such as WRONGTYPE) even
+// when an earlier idle wait-counter lookup in the same pipeline returns
+// redis.Nil, while valid mixed load entries compute expected rates.
+func TestLoadBatchCommandErrorsPropagate(t *testing.T) {
 	ctx := context.Background()
 
-	providerAcquired, err := regular.AcquireProviderSlot(ctx, 10, 1, "regular-provider")
-	require.NoError(t, err)
-	require.True(t, providerAcquired)
-	userAcquired, err := regular.AcquireUserSlot(ctx, 20, 1, "regular-user")
-	require.NoError(t, err)
-	require.True(t, userAcquired)
+	t.Run("provider_and_user_load_rates", func(t *testing.T) {
+		cache, server := newConcurrencyBatchTestCache(t)
+		now := time.Unix(1_700_000_000, 0)
+		server.SetTime(now)
 
-	acquired, err := live.AcquireLiveLease(ctx, 10, 1, 20, 1, 30, "live-lease", true)
-	require.NoError(t, err)
-	require.True(t, acquired)
-	// Release the ordinary reservations after successful replacement so
-	// subsequent count assertions observe the Live lease alone rather than the
-	// transfer overlap.
-	require.NoError(t, regular.ReleaseProviderSlot(ctx, 10, "regular-provider"))
-	require.NoError(t, regular.ReleaseUserSlot(ctx, 20, "regular-user"))
+		require.NoError(t, cache.rdb.ZAdd(ctx, providerSlotKey(1), redis.Z{Score: float64(now.Unix()), Member: "req-1"}).Err())
+		require.NoError(t, cache.rdb.ZAdd(ctx, liveProviderSlotKey(1), redis.Z{Score: float64(now.Unix()), Member: "live-1"}).Err())
+		require.NoError(t, cache.rdb.Set(ctx, providerWaitKey(1), "1", time.Minute).Err())
 
-	providerCount, err := regular.GetProviderConcurrency(ctx, 10)
-	require.NoError(t, err)
-	require.Equal(t, 1, providerCount)
-	userCount, err := regular.GetUserConcurrency(ctx, 20)
-	require.NoError(t, err)
-	require.Equal(t, 1, userCount)
-	providerAcquired, err = regular.AcquireProviderSlot(ctx, 10, 1, "ordinary-blocked")
-	require.NoError(t, err)
-	require.False(t, providerAcquired)
+		providerLoads, err := cache.GetProvidersLoadBatch(ctx, []scheduler.ProviderWithConcurrency{
+			{ID: 1, MaxConcurrency: 4},
+			{ID: 2, MaxConcurrency: 2},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &scheduler.ProviderLoadInfo{
+			ProviderID:         1,
+			CurrentConcurrency: 2,
+			WaitingCount:       1,
+			LoadRate:           75,
+		}, providerLoads[1])
+		require.Equal(t, &scheduler.ProviderLoadInfo{
+			ProviderID:         2,
+			CurrentConcurrency: 0,
+			WaitingCount:       0,
+			LoadRate:           0,
+		}, providerLoads[2])
 
-	refreshed, err := live.RefreshLiveLease(ctx, 10, 20, 30, "live-lease")
-	require.NoError(t, err)
-	require.True(t, refreshed)
-	require.NoError(t, live.ReleaseLiveLease(ctx, 10, 20, 30, "live-lease"))
-	providerAcquired, err = regular.AcquireProviderSlot(ctx, 10, 1, "ordinary-allowed")
-	require.NoError(t, err)
-	require.True(t, providerAcquired)
-}
+		require.NoError(t, cache.rdb.ZAdd(ctx, userSlotKey(10), redis.Z{Score: float64(now.Unix()), Member: "u-req-1"}).Err())
+		require.NoError(t, cache.rdb.Set(ctx, waitQueueKey(10), "2", time.Minute).Err())
 
-// TestLiveLeaseExpiresWithoutRefresh acquires a Live lease and expires the
-// fixture keys beyond its lifetime. It checks ordinary provider admission and
-// failure to renew the expired Live identity.
-func TestLiveLeaseExpiresWithoutRefresh(t *testing.T) {
-	redisServer := miniredis.RunT(t)
-	client := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
-	regular := NewConcurrencyCache(client, 15, 900)
-	live, ok := regular.(scheduler.LiveConcurrencyCache)
-	require.True(t, ok)
-	ctx := context.Background()
+		userLoads, err := cache.GetUsersLoadBatch(ctx, []scheduler.UserWithConcurrency{
+			{ID: 10, MaxConcurrency: 2},
+			{ID: 20, MaxConcurrency: 5},
+		})
+		require.NoError(t, err)
+		require.Equal(t, &scheduler.UserLoadInfo{
+			UserID:             10,
+			CurrentConcurrency: 1,
+			WaitingCount:       2,
+			LoadRate:           150,
+		}, userLoads[10])
+		require.Equal(t, &scheduler.UserLoadInfo{
+			UserID:             20,
+			CurrentConcurrency: 0,
+			WaitingCount:       0,
+			LoadRate:           0,
+		}, userLoads[20])
+	})
 
-	acquired, err := live.AcquireLiveLease(ctx, 10, 1, 20, 1, 30, "expired-live", false)
-	require.NoError(t, err)
-	require.True(t, acquired)
+	t.Run("earlier_redis_nil_does_not_mask_later_slot_error", func(t *testing.T) {
+		cache, server := newConcurrencyBatchTestCache(t)
+		server.SetTime(time.Unix(1_700_000_000, 0))
 
-	// Expire the unrenewed fixture keys beyond their sixty-second lifetime
-	// before checking that ordinary admission can reuse capacity and Live
-	// renewal detects absence.
-	redisServer.FastForward(61 * time.Second)
-	acquired, err = regular.AcquireProviderSlot(ctx, 10, 1, "ordinary-after-expiry")
-	require.NoError(t, err)
-	require.True(t, acquired)
-	refreshed, err := live.RefreshLiveLease(ctx, 10, 20, 30, "expired-live")
-	require.NoError(t, err)
-	require.False(t, refreshed)
+		// Entity 1 has an absent wait key (producing redis.Nil first in the
+		// pipeline), while entity 2 stores a string at its ordinary slot sorted-set
+		// key so ZREMRANGEBYSCORE/ZCARD fail with WRONGTYPE.
+		require.NoError(t, cache.rdb.Set(ctx, providerSlotKey(2), "corrupt-string", time.Minute).Err())
+		providerLoads, err := cache.GetProvidersLoadBatch(ctx, []scheduler.ProviderWithConcurrency{
+			{ID: 1, MaxConcurrency: 5},
+			{ID: 2, MaxConcurrency: 5},
+		})
+		require.Error(t, err)
+		require.Nil(t, providerLoads)
+		require.Contains(t, err.Error(), "WRONGTYPE")
+
+		require.NoError(t, cache.rdb.Set(ctx, userSlotKey(22), "corrupt-string", time.Minute).Err())
+		userLoads, err := cache.GetUsersLoadBatch(ctx, []scheduler.UserWithConcurrency{
+			{ID: 11, MaxConcurrency: 5},
+			{ID: 22, MaxConcurrency: 5},
+		})
+		require.Error(t, err)
+		require.Nil(t, userLoads)
+		require.Contains(t, err.Error(), "WRONGTYPE")
+	})
 }

@@ -102,7 +102,7 @@ Go 模块路径是 `github.com/TokenFlux/TokenRouter`。后端 Go 版本以 `bac
 
 1. 对外或跨模块行为，先看当前任务、路由和接口实现、可执行的接口测试和前端调用方。
 2. 数据结构看 Ent schema、SQL 迁移和 repository 查询。生成的 Ent 文件用来核对结果，修改时改 schema 源文件。
-3. 启动配置看 `backend/internal/config/config.go`、部署示例和配置测试；运行时设置看 Setting service、handler 和对应的前端页面。
+3. 启动配置看 `backend/internal/config/`、部署示例和配置测试；运行时设置看 Setting service、handler 和对应的前端页面。
 4. 构建、测试和发布看 manifest、Makefile、GoReleaser 和 `.github/workflows/`。
 5. Project Doc 记录综合多个文件后得出的当前结论。它和代码冲突时，先记为待核实的不一致，再用测试、调用方和提交历史确认实际行为。
 

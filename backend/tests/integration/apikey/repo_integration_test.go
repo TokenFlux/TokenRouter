@@ -13,6 +13,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -602,11 +603,11 @@ func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_Basic() {
 	user := s.mustCreateUser("incr-basic@test.com")
 	key := s.mustCreateApiKey(user.ID, "sk-incr-basic", "Incr", nil)
 
-	newQuota, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 1.5)
+	newQuota, err := s.usage.IncrementQuotaUsed(s.ctx, key.ID, 1.5)
 	s.Require().NoError(err, "IncrementQuotaUsed")
 	s.Require().Equal(1.5, newQuota, "第一次递增后应为 1.5")
 
-	newQuota, err = s.repo.IncrementQuotaUsed(s.ctx, key.ID, 2.5)
+	newQuota, err = s.usage.IncrementQuotaUsed(s.ctx, key.ID, 2.5)
 	s.Require().NoError(err, "IncrementQuotaUsed second")
 	s.Require().Equal(4.0, newQuota, "第二次递增后应为 4.0")
 }
@@ -615,7 +616,7 @@ func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_Basic() {
 // suite fixture. The repository returns APIKeyNotFound for that attempted
 // increment operation.
 func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_NotFound() {
-	_, err := s.repo.IncrementQuotaUsed(s.ctx, 999999, 1.0)
+	_, err := s.usage.IncrementQuotaUsed(s.ctx, 999999, 1.0)
 	s.Require().ErrorIs(err, apikey.ErrAPIKeyNotFound, "不存在的 key 应返回 ErrAPIKeyNotFound")
 }
 
@@ -628,7 +629,7 @@ func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_DeletedKey() {
 
 	s.Require().NoError(s.repo.Delete(s.ctx, key.ID), "Delete")
 
-	_, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 1.0)
+	_, err := s.usage.IncrementQuotaUsed(s.ctx, key.ID, 1.0)
 	s.Require().ErrorIs(err, apikey.ErrAPIKeyNotFound, "已删除的 key 应返回 ErrAPIKeyNotFound")
 }
 
@@ -642,7 +643,7 @@ func (s *APIKeyRepoSuite) TestIncrementQuotaUsedAndGetState() {
 	key.QuotaUsed = 1
 	s.Require().NoError(s.repo.Update(s.ctx, key, apikey.APIKeyUpdateFields{Quota: true, QuotaUsed: true}), "Update quota")
 
-	state, err := s.repo.IncrementQuotaUsedAndGetState(s.ctx, key.ID, 2.5)
+	state, err := s.usage.IncrementQuotaUsedAndGetState(s.ctx, key.ID, 2.5)
 	s.Require().NoError(err, "IncrementQuotaUsedAndGetState")
 	s.Require().NotNil(state)
 	s.Require().Equal(3.5, state.QuotaUsed)
@@ -662,6 +663,7 @@ func (s *APIKeyRepoSuite) TestIncrementQuotaUsedAndGetState() {
 func TestIncrementQuotaUsed_Concurrent(t *testing.T) {
 	integrationDB, client := keyDatabase(t)
 	repo := newKeyStoreFixture(client, integrationDB)
+	usage := billingpostgres.NewKeyUsageStore(client, integrationDB)
 	ctx := context.Background()
 
 	u, err := client.User.Create().
@@ -700,7 +702,7 @@ func TestIncrementQuotaUsed_Concurrent(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, errs[idx] = repo.IncrementQuotaUsed(ctx, k.ID, increment)
+			_, errs[idx] = usage.IncrementQuotaUsed(ctx, k.ID, increment)
 		}(i)
 	}
 	wg.Wait()

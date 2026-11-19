@@ -245,38 +245,38 @@ GIF 原始字节保存在 IndexedDB，历史列表直接播放动画。画布默
 
 ## 配置
 
-以下配置键定义在 `backend/internal/config/config.go`（默认值与 `deploy/config.example.yaml` 一致）：
+以下配置键定义在 `backend/internal/config/runtime_domains.go`（默认值在 `backend/internal/config/defaults.go`，与 `deploy/config.example.yaml` 一致）：
 
 ```yaml
 creative:
   enabled: true                       # 创作台 HTTP API 开关
-  queue_enabled: true                 # 创作台队列 worker 开关
+  queue_worker_enabled: true          # 创作台队列 worker 开关
   transient_ttl_seconds: 1800         # 输入载荷与临时输出保留时间（秒）
   max_asset_bytes: 33554432           # 源图单文件上传上限（32 MiB）
   max_total_input_bytes: 67108864     # 单次任务输入总量上限（64 MiB）
   max_prompt_chars: 8000              # prompt 最大 Unicode code point 数
-  default_response_mime_type: "image/png"  # 供应商未声明输出 MIME 时的默认值
   default_image_size: "1K"
-  queue_ready_key: "creative:queue:ready"
-  queue_delayed_key: "creative:queue:delayed"
-  queue_active_key: "creative:queue:active"
-  inflight_key_prefix: "creative:queue:inflight:"
-  lock_key_prefix: "creative:queue:lock:"
-  inflight_ttl_seconds: 604800
-  job_lock_ttl_seconds: 300
-  default_requeue_delay_seconds: 30
-  error_retry_delay_seconds: 60
-  lock_conflict_delay_seconds: 5
-  stale_active_after_seconds: 600
-  delayed_mover_interval_seconds: 5
-  recovery_interval_seconds: 300
-  delayed_move_limit: 100
-  recover_limit: 100
   execute_timeout_seconds: 300        # 单次上游执行调用超时
   max_execute_attempts: 3             # provider 瞬时错误最大执行次数（含首次）
+  queue:
+    ready_key: "creative:queue:ready"
+    delayed_key: "creative:queue:delayed"
+    active_key: "creative:queue:active"
+    inflight_key_prefix: "creative:queue:inflight:"
+    lock_key_prefix: "creative:queue:lock:"
+    inflight_ttl_seconds: 604800
+    job_lock_ttl_seconds: 300
+    default_requeue_delay_seconds: 30
+    error_retry_delay_seconds: 60
+    lock_conflict_delay_seconds: 5
+    stale_active_after_seconds: 600
+    delayed_mover_interval_seconds: 5
+    recovery_interval_seconds: 300
+    delayed_move_limit: 100
+    recover_limit: 100
 ```
 
-校验约束：`max_total_input_bytes` 不得小于 `max_asset_bytes`；启用队列时所有队列键非空。创作台每次任务固定生成一张图片，按所选尺寸单价预占。与批量图片不同，创作台的 `enabled` 与 `queue_enabled` 默认开启，但缺少 Redis 时任务创建会失败。
+校验约束：`max_total_input_bytes` 不得小于 `max_asset_bytes`；启用队列时 `creative.queue` 下的所有队列键非空。创作台每次任务固定生成一张图片，按所选尺寸单价预占。与批量图片不同，创作台的 `enabled` 与 `queue_worker_enabled` 默认开启，但缺少 Redis 时任务创建会失败。
 
 除进程配置外，创作台还有数据库运行时开关 `creative_enabled`（默认 true，管理端"功能特性"页可切换，经公开设置下发给前端）以及 `creative_worker_count`（默认 128，要求为正整数，管理端保存后热更新当前 worker 池）：仅当进程配置 `creative.enabled` 与运行时开关同时开启时创作台才可用，管理服务 `enabled()` 判定在请求期读取该开关。创作台不使用 HTTP 网关的进程级图片 limiter；实际执行并发由 worker 池、用户 Redis 并发槽位和提供商调度器的提供商槽位共同约束。
 

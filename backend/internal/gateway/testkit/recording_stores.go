@@ -101,12 +101,13 @@ type SubscriptionStore struct {
 	LastCtxErr     error // context error observed at call
 }
 
-// KeyQuotaUpdater counts quota and rate updates with shared amount
-// observations.
+// KeyQuotaUpdater counts quota, rate, and auth-invalidation updates with shared
+// amount observations.
 type KeyQuotaUpdater struct {
-	QuotaCalls     int   // API Key quota update count
-	RateLimitCalls int   // API Key rate-usage update count
-	Err            error // injected fixture operation error
+	QuotaCalls      int      // API Key quota update count
+	RateLimitCalls  int      // API Key rate-usage update count
+	InvalidatedKeys []string // API Key auth-cache invalidations
+	Err             error    // injected fixture operation error
 	// LastAmount is shared by quota and rate updates; whichever method runs last
 	// replaces this observation. Their separate counters and context errors identify
 	// which operations the production recorder attempted.
@@ -262,6 +263,12 @@ func (s *KeyQuotaUpdater) UpdateRateLimitUsage(ctx context.Context, apiKeyID int
 	s.LastAmount = cost
 	s.LastRateLimitCtxErr = ctx.Err()
 	return s.Err
+}
+
+// InvalidateAuthCacheByKey records credential cache invalidations triggered
+// after committed key quota exhaustion.
+func (s *KeyQuotaUpdater) InvalidateAuthCacheByKey(_ context.Context, key string) {
+	s.InvalidatedKeys = append(s.InvalidatedKeys, key)
 }
 
 // GetByUserAndGroup counts the read and returns Err before the preset Rate

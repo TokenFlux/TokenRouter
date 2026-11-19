@@ -833,3 +833,30 @@ func CloneBillingAllocation(allocation BillingAllocation, amount float64) Billin
 	}
 	return cloned
 }
+
+// CloneBillingAllocations copies a slice of billing allocations and clones each
+// entry's optional subscription and plan ID pointers. Nil input returns nil,
+// while nonnil empty input returns an allocated empty slice.
+func CloneBillingAllocations(values []BillingAllocation) []BillingAllocation {
+	if values == nil {
+		return nil
+	}
+	out := make([]BillingAllocation, len(values))
+	for i, v := range values {
+		out[i] = CloneBillingAllocation(v, v.AmountUSD)
+	}
+	return out
+}
+
+// SubscriptionHoldAllocations filters positive subscription allocations that
+// carry a nonnil subscription ID and returns independent copies with cloned
+// identity pointers. Non-subscription entries and zero-amount rows are omitted.
+func SubscriptionHoldAllocations(values []BillingAllocation) []BillingAllocation {
+	out := make([]BillingAllocation, 0, len(values))
+	for _, v := range values {
+		if v.Type == BillingAllocationTypeSubscription && v.AmountUSD > 0 && v.SubscriptionID != nil {
+			out = append(out, CloneBillingAllocation(v, v.AmountUSD))
+		}
+	}
+	return out
+}

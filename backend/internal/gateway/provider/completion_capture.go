@@ -78,14 +78,9 @@ type MessagesCapture struct {
 	routing.PricingUsageFields
 }
 
-// QuotaUpdater identifies a supplied API Key quota-update capability during
-// completion capture.
-type QuotaUpdater interface {
-	// UpdateQuotaUsed increments the selected API Key quota usage by cost.
-	UpdateQuotaUsed(ctx context.Context, apiKeyID int64, cost float64) error
-	// UpdateRateLimitUsage increments the selected API Key window usage by cost.
-	UpdateRateLimitUsage(ctx context.Context, apiKeyID int64, cost float64) error
-}
+// QuotaUpdater identifies a supplied API Key quota-invalidation capability
+// during completion capture.
+type QuotaUpdater = completion.AuthInvalidator
 
 // OpenAICapture supplies request or WS-turn observations for synchronous
 // completion capture.

@@ -759,34 +759,10 @@ func (s *authRepoStub) ListKeysByGroupID(ctx context.Context, groupID int64) ([]
 	return s.listKeysByGroupID(ctx, groupID)
 }
 
-// IncrementQuotaUsed panics when the service repository fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *authRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed panics when the service repository fixture receives an
 // unsupported UpdateLastUsed call.
 func (s *authRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error {
 	panic("unexpected UpdateLastUsed call")
-}
-
-// IncrementRateLimitUsage panics when the service repository fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *authRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the service repository fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *authRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the service repository fixture receives an
-// unsupported GetRateLimitData call.
-func (s *authRepoStub) GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
 }
 
 // GetCreateAttemptCount returns zero so authentication fixture reads impose no
@@ -1018,12 +994,6 @@ func (s *apiKeyRepoStub) ListKeysByGroupID(ctx context.Context, groupID int64) (
 	panic("unexpected ListKeysByGroupID call")
 }
 
-// IncrementQuotaUsed panics when the service repository fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *apiKeyRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed records the supplied Key ID and timestamp before invoking its
 // optional result callback. Missing callback succeeds; captures are
 // unsynchronized, and concurrent touch scenarios use their separately locked
@@ -1035,24 +1005,6 @@ func (s *apiKeyRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 		return s.updateLastUsed(ctx, id, usedAt)
 	}
 	return nil
-}
-
-// IncrementRateLimitUsage panics when the service repository fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *apiKeyRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the service repository fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *apiKeyRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the service repository fixture receives an
-// unsupported GetRateLimitData call.
-func (s *apiKeyRepoStub) GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
 }
 
 // GetCreateAttemptCount returns zero for creator-counter reads in this service

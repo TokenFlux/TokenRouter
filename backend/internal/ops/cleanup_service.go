@@ -107,15 +107,15 @@ type OpsCleanupService struct {
 	// drainingCrons retains retired-runner completion contexts for later pruning
 	// and Stop waiting. Stop waits but leaves this collection retained; copied
 	// contexts keep their independent signals.
-	drainingCrons []context.Context // retained retired-cron completion contexts
-	opsRepo       OpsRepository     // cleanup heartbeat persistence dependency
-	db            CleanupBackend    // maintenance and target cleanup backend
-	redisClient   RuntimeCache      // preferred Redis leader adapter
+	drainingCrons []context.Context  // retained retired-cron completion contexts
+	opsRepo       JobHeartbeatWriter // cleanup heartbeat persistence dependency
+	db            CleanupBackend     // maintenance and target cleanup backend
+	redisClient   LeaderLeaseCache   // preferred Redis leader adapter
 	// cfg retains deployment cleanup, timezone, and reporting options. Callers
 	// keep it immutable during cron work; runCleanupOnce needs nonnil options
 	// before processing any target.
 	cfg         *Options
-	settingRepo Settings // saved retention preference reader
+	settingRepo SettingValueReader // saved retention preference reader
 
 	instanceID string // Redis leader ownership identity
 
@@ -146,11 +146,11 @@ func reportCleanupCompleted(o *Options, counts string) {
 // work; bind usable persistence/backend dependencies before Start and keep
 // options stable during operation.
 func NewOpsCleanupService(
-	opsRepo OpsRepository,
+	opsRepo JobHeartbeatWriter,
 	db CleanupBackend,
-	redisClient RuntimeCache,
+	redisClient LeaderLeaseCache,
 	cfg *Options,
-	settingRepo Settings,
+	settingRepo SettingValueReader,
 ) *OpsCleanupService {
 	return &OpsCleanupService{
 		opsRepo:     opsRepo,

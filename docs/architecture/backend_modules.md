@@ -50,7 +50,9 @@ backend/
 │   │   ├── httpapi/                                     安装管理、配置、额度和日志接口
 │   │   ├── postgres/                                    安装快照与索引源持久化
 │   │   └── provider/                                    子进程、gRPC 回调、日志和安装包存储
-│   │       └── testdata/hostdeath/                      Linux 父进程异常退出测试宿主
+│   │       └── testdata/
+│   │           ├── configuration/                       插件配置与密钥注入测试宿主
+│   │           └── hostdeath/                           Linux 父进程异常退出测试宿主
 │   ├── audit/                                           管理员操作审计与审计数据清理
 │   │   ├── httpapi/                                     HTTP 路由、鉴权接入与输入输出适配
 │   │   └── postgres/                                    PostgreSQL 持久化及事务适配
@@ -154,7 +156,8 @@ backend/
 │   │   │   └── tlsfingerprint/                          TLS ClientHello、ALPN、指纹拨号与缓存键
 │   │   ├── postgres/                                    SQL 连接、事务上下文、迁移及底层查询工具
 │   │   ├── redis/                                       Redis 客户端、固定窗口、leader 锁和耗时观测
-│   │   │   └── session/                                 临时会话的存取与一次性消费
+│   │   │   ├── session/                                 临时会话的存取与一次性消费
+│   │   │   └── taskqueue/                               异步任务队列的 Lua 入队、租约续期、超时恢复与任务锁
 │   │   ├── telemetry/                                   请求关联上下文
 │   │   │   ├── logevent/                                技术日志事件值
 │   │   │   ├── logging/                                 日志后端、slog 适配与文件管理
@@ -206,7 +209,8 @@ backend/
 │   │   ├── systemone/                                   SystemOne 请求、答案与用量的纯校验
 │   │   └── wirejson/                                    保持报文结构的 JSON 读取与修改
 │   ├── modelcatalog/                                    models.dev 目录、内嵌官方补充、供应商身份索引、目录查表和属性合并
-│   │   └── provider/                                   统一目录加载、条件同步、内嵌与自定义补充、价格和属性原子快照
+│   │   ├── provider/                                    统一目录加载、条件同步、内嵌与自定义补充、价格和属性原子快照
+│   │   └── testkit/                                     该模块测试所需的替身与夹具
 │   ├── routing/                                         分组、价格配置、模型目录和请求路线
 │   │   ├── accessview/                                  分组访问、能力、模型和调度配置的只读视图
 │   │   ├── capability/                                  平台、提供商、协议准入与单步转换纯规则
@@ -315,6 +319,8 @@ backend/
 │       ├── mcp/                                         MCP 管理输出与业务 DTO 的跨模块测试
 │       ├── migrations/                                  数据库迁移集成测试
 │       ├── payment/                                     外部支付订单、渠道、履约与退款集成测试
+│       ├── plugins/                                     插件目录、签名安装、配置与进程生命周期集成测试
+│       │   └── testdata/installation/                   插件安装与版本恢复集成测试宿主
 │       ├── pricing_contract/                            跨模块定价集成测试
 │       ├── promotion/                                   邀请、优惠码、返利和转入余额集成测试
 │       ├── routing/                                     分组、价格配置、模型目录和请求路线集成测试

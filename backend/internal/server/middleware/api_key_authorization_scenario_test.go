@@ -3570,12 +3570,6 @@ func (f fakeAPIKeyRepo) ListKeysByGroupID(ctx context.Context, groupID int64) ([
 	return nil, errors.New("not implemented")
 }
 
-// IncrementQuotaUsed rejects quota writes with the authentication fixture's
-// unimplemented-operation error.
-func (f fakeAPIKeyRepo) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	return 0, errors.New("not implemented")
-}
-
 // UpdateLastUsed invokes the configured touch callback with the key ID and
 // timestamp. Without a callback it reports success and leaves fixture state
 // unchanged, keeping diagnostic persistence optional in these authorization
@@ -3585,25 +3579,6 @@ func (f fakeAPIKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt tim
 		return f.updateLastUsed(ctx, id, usedAt)
 	}
 	return nil
-}
-
-// IncrementRateLimitUsage accepts diagnostic spending updates and leaves
-// fixture counters unchanged.
-func (f fakeAPIKeyRepo) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	return nil
-}
-
-// ResetRateLimitWindows accepts window resets and leaves authentication fixture
-// state unchanged.
-func (f fakeAPIKeyRepo) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	return nil
-}
-
-// GetRateLimitData returns a fresh zero-valued rate-counter record for any key
-// ID. It reports success while keeping no persistent counters, so this Google
-// fixture supplies empty observations independently of request counting.
-func (f fakeAPIKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	return &apikey.APIKeyRateLimitData{}, nil
 }
 
 // UpdateGroupIDByUserAndGroup rejects group rebinding with the fixture's
@@ -4078,12 +4053,6 @@ func (r *stubApiKeyRepo) ListKeysByGroupID(ctx context.Context, groupID int64) (
 	return nil, errors.New("not implemented")
 }
 
-// IncrementQuotaUsed rejects quota writes with the authentication fixture's
-// unimplemented-operation error.
-func (r *stubApiKeyRepo) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	return 0, errors.New("not implemented")
-}
-
 // UpdateLastUsed invokes the configured touch callback with the key ID and
 // timestamp. Without a callback it reports success and leaves fixture state
 // unchanged, keeping diagnostic persistence optional in these authorization
@@ -4093,25 +4062,6 @@ func (r *stubApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 		return r.updateLastUsed(ctx, id, usedAt)
 	}
 	return nil
-}
-
-// IncrementRateLimitUsage accepts diagnostic spending updates and leaves
-// fixture counters unchanged.
-func (r *stubApiKeyRepo) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	return nil
-}
-
-// ResetRateLimitWindows accepts window resets and leaves authentication fixture
-// state unchanged.
-func (r *stubApiKeyRepo) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	return nil
-}
-
-// GetRateLimitData reports successful absence of a rate-counter record for any
-// key ID. It returns nil data because this standard authorization fixture
-// retains no repository rate state.
-func (r *stubApiKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	return nil, nil
 }
 
 // FilterByGroup returns the supplied subscription slice for every group ID. Its

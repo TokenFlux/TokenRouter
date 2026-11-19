@@ -11,7 +11,7 @@ import (
 // with deployment values and a supplied settings reader. No cron or backend is
 // installed; tests invoke effective computation directly before any concurrent
 // use.
-func makeOverlayService(repo Settings, base CleanupOptions) *OpsCleanupService {
+func makeOverlayService(repo SettingValueReader, base CleanupOptions) *OpsCleanupService {
 	cfg := &Options{}
 	cfg.Ops.Cleanup = base
 	return &OpsCleanupService{

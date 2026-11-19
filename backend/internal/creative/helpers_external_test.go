@@ -1,16 +1,24 @@
 package creative_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/png"
 	"log/slog"
+	"sort"
 	"strconv"
+	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
@@ -25,6 +33,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
@@ -308,6 +317,32 @@ type creativeUserCacheFixture struct {
 	// before invoking any other promoted cache operation.
 	scheduler.ConcurrencyCache      // unused concurrency cache methods
 	acquireResult              bool // configured user admission result flag
+}
+
+// creativeCatalogTestProviders supplies retained catalogue entries to direct
+// route fixtures.
+type creativeCatalogTestProviders struct {
+	// values remains shared with the scenario after each lookup. The creative
+	// query reads these provider adapters while the test keeps them stable.
+	values []creative.CatalogProvider // retained fixture catalogue provider values
+}
+
+// creativePricingConfigFixture supplies one active configuration with retained
+// image price cards.
+type creativePricingConfigFixture struct {
+	// PricingConfigRepository supplies unused methods through a nil embedding.
+	// This fixture overrides the two reads used here; callers implement any
+	// other promoted operation before invoking it.
+	routing.PricingConfigRepository // unused price repository methods
+	// cards retains the supplied slice and nested price pointers. Tests keep
+	// those values stable while the shared price-config resolver reads them.
+	cards    []routing.ModelPricingEntry // retained configured model price cards
+	platform string                      // fixed fixture group platform
+}
+
+// creativeAttributeFailureRepo returns a configuration failure during discovery.
+type creativeAttributeFailureRepo struct {
+	routing.ModelAttributeRepository
 }
 
 // creativeLegacyObserve writes fixture diagnostics through the legacy warning
@@ -1566,4 +1601,137 @@ func testImageModelPricing(prices map[string]*float64) []routing.ModelPricingEnt
 		card.Intervals = append(card.Intervals, routing.PricingInterval{TierLabel: tier, PerRequestPrice: price})
 	}
 	return []routing.ModelPricingEntry{card}
+}
+
+// ListSchedulableByGroupIDAndPlatform returns the retained catalogue provider
+// slice and succeeds. Group, platform and context arguments do not filter it,
+// so creative query checks determine candidate eligibility in these fixtures.
+func (a creativeCatalogTestProviders) ListSchedulableByGroupIDAndPlatform(context.Context, int64, string) ([]creative.CatalogProvider, error) {
+	return a.values, nil
+}
+
+// creativeProviderModelsForTest clones the supplied nonnil native record,
+// applies active/API-Key defaults and returns sorted public candidates.
+// Catalogue lookup errors fail the test; the caller record stays available with
+// its supplied fixture configuration.
+func creativeProviderModelsForTest(t *testing.T, value *providercore.Record) []string {
+	t.Helper()
+	// Apply admission defaults to a copied record so model-discovery assertions
+	// can reuse the caller credential configuration in subsequent fixture cases.
+	value = providercore.CloneRecord(value)
+	value.Status = "active"
+	if value.Type == "" {
+		value.Type = "apikey"
+	}
+	value.Schedulable = true
+	svc := &creative.Public{Attributes: &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}}, ProviderRepo: creativeCatalogTestProviders{[]creative.CatalogProvider{creativeprovider.CatalogProvider(value)}}}
+
+	models, err := svc.CreativeModelsForGroup(context.Background(), &creative.GroupView{ID: 12, Operations: creative.OperationsForGroup(false, nil)})
+	require.NoError(t, err)
+	result := make([]string, 0, len(models))
+	for model := range models {
+		result = append(result, model)
+	}
+	sort.Strings(result)
+	return result
+}
+
+// byModel returns the first directory entry with an exact model name, or a zero
+// value when absent. Returned nested slices remain shared with the directory,
+// and fixture callers inspect them as immutable values.
+func byModel(models []creative.CreativeModelPublic, model string) creative.CreativeModelPublic {
+	for _, item := range models {
+		if item.Model == model {
+			return item
+		}
+	}
+	return creative.CreativeModelPublic{}
+}
+
+// makeTestPNG encodes an RGBA image at the supplied dimensions and returns PNG
+// bytes owned by the fixture. Callers supply valid image dimensions, and an
+// encoding error fails the current test.
+func makeTestPNG(t *testing.T, width, height int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return buf.Bytes()
+}
+
+// configureOpenAICreativeTestService replaces direct group/provider lookup and
+// model settings with a GPT Image two fixture. Callers supply the expected
+// service fake adapters; the separately supplied active-group slice retains its
+// existing values.
+func configureOpenAICreativeTestService(svc *creative.Public) {
+	group := newCreativeTestGroup()
+	group.Name = "OpenAI Image"
+
+	testassert.MustType[*creativeFakeGroupRepo](testassert.MustType[creativeGroupReader](svc.GroupRepo).source).byID[group.ID] = group
+	testassert.MustType[*creativeFakeProviderRepo](testassert.MustType[creativeProviderReader](svc.ProviderRepo).source).byGroup[group.ID] = []providercore.Record{{
+		ID:          57,
+		Platform:    capability.PlatformOpenAI,
+		Status:      billing.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{"model_mapping": map[string]any{"gpt-image-2": "gpt-image-2"}},
+	}}
+	testassert.MustType[*creativeFakeSettingReader](svc.Settings).models = []creative.CreativeModelSetting{{
+		GroupID: group.ID, Model: "gpt-image-2",
+		Operations: []string{creative.CreativeOperationGenerate, creative.CreativeOperationEdit, creative.CreativeOperationInpaint},
+	}}
+}
+
+// configureGrok2CreativeTestService replaces direct group/provider lookup and
+// settings with the Grok two image fixture. Callers supply the expected service
+// fake adapters; editing and generation are configured, and active-group values
+// remain separately supplied.
+func configureGrok2CreativeTestService(svc *creative.Public) {
+	group := newCreativeTestGroup()
+	group.Name = "Grok Imagine 2"
+
+	testassert.MustType[*creativeFakeGroupRepo](testassert.MustType[creativeGroupReader](svc.GroupRepo).source).byID[group.ID] = group
+	testassert.MustType[*creativeFakeProviderRepo](testassert.MustType[creativeProviderReader](svc.ProviderRepo).source).byGroup[group.ID] = []providercore.Record{{
+		ID:          58,
+		Platform:    capability.PlatformGrok,
+		Status:      billing.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{"model_mapping": map[string]any{"grok-imagine-image-2.0": "grok-imagine-image-2.0"}},
+	}}
+	testassert.MustType[*creativeFakeSettingReader](svc.Settings).models = []creative.CreativeModelSetting{{
+		GroupID: group.ID, Model: "grok-imagine-image-2.0",
+		Operations: []string{creative.CreativeOperationGenerate, creative.CreativeOperationEdit},
+	}}
+}
+
+// ListAll returns one active group-one-hundred configuration retaining cards as
+// its model prices. Each call allocates the outer configuration slice, while
+// nested price entries and their pointers remain shared with the fixture.
+func (r *creativePricingConfigFixture) ListAll(context.Context) ([]routing.PricingConfig, error) {
+	return []routing.PricingConfig{{ID: 1, Name: "test-price-config", Status: billing.StatusActive, GroupIDs: []int64{100}, ModelPricing: r.cards}}, nil
+}
+
+// GetGroupPlatforms returns a fresh map binding group one hundred to the
+// fixture platform. Supplied group identifiers are ignored, allowing
+// price-config tests to focus on the retained cards.
+func (r *creativePricingConfigFixture) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
+	return map[int64]string{100: r.platform}, nil
+}
+
+// newResolverWithPricingConfig binds retained price cards and an offline
+// calculator to the shared billing resolver. Group one hundred uses the fixture
+// configuration, and unavailable catalogue quotes are observed through the
+// supplied diagnostic callback.
+func newResolverWithPricingConfig(t *testing.T, cards []routing.ModelPricingEntry) *billing.PriceResolver {
+	t.Helper()
+	platform := capability.PlatformAnthropic
+	calculator := billingtestkit.Calculator(nil, map[string]*pricing.ModelPricing{"claude-sonnet-4": {InputPricePerToken: 3e-6, OutputPricePerToken: 15e-6, CacheCreationPricePerToken: 3.75e-6, CacheReadPricePerToken: 0.3e-6, SupportsCacheBreakdown: false}})
+	pricingConfigs := routing.NewPricingConfigService(&creativePricingConfigFixture{cards: cards, platform: platform}, nil, routing.PricingConfigOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation})
+	return billing.NewPriceResolver(pricingConfigs, calculator, modelidentity.Identity, func(model string, err error) {
+		slog.Debug("failed to get model pricing from model catalog, using fallback", "model", model, "error", err)
+	})
+}
+
+// ForGroup returns the read failure used to exercise catalogue error propagation.
+func (creativeAttributeFailureRepo) ForGroup(context.Context, int64) (*routing.ModelAttributeConfig, error) {
+	return nil, errors.New("attribute store unavailable")
 }

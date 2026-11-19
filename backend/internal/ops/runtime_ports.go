@@ -7,17 +7,32 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 )
 
-// runtime_ports.go defines cache, locking, notification, and cleanup
-// dependencies used by Ops background services.
+// runtime_ports.go defines narrow persistence, setting, cache, locking, and
+// notification ports used by Ops background services.
 // Background Ops jobs coordinate through named cache leases, database lock
-// attempts, and the shared pre-aggregation settings reader. Each job chooses
-// its recovery policy when storage is unavailable. Email callbacks connect
-// alert and report data to the application notification service and plain-mail
-// sender.
+// attempts, consumer-scoped repository interfaces, and the shared
+// pre-aggregation settings reader. Each job chooses its recovery policy when
+// storage is unavailable. Email callbacks connect alert and report data to the
+// application notification service and plain-mail sender.
 
-// RuntimeCache supplies caller-named leases and string values for Ops
-// background tasks.
-type RuntimeCache interface {
+// JobHeartbeatWriter records background worker execution status and outcomes.
+type JobHeartbeatWriter interface {
+	// UpsertJobHeartbeat persists the latest execution observation for one named
+	// background Ops job. Callers treat heartbeat write errors as diagnostic so
+	// completed maintenance or collection work is preserved.
+	UpsertJobHeartbeat(ctx context.Context, input *OpsUpsertJobHeartbeatInput) error
+}
+
+// SettingValueReader loads individual persisted runtime setting strings by key.
+type SettingValueReader interface {
+	// GetValue returns the stored raw value for key or a not-found/storage error
+	// that callers map to their configured runtime defaults.
+	GetValue(ctx context.Context, key string) (string, error)
+}
+
+// LeaderLeaseCache coordinates named distributed leader leases across Ops
+// background workers.
+type LeaderLeaseCache interface {
 	// Claim attempts to store owner under key for the supplied lease lifetime when
 	// the key is absent. False reports contention; errors leave acquisition
 	// uncertain under the configured recovery policy.
@@ -26,6 +41,12 @@ type RuntimeCache interface {
 	// owner. A missing key or different owner is a successful no-op; callers still
 	// handle any storage error.
 	Release(context.Context, string, string) error
+}
+
+// RuntimeCache supplies caller-named leases and string values for Ops
+// background tasks.
+type RuntimeCache interface {
+	LeaderLeaseCache
 	// Get reads the string stored under the caller-supplied key for Ops task
 	// state. Missing values are reported by the adapter as errors, and callers
 	// select their own missing-value policy.
@@ -34,6 +55,56 @@ type RuntimeCache interface {
 	// duration. Ops callers choose key names and lifetime; storage errors remain
 	// available for each caller to handle.
 	Put(context.Context, string, string, time.Duration) error
+}
+
+// AggregationRepository supplies pre-aggregation watermarks, bucket upserts,
+// and job heartbeats for OpsAggregationService.
+type AggregationRepository interface {
+	JobHeartbeatWriter
+	// ListJobHeartbeats returns recorded background job heartbeats for diagnostic
+	// status inspection.
+	ListJobHeartbeats(ctx context.Context) ([]*OpsJobHeartbeat, error)
+	// GetLatestHourlyBucketStart returns the latest persisted hourly metric bucket
+	// start and whether at least one bucket exists.
+	GetLatestHourlyBucketStart(ctx context.Context) (time.Time, bool, error)
+	// UpsertHourlyMetrics aggregates raw observations within [startTime, endTime)
+	// using ignoredStatusCodes for SLA classification.
+	UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time, ignoredStatusCodes []int) error
+	// GetLatestDailyBucketDate returns the latest persisted UTC daily metric date
+	// and whether at least one daily bucket exists.
+	GetLatestDailyBucketDate(ctx context.Context) (time.Time, bool, error)
+	// UpsertDailyMetrics rolls hourly buckets within [startDate, endDate) into
+	// persisted daily summaries.
+	UpsertDailyMetrics(ctx context.Context, startDate, endDate time.Time) error
+}
+
+// AlertEvaluatorRepository supplies alert rules, event state transitions, raw
+// overview fallback reads, and job heartbeats for OpsAlertEvaluatorService.
+type AlertEvaluatorRepository interface {
+	JobHeartbeatWriter
+	// ListAlertRules returns configured Ops alert rules for evaluation cycles.
+	ListAlertRules(ctx context.Context) ([]*OpsAlertRule, error)
+	// GetLatestSystemMetrics reads the most recent system metric snapshot within
+	// windowMinutes.
+	GetLatestSystemMetrics(ctx context.Context, windowMinutes int) (*OpsSystemMetricsSnapshot, error)
+	// GetActiveAlertEvent returns the currently firing event for ruleID when one
+	// exists.
+	GetActiveAlertEvent(ctx context.Context, ruleID int64) (*OpsAlertEvent, error)
+	// GetLatestAlertEvent returns the most recent alert event for ruleID across
+	// firing and resolved states.
+	GetLatestAlertEvent(ctx context.Context, ruleID int64) (*OpsAlertEvent, error)
+	// CreateAlertEvent persists a newly triggered alert event and returns its
+	// stored representation.
+	CreateAlertEvent(ctx context.Context, event *OpsAlertEvent) (*OpsAlertEvent, error)
+	// UpdateAlertEventStatus transitions eventID to status with an optional
+	// resolution timestamp.
+	UpdateAlertEventStatus(ctx context.Context, eventID int64, status string, resolvedAt *time.Time) error
+	// UpdateAlertEventEmailSent records whether notification email delivery
+	// succeeded for eventID.
+	UpdateAlertEventEmailSent(ctx context.Context, eventID int64, emailSent bool) error
+	// GetDashboardOverview reads raw or pre-aggregated traffic ratios for rule
+	// evaluation when no full OpsService facade is bound.
+	GetDashboardOverview(ctx context.Context, filter *OpsDashboardFilter) (*OpsDashboardOverview, error)
 }
 
 // AdvisoryLocker supplies a database lock attempt and its successful

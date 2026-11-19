@@ -210,34 +210,10 @@ func (s *authRepoStub) ListKeysByGroupID(ctx context.Context, groupID int64) ([]
 	return s.listKeysByGroupID(ctx, groupID)
 }
 
-// IncrementQuotaUsed panics when the external authentication fixture receives
-// an unsupported IncrementQuotaUsed call.
-func (s *authRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed panics when the external authentication fixture receives an
 // unsupported UpdateLastUsed call.
 func (s *authRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error {
 	panic("unexpected UpdateLastUsed call")
-}
-
-// IncrementRateLimitUsage panics when the external authentication fixture
-// receives an unsupported IncrementRateLimitUsage call.
-func (s *authRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the external authentication fixture
-// receives an unsupported ResetRateLimitWindows call.
-func (s *authRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the external authentication fixture receives an
-// unsupported GetRateLimitData call.
-func (s *authRepoStub) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
 }
 
 // GetCreateAttemptCount returns zero so fixture creation is not rejected by its

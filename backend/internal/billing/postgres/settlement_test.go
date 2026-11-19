@@ -126,7 +126,7 @@ func TestReserveUsageBillingBatchImageBilling_UsesBalanceRateAfterPartialSubscri
 	// assertions.
 	defer func() { _ = db.Close() }()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	windowStart := now.Add(-time.Hour)
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(ctx, nil)
@@ -199,7 +199,7 @@ func TestReserveUsageBillingBatchImageBilling_StrictSubscriptionRejectsPartialHo
 	// capped-counter write expectations.
 	defer func() { _ = db.Close() }()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	windowStart := now.Add(-time.Hour)
 	preferredID := int64(11)
 	mock.ExpectBegin()
@@ -256,7 +256,7 @@ func TestApplyUsageBillingEffects_StrictSubscriptionChargesOverflowToBalance(t *
 	// multiplier assertions.
 	defer func() { _ = db.Close() }()
 
-	now := time.Now().UTC()
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	windowStart := now.Add(-time.Hour)
 	preferredID := int64(11)
 	mock.ExpectBegin()

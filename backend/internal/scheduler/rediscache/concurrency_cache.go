@@ -12,27 +12,19 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// concurrency_cache.go stores request slots, renewable connection leases, wait
-// counts, and load observations in Redis.
-// Ordinary provider/user slots and renewable Live leases share admission
-// capacity but use different sorted sets and expiration windows. Request IDs
-// identify ordinary members, Live lease IDs occupy provider/user/API-key
-// sets, and wait counters add queue pressure to reported load. Redis TIME
-// supplies score cutoffs so instances compare activity against the same
-// clock.
+// concurrency_cache.go defines shared Redis concurrency state, key builders,
+// pipeline execution checks, active-index discovery, and startup slot cleanup.
+// Ordinary provider and user slots share capacity with short-lived Live leases
+// across separate sorted sets, while wait counters add queue pressure to load
+// observations. Redis TIME supplies score cutoffs so instances prune members
+// against one clock.
 //
-// Lua admission resolves counts and writes before Go updates separate active
-// indexes. Those indexes discover ordinary slots and waiters for maintenance;
-// index failures are logged and their reads/writes can race with later
-// acquisitions. Startup cleanup keeps only the supplied process prefix in
-// indexed ordinary sets and resets wait counters, so callers need to account
-// for other live process prefixes. Ingress connection leases have separate
-// API-key keys and short renewal lifetimes.
-//
-// Command deadlines and transport retries follow the supplied client's
-// policy. Script calls can execute again after an uncertain response; wait
-// counters carry no request identity, so another execution can repeat an
-// increment or decrement even within one adapter call.
+// Lua scripts commit primary slot or wait writes before Go updates discovery
+// indexes used by periodic and startup maintenance. Index updates log failures
+// without rolling back primary admissions, and startup cleanup retains only the
+// supplied process prefix in indexed ordinary sets while resetting wait keys.
+// Pipeline observations inspect every queued command error so an earlier
+// redis.Nil wait lookup cannot hide a later slot-count failure.
 
 // Concurrency namespaces separate ordinary slots, renewable leases and wait
 // observations; TTLs and index batch limits control expiry pruning and
@@ -97,261 +89,10 @@ const (
 	legacyWaitSweepMarkerKey = "concurrency:startup:legacy_wait_sweep:v1"
 )
 
-// Redis scripts couple admission or renewal decisions to their member writes;
-// providerSlotIndex and userSlotIndex select the matching ordinary-slot/wait
-// keys for separate discovery maintenance.
+// Maintenance scripts prune ordinary sets during periodic reconciliation and
+// startup recovery, while providerSlotIndex and userSlotIndex pair each
+// discovery set with its primary ordinary-slot and wait keys.
 var (
-	// acquireScript prunes ordinary and Live scores, then admits a new request
-	// below their combined limit or refreshes an existing ordinary member. It
-	// returns admission and Redis seconds so Go can index confirmed writes.
-	acquireScript = redis.NewScript(`
-		-- 兼容 3.2-4.x：脚本使用 TIME，需启用按效果复制，确保写入能同步到从库。
-		-- 5.0 及以上默认按效果复制；保留调用不改变行为。
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local liveKey = KEYS[2]
-		local maxConcurrency = tonumber(ARGV[1])
-		local ttl = tonumber(ARGV[2])
-		local requestID = ARGV[3]
-
-		-- 使用 Redis 服务器时间，确保多实例时钟一致
-		local timeResult = redis.call('TIME')
-		local now = tonumber(timeResult[1])
-		local expireBefore = now - ttl
-
-		-- 清理过期槽位
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		redis.call('ZREMRANGEBYSCORE', liveKey, '-inf', now - 60)
-
-		-- 检查是否已存在（支持重试场景刷新时间戳）
-		local exists = redis.call('ZSCORE', key, requestID)
-		if exists ~= false then
-			redis.call('ZADD', key, now, requestID)
-			redis.call('EXPIRE', key, ttl)
-			return {1, now}
-		end
-
-		-- 检查是否达到并发上限
-		local count = redis.call('ZCARD', key) + redis.call('ZCARD', liveKey)
-		if count < maxConcurrency then
-			redis.call('ZADD', key, now, requestID)
-			redis.call('EXPIRE', key, ttl)
-			return {1, now}
-		end
-
-		return {0, now}
-	`)
-
-	// getCountScript prunes ordinary members by the configured slot lifetime and
-	// Live members by sixty seconds, then returns their combined count for
-	// admission observations.
-	getCountScript = redis.NewScript(`
-		-- 兼容 3.2-4.x：脚本使用 TIME，需启用按效果复制，确保写入能同步到从库。
-		-- 5.0 及以上默认按效果复制；保留调用不改变行为。
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local liveKey = KEYS[2]
-		local ttl = tonumber(ARGV[1])
-
-		-- 使用 Redis 服务器时间
-		local timeResult = redis.call('TIME')
-		local now = tonumber(timeResult[1])
-		local expireBefore = now - ttl
-
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		redis.call('ZREMRANGEBYSCORE', liveKey, '-inf', now - 60)
-		return redis.call('ZCARD', key) + redis.call('ZCARD', liveKey)
-	`)
-
-	// acquireLiveLeaseScript prunes three Live sets and checks provider/user
-	// capacity including ordinary ZCARD values. A provider-side duplicate
-	// returns success before renewal; replacement permits one extra member, and
-	// new leases write all three Live sets.
-	acquireLiveLeaseScript = redis.NewScript(`
-		redis.replicate_commands()
-		local providerRegular = KEYS[1]
-		local providerLive = KEYS[2]
-		local userRegular = KEYS[3]
-		local userLive = KEYS[4]
-		local apiLive = KEYS[5]
-		local providerMax = tonumber(ARGV[1])
-		local userMax = tonumber(ARGV[2])
-		local ttl = tonumber(ARGV[3])
-		local leaseID = ARGV[4]
-		local replacing = tonumber(ARGV[5])
-		local now = tonumber(redis.call('TIME')[1])
-		local liveExpireBefore = now - ttl
-		redis.call('ZREMRANGEBYSCORE', providerLive, '-inf', liveExpireBefore)
-		redis.call('ZREMRANGEBYSCORE', userLive, '-inf', liveExpireBefore)
-		redis.call('ZREMRANGEBYSCORE', apiLive, '-inf', liveExpireBefore)
-		if redis.call('ZSCORE', providerLive, leaseID) ~= false then
-			return 1
-		end
-		local providerCount = redis.call('ZCARD', providerRegular) + redis.call('ZCARD', providerLive)
-		local userCount = redis.call('ZCARD', userRegular) + redis.call('ZCARD', userLive)
-		local allowance = 0
-		if replacing == 1 then allowance = 1 end
-		if providerMax > 0 and providerCount >= providerMax + allowance then return 0 end
-		if userMax > 0 and userCount >= userMax + allowance then return 0 end
-		redis.call('ZADD', providerLive, now, leaseID)
-		redis.call('ZADD', userLive, now, leaseID)
-		redis.call('ZADD', apiLive, now, leaseID)
-		redis.call('EXPIRE', providerLive, ttl)
-		redis.call('EXPIRE', userLive, ttl)
-		redis.call('EXPIRE', apiLive, ttl)
-		return 1
-	`)
-
-	// refreshLiveLeaseScript visits provider, user and API-key Live sets in order,
-	// pruning and checking each membership. A missing member stops before later
-	// sets are visited; renewal starts after all three checks succeed.
-	refreshLiveLeaseScript = redis.NewScript(`
-		redis.replicate_commands()
-		local ttl = tonumber(ARGV[1])
-		local leaseID = ARGV[2]
-		local now = tonumber(redis.call('TIME')[1])
-		local expireBefore = now - ttl
-		for _, key in ipairs(KEYS) do
-			redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-			if redis.call('ZSCORE', key, leaseID) == false then return 0 end
-		end
-		for _, key in ipairs(KEYS) do
-			redis.call('ZADD', key, now, leaseID)
-			redis.call('EXPIRE', key, ttl)
-		end
-		return 1
-	`)
-
-	// trackSlotScript prunes and records an ordinary statistics member using
-	// Redis seconds, refreshing the set TTL without an admission-capacity
-	// comparison.
-	trackSlotScript = redis.NewScript(`
-		-- 兼容 Redis 3.2-4.x：启用按效果复制，确保 TIME 调用正确同步。
-		-- Redis 5.0 及以上默认按效果复制，因此该调用不改变行为。
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local ttl = tonumber(ARGV[1])
-		local requestID = ARGV[2]
-
-		local timeResult = redis.call('TIME')
-		local now = tonumber(timeResult[1])
-		local expireBefore = now - ttl
-
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		redis.call('ZADD', key, now, requestID)
-		redis.call('EXPIRE', key, ttl)
-		return 1
-	`)
-
-	// acquireOpenAIWSIngressLeaseScript prunes expired connection members and
-	// admits a new ID below its API-key limit. Existing IDs refresh even when
-	// the current set is full.
-	acquireOpenAIWSIngressLeaseScript = redis.NewScript(`
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local maxConnections = tonumber(ARGV[1])
-		local ttl = tonumber(ARGV[2])
-		local leaseID = ARGV[3]
-		local now = tonumber(redis.call('TIME')[1])
-		local expireBefore = now - ttl
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		if redis.call('ZSCORE', key, leaseID) ~= false then
-			redis.call('ZADD', key, now, leaseID)
-			redis.call('EXPIRE', key, ttl)
-			return 1
-		end
-		if redis.call('ZCARD', key) < maxConnections then
-			redis.call('ZADD', key, now, leaseID)
-			redis.call('EXPIRE', key, ttl)
-			return 1
-		end
-		return 0
-	`)
-
-	// refreshOpenAIWSIngressLeaseScript prunes old connection scores before
-	// renewing a present lease. A missing or pruned member returns zero so the
-	// caller can recognize lost ownership.
-	refreshOpenAIWSIngressLeaseScript = redis.NewScript(`
-		redis.replicate_commands()
-		local key = KEYS[1]
-		local ttl = tonumber(ARGV[1])
-		local leaseID = ARGV[2]
-		local now = tonumber(redis.call('TIME')[1])
-		local expireBefore = now - ttl
-		redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
-		if redis.call('ZSCORE', key, leaseID) == false then
-			return 0
-		end
-		redis.call('ZADD', key, now, leaseID)
-		redis.call('EXPIRE', key, ttl)
-		return 1
-	`)
-
-	// incrementWaitScript admits another user waiter below maxWait and refreshes
-	// the counter TTL. It returns admission and Redis seconds for subsequent
-	// user-index discovery updates.
-	incrementWaitScript = redis.NewScript(`
-		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
-		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
-		redis.replicate_commands()
-		local current = redis.call('GET', KEYS[1])
-		if current == false then
-			current = 0
-		else
-			current = tonumber(current)
-		end
-		local now = tonumber(redis.call('TIME')[1])
-
-		if current >= tonumber(ARGV[1]) then
-			return {0, now}
-		end
-
-		redis.call('INCR', KEYS[1])
-
-		-- Refresh TTL so long-running traffic doesn't expire active queue counters.
-		redis.call('EXPIRE', KEYS[1], ARGV[2])
-
-		return {1, now}
-	`)
-
-	// incrementProviderWaitScript admits another provider waiter below maxWait
-	// and refreshes its counter TTL. It returns admission and Redis seconds for
-	// subsequent provider-index discovery updates.
-	incrementProviderWaitScript = redis.NewScript(`
-		-- Redis 3.2-4.x compat: opt into effects replication so redis.call('TIME')
-		-- replicates correctly. No-op on Redis 5.0+ (effects replication is default).
-		redis.replicate_commands()
-		local current = redis.call('GET', KEYS[1])
-		if current == false then
-			current = 0
-		else
-			current = tonumber(current)
-		end
-		local now = tonumber(redis.call('TIME')[1])
-
-		if current >= tonumber(ARGV[1]) then
-			return {0, now}
-		end
-
-		redis.call('INCR', KEYS[1])
-
-		-- Refresh TTL so long-running traffic doesn't expire active queue counters.
-		redis.call('EXPIRE', KEYS[1], ARGV[2])
-
-		return {1, now}
-	`)
-
-	// decrementWaitScript reduces a present positive wait counter while leaving
-	// missing or zero counters unchanged, supporting cleanup of confirmed
-	// admission counts.
-	decrementWaitScript = redis.NewScript(`
-			local current = redis.call('GET', KEYS[1])
-			if current ~= false and tonumber(current) > 0 then
-				redis.call('DECR', KEYS[1])
-			end
-			return 1
-		`)
-
 	// cleanupExpiredSlotsScript prunes one ordinary set by Redis activity age,
 	// deletes an empty set and refreshes the key TTL for remaining members.
 	cleanupExpiredSlotsScript = redis.NewScript(`
@@ -522,6 +263,23 @@ func (c *concurrencyCache) redisUnixSeconds(ctx context.Context) (int64, error) 
 	return now.Unix(), nil
 }
 
+// execPipelineAllowingNil executes pipe and rejects any non-nil command or
+// batch error other than redis.Nil. Checking each queued command prevents an
+// earlier missing wait counter from masking a later failed ZCARD or pruning
+// command in the same pipeline.
+func execPipelineAllowingNil(ctx context.Context, pipe redis.Pipeliner) error {
+	cmds, err := pipe.Exec(ctx)
+	for _, cmd := range cmds {
+		if cmdErr := cmd.Err(); cmdErr != nil && !errors.Is(cmdErr, redis.Nil) {
+			return fmt.Errorf("pipeline exec: %w", cmdErr)
+		}
+	}
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return fmt.Errorf("pipeline exec: %w", err)
+	}
+	return nil
+}
+
 // touchActiveIndexAt records an entity's expected discovery expiry after a
 // confirmed primary write. Nil clients or nonpositive identities/times are
 // ignored; Redis indexing failures are logged, and later activity can retry
@@ -625,8 +383,8 @@ func (c *concurrencyCache) activeIndexTTL(slotCount int, waitCount int) int {
 
 // readActiveLoadForKey prunes ordinary slot scores using the supplied Redis
 // seconds and observes slots plus this identity's wait counter. Missing,
-// nonpositive or unparsable waits become zero when the pipeline succeeds or
-// reports redis.Nil; other pipeline errors abort the observation.
+// nonpositive or unparsable waits become zero when every command succeeds or
+// reports redis.Nil; any other command or pipeline error aborts the observation.
 func (c *concurrencyCache) readActiveLoadForKey(ctx context.Context, id int64, slotKey, waitKey string, now int64) (activeIndexLoad, error) {
 	cutoffTime := now - int64(c.slotTTLSeconds)
 	pipe := c.rdb.Pipeline()
@@ -636,8 +394,8 @@ func (c *concurrencyCache) readActiveLoadForKey(ctx context.Context, id int64, s
 	pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
 	zcardCmd := pipe.ZCard(ctx, slotKey)
 	getCmd := pipe.Get(ctx, waitKey)
-	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-		return activeIndexLoad{}, fmt.Errorf("pipeline exec: %w", err)
+	if err := execPipelineAllowingNil(ctx, pipe); err != nil {
+		return activeIndexLoad{}, err
 	}
 
 	waitCount := 0
@@ -662,13 +420,8 @@ func (c *concurrencyCache) readActiveLoadForKey(ctx context.Context, id int64, s
 // Each queued result retains both parsed identity and original member text so
 // command results and later index repairs stay attached to the correct
 // candidate. Pipelines are bounded by candidate chunks, prune before counting
-// slots, and normalize missing or invalid waits to zero. A pipeline error
-// other than redis.Nil aborts the batch after any completed pruning.
-//
-// The pipeline reports its first command error, so an earlier missing wait
-// key can conceal a later command failure. Count results use Val without
-// checking individual errors; this path can therefore return a zero count
-// from a failed command when the batch's reported error is redis.Nil.
+// slots, and normalize missing or invalid waits to zero. Any command or
+// pipeline error other than redis.Nil aborts the batch after earlier pruning.
 func (c *concurrencyCache) readIndexLoads(ctx context.Context, spec slotIndexSpec, members []string, now int64) ([]activeIndexLoad, []string, error) {
 	loads := make([]activeIndexLoad, 0, len(members))
 	staleMembers := make([]string, 0)
@@ -715,8 +468,8 @@ func (c *concurrencyCache) readIndexLoads(ctx context.Context, spec slotIndexSpe
 				getCmd:          pipe.Get(ctx, waitKey),
 			})
 		}
-		if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-			return nil, nil, fmt.Errorf("pipeline exec: %w", err)
+		if err := execPipelineAllowingNil(ctx, pipe); err != nil {
+			return nil, nil, err
 		}
 		for _, cmd := range cmds {
 			waitCount := 0
@@ -774,594 +527,6 @@ func runScriptInt64Pair(ctx context.Context, rdb *redis.Client, script *redis.Sc
 		return 0, 0, fmt.Errorf("parse script value 1: %w", err)
 	}
 	return first, second, nil
-}
-
-// Provider slot operations
-
-// AcquireProviderSlot admits a new ordinary request below combined
-// ordinary/Live capacity, or refreshes its existing member. Nonpositive
-// limits reject new IDs; callers release confirmed ownership using the same
-// request ID.
-func (c *concurrencyCache) AcquireProviderSlot(ctx context.Context, providerID int64, maxConcurrency int, requestID string) (bool, error) {
-	key := providerSlotKey(providerID)
-	result, now, err := runScriptInt64Pair(ctx, c.rdb, acquireScript, []string{key, liveProviderSlotKey(providerID)}, maxConcurrency, c.slotTTLSeconds, requestID)
-	if err != nil {
-		return false, err
-	}
-	if result == 1 {
-		// Index confirmed ordinary acquisition using the script's clock, keeping
-		// discovery writes separate so maintenance failures do not reverse the
-		// acquired provider member.
-		c.touchActiveIndexAt(ctx, providerActiveIndexKey, providerID, now+int64(c.slotTTLSeconds))
-	}
-	return result == 1, nil
-}
-
-// ReleaseProviderSlot removes this request's ordinary provider member and
-// reconciles discovery load afterward. Missing members are harmless; primary
-// removal errors propagate, while index maintenance errors are logged.
-func (c *concurrencyCache) ReleaseProviderSlot(ctx context.Context, providerID int64, requestID string) error {
-	key := providerSlotKey(providerID)
-	if err := c.rdb.ZRem(ctx, key, requestID).Err(); err != nil {
-		return err
-	}
-	// Recheck ordinary slots and waiters after removing the request member so
-	// discovery can retire an idle provider while later traffic may still race
-	// with that observation.
-	c.refreshProviderActiveIndex(ctx, providerID)
-	return nil
-}
-
-// GetProviderConcurrency prunes ordinary and Live scores with their
-// respective activity lifetimes and returns the combined count. This
-// observation can change before the next atomic admission attempt.
-func (c *concurrencyCache) GetProviderConcurrency(ctx context.Context, providerID int64) (int, error) {
-	key := providerSlotKey(providerID)
-	result, err := getCountScript.Run(ctx, c.rdb, []string{key, liveProviderSlotKey(providerID)}, c.slotTTLSeconds).Int()
-	if err != nil {
-		return 0, err
-	}
-	return result, nil
-}
-
-// GetProviderConcurrencyBatch returns combined ordinary and Live counts keyed
-// by provider ID, with an allocated empty map for empty input. Duplicate IDs
-// share one result entry, using the last count observed for that provider.
-func (c *concurrencyCache) GetProviderConcurrencyBatch(ctx context.Context, providerIDs []int64) (map[int64]int, error) {
-	return c.getConcurrencyBatch(ctx, providerIDs, providerSlotKeyPrefix, liveProviderSlotKeyPrefix)
-}
-
-// User slot operations
-
-// AcquireUserSlot admits a new ordinary request below combined ordinary/Live
-// user capacity, or refreshes its existing member. Nonpositive limits reject
-// new IDs; callers release confirmed ownership using the same request ID.
-func (c *concurrencyCache) AcquireUserSlot(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
-	key := userSlotKey(userID)
-	result, now, err := runScriptInt64Pair(ctx, c.rdb, acquireScript, []string{key, liveUserSlotKey(userID)}, maxConcurrency, c.slotTTLSeconds, requestID)
-	if err != nil {
-		return false, err
-	}
-	if result == 1 {
-		// Index confirmed ordinary acquisition using the script's clock so startup
-		// and periodic cleanup can find user load after request activity or a
-		// crash.
-		c.touchActiveIndexAt(ctx, userActiveIndexKey, userID, now+int64(c.slotTTLSeconds))
-	}
-	return result == 1, nil
-}
-
-// ReleaseUserSlot removes this request's ordinary user member and reconciles
-// discovery load afterward. Missing members are harmless; primary removal
-// errors propagate, while index maintenance errors are logged.
-func (c *concurrencyCache) ReleaseUserSlot(ctx context.Context, userID int64, requestID string) error {
-	key := userSlotKey(userID)
-	if err := c.rdb.ZRem(ctx, key, requestID).Err(); err != nil {
-		return err
-	}
-	// Recheck ordinary slots and waiters after primary removal so user discovery
-	// follows remaining request load; maintenance errors leave that completed
-	// removal in place.
-	c.refreshUserActiveIndex(ctx, userID)
-	return nil
-}
-
-// GetUserConcurrency prunes ordinary and Live scores with their respective
-// activity lifetimes and returns the combined user count. This observation
-// can change before the next atomic admission attempt.
-func (c *concurrencyCache) GetUserConcurrency(ctx context.Context, userID int64) (int, error) {
-	key := userSlotKey(userID)
-	result, err := getCountScript.Run(ctx, c.rdb, []string{key, liveUserSlotKey(userID)}, c.slotTTLSeconds).Int()
-	if err != nil {
-		return 0, err
-	}
-	return result, nil
-}
-
-// TrackAPIKeySlot records or refreshes an ordinary request member for API-key
-// statistics without enforcing an admission limit. Callers release it using
-// the same request ID after its counted request finishes.
-func (c *concurrencyCache) TrackAPIKeySlot(ctx context.Context, apiKeyID int64, requestID string) error {
-	key := apiKeySlotKey(apiKeyID)
-	_, err := trackSlotScript.Run(ctx, c.rdb, []string{key}, c.slotTTLSeconds, requestID).Result()
-	return err
-}
-
-// ReleaseAPIKeySlot removes the ordinary API-key statistics member for this
-// request ID. Missing members are harmless, while Redis failures propagate to
-// the caller coordinating request cleanup.
-func (c *concurrencyCache) ReleaseAPIKeySlot(ctx context.Context, apiKeyID int64, requestID string) error {
-	key := apiKeySlotKey(apiKeyID)
-	return c.rdb.ZRem(ctx, key, requestID).Err()
-}
-
-// AcquireOpenAIWSIngressLease admits or refreshes an API-key connection
-// member with a sixty-second lifetime. Unusable clients, nonpositive
-// identities/limits or empty IDs return false; successful callers renew and
-// release that lease ID.
-func (c *concurrencyCache) AcquireOpenAIWSIngressLease(ctx context.Context, apiKeyID int64, maxConnections int, leaseID string) (bool, error) {
-	if c == nil || c.rdb == nil || apiKeyID <= 0 || maxConnections <= 0 || leaseID == "" {
-		return false, nil
-	}
-	result, err := acquireOpenAIWSIngressLeaseScript.Run(
-		ctx,
-		c.rdb,
-		[]string{openAIWSIngressLeaseKey(apiKeyID)},
-		maxConnections,
-		openAIWSIngressLeaseTTLSeconds,
-		leaseID,
-	).Int()
-	if err != nil {
-		return false, err
-	}
-	return result == 1, nil
-}
-
-// RefreshOpenAIWSIngressLease renews a present ingress member after pruning
-// expired scores. Invalid cache/identity inputs return false, and a missing
-// member reports false so the owner can recognize lost connection capacity.
-func (c *concurrencyCache) RefreshOpenAIWSIngressLease(ctx context.Context, apiKeyID int64, leaseID string) (bool, error) {
-	if c == nil || c.rdb == nil || apiKeyID <= 0 || leaseID == "" {
-		return false, nil
-	}
-	result, err := refreshOpenAIWSIngressLeaseScript.Run(
-		ctx,
-		c.rdb,
-		[]string{openAIWSIngressLeaseKey(apiKeyID)},
-		openAIWSIngressLeaseTTLSeconds,
-		leaseID,
-	).Int()
-	if err != nil {
-		return false, err
-	}
-	return result == 1, nil
-}
-
-// ReleaseOpenAIWSIngressLease removes the supplied API-key connection member.
-// Invalid cache/identity inputs are ignored, and repeating a completed
-// removal is harmless when that member is already absent.
-func (c *concurrencyCache) ReleaseOpenAIWSIngressLease(ctx context.Context, apiKeyID int64, leaseID string) error {
-	if c == nil || c.rdb == nil || apiKeyID <= 0 || leaseID == "" {
-		return nil
-	}
-	return c.rdb.ZRem(ctx, openAIWSIngressLeaseKey(apiKeyID), leaseID).Err()
-}
-
-// AcquireLiveLease reserves provider, user and API-key Live memberships with
-// the short lease lifetime. Invalid clients, IDs or empty lease identity
-// return false; nonpositive provider/user limits bypass their capacity gates.
-//
-// Replacement permits one extra member while the caller still owns regular
-// slots, which the caller releases after successful transfer. The script
-// prunes Live scores but counts ordinary sets as stored. A provider-side
-// duplicate returns success without refreshing the three memberships; callers
-// use RefreshLiveLease for renewal and release all three memberships after
-// the session ends.
-func (c *concurrencyCache) AcquireLiveLease(
-	ctx context.Context,
-	providerID int64,
-	providerMax int,
-	userID int64,
-	userMax int,
-	apiKeyID int64,
-	leaseID string,
-	replacingRegularSlots bool,
-) (bool, error) {
-	if c == nil || c.rdb == nil || providerID <= 0 || userID <= 0 || apiKeyID <= 0 || leaseID == "" {
-		return false, nil
-	}
-	replacing := 0
-	if replacingRegularSlots {
-		replacing = 1
-	}
-	result, err := acquireLiveLeaseScript.Run(ctx, c.rdb, []string{
-		providerSlotKey(providerID),
-		liveProviderSlotKey(providerID),
-		userSlotKey(userID),
-		liveUserSlotKey(userID),
-		liveAPIKeySlotKey(apiKeyID),
-	}, providerMax, userMax, liveLeaseTTLSeconds, leaseID, replacing).Int()
-	return result == 1, err
-}
-
-// RefreshLiveLease checks memberships in provider, user and API-key order,
-// pruning each visited Live set before checking. Use the acquisition IDs for
-// renewal; nil caches, nil clients or empty lease IDs return false.
-//
-// A missing member stops the checks and reports lease loss, leaving later
-// sets unvisited. Scores and TTLs renew after every membership check succeeds.
-func (c *concurrencyCache) RefreshLiveLease(ctx context.Context, providerID, userID, apiKeyID int64, leaseID string) (bool, error) {
-	if c == nil || c.rdb == nil || leaseID == "" {
-		return false, nil
-	}
-	result, err := refreshLiveLeaseScript.Run(ctx, c.rdb, []string{
-		liveProviderSlotKey(providerID),
-		liveUserSlotKey(userID),
-		liveAPIKeySlotKey(apiKeyID),
-	}, liveLeaseTTLSeconds, leaseID).Int()
-	return result == 1, err
-}
-
-// ReleaseLiveLease removes this identity from the provider, user and API-key
-// Live sets in one transaction. Nil caches or empty IDs are ignored; repeated
-// removal succeeds for already absent memberships.
-func (c *concurrencyCache) ReleaseLiveLease(ctx context.Context, providerID, userID, apiKeyID int64, leaseID string) error {
-	if c == nil || c.rdb == nil || leaseID == "" {
-		return nil
-	}
-	// Queue removal from all three lease sets before EXEC so a successful
-	// release applies the provider, user and API-key membership cleanup
-	// together.
-	pipe := c.rdb.TxPipeline()
-	pipe.ZRem(ctx, liveProviderSlotKey(providerID), leaseID)
-	pipe.ZRem(ctx, liveUserSlotKey(userID), leaseID)
-	pipe.ZRem(ctx, liveAPIKeySlotKey(apiKeyID), leaseID)
-	_, err := pipe.Exec(ctx)
-	return err
-}
-
-// GetAPIKeyConcurrencyBatch returns ordinary-plus-Live statistics counts
-// keyed by API-key ID, with an allocated empty map for empty input. Duplicate
-// IDs share one statistics entry, using the last count observed for that key.
-func (c *concurrencyCache) GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error) {
-	return c.getConcurrencyBatch(ctx, apiKeyIDs, apiKeySlotKeyPrefix, liveAPIKeySlotKeyPrefix)
-}
-
-// getConcurrencyBatch returns counts for the ordinary and Live sets under the
-// supplied resource prefixes. Empty inputs return an allocated empty map before
-// Redis is called. Duplicate IDs each queue their own reads, and the last
-// observation for an ID supplies that map entry.
-//
-// One Redis TIME sample supplies both pruning cutoffs. The pipeline queues both
-// removals before the two counts for each input ID, retaining the count commands
-// with that ID until results are assembled. A pipeline error other than redis.Nil
-// discards the batch; redis.Nil permits assembly from the queued command values.
-func (c *concurrencyCache) getConcurrencyBatch(ctx context.Context, ids []int64, slotKeyPrefix, liveKeyPrefix string) (map[int64]int, error) {
-	if len(ids) == 0 {
-		return map[int64]int{}, nil
-	}
-
-	now, err := c.rdb.Time(ctx).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis TIME: %w", err)
-	}
-	// Use one Redis clock observation with the ordinary lifetime; Live pruning
-	// below uses its shorter renewal window for the other counted set.
-	cutoffTime := now.Unix() - int64(c.slotTTLSeconds)
-
-	pipe := c.rdb.Pipeline()
-	// resourceCountCmd associates a resource identity with its queued count commands.
-	type resourceCountCmd struct {
-		// id, zcardCmd and liveCmd address the same resource; keeping their count
-		// commands together associates both ordinary and Live results with that ID
-		// during map assembly.
-		id       int64         // associated resource count identity
-		zcardCmd *redis.IntCmd // queued ordinary slot count
-		liveCmd  *redis.IntCmd // queued Live lease count
-	}
-	cmds := make([]resourceCountCmd, 0, len(ids))
-	for _, id := range ids {
-		slotKey := slotKeyPrefix + strconv.FormatInt(id, 10)
-		liveKey := liveKeyPrefix + strconv.FormatInt(id, 10)
-		// Prune both activity sets before queuing their counts so the result
-		// combines current ordinary and Live membership under their respective
-		// expiration windows.
-		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
-		pipe.ZRemRangeByScore(ctx, liveKey, "-inf", strconv.FormatInt(now.Unix()-liveLeaseTTLSeconds, 10))
-		cmds = append(cmds, resourceCountCmd{
-			id:       id,
-			zcardCmd: pipe.ZCard(ctx, slotKey),
-			liveCmd:  pipe.ZCard(ctx, liveKey),
-		})
-	}
-
-	// If Redis reports redis.Nil for the batch, use the queued count values so
-	// callers still receive the resource map from that observation.
-	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-		return nil, fmt.Errorf("pipeline exec: %w", err)
-	}
-
-	result := make(map[int64]int, len(ids))
-	for _, cmd := range cmds {
-		result[cmd.id] = int(cmd.zcardCmd.Val() + cmd.liveCmd.Val())
-	}
-	return result, nil
-}
-
-// Wait queue operations
-
-// IncrementWaitCount records another user waiter below maxWait and refreshes
-// its configured expiry. Nonpositive limits reject new increments; callers
-// decrement a count only after receiving confirmed admission.
-func (c *concurrencyCache) IncrementWaitCount(ctx context.Context, userID int64, maxWait int) (bool, error) {
-	key := waitQueueKey(userID)
-	result, now, err := runScriptInt64Pair(ctx, c.rdb, incrementWaitScript, []string{key}, maxWait, c.waitQueueTTLSeconds)
-	if err != nil {
-		return false, err
-	}
-	if result == 1 {
-		// Index confirmed wait activity independently of slot occupancy so a user
-		// with only queued requests remains discoverable for maintenance.
-		c.touchActiveIndexAt(ctx, userActiveIndexKey, userID, now+int64(c.waitQueueTTLSeconds))
-	}
-	return result == 1, nil
-}
-
-// DecrementWaitCount reduces an existing positive user wait counter and then
-// reconciles discovery load. Missing or zero counters stay unchanged; callers
-// use it to release confirmed wait admission.
-func (c *concurrencyCache) DecrementWaitCount(ctx context.Context, userID int64) error {
-	key := waitQueueKey(userID)
-	_, err := decrementWaitScript.Run(ctx, c.rdb, []string{key}).Result()
-	if err == nil {
-		// Reconcile discovery after the confirmed decrement so remaining ordinary
-		// slots or positive waiters retain the entry, while an idle user can be
-		// removed.
-		c.refreshUserActiveIndex(ctx, userID)
-	}
-	return err
-}
-
-// Provider wait queue operations
-
-// IncrementProviderWaitCount records another provider waiter below maxWait
-// and refreshes its configured expiry. Nonpositive limits reject new
-// increments; callers decrement a count only after receiving confirmed
-// admission.
-func (c *concurrencyCache) IncrementProviderWaitCount(ctx context.Context, providerID int64, maxWait int) (bool, error) {
-	key := providerWaitKey(providerID)
-	result, now, err := runScriptInt64Pair(ctx, c.rdb, incrementProviderWaitScript, []string{key}, maxWait, c.waitQueueTTLSeconds)
-	if err != nil {
-		return false, err
-	}
-	if result == 1 {
-		// Record confirmed provider wait activity in discovery so cleanup can find
-		// queue-only load after all ordinary provider members have finished.
-		c.touchActiveIndexAt(ctx, providerActiveIndexKey, providerID, now+int64(c.waitQueueTTLSeconds))
-	}
-	return result == 1, nil
-}
-
-// DecrementProviderWaitCount reduces an existing positive provider wait
-// counter and then reconciles discovery load. Missing or zero counters stay
-// unchanged; callers use it to release confirmed wait admission.
-func (c *concurrencyCache) DecrementProviderWaitCount(ctx context.Context, providerID int64) error {
-	key := providerWaitKey(providerID)
-	_, err := decrementWaitScript.Run(ctx, c.rdb, []string{key}).Result()
-	if err == nil {
-		// Reconcile discovery after the confirmed decrement so ordinary slots or
-		// positive waiters retain the entry, while an idle provider can be removed.
-		c.refreshProviderActiveIndex(ctx, providerID)
-	}
-	return err
-}
-
-// GetProviderWaitingCount returns the stored provider waiting count, with
-// zero for a missing key. Redis and integer-conversion errors propagate so
-// callers can distinguish missing load from unavailable observation.
-func (c *concurrencyCache) GetProviderWaitingCount(ctx context.Context, providerID int64) (int, error) {
-	key := providerWaitKey(providerID)
-	val, err := c.rdb.Get(ctx, key).Int()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		return 0, err
-	}
-	// An absent wait key supplies a zero queue observation, letting load
-	// consumers distinguish a provider with no stored waiters from a failed
-	// read.
-	if errors.Is(err, redis.Nil) {
-		return 0, nil
-	}
-	return val, nil
-}
-
-// GetProvidersLoadBatch reports occupied ordinary/Live slots, stored waiter
-// counts and integer load percentages for the supplied provider capacities.
-// Empty input returns an empty map; nonpositive capacities produce a zero
-// percentage. For duplicate IDs, later input entries replace earlier result
-// entries and supply their own percentage denominator.
-//
-// One Redis clock sample drives the two score-pruning windows before
-// per-provider commands read both slot sets and wait counters. Results remain
-// paired with the provider's supplied capacity for the percentage
-// calculation. Missing or unparsable waits contribute zero, while parsed
-// counts are combined as stored. Integer division truncates fractional
-// percentages and queue pressure can push the result above one hundred; the
-// pipeline is an observation that admission later rechecks.
-//
-// Pipeline errors other than redis.Nil abort the batch. An earlier missing
-// wait key can conceal later command errors, and counts use each command's
-// Val result without rechecking its error.
-func (c *concurrencyCache) GetProvidersLoadBatch(ctx context.Context, providers []scheduler.ProviderWithConcurrency) (map[int64]*scheduler.ProviderLoadInfo, error) {
-	if len(providers) == 0 {
-		return map[int64]*scheduler.ProviderLoadInfo{}, nil
-	}
-
-	now, err := c.rdb.Time(ctx).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis TIME: %w", err)
-	}
-	// Use one Redis clock observation with the ordinary lifetime; Live pruning
-	// below uses its shorter renewal window for the other counted set.
-	cutoffTime := now.Unix() - int64(c.slotTTLSeconds)
-
-	pipe := c.rdb.Pipeline()
-
-	// providerCmds retains one provider's supplied capacity beside its queued
-	// slots and waiter observation.
-	type providerCmds struct {
-		// id, maxConcurrency, zcardCmd, liveCmd and getCmd describe one provider
-		// observation; result assembly applies that provider's supplied denominator
-		// to its own slot and waiting counts.
-		id             int64            // associated provider load identity
-		maxConcurrency int              // supplied load percentage denominator
-		zcardCmd       *redis.IntCmd    // queued ordinary slot count
-		liveCmd        *redis.IntCmd    // queued Live lease count
-		getCmd         *redis.StringCmd // queued provider wait observation
-	}
-	cmds := make([]providerCmds, 0, len(providers))
-	for _, acc := range providers {
-		slotKey := providerSlotKeyPrefix + strconv.FormatInt(acc.ID, 10)
-		liveKey := liveProviderSlotKeyPrefix + strconv.FormatInt(acc.ID, 10)
-		waitKey := providerWaitKeyPrefix + strconv.FormatInt(acc.ID, 10)
-		// Prune both activity sets before queuing their counts so the result
-		// combines current ordinary and Live membership under their respective
-		// expiration windows.
-		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
-		pipe.ZRemRangeByScore(ctx, liveKey, "-inf", strconv.FormatInt(now.Unix()-liveLeaseTTLSeconds, 10))
-		ac := providerCmds{
-			id:             acc.ID,
-			maxConcurrency: acc.MaxConcurrency,
-			zcardCmd:       pipe.ZCard(ctx, slotKey),
-			liveCmd:        pipe.ZCard(ctx, liveKey),
-			getCmd:         pipe.Get(ctx, waitKey),
-		}
-		cmds = append(cmds, ac)
-	}
-
-	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-		return nil, fmt.Errorf("pipeline exec: %w", err)
-	}
-
-	loadMap := make(map[int64]*scheduler.ProviderLoadInfo, len(providers))
-	for _, ac := range cmds {
-		currentConcurrency := int(ac.zcardCmd.Val() + ac.liveCmd.Val())
-		waitingCount := 0
-		// Keep parsed waiting values as observed and use zero when conversion
-		// fails, allowing successful slot observations to contribute to this load
-		// result.
-		if v, err := ac.getCmd.Int(); err == nil {
-			waitingCount = v
-		}
-		loadRate := 0
-		if ac.maxConcurrency > 0 {
-			// Combine occupied slots with queue pressure; integer division truncates
-			// fractional load percentages.
-			loadRate = (currentConcurrency + waitingCount) * 100 / ac.maxConcurrency
-		}
-		loadMap[ac.id] = &scheduler.ProviderLoadInfo{
-			ProviderID:         ac.id,
-			CurrentConcurrency: currentConcurrency,
-			WaitingCount:       waitingCount,
-			LoadRate:           loadRate,
-		}
-	}
-
-	return loadMap, nil
-}
-
-// GetUsersLoadBatch reports occupied ordinary/Live user slots, stored waiter
-// counts and integer load percentages for supplied capacities. Empty input
-// returns an empty map; nonpositive capacities produce a zero percentage.
-// For duplicate IDs, later input entries replace earlier results and supply
-// their own percentage denominator.
-//
-// One Redis time sample provides ordinary-slot and short Live pruning cutoffs
-// before queued commands read each user's load. Result commands stay paired
-// with that user's capacity so their slot and wait totals use the correct
-// denominator. Missing or unparsable waits contribute zero, while parsed
-// counts are combined as stored. Integer division truncates fractional
-// percentages and can report queue pressure above one hundred; admission
-// remains a later operation.
-//
-// Pipeline errors other than redis.Nil abort the batch. An earlier missing
-// wait key can conceal later command errors, and counts use each command's
-// Val result without rechecking its error.
-func (c *concurrencyCache) GetUsersLoadBatch(ctx context.Context, users []scheduler.UserWithConcurrency) (map[int64]*scheduler.UserLoadInfo, error) {
-	if len(users) == 0 {
-		return map[int64]*scheduler.UserLoadInfo{}, nil
-	}
-
-	now, err := c.rdb.Time(ctx).Result()
-	if err != nil {
-		return nil, fmt.Errorf("redis TIME: %w", err)
-	}
-	// Use one Redis clock observation with the ordinary lifetime; Live pruning
-	// below uses its shorter renewal window for the other counted set.
-	cutoffTime := now.Unix() - int64(c.slotTTLSeconds)
-
-	pipe := c.rdb.Pipeline()
-
-	// userCmds retains one user's supplied capacity beside its queued slots and
-	// waiter observation.
-	type userCmds struct {
-		// id, maxConcurrency, zcardCmd, liveCmd and getCmd describe one user
-		// observation; result assembly applies that user's supplied denominator to
-		// its own slot and waiting counts.
-		id             int64            // associated user load identity
-		maxConcurrency int              // supplied load percentage denominator
-		zcardCmd       *redis.IntCmd    // queued ordinary slot count
-		liveCmd        *redis.IntCmd    // queued Live lease count
-		getCmd         *redis.StringCmd // queued user wait observation
-	}
-	cmds := make([]userCmds, 0, len(users))
-	for _, u := range users {
-		slotKey := userSlotKeyPrefix + strconv.FormatInt(u.ID, 10)
-		liveKey := liveUserSlotKeyPrefix + strconv.FormatInt(u.ID, 10)
-		waitKey := waitQueueKeyPrefix + strconv.FormatInt(u.ID, 10)
-		// Prune both activity sets before queuing their counts so the result
-		// combines current ordinary and Live membership under their respective
-		// expiration windows.
-		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
-		pipe.ZRemRangeByScore(ctx, liveKey, "-inf", strconv.FormatInt(now.Unix()-liveLeaseTTLSeconds, 10))
-		uc := userCmds{
-			id:             u.ID,
-			maxConcurrency: u.MaxConcurrency,
-			zcardCmd:       pipe.ZCard(ctx, slotKey),
-			liveCmd:        pipe.ZCard(ctx, liveKey),
-			getCmd:         pipe.Get(ctx, waitKey),
-		}
-		cmds = append(cmds, uc)
-	}
-
-	if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
-		return nil, fmt.Errorf("pipeline exec: %w", err)
-	}
-
-	loadMap := make(map[int64]*scheduler.UserLoadInfo, len(users))
-	for _, uc := range cmds {
-		currentConcurrency := int(uc.zcardCmd.Val() + uc.liveCmd.Val())
-		waitingCount := 0
-		// Keep parsed waiting values as observed and use zero when conversion
-		// fails, allowing successful slot observations to contribute to this load
-		// result.
-		if v, err := uc.getCmd.Int(); err == nil {
-			waitingCount = v
-		}
-		loadRate := 0
-		if uc.maxConcurrency > 0 {
-			// Combine occupied slots with queue pressure; integer division truncates
-			// fractional load percentages.
-			loadRate = (currentConcurrency + waitingCount) * 100 / uc.maxConcurrency
-		}
-		loadMap[uc.id] = &scheduler.UserLoadInfo{
-			UserID:             uc.id,
-			CurrentConcurrency: currentConcurrency,
-			WaitingCount:       waitingCount,
-			LoadRate:           loadRate,
-		}
-	}
-
-	return loadMap, nil
 }
 
 // CleanupExpiredProviderSlots prunes one provider's expired ordinary members

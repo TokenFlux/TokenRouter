@@ -51,11 +51,17 @@ func billingEligibilityOptions(c *config.Config, calendar timezone.Calendar) bil
 	return billing.EligibilityOptions{Dates: billing.DateRuntime{Now: time.Now, Calendar: &calendar}, Billing: billing.BillingOptions{MinimumBalanceReserve: c.Billing.MinimumBalanceReserve, CircuitBreaker: billing.CircuitBreakerOptions{Enabled: c.Billing.BalanceCheckCircuitBreaker.Enabled, FailureThreshold: c.Billing.BalanceCheckCircuitBreaker.FailureThreshold, ResetTimeoutSeconds: c.Billing.BalanceCheckCircuitBreaker.ResetTimeoutSeconds, HalfOpenRequests: c.Billing.BalanceCheckCircuitBreaker.HalfOpenRequests}}}
 }
 
+// provideKeyUsageStore constructs PostgreSQL API-key quota and spending-window
+// storage over the shared Ent client and SQL pool.
+func provideKeyUsageStore(client *dbent.Client, db *sql.DB) *billingpostgres.KeyUsageStore {
+	return billingpostgres.NewKeyUsageStore(client, db)
+}
+
 // provideBillingEligibility constructs admission using shared balance and Key
 // caches. It captures options at assembly time and supplies tracked maintenance
 // callbacks; runtime lifecycle hooks start and drain the service's cache
 // workers separately.
-func provideBillingEligibility(cache billing.BillingCache, users *identitypostgres.UserStore, keys apikey.APIKeyRepository, cfg *config.Config, tasks *lifecycle.Tasks, calendar timezone.Calendar) *billing.Eligibility {
+func provideBillingEligibility(cache billing.BillingCache, users *identitypostgres.UserStore, keys *billingpostgres.KeyUsageStore, cfg *config.Config, tasks *lifecycle.Tasks, calendar timezone.Calendar) *billing.Eligibility {
 	options := billingEligibilityOptions(cfg, calendar)
 	return billing.NewEligibility(cache, billingIdentityUsers{Repository: users}, keys, func() billing.EligibilityOptions { return options }, logging.LegacyPrintf, func(name string, fn func()) { tasks.Go(name, fn) })
 }

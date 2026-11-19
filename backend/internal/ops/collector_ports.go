@@ -5,13 +5,22 @@ import (
 	"time"
 )
 
-// collector_ports.go defines historical-query and host-sampling dependencies
-// and the measurements consumed by the metrics collector.
+// collector_ports.go defines historical-query, metric-persistence, and
+// host-sampling dependencies consumed by the metrics collector.
 // A collector sample combines historical request counts with current host and
 // connection-pool observations. Nullable measurements distinguish missing data
-// from zero utilization, while the dependency interfaces let app supply
-// PostgreSQL queries, provider loads, and host probes to the same collector
-// instance.
+// from zero utilization, while narrow consumer interfaces let app supply
+// PostgreSQL queries, metric writers, provider loads, and host probes to the
+// collector without coupling it to dashboard or alert storage.
+
+// MetricsCollectorRepository persists sampled system metrics and collector job
+// heartbeats.
+type MetricsCollectorRepository interface {
+	JobHeartbeatWriter
+	// InsertSystemMetrics stores one collected system, pool, and traffic-window
+	// metric snapshot.
+	InsertSystemMetrics(ctx context.Context, input *OpsInsertSystemMetricsInput) error
+}
 
 // CollectedSystemStats holds nullable host or container measurements for one
 // collector sample.

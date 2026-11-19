@@ -15,17 +15,17 @@ import (
 // selectors, and count reads across repeated rule evaluations with mixed
 // provider states and temporary-unschedulable deadlines.
 
-// The interface assertion checks the dashboard stub's repository method set,
-// including methods promoted from its embedded interface for compilation.
-var _ OpsRepository = (*stubOpsRepo)(nil)
+// The interface assertion checks the dashboard stub against the narrowed
+// evaluator repository port rather than the full OpsRepository surface.
+var _ AlertEvaluatorRepository = (*stubOpsRepo)(nil)
 
-// stubOpsRepo supplies dashboard results while other repository methods remain
-// promoted from its embedded interface.
+// stubOpsRepo supplies dashboard results while other evaluator repository
+// methods remain promoted from its embedded interface.
 type stubOpsRepo struct {
-	// OpsRepository holds promoted methods that these selected metric
+	// AlertEvaluatorRepository holds promoted methods that these selected metric
 	// fixtures leave nil. Tests keep their calls on the overridden or
 	// independent metric paths.
-	OpsRepository
+	AlertEvaluatorRepository
 	// overview is returned by reference when present. Consumers share the
 	// fixture pointer and coordinate any mutations while parallel readers
 	// use it.
@@ -451,4 +451,37 @@ func TestComputeRuleMetricAvailabilityInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestComputeRuleMetricDirectEvaluatorRepository evaluates dashboard ratio
+// rules through AlertEvaluatorRepository when OpsService is absent. It verifies
+// scaled percentage values and rejects invalid windows without calling
+// unrelated system-metric or heartbeat methods on the stub.
+func TestComputeRuleMetricDirectEvaluatorRepository(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	end := start.Add(5 * time.Minute)
+	svc := &OpsAlertEvaluatorService{
+		opsRepo: &stubOpsRepo{
+			overview: &OpsDashboardOverview{
+				RequestCountSLA:   100,
+				SLA:               0.985,
+				ErrorRate:         0.015,
+				UpstreamErrorRate: 0.005,
+			},
+		},
+	}
+
+	val, ok := svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "success_rate"}, nil, start, end, "openai", nil)
+	require.True(t, ok)
+	require.InDelta(t, 98.5, val, 0.0001)
+
+	val, ok = svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "error_rate"}, nil, start, end, "openai", nil)
+	require.True(t, ok)
+	require.InDelta(t, 1.5, val, 0.0001)
+
+	val, ok = svc.computeRuleMetric(context.Background(), &OpsAlertRule{MetricType: "upstream_error_rate"}, nil, end, start, "openai", nil)
+	require.False(t, ok)
+	require.Zero(t, val)
 }

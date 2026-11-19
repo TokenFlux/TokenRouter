@@ -250,38 +250,15 @@ type APIKeyRepository interface {
 	// underlying lookup failures leave its direct cache invalidation attempt
 	// incomplete.
 	ListKeysByGroupID(ctx context.Context, groupID int64) ([]string, error)
-	// IncrementQuotaUsed adds a supplied quota delta for an eligible stored record
-	// and returns resulting usage. Service callers skip nonpositive spending
-	// costs; admitted settlement follows its separate billing transaction
-	// eligibility rules.
-	IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error)
 	// UpdateLastUsed writes the caller's selected last-use timestamp on a
 	// nondeleted credential. The service owns throttling and retry deadlines;
 	// repository errors let it choose normal debounce versus failure backoff.
 	UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error
-	// IncrementRateLimitUsage adds a supplied USD cost to stored spending windows,
-	// resetting or initializing them according to billing storage rules. Service
-	// callers skip nonpositive costs and keep admitted settlement ownership
-	// separate.
-	IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error
-	// ResetRateLimitWindows resets elapsed saved windows using the store's current
-	// transaction time. It leaves current windows and missing saved starts under
-	// the implementation's reset rules; explicit full resets use Update masks.
-	ResetRateLimitWindows(ctx context.Context, id int64) error
-	// GetRateLimitData returns stored window counters and start timestamps for
-	// admission or presentation. Missing eligible records return the Key-not-found
-	// identity, and callers decide whether their endpoint can proceed after lookup
-	// failure.
-	GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error)
 }
 
 // APIKeyRateLimitData is billing's stored spending counters and associated
 // window-start view.
 type APIKeyRateLimitData = billing.APIKeyRateLimitData
-
-// APIKeyQuotaUsageState is billing's compact current quota result after atomic
-// update.
-type APIKeyQuotaUsageState = billing.APIKeyQuotaUsageState
 
 // APIKeyCache stores optional creation counters, usage observations and shared
 // authentication entries.
@@ -2219,90 +2196,4 @@ func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {
 	}
 
 	return nil
-}
-
-// UpdateQuotaUsed records positive usage and attempts cached state invalidation
-// when quota is exhausted. Nonpositive cost does nothing.
-//
-// A repository with the atomic state capability supplies the increment and
-// resulting status together; exhausted state with a usable credential triggers
-// invalidation. Other repositories increment first, read the current Key, then
-// write status alone so the snapshot cannot replace billing counters. Follow-up
-// read or status-write failure is suppressed after the completed increment.
-// This helper follows repository nondeleted-row rules; admitted settlement uses
-// its independent billing write path.
-func (s *APIKeyService) UpdateQuotaUsed(ctx context.Context, apiKeyID int64, cost float64) error {
-	if cost <= 0 {
-		return nil
-	}
-
-	// quotaStateReader supplies an optional atomic usage increment and resulting
-	// authentication state.
-	type quotaStateReader interface {
-		// IncrementQuotaUsedAndGetState applies usage and returns the resulting
-		// stored credential and status together. Implementations supply an atomic
-		// result so service callers can notify exhausted authentication after
-		// success.
-		IncrementQuotaUsedAndGetState(ctx context.Context, id int64, amount float64) (*APIKeyQuotaUsageState, error)
-	}
-
-	if repo, ok := s.apiKeyRepo.(quotaStateReader); ok {
-		state, err := repo.IncrementQuotaUsedAndGetState(ctx, apiKeyID, cost)
-		if err != nil {
-			return fmt.Errorf("increment quota used: %w", err)
-		}
-		// Use the state returned with the increment for exhaustion notification, so
-		// this path does not invalidate from a separately reloaded stale usage view.
-		if state != nil && state.Status == StatusAPIKeyQuotaExhausted && strings.TrimSpace(state.Key) != "" {
-			s.InvalidateAuthCacheByKey(ctx, state.Key)
-		}
-		return nil
-	}
-
-	// Complete the usage increment before loading configuration; the later
-	// status-only mask keeps that loaded view from replacing newly recorded
-	// counters.
-	newQuotaUsed, err := s.apiKeyRepo.IncrementQuotaUsed(ctx, apiKeyID, cost)
-	if err != nil {
-		return fmt.Errorf("increment quota used: %w", err)
-	}
-
-	// A failed follow-up read leaves the completed increment accepted; exhaustion
-	// notification can be attempted after a later usable state read.
-	apiKey, err := s.apiKeyRepo.GetByID(ctx, apiKeyID)
-	if err != nil {
-		return nil
-	}
-
-	if apiKey.Quota > 0 && newQuotaUsed >= apiKey.Quota {
-		apiKey.Status = StatusAPIKeyQuotaExhausted
-		// Write status alone to retain concurrent usage; suppress a failed status
-		// write because the preceding increment has already recorded this cost.
-		if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{Status: true}); err != nil {
-			return nil
-		}
-		// Attempt cached authentication removal after the status write succeeds;
-		// notification remains best effort and cannot establish visibility for every
-		// concurrent lookup.
-		s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
-	}
-
-	return nil
-}
-
-// GetRateLimitData returns the repository's spending counters and saved window
-// starts for id.
-func (s *APIKeyService) GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error) {
-	return s.apiKeyRepo.GetRateLimitData(ctx, id)
-}
-
-// UpdateRateLimitUsage delegates positive USD spending to the repository's
-// window increment path. Nonpositive cost does nothing; repository errors are
-// returned, and that helper's nondeleted eligibility differs from
-// already-admitted settlement writes.
-func (s *APIKeyService) UpdateRateLimitUsage(ctx context.Context, apiKeyID int64, cost float64) error {
-	if cost <= 0 {
-		return nil
-	}
-	return s.apiKeyRepo.IncrementRateLimitUsage(ctx, apiKeyID, cost)
 }

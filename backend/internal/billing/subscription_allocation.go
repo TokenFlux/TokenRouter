@@ -195,7 +195,7 @@ func NormalizeSettlementWindow(
 	// A one-day lifetime has one daily allowance; an existing anchor keeps
 	// consumption even after later day boundaries, preventing another issuance of
 	// that quota.
-	if duration == SubscriptionDailyWindow && !expiresAt.After(startsAt.AddDate(0, 0, 1)) {
+	if duration == SubscriptionDailyWindow && !expiresAt.After(startsAt.In(resetStart.Location()).AddDate(0, 0, 1)) {
 		if windowStart == nil || windowStart.IsZero() {
 			start := resetStart
 			return &start, 0

@@ -84,11 +84,11 @@ type OpsAggregationService struct {
 	// lifecycleMu, lifecycleStopped, and loopWG keep loop registration ahead of
 	// joining. Start adds loops while holding the mutex; Stop seals future starts
 	// before waiting outside it.
-	lifecycleMu      sync.Mutex     // startup and shutdown registration mutex
-	lifecycleStopped bool           // permanent startup refusal flag
-	loopWG           sync.WaitGroup // registered aggregation loops join
-	opsRepo          OpsRepository  // aggregation and heartbeat persistence
-	settingRepo      Settings       // persisted monitoring and classification settings
+	lifecycleMu      sync.Mutex            // startup and shutdown registration mutex
+	lifecycleStopped bool                  // permanent startup refusal flag
+	loopWG           sync.WaitGroup        // registered aggregation loops join
+	opsRepo          AggregationRepository // aggregation and heartbeat persistence
+	settingRepo      SettingValueReader    // persisted monitoring and classification settings
 	// cfg retains deployment options for hard switches and logging. Callers keep
 	// those options immutable while aggregation loops read the same object.
 	cfg *Options
@@ -100,9 +100,9 @@ type OpsAggregationService struct {
 	// db supplies the advisory alternative, redisClient supplies preferred Redis
 	// claims, and instanceID identifies Redis ownership. Both jobs use separate
 	// keys; neither lock system excludes holders of the other system.
-	db          AdvisoryLocker // database advisory lock adapter
-	redisClient RuntimeCache   // Redis leader lock adapter
-	instanceID  string         // Redis lock owner identity
+	db          AdvisoryLocker   // database advisory lock adapter
+	redisClient LeaderLeaseCache // Redis leader lock adapter
+	instanceID  string           // Redis lock owner identity
 
 	// stopCh broadcasts permanent shutdown once through stopOnce, while startOnce
 	// limits registration. hourlyTriggerCh and dailyTriggerCh each retain at most
@@ -132,10 +132,10 @@ type OpsAggregationService struct {
 // Ops disabled-to-enabled transition. Call Start separately after application
 // binding.
 func NewOpsAggregationService(
-	opsRepo OpsRepository,
-	settingRepo Settings,
+	opsRepo AggregationRepository,
+	settingRepo SettingValueReader,
 	db AdvisoryLocker,
-	redisClient RuntimeCache,
+	redisClient LeaderLeaseCache,
 	cfg *Options,
 	preAggregationSettings PreAggregationRuntimeReader,
 ) *OpsAggregationService {

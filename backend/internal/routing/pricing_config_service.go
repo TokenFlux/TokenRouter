@@ -3,8 +3,8 @@ package routing
 import (
 	"context"
 	"fmt"
-	"math"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,26 +15,25 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
-// pricing_config_service.go validates shared pricing changes and publishes
-// indexed snapshots for group-model lookups.
+// pricing_config_service.go manages shared pricing persistence and publishes
+// generation-fenced snapshots for group-model lookups.
 // Shared prices use a group association and complete normalized model identity,
 // while group routing policy is read separately. Published snapshots contain
 // cloned configuration graphs, exact indexes, and configuration-ordered
 // wildcard entries; public reads clone selected values before exposing editable
-// storage.
+// storage, while routing and billing metadata lookups borrow read-only snapshot
+// pointers instead of cloning full card tables.
 //
-// A cache rebuild detaches request cancellation and installs a database timeout
-// because singleflight callers share that work. Failed reads publish a briefly
-// reusable empty snapshot, with the initiating callers still receiving the
-// error. Invalidation forgets the coalescing key and rebuilds synchronously,
-// allowing an older builder to publish later if it completes afterward.
+// A cache rebuild detaches request cancellation, installs a database timeout,
+// and captures cacheGen under cacheMu before reading storage. Invalidation
+// advances cacheGen, clears the shared pointer, forgets the singleflight key,
+// and triggers a fresh load so an older in-flight builder started before
+// invalidation cannot overwrite newer snapshots or publish stale error caches.
 //
-// Management writes validate working settings and cards before repository
-// persistence, then refresh prices and invalidate affected group authentication
-// snapshots. Reload and refresh failures can occur after the persistent write,
-// so they do not imply rollback. Model mapping and usage metadata preserve the
-// redirected request, group-mapped, and execution identities independently of
-// the display chain.
+// Management writes validate working settings and cards through
+// pricing_validation.go before repository persistence, then refresh prices and
+// invalidate affected group authentication snapshots. Reload and refresh
+// failures occur after persistent writes and do not imply rollback.
 
 // Pricing snapshot lifetimes bound normal cache reuse, empty recovery snapshots
 // after read errors, and the detached database work shared by concurrent
@@ -90,15 +89,6 @@ type (
 		LoadLocation func(string) (*time.Location, error) // time-pricing timezone validation loader
 	}
 )
-
-// PricingConfigValidation checks user and provider-cost cards using an optional
-// timezone loader.
-type PricingConfigValidation struct {
-	// LoadLocation validates populated daily pricing configuration after its
-	// timezone name passes validation. Nil is accepted for empty periods but
-	// returns an error for populated ones.
-	LoadLocation func(string) (*time.Location, error) // time-pricing timezone validation loader
-}
 
 // PricingConfigRepository persists shared settings, group memberships, model
 // cards, and cost rules.
@@ -284,13 +274,15 @@ type PricingConfigService struct {
 	// invalidation phase.
 	authCacheInvalidator GroupAuthInvalidator // optional group authentication invalidator
 
-	// cache and cacheSF coordinate shared rebuilds: cache stores complete
-	// immutable snapshots or a typed nil, while cacheSF coalesces rebuilds only
-	// until its key is forgotten. A nil pointer has no reuse lifetime and makes
-	// loadCache rebuild; initialized empty snapshots participate in expiration
-	// checks.
-	cache   atomic.Value       // published pricing snapshot pointer
-	cacheSF singleflight.Group // cache rebuild coalescing group
+	// cache, cacheMu, cacheGen, and cacheSF coordinate shared rebuilds and
+	// invalidations. cacheMu protects cacheGen advances and snapshot publication
+	// checks so builders started in an older generation cannot overwrite a newer
+	// snapshot or clear a concurrent invalidation; lock-free readers load
+	// immutable *pricingConfigCache pointers from cache directly.
+	cache    atomic.Value       // published pricing snapshot pointer
+	cacheMu  sync.Mutex         // snapshot publication and generation mutex
+	cacheGen uint64             // monotonic invalidation generation counter
+	cacheSF  singleflight.Group // cache rebuild coalescing group
 }
 
 // pricingConfigLookup keeps a group configuration attached to its selected
@@ -301,18 +293,6 @@ type pricingConfigLookup struct {
 	// from another snapshot.
 	cache         *pricingConfigCache // borrowed immutable lookup snapshot
 	pricingConfig *PricingConfig      // borrowed associated configuration value
-}
-
-// modelEntry stores normalized pattern identities used during range overlap
-// detection.
-type modelEntry struct {
-	// pattern, prefix, and wildcard separate error display from match behavior.
-	// pattern retains supplied spelling, prefix follows its caller's
-	// normalization, and wildcard selects prefix overlap rather than exact
-	// equality.
-	pattern  string // original diagnostic pattern spelling
-	prefix   string // normalized match comparison prefix
-	wildcard bool   // trailing-star pattern selection flag
 }
 
 // CreatePricingConfigInput contains shared settings, memberships, and prices
@@ -523,63 +503,76 @@ func expandPricingToCache(cache *pricingConfigCache, config *PricingConfig, grou
 }
 
 // storeErrorCache publishes an empty snapshot after a failed configuration
-// read. All lookup maps are initialized so later requests can treat the outage
-// as absent configuration during the short error lifetime.
-//
-// Its loadedAt value is backdated relative to the normal TTL, leaving
-// pricingConfigErrorTTL of reuse under the injected clock. The caller that
-// observed the database error still receives that error; later cache hits see
-// an empty successful read until expiry or explicit invalidation starts another
-// load.
-func (s *PricingConfigService) storeErrorCache() {
+// read when cacheGen still matches gen. All lookup maps are initialized so
+// later requests within the same generation treat the outage as absent
+// configuration during the short error lifetime without overwriting an
+// invalidation that occurred while the failed read was in flight.
+func (s *PricingConfigService) storeErrorCache(gen uint64) {
 	errorCache := newEmptyPricingConfigCache()
 	// Reuse the normal expiry comparison with a backdated origin, allowing the
 	// empty error snapshot to suppress immediate repeat database reads for the
 	// shorter error lifetime.
 	errorCache.loadedAt = s.options.Now().Add(-(pricingConfigCacheTTL - pricingConfigErrorTTL))
-	s.cache.Store(errorCache)
+	s.cacheMu.Lock()
+	if s.cacheGen == gen {
+		s.cache.Store(errorCache)
+	}
+	s.cacheMu.Unlock()
 }
 
 // buildCache reads all pricing configurations and publishes one newly indexed
-// snapshot. The request context supplies values, while cancellation and its
-// deadline are detached before a separate database timeout is installed. An
-// empty successful ListAll result receives the normal cache lifetime; failed
-// reads use a backdated empty snapshot.
+// snapshot when its starting generation remains current. Request cancellation
+// and deadlines are detached before installing a bounded database timeout.
 //
-// Publication occurs after cloned configurations and every lookup map are
-// prepared, keeping readers on a complete immutable graph. A failed read
-// publishes the short empty error snapshot through fetchPricingConfigData.
-// Invalidation can allow another builder concurrently, so this method's final
-// Store follows completion order rather than a generation-version comparison.
+// Publication checks cacheGen under cacheMu after cloned configurations and
+// lookup maps are prepared. If invalidateCache advanced cacheGen while ListAll
+// was running, buildCache leaves s.cache untouched and returns any newer
+// published snapshot so stale pre-invalidation rows never overwrite fresh data.
 func (s *PricingConfigService) buildCache(ctx context.Context) (*pricingConfigCache, error) {
+	s.cacheMu.Lock()
+	gen := s.cacheGen
+	s.cacheMu.Unlock()
+
 	// Detach the initiating request's cancellation because other singleflight
 	// callers share this read, then impose a separate database deadline so
 	// abandoned callers do not leave unbounded work.
 	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pricingConfigCacheDBTimeout)
 	defer cancel()
 
-	pricingConfigs, err := s.fetchPricingConfigData(dbCtx)
+	pricingConfigs, err := s.fetchPricingConfigData(dbCtx, gen)
 	if err != nil {
 		return nil, err
 	}
 
 	cache := populatePricingConfigCache(pricingConfigs)
 	cache.loadedAt = s.options.Now()
-	// Publish after the cloned graph and every index are complete; readers can
-	// keep their previous snapshot while this store replaces the shared pointer.
-	s.cache.Store(cache)
+
+	var published *pricingConfigCache
+	// Verify generation parity under cacheMu before storing so an invalidation
+	// during ListAll fences this older snapshot out of s.cache.
+	s.cacheMu.Lock()
+	if s.cacheGen == gen {
+		s.cache.Store(cache)
+		published = cache
+	} else if current, ok := s.cache.Load().(*pricingConfigCache); ok && current != nil {
+		published = current
+	}
+	s.cacheMu.Unlock()
+	if published != nil {
+		return published, nil
+	}
 	return cache, nil
 }
 
 // fetchPricingConfigData loads configurations and their children through
-// ListAll. A read failure is observed, publishes the temporary empty error
-// cache, and returns a wrapped storage error to the caller that initiated
-// rebuilding.
-func (s *PricingConfigService) fetchPricingConfigData(ctx context.Context) ([]PricingConfig, error) {
+// ListAll. A read failure is observed, publishes a generation-fenced temporary
+// empty error cache, and returns a wrapped storage error to the initiating
+// rebuild caller.
+func (s *PricingConfigService) fetchPricingConfigData(ctx context.Context, gen uint64) ([]PricingConfig, error) {
 	configs, err := s.repo.ListAll(ctx)
 	if err != nil {
 		s.warn("failed to build pricing configuration cache", "error", err)
-		s.storeErrorCache()
+		s.storeErrorCache(gen)
 		// The initiating read keeps its error while later requests can reuse the
 		// empty recovery snapshot, reducing repeated storage calls during a transient
 		// outage.
@@ -619,23 +612,21 @@ func (s *PricingConfigService) InvalidateCache() {
 	s.invalidateCache()
 }
 
-// invalidateCache clears the shared pointer, forgets its singleflight key, and
-// attempts an immediate rebuild. The atomic slot stores a typed nil so its
-// stored concrete type remains compatible with later snapshots.
-//
-// Forgetting the key allows a new caller to build while an earlier generation
-// still runs; it does not cancel that earlier builder. Each completed builder
-// can Store its result, so the last completion determines publication. Rebuild
-// failure is observed and retained as a short-lived empty snapshot rather than
-// returned by this helper.
+// invalidateCache advances cacheGen, clears the shared pointer, forgets its
+// singleflight key, and synchronously loads a fresh snapshot. Advancing
+// cacheGen under cacheMu fences any in-flight builder started before
+// invalidation from publishing stale rows or error snapshots afterward.
 func (s *PricingConfigService) invalidateCache() {
-	// A typed nil keeps atomic.Value's concrete type stable while marking the
-	// snapshot absent; forgetting the key admits a new generation but does not
-	// cancel older builders.
+	// Advance the generation, store a typed nil to keep atomic.Value's concrete
+	// type stable, and forget singleflight together so new readers join the
+	// post-invalidation rebuild while older builders are fenced from s.cache.
+	s.cacheMu.Lock()
+	s.cacheGen++
 	s.cache.Store((*pricingConfigCache)(nil))
 	s.cacheSF.Forget("pricing_config_cache")
+	s.cacheMu.Unlock()
 
-	if _, err := s.buildCache(context.Background()); err != nil {
+	if _, err := s.loadCache(context.Background()); err != nil {
 		s.warn("failed to rebuild pricing configuration cache after invalidation", "error", err)
 	}
 }
@@ -775,13 +766,12 @@ func (s *PricingConfigService) ResolveGroupMapping(ctx context.Context, groupID 
 		result.RestrictionModelSource = policy.RestrictionSource()
 		result.RestrictModels = policy.RestrictModels
 	}
-	config, err := s.GetPricingConfigForGroup(ctx, groupID)
-	// Pricing metadata is independent of group admission; a price-read failure
-	// leaves the mapping and restriction decisions intact while configuration
-	// identity stays absent.
-	if err == nil && config != nil {
-		result.PricingConfigID = config.ID
-		result.BillingModelSource = config.BillingModelSource
+	lk, err := s.lookupGroupPricingConfig(ctx, groupID)
+	// Read scalar pricing metadata from the borrowed snapshot without cloning
+	// model cards; a price-read failure leaves mapping and restriction intact.
+	if err == nil && lk != nil {
+		result.PricingConfigID = lk.pricingConfig.ID
+		result.BillingModelSource = lk.pricingConfig.BillingModelSource
 		if result.BillingModelSource == "" {
 			result.BillingModelSource = BillingModelSourceGroupMapped
 		}
@@ -801,260 +791,6 @@ func (s *PricingConfigService) IsModelRestricted(ctx context.Context, groupID in
 		return true
 	}
 	return policy.IsModelRestricted(model)
-}
-
-// PricingEntries validates model ranges, references, intervals, amounts, and time pricing.
-// It trims reference targets, clears empty time objects, and canonicalizes video labels in the
-// supplied working entries. Callers publish or persist these entries only after
-// validation succeeds, keeping stored labels within the validated character limit.
-func (v PricingConfigValidation) PricingEntries(entries []ModelPricingEntry) error {
-	if err := validatePriceReferences(entries); err != nil {
-		return err
-	}
-	if err := validateNoConflictingModels(entries); err != nil {
-		return err
-	}
-	if err := validatePricingIntervals(entries); err != nil {
-		return err
-	}
-	if err := validatePricingBillingMode(entries); err != nil {
-		return err
-	}
-	if err := v.PricingTime(entries); err != nil {
-		return err
-	}
-	for i := range entries {
-		if entries[i].BillingMode != BillingModeVideo {
-			continue
-		}
-		for j := range entries[i].Intervals {
-			// Persist the validated canonical spelling so surrounding whitespace
-			// cannot exceed the database capacity after a normalized-length check.
-			label := strings.TrimSpace(entries[i].Intervals[j].TierLabel)
-			if label != "" {
-				label = pricing.NormalizeVideoBillingResolutionOrDefault(label)
-			}
-			entries[i].Intervals[j].TierLabel = label
-		}
-	}
-	return nil
-}
-
-// PricingTime validates time multipliers for token cards and removes time
-// objects with no periods. Other explicit billing modes reject populated time
-// pricing; missing mode behaves as token, and accepted periods require the
-// configured timezone loader.
-func (v PricingConfigValidation) PricingTime(pricing []ModelPricingEntry) error {
-	for i := range pricing {
-		config := pricing[i].TimePricing
-		if config == nil {
-			continue
-		}
-		// An empty time object carries no multiplier periods. Clear it before
-		// persistence so omission and an unused editor object resolve to the same
-		// inherited pricing behavior.
-		if len(config.Periods) == 0 {
-			pricing[i].TimePricing = nil
-			continue
-		}
-		mode := pricing[i].BillingMode
-		if mode != "" && mode != BillingModeToken {
-			return infraerrors.BadRequest("TIME_PRICING_UNSUPPORTED_MODE", "time pricing only supports token billing mode")
-		}
-		if err := v.TimePricing(config); err != nil {
-			return infraerrors.BadRequest("INVALID_TIME_PRICING", fmt.Sprintf(
-				"invalid time pricing for models %v: %v", pricing[i].Models, err))
-		}
-	}
-	return nil
-}
-
-// validatePricingBillingMode checks each card's mode requirements, amount
-// bounds, and interval content. It stops at the first failure; empty card lists
-// succeed, and interval range ordering is validated separately by
-// validatePricingIntervals.
-func validatePricingBillingMode(pricing []ModelPricingEntry) error {
-	for _, p := range pricing {
-		if err := CheckBillingModeRequirements(p); err != nil {
-			return err
-		}
-		if err := checkPricesNotNegative(p); err != nil {
-			return err
-		}
-		if err := checkIntervalsHavePrices(p); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// CheckBillingModeRequirements checks the fields required by a card's charging
-// mode and modifiers. Per-request, image, and video cards require a request
-// amount or intervals; legacy amount multipliers require supplied prices, while
-// token-only service-tier and reasoning multipliers must be finite and
-// positive.
-func CheckBillingModeRequirements(p ModelPricingEntry) error {
-	if p.BillingMode == BillingModePerRequest || p.BillingMode == BillingModeImage || p.BillingMode == BillingModeVideo {
-		if p.PerRequestPrice == nil && len(p.Intervals) == 0 {
-			return infraerrors.BadRequest(
-				"BILLING_MODE_MISSING_PRICE",
-				"per-request price or intervals required for per_request/image billing mode",
-			)
-		}
-	}
-	if p.PriceMultiplier != nil && !hasExplicitPricingPrice(p) {
-		return infraerrors.BadRequest(
-			"PRICE_MULTIPLIER_MISSING_PRICE",
-			"price_multiplier requires at least one explicit price",
-		)
-	}
-	if p.FastModeMultiplier != nil {
-		mode := p.BillingMode
-		if mode == "" {
-			mode = BillingModeToken
-		}
-		if mode != BillingModeToken {
-			return infraerrors.BadRequest(
-				"FAST_MODE_MULTIPLIER_UNSUPPORTED_BILLING_MODE",
-				"fast_mode_multiplier is only supported for token billing mode",
-			)
-		}
-		if !hasExplicitPricingPrice(p) {
-			return infraerrors.BadRequest(
-				"FAST_MODE_MULTIPLIER_MISSING_PRICE",
-				"fast_mode_multiplier requires at least one explicit price",
-			)
-		}
-	}
-	if p.MaxReasoningEffortMultiplier != nil && (math.IsNaN(*p.MaxReasoningEffortMultiplier) || math.IsInf(*p.MaxReasoningEffortMultiplier, 0)) {
-		return infraerrors.BadRequest("INVALID_MULTIPLIER", "max_reasoning_effort_multiplier must be finite and > 0")
-	}
-	for _, c := range []struct {
-		field string   // rejected multiplier field label
-		val   *float64 // supplied optional multiplier amount
-	}{
-		{"fast_multiplier", p.FastMultiplier},
-		{"flex_multiplier", p.FlexMultiplier},
-		{"max_reasoning_effort_multiplier", p.MaxReasoningEffortMultiplier},
-	} {
-		if c.val != nil && (math.IsNaN(*c.val) || math.IsInf(*c.val, 0) || *c.val <= 0) {
-			return infraerrors.BadRequest("INVALID_MULTIPLIER", fmt.Sprintf("%s must be finite and > 0", c.field))
-		}
-	}
-	if p.FastMultiplier != nil || p.FlexMultiplier != nil || p.MaxReasoningEffortMultiplier != nil {
-		mode := p.BillingMode
-		if mode == "" {
-			mode = BillingModeToken
-		}
-		if mode != BillingModeToken {
-			return infraerrors.BadRequest(
-				"TIER_MULTIPLIER_UNSUPPORTED_BILLING_MODE",
-				"fast_multiplier, flex_multiplier and max_reasoning_effort_multiplier are only supported for token billing mode",
-			)
-		}
-	}
-	return nil
-}
-
-// hasExplicitPricingPrice delegates optional amount presence detection to the
-// shared price-card rules.
-func hasExplicitPricingPrice(p ModelPricingEntry) bool { return pricing.HasExplicitPricingPrice(p) }
-
-// checkPricesNotNegative rejects supplied prices and legacy multipliers that
-// are negative or nonfinite. Nil values remain unspecified and zero remains
-// supplied; strictly positive tier and reasoning factors are checked by
-// CheckBillingModeRequirements.
-func checkPricesNotNegative(p ModelPricingEntry) error {
-	checks := []struct {
-		field string   // rejected price field label
-		val   *float64 // supplied optional price amount
-	}{
-		{"price_multiplier", p.PriceMultiplier},
-		{"fast_mode_multiplier", p.FastModeMultiplier},
-		{"input_price", p.InputPrice},
-		{"output_price", p.OutputPrice},
-		{"cache_write_price", p.CacheWritePrice},
-		{"cache_write_1h_price", p.CacheWrite1hPrice},
-		{"cache_write_30m_price", p.CacheWrite30mPrice},
-		{"cache_write_12h_price", p.CacheWrite12hPrice},
-		{"cache_read_price", p.CacheReadPrice},
-		{"image_input_price", p.ImageInputPrice},
-		{"image_output_price", p.ImageOutputPrice},
-		{"per_request_price", p.PerRequestPrice},
-	}
-	for _, c := range checks {
-		if c.val != nil && (math.IsNaN(*c.val) || math.IsInf(*c.val, 0) || *c.val < 0) {
-			return infraerrors.BadRequest("NEGATIVE_PRICE", fmt.Sprintf("%s must be >= 0", c.field))
-		}
-	}
-	return nil
-}
-
-// ProviderStatsPricing rejects references, user-only tier, reasoning, and populated time
-// modifiers before validating provider-cost cards. Empty time objects can be
-// normalized away by PricingEntries; callers supply separate working cards for
-// their provider statistics rules.
-func (v PricingConfigValidation) ProviderStatsPricing(pricing []ModelPricingEntry) error {
-	for _, p := range pricing {
-		if p.ReferenceModel != "" {
-			return infraerrors.BadRequest("INVALID_PRICE_REFERENCE", "provider cost rules do not support model references")
-		}
-		if p.FastModeMultiplier != nil {
-			return infraerrors.BadRequest(
-				"PROVIDER_STATS_FAST_MODE_MULTIPLIER_UNSUPPORTED",
-				"fast_mode_multiplier is not supported for provider stats pricing",
-			)
-		}
-		if p.FastMultiplier != nil || p.FlexMultiplier != nil {
-			return infraerrors.BadRequest(
-				"PROVIDER_STATS_TIER_MULTIPLIER_UNSUPPORTED",
-				"service tier multipliers are not supported for provider stats pricing",
-			)
-		}
-		if p.MaxReasoningEffortMultiplier != nil {
-			return infraerrors.BadRequest(
-				"PROVIDER_STATS_REASONING_MULTIPLIER_UNSUPPORTED",
-				"max_reasoning_effort_multiplier is not supported for provider stats pricing",
-			)
-		}
-		if p.TimePricing != nil && len(p.TimePricing.Periods) > 0 {
-			return infraerrors.BadRequest(
-				"PROVIDER_STATS_TIME_PRICING_UNSUPPORTED",
-				"provider stats pricing does not support time pricing",
-			)
-		}
-	}
-	return v.PricingEntries(pricing)
-}
-
-// checkIntervalsHavePrices rejects intervals containing none of the recognized
-// amount or scaling fields. A default card amount does not make a blank
-// interval valid, and supplied zero pointers still count as present values.
-func checkIntervalsHavePrices(p ModelPricingEntry) error {
-	for _, iv := range p.Intervals {
-		if iv.InputPrice == nil && iv.OutputPrice == nil &&
-			iv.CacheWritePrice == nil && iv.CacheWrite1hPrice == nil && iv.CacheWrite30mPrice == nil && iv.CacheWrite12hPrice == nil && iv.CacheReadPrice == nil &&
-			iv.PerRequestPrice == nil && iv.InputMultiplier == nil &&
-			iv.OutputMultiplier == nil && iv.CacheWriteMultiplier == nil &&
-			iv.CacheReadMultiplier == nil {
-			return infraerrors.BadRequest(
-				"INTERVAL_MISSING_PRICE",
-				fmt.Sprintf("interval [%d, %s] has no price fields set for model %v",
-					iv.MinTokens, formatMaxTokens(iv.MaxTokens), p.Models),
-			)
-		}
-	}
-	return nil
-}
-
-// formatMaxTokens formats a nullable interval ceiling for validation
-// diagnostics. Nil denotes the unbounded infinity label, while a supplied zero
-// or another integer is rendered literally for the caller's error message.
-func formatMaxTokens(max *int) string {
-	if max == nil {
-		return "∞"
-	}
-	return fmt.Sprintf("%d", *max)
 }
 
 // Create validates and persists an active shared pricing configuration, then
@@ -1309,126 +1045,6 @@ func (s *PricingConfigService) List(ctx context.Context, params pagination.Pagin
 	return s.repo.List(ctx, params, status, search)
 }
 
-// conflictsBetween reports whether two normalized exact or prefix patterns
-// accept any common model. Both entries use the same normalization chosen by
-// their caller before this comparison.
-//
-// Two exact values overlap when their prefixes equal. An exact value overlaps a
-// wildcard when the exact name starts with its prefix, and two wildcards
-// overlap when either prefix contains the other. An empty wildcard prefix
-// therefore intersects every pattern, preventing a catch-all from silently
-// competing with a more specific saved card.
-func conflictsBetween(a, b modelEntry) bool {
-	switch {
-	case !a.wildcard && !b.wildcard:
-		return a.prefix == b.prefix
-	case a.wildcard && !b.wildcard:
-		return strings.HasPrefix(b.prefix, a.prefix)
-	case !a.wildcard && b.wildcard:
-		return strings.HasPrefix(a.prefix, b.prefix)
-	default:
-		return strings.HasPrefix(a.prefix, b.prefix) ||
-			strings.HasPrefix(b.prefix, a.prefix)
-	}
-}
-
-// toModelEntry retains a mapping source's spelling and lowercases its
-// comparison prefix. A trailing asterisk marks wildcard behavior and is removed
-// from the prefix; surrounding whitespace remains part of mapping identity.
-func toModelEntry(pattern string) modelEntry {
-	lower := strings.ToLower(pattern)
-	isWild := strings.HasSuffix(lower, "*")
-	prefix := lower
-	if isWild {
-		prefix = strings.TrimSuffix(lower, "*")
-	}
-	return modelEntry{pattern: pattern, prefix: prefix, wildcard: isWild}
-}
-
-// toPricingModelEntry separates a price pattern's diagnostic spelling from its
-// normalized comparison identity. It retains the original pattern for conflict
-// messages and classifies a trailing asterisk before applying price-name
-// normalization.
-//
-// The order matches expandPricingToCache: "model* " becomes an exact identity
-// with comparison prefix "model*", while "model*" becomes the wildcard prefix
-// "model". Trimming before asterisk detection would make validation and cached
-// lookup disagree on those supplied forms.
-func toPricingModelEntry(pattern string) modelEntry {
-	// Detect and remove the trailing star before price-name normalization,
-	// matching cache construction so a supplied spelling cannot classify
-	// differently during overlap checks and runtime lookup.
-	isWild := strings.HasSuffix(pattern, "*")
-	prefix := pattern
-	if isWild {
-		prefix = strings.TrimSuffix(pattern, "*")
-	}
-	return modelEntry{
-		pattern:  pattern,
-		prefix:   normalizePriceModelName(prefix),
-		wildcard: isWild,
-	}
-}
-
-// validateNoConflictingModels rejects overlapping patterns anywhere in a
-// supplied price-card list. It normalizes with cache identity rules, so exact
-// duplicates, case differences, trimmed-name collisions, and intersecting
-// wildcard ranges cannot compete during valid saved lookup.
-func validateNoConflictingModels(pricingList []ModelPricingEntry) error {
-	var entries []modelEntry
-	for _, price := range pricingList {
-		for _, model := range price.Models {
-			entries = append(entries, toPricingModelEntry(model))
-		}
-	}
-	return detectConflicts(entries, "MODEL_PATTERN_CONFLICT", "model patterns")
-}
-
-// validateNoConflictingMappings rejects overlapping exact or trailing-wildcard
-// mapping sources. Targets are irrelevant to overlap detection, and source
-// normalization retains punctuation and whitespace while treating letter case
-// as equivalent.
-func validateNoConflictingMappings(mapping map[string]string) error {
-	entries := make([]modelEntry, 0, len(mapping))
-	for source := range mapping {
-		entries = append(entries, toModelEntry(source))
-	}
-	return detectConflicts(entries, "MAPPING_PATTERN_CONFLICT", "mapping source patterns")
-}
-
-// validatePricingIntervals delegates each card's ranges to the shared interval
-// validator and labels failures with its models. Validation stops at the first
-// card error and leaves the supplied interval ordering unchanged.
-func validatePricingIntervals(pricingList []ModelPricingEntry) error {
-	for _, pricing := range pricingList {
-		if err := ValidateIntervals(pricing.Intervals, pricing.BillingMode); err != nil {
-			return infraerrors.BadRequest(
-				"INVALID_PRICING_INTERVALS",
-				fmt.Sprintf("invalid pricing intervals for models %v: %v", pricing.Models, err),
-			)
-		}
-	}
-	return nil
-}
-
-// detectConflicts returns a labeled bad-request error for the first overlapping
-// pair in supplied order. Empty or disjoint entries succeed, and diagnostic
-// text retains each original pattern rather than its normalized comparison
-// prefix.
-func detectConflicts(entries []modelEntry, errCode, label string) error {
-	for i := range entries {
-		for j := i + 1; j < len(entries); j++ {
-			if conflictsBetween(entries[i], entries[j]) {
-				return infraerrors.BadRequest(errCode,
-					fmt.Sprintf("%s '%s' and '%s' conflict: overlapping match range "+
-						"(model names are matched case-insensitively, so an existing entry already covers all case variants)",
-						label, entries[i].pattern, entries[j].pattern))
-			}
-		}
-	}
-	return nil
-}
-
 // BuildModelMappingChain joins distinct nonblank model spellings in
 // first-occurrence order for display. Inputs are trimmed, equality remains
 // case-sensitive, and fewer than two retained names returns an empty string.
@@ -1458,26 +1074,6 @@ func BuildModelMappingChain(models ...string) string {
 	return strings.Join(stages, "→")
 }
 
-// TimePricing validates populated daily pricing periods and their timezone. Nil
-// or period-empty objects succeed without loading a timezone; populated objects
-// require LoadLocation after timezone-name validation, then use shared period
-// and multiplier checks.
-func (v PricingConfigValidation) TimePricing(config *TimePricingConfig) error {
-	if config == nil || len(config.Periods) == 0 {
-		return nil
-	}
-	if err := pricing.ValidateTimezoneName(config.Timezone); err != nil {
-		return fmt.Errorf("timezone: %w", err)
-	}
-	if v.LoadLocation == nil {
-		return fmt.Errorf("timezone: pricing timezone loader is not configured")
-	}
-	if _, err := v.LoadLocation(config.Timezone); err != nil {
-		return fmt.Errorf("timezone: %w", err)
-	}
-	return pricing.ValidateTimePricingConfig(config)
-}
-
 // warn reports a pricing diagnostic through the optional warning callback. Nil
 // callbacks suppress reporting, while installed callbacks run synchronously
 // with the load, mutation, or lookup operation that generated the message.
@@ -1487,16 +1083,22 @@ func (s *PricingConfigService) warn(message string, args ...any) {
 	}
 }
 
-// ResolveRoutingModel applies one group mapping and trims a usable mapped
-// result. A missing service or group ID, or a blank request model, returns the
-// input unchanged; callers send an already-resolved name directly to execution.
+// ResolveRoutingModel applies the group's routing policy directly without
+// consulting or cloning shared pricing configuration. A missing service or
+// group ID, or a blank request model, returns the input unchanged; policy read
+// errors are reported through warn while retaining the requested identity.
 func (s *PricingConfigService) ResolveRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
 	if s == nil || groupID == nil || strings.TrimSpace(requestedModel) == "" {
 		return requestedModel
 	}
-	mapping := s.ResolveGroupMapping(ctx, *groupID, requestedModel)
-	if mapped := strings.TrimSpace(mapping.MappedModel); mapped != "" {
-		return mapped
+	policy, err := s.GetGroupPolicy(ctx, *groupID)
+	if err != nil {
+		s.warn("failed to read group routing policy", "group_id", *groupID, "error", err)
+	}
+	if policy != nil {
+		if mapped := strings.TrimSpace(policy.ResolveModel(requestedModel)); mapped != "" {
+			return mapped
+		}
 	}
 	// An empty mapped result cannot identify an execution target. Retain the
 	// requested name so downstream model eligibility can still inspect this
@@ -1504,19 +1106,19 @@ func (s *PricingConfigService) ResolveRoutingModel(ctx context.Context, groupID 
 	return requestedModel
 }
 
-// GetEffectiveBillingSettings returns separate optional-price storage from the
-// group's active configuration settings. Missing configuration or a loading
-// error selects shared default settings, so billing consumers can continue with
-// the default policy value.
+// GetEffectiveBillingSettings clones shared billing settings from the group's
+// borrowed active configuration without copying its model-card slices. Missing
+// configuration or a loading error selects shared default settings, so billing
+// consumers can continue with the default policy value.
 func (s *PricingConfigService) GetEffectiveBillingSettings(ctx context.Context, groupID int64) pricing.BillingSettings {
-	config, err := s.GetPricingConfigForGroup(ctx, groupID)
+	lk, err := s.lookupGroupPricingConfig(ctx, groupID)
 	// DefaultBillingSettings keeps long-context pricing enabled and batch image
 	// discount and hold defaults usable when a cache error hides the group's
 	// configured settings.
-	if err != nil || config == nil {
+	if err != nil || lk == nil {
 		return pricing.DefaultBillingSettings()
 	}
-	return config.BillingSettings.Clone()
+	return lk.pricingConfig.BillingSettings.Clone()
 }
 
 // BillingModelForPrice selects and trims the configured model stage for price

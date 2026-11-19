@@ -153,7 +153,7 @@ func BuildHoldCommand(run *CreativeRun, requestID string, actualBaseAmount float
 		SettlementRateScale:             1,
 		DisablePlanGroupRateMultiplier:  !run.PlanGroupRateEnabled,
 		BalanceHoldAmount:               run.BalanceHoldAmount,
-		SubscriptionHoldAllocations:     cloneBillingAllocations(run.SubscriptionHoldAllocations),
+		SubscriptionHoldAllocations:     billing.CloneBillingAllocations(run.SubscriptionHoldAllocations),
 		AllowanceReserved:               run.AllowanceReserved,
 
 		ReservedAt:         run.CreatedAt,
@@ -203,7 +203,7 @@ func (funding Funding) Reserve(ctx context.Context, run *CreativeRun) error {
 	}
 	if result != nil {
 		run.BalanceHoldAmount = result.BalanceAmountUSD
-		run.SubscriptionHoldAllocations = batchImageSubscriptionAllocations(result.BillingAllocations)
+		run.SubscriptionHoldAllocations = billing.SubscriptionHoldAllocations(result.BillingAllocations)
 		holdAmount := result.HoldAmountUSD
 		run.HoldAmount = &holdAmount
 		run.EstimatedCost = result.EstimatedAmountUSD
@@ -254,13 +254,14 @@ func (funding Funding) Capture(ctx context.Context, run *CreativeRun, successCou
 	if result != nil {
 		run.ActualCost = &result.ActualAmountUSD
 	}
+	run.AllowanceReserved = false
 	return result, nil
 }
 
 // Release returns the recorded hold through the run release identifier.
 // Missing stores, nil runs, and nonpositive holds succeed directly; a billing
 // fingerprint conflict is observed and treated as an already completed
-// release.
+// release, while an applied Store.Release clears run.AllowanceReserved.
 func (funding Funding) Release(ctx context.Context, run *CreativeRun) error {
 	if funding.Store == nil || run == nil {
 		return nil
@@ -290,35 +291,8 @@ func (funding Funding) Release(ctx context.Context, run *CreativeRun) error {
 		}
 		return ErrCreativeBillingHoldFailed.WithCause(err)
 	}
+	run.AllowanceReserved = false
 	return nil
-}
-
-// cloneBillingAllocations copies allocation records and their optional source
-// identity pointers. A nil input remains nil, and each copy keeps its supplied
-// amount and scalar pricing values.
-func cloneBillingAllocations(values []billing.BillingAllocation) []billing.BillingAllocation {
-	if values == nil {
-		return nil
-	}
-	out := make([]billing.BillingAllocation, len(values))
-	for i, v := range values {
-		out[i] = billing.CloneBillingAllocation(v, v.AmountUSD)
-	}
-	return out
-}
-
-// batchImageSubscriptionAllocations copies positive subscription allocations
-// that have a subscription identifier. Other allocation types and unusable
-// subscription rows are omitted from the run reservation snapshot; nil input
-// returns an empty slice.
-func batchImageSubscriptionAllocations(values []billing.BillingAllocation) []billing.BillingAllocation {
-	out := make([]billing.BillingAllocation, 0, len(values))
-	for _, v := range values {
-		if v.Type == billing.BillingAllocationTypeSubscription && v.AmountUSD > 0 && v.SubscriptionID != nil {
-			out = append(out, billing.CloneBillingAllocation(v, v.AmountUSD))
-		}
-	}
-	return out
 }
 
 // FundingReference identifies a creative run and its original reservation

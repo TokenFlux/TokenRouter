@@ -668,42 +668,6 @@ func (s *OpsService) resolveOpsIgnoredStatusCodes(ctx context.Context) []int {
 	return resolveOpsIgnoredStatusCodesFromRepo(ctx, s.settingRepo)
 }
 
-// resolveOpsIgnoredStatusCodesFromRepo loads persisted advanced JSON over its
-// defaults and returns an independent ignored-status slice. Missing repository,
-// any read error, or malformed JSON selects default 401/403; an allocated empty
-// decoded policy remains empty after normalization. Nil context selects
-// background for the settings read.
-//
-// This query-policy read is independent of OpsAdvancedSettingsSnapshot, which
-// supplies cached capture preferences. A persisted read and a snapshot read
-// need not represent the same update, so the result defines classification for
-// its caller rather than synchronizing the hot-path snapshot. The returned
-// slice can be edited independently of decoded configuration storage.
-func resolveOpsIgnoredStatusCodesFromRepo(ctx context.Context, repo Settings) []int {
-	if repo == nil {
-		return DefaultOpsIgnoredStatusCodes()
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	raw, err := repo.GetValue(ctx, SettingKeyOpsAdvancedSettings)
-	// Any unavailable persisted policy selects fresh default exclusions for this
-	// query. This path deliberately reads storage independently of the service's
-	// published advanced snapshot.
-	if err != nil {
-		return DefaultOpsIgnoredStatusCodes()
-	}
-	cfg := defaultOpsAdvancedSettings()
-	// Decode over defaults so omitted exclusion fields retain their default
-	// policy. Malformed JSON discards the decoded attempt and returns
-	// independently allocated defaults.
-	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-		return DefaultOpsIgnoredStatusCodes()
-	}
-	normalizeOpsAdvancedSettings(cfg)
-	return cloneOpsIgnoredStatusCodes(cfg.IgnoredStatusCodes)
-}
-
 // GetOpsAdvancedSettings returns a pointer to the current advanced snapshot
 // value and ignores ctx. It performs no synchronous settings query, and the
 // copied value retains IgnoredStatusCodes storage that callers treat as

@@ -135,13 +135,13 @@ database:
 
 ### 国产供应商用量监控
 
-国产供应商的周期用量监控属于启动时的进程配置 `provider.usage_monitor`。`monitor_enabled` 默认关闭；开启后，默认每 10 分钟运行一次，并发 4，单个提供商的探测超时 20 秒，每轮预算 300 秒，余额临时停调阈值 `balance_threshold` 默认 `0.5`。对应的键是 `interval_minutes`、`concurrency`、`probe_timeout_seconds` 和 `round_timeout_seconds`，修改后需要重启。管理员手动查询不受监控开关影响；对自定义中继的自动监控，还要求开启并命中 `security.url_allowlist.upstream_hosts`。
+国产供应商的周期用量监控属于启动时的进程配置 `provider.usage_monitor`。`enabled` 默认关闭；开启后，默认每 10 分钟运行一次，并发 4，单个提供商的探测超时 20 秒，每轮预算 300 秒，余额临时停调阈值 `pause_below_balance` 默认 `0.5`。对应的键是 `interval_minutes`、`concurrency`、`probe_timeout_seconds` 和 `round_timeout_seconds`，修改后需要重启。管理员手动查询不受监控开关影响；对自定义中继的自动监控，还要求开启并命中 `security.url_allowlist.upstream_hosts`。
 
 ### 创作台和批量图片
 
-创作台（Creative Studio）属于启动时的进程配置 `creative`：功能和队列开关、临时数据 TTL（`transient_ttl_seconds`，默认 1800 秒）、上传和 prompt 限制（`max_asset_bytes` 默认 32 MiB，`max_total_input_bytes` 默认 64 MiB 且不小于单文件上限，`max_prompt_chars` 默认 8000）、上游执行参数（`execute_timeout_seconds`、`max_execute_attempts`），以及 `creative:queue:*` 的队列键和 TTL，都在启动时校验，修改后需要重启。
+创作台（Creative Studio）属于启动时的进程配置 `creative`：功能和队列开关、临时数据 TTL（`transient_ttl_seconds`，默认 1800 秒）、上传和 prompt 限制（`max_asset_bytes` 默认 32 MiB，`max_total_input_bytes` 默认 64 MiB 且不小于单文件上限，`max_prompt_chars` 默认 8000）、上游执行参数（`execute_timeout_seconds`、`max_execute_attempts`），以及 `creative.queue` 下的 Redis 队列键和 TTL，都在启动时校验，修改后需要重启。
 
-创作台每个任务固定生成一张图片，预占价格按所选尺寸的单价计算。创作台的 `enabled` 和 `queue_enabled` 默认开启；临时存储和队列依赖 Redis，Redis 不可用时拒绝创建任务。完整的键清单见 `deploy/config.example.yaml` 和[创作台](../domains/creative_studio.md)。
+创作台每个任务固定生成一张图片，预占价格按所选尺寸的单价计算。创作台的 `enabled` 和 `queue_worker_enabled` 默认开启；临时存储和队列依赖 Redis，Redis 不可用时拒绝创建任务。完整的键清单见 `deploy/config.example.yaml` 和[创作台](../domains/creative_studio.md)。
 
 批量图片的请求准入由分组和提供商统一协议配置控制，worker、恢复和清理随应用启动。`batch_image` 保留请求、下载、留存、队列和 Vertex 存储参数；未配置 GCS 存储桶时，Vertex 不参与新建作业选择。填写存储桶后，启动时校验名称、区域和作业前缀。
 

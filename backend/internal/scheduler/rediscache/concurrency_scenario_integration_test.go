@@ -18,11 +18,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// Discovery scores can be due while ordinary members are still live, and
-// unindexed primary sets can remain outside maintenance queries. These Redis
-// fixtures seed both states to check rescheduling and cleanup scope,
-// alongside slot admission, lease renewal, queue counters and request-owned
-// release after unconfirmed wait admission.
+// End-to-end Redis concurrency scenarios spanning concurrency_cache.go,
+// concurrency_slots.go, concurrency_ws_ingress.go, and
+// concurrency_live_leases.go. Discovery scores can be due while ordinary
+// members are still live, and unindexed primary sets can remain outside
+// maintenance queries; these fixtures seed both states alongside slot
+// admission, lease renewal, queue counters, and fail-open wait cleanup.
 
 // testSlotTTLMinutes selects the default ordinary-slot lifetime so
 // integration admission and expiry assertions use the same configured minute

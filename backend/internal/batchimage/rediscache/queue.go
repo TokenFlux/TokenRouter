@@ -2,34 +2,28 @@ package rediscache
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	"github.com/TokenFlux/TokenRouter/internal/infra/redis/taskqueue"
 )
 
 // queue.go coordinates batch-image queue admission, reservation, retries, and
 // lease ownership in Redis.
 // Queued image jobs carry one batch ID across ready, delayed, and active
-// records. Admission creates the inflight marker together with the ready entry,
-// and reservation removes a ready entry together with recording its active
-// timestamp. These Lua operations keep interrupted clients from leaving a
-// deduplication marker without work or consuming work without a recovery record.
+// records. Shared taskqueue primitives manage atomic inflight-plus-ready
+// admission, polling waits, delayed promotion, stale-active recovery, and
+// token-owned job locks, while reservation removes a ready entry together with
+// recording its active timestamp.
 //
 // Execution ownership is a separate expiring token. Holder operations compare
 // that token inside the same script that updates queue records. Queue-level
 // heartbeat, acknowledgement, and requeue require an absent lock. Stale recovery
 // moves old active entries back to ready, where workers still acquire the job
 // lock before processing.
-//
-// Go-redis can execute a script again after an uncertain reply. Commands are
-// serialized within each execution, while command errors can retain earlier
-// writes. Clients keep configured keys in their expected record types;
-// PostgreSQL retains the durable job state used after queue recovery.
 
 // Queue defaults name ready, delayed, active, inflight, and lock records and
 // set marker and lease expiry budgets. Reservation polling bounds idle script
@@ -44,55 +38,11 @@ const (
 	defaultBatchImageJobLockTTL     = 5 * time.Minute
 
 	// batchImageReservePollInterval bounds pauses between empty reservation
-	// attempts. The timer supports idle waiting after each atomic transfer attempt
-	// has found no ready work to reserve.
+	// attempts.
 	batchImageReservePollInterval = time.Second
 )
 
 var (
-	// batchImageMoveDueDelayedScript transfers due retry IDs to ready in one Redis
-	// operation, preventing overlapping movers from transferring the same delayed
-	// member twice.
-	batchImageMoveDueDelayedScript = redis.NewScript(`
-local jobs = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", ARGV[1], "LIMIT", 0, ARGV[2])
-for _, job in ipairs(jobs) do
-  redis.call("ZREM", KEYS[1], job)
-  redis.call("LPUSH", KEYS[2], job)
-end
-return #jobs
-`)
-
-	// batchImageRecoverStaleActiveScript returns old active IDs to ready by
-	// timestamp. It leaves lock checks to the worker's subsequent acquisition
-	// because an active timestamp alone does not establish execution ownership.
-	batchImageRecoverStaleActiveScript = redis.NewScript(`
-local jobs = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", ARGV[1], "LIMIT", 0, ARGV[2])
-for _, job in ipairs(jobs) do
-  redis.call("ZREM", KEYS[1], job)
-  redis.call("LPUSH", KEYS[2], job)
-end
-return #jobs
-`)
-
-	// batchImageReleaseLockScript deletes a lock when its token still identifies
-	// the releasing holder, leaving a replacement holder's expiring lock intact.
-	batchImageReleaseLockScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-  return redis.call("DEL", KEYS[1])
-end
-return 0
-`)
-
-	// batchImageRefreshLockScript renews a matching token's expiry and reports
-	// whether ownership was confirmed, allowing workers to stop after a successor
-	// acquires the lock.
-	batchImageRefreshLockScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-  return redis.call("PEXPIRE", KEYS[1], ARGV[2])
-end
-return 0
-`)
-
 	// batchImageReserveScript moves the oldest ready ID into active with its
 	// reservation timestamp. Combining both writes leaves a recovery record when
 	// the reserving client stops after Redis has applied the script.
@@ -103,17 +53,6 @@ if not job then
 end
 redis.call("ZADD", KEYS[2], ARGV[1], job)
 return job
-`)
-
-	// batchImageEnqueueScript installs an expiring inflight marker and pushes the
-	// same batch ID to ready. A successful script joins those writes, closing the
-	// client-interruption gap between separate admission and list commands.
-	batchImageEnqueueScript = redis.NewScript(`
-if redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2]) then
-  redis.call("LPUSH", KEYS[2], ARGV[1])
-  return 1
-end
-return 0
 `)
 
 	// batchImageOwnedMutation compares execution ownership before applying
@@ -264,27 +203,15 @@ func normalizeBatchImageQueueOptions(opts QueueOptions) QueueOptions {
 // Enqueue admits a valid batch ID by creating its inflight marker and ready
 // entry together. An existing marker returns ErrBatchImageAlreadyQueued;
 // invalid IDs are rejected before Redis is contacted.
-//
-// Redis serializes the marker and list commands in one script. Command errors
-// can leave earlier writes applied, so callers keep the configured keys in their
-// expected record types. On success, a worker can reserve ready work while its
-// marker suppresses duplicate admission; acknowledgement removes that marker.
 func (q *batchImageQueue) Enqueue(ctx context.Context, batchID string) error {
 	if !batchimage.IsValidBatchImageID(batchID) {
 		return batchimage.ErrInvalidBatchImageQueuePayload
 	}
-
-	// Lua receives whole milliseconds for marker expiry, bypassing SetNX's duration
-	// normalization. A positive override below one millisecond becomes zero and
-	// fails SET's expiry validation before ready publication.
-	applied, err := batchImageEnqueueScript.Run(ctx, q.rdb,
-		[]string{q.inflightKey(batchID), q.readyKey},
-		batchID, q.inflightTTL.Milliseconds(),
-	).Int()
+	applied, err := taskqueue.Enqueue(ctx, q.rdb, q.inflightKey(batchID), q.readyKey, batchID, q.inflightTTL)
 	if err != nil {
 		return err
 	}
-	if applied == 0 {
+	if !applied {
 		return batchimage.ErrBatchImageAlreadyQueued
 	}
 	return nil
@@ -292,43 +219,21 @@ func (q *batchImageQueue) Enqueue(ctx context.Context, batchID string) error {
 
 // Reserve polls for the oldest ready job and returns its reserved batch ID.
 // It attempts reservation once even with a nonpositive blocking budget.
-// The budget limits waiting after empty replies; a successful Redis result wins
-// before the deadline check, including when its reply arrives after that deadline.
 //
 // Only an empty queue triggers another attempt. The timer waits for at most
 // one poll interval or the remaining budget, whichever is shorter; cancellation
 // during that wait returns the context error, while Redis and payload errors
-// stop the attempt immediately. Redis request duration follows the supplied
-// client's socket policy; blockTimeout does not interrupt a request in progress.
+// stop the attempt immediately.
 func (q *batchImageQueue) Reserve(ctx context.Context, blockTimeout time.Duration) (batchimage.ReservedBatchImageJob, error) {
-	deadline := time.Now().Add(blockTimeout)
-	for {
-		batchID, err := q.reserveOnce(ctx)
-		if err == nil {
-			return batchimage.ReservedBatchImageJob{BatchID: batchID}, nil
-		}
-		if !errors.Is(err, batchimage.ErrBatchImageQueueEmpty) {
+	return taskqueue.PollReserve(ctx, blockTimeout, batchImageReservePollInterval, func(err error) bool {
+		return errors.Is(err, batchimage.ErrBatchImageQueueEmpty)
+	}, func(callCtx context.Context) (batchimage.ReservedBatchImageJob, error) {
+		batchID, err := q.reserveOnce(callCtx)
+		if err != nil {
 			return batchimage.ReservedBatchImageJob{}, err
 		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return batchimage.ReservedBatchImageJob{}, batchimage.ErrBatchImageQueueEmpty
-		}
-		// A later enqueue can supply work after this empty result. Bound the pause
-		// by the remaining caller budget so the last retry cannot add a full poll
-		// interval beyond that budget.
-		wait := min(remaining, batchImageReservePollInterval)
-		timer := time.NewTimer(wait)
-		// The timer and request cancellation compete only during idle waiting. Stop
-		// the timer on cancellation so returning the context error also releases its
-		// pending wait.
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return batchimage.ReservedBatchImageJob{}, ctx.Err()
-		case <-timer.C:
-		}
-	}
+		return batchimage.ReservedBatchImageJob{BatchID: batchID}, nil
+	})
 }
 
 // reserveOnce moves one ready ID into active and returns that ID.
@@ -336,10 +241,7 @@ func (q *batchImageQueue) Reserve(ctx context.Context, blockTimeout time.Duratio
 // return ErrInvalidBatchImageQueuePayload after the script's queue mutation.
 //
 // Invalid nonempty string IDs receive a best-effort active removal so stale
-// recovery does not repeatedly reintroduce them. Empty strings and unexpected
-// result types skip that removal. A cleanup error also leaves the malformed
-// active member available to recovery; the payload error remains the returned
-// decision in every malformed-result case.
+// recovery does not repeatedly reintroduce them.
 func (q *batchImageQueue) reserveOnce(ctx context.Context) (string, error) {
 	raw, err := batchImageReserveScript.Run(ctx, q.rdb, []string{q.readyKey, q.activeKey}, time.Now().UnixMilli()).Result()
 	if errors.Is(err, redis.Nil) {
@@ -389,9 +291,7 @@ func (q *batchImageQueue) Heartbeat(ctx context.Context, id string) error {
 //
 // Heartbeat updates existing active membership, acknowledgement removes queue
 // and inflight records, and requeue uses its whole-millisecond delay to choose
-// ready or delayed placement. The comparison and these writes share one Lua
-// execution, so a successor lock cannot appear between authorization and the
-// queue mutation. Sub-millisecond delays select immediate ready placement.
+// ready or delayed placement.
 func (q *batchImageQueue) mutateOwned(ctx context.Context, id, token, action string, delay time.Duration) error {
 	if !batchimage.IsValidBatchImageID(id) {
 		return batchimage.ErrInvalidBatchImageQueuePayload
@@ -413,42 +313,25 @@ func (q *batchImageQueue) mutateOwned(ctx context.Context, id, token, action str
 // MoveDueDelayedToReady transfers delayed members whose scheduled time has
 // arrived into ready and returns the script's reported moved count. Nonpositive
 // limits select one hundred members; scheduling scores use Unix milliseconds.
-// Client retries can move more members than the final execution reports.
 func (q *batchImageQueue) MoveDueDelayedToReady(ctx context.Context, limit int) (int, error) {
-	if limit <= 0 {
-		limit = 100
-	}
-	// Remove due delayed members and push them to ready together so overlapping
-	// mover calls observe either the scheduled entry or the ready entry.
-	return batchImageMoveDueDelayedScript.Run(ctx, q.rdb, []string{q.delayedKey, q.readyKey}, time.Now().UnixMilli(), limit).Int()
+	return taskqueue.MoveDueDelayedToReady(ctx, q.rdb, q.delayedKey, q.readyKey, time.Now().UnixMilli(), limit)
 }
 
 // RecoverStaleActive returns active members at or before the stale cutoff to
 // ready. Nonpositive stale durations are invalid, and nonpositive limits select
 // one hundred members; processing still requires acquiring each job's lock.
-// The count belongs to the reported script execution; client retries can also
-// have moved members during an earlier execution with an uncertain reply.
 func (q *batchImageQueue) RecoverStaleActive(ctx context.Context, staleAfter time.Duration, limit int) (int, error) {
 	if staleAfter <= 0 {
 		return 0, batchimage.ErrInvalidBatchImageQueuePayload
 	}
-	if limit <= 0 {
-		limit = 100
-	}
 	cutoff := time.Now().Add(-staleAfter).UnixMilli()
-	// Recovery uses active timestamps, leaving execution locks intact. A worker
-	// that reserves recovered work still acquires that lock, preventing a stale
-	// timestamp from granting concurrent execution.
-	return batchImageRecoverStaleActiveScript.Run(ctx, q.rdb, []string{q.activeKey, q.readyKey}, cutoff, limit).Int()
+	return taskqueue.RecoverStaleActive(ctx, q.rdb, q.activeKey, q.readyKey, cutoff, limit)
 }
 
 // TryAcquireJobLock attempts an expiring token lock for a valid batch ID.
 // Nonpositive TTL selects the configured lock budget; contention returns a nil
 // holder, false, and no error. Successful callers release or renew the returned
-// holder while using its token-checked queue methods. SetNX rounds a positive
-// sub-millisecond TTL up to one millisecond; Refresh requires at least one
-// millisecond for a positive override. Random-source failure terminates the
-// process under crypto/rand.Read's policy before Redis lock installation.
+// holder while using its token-checked queue methods.
 func (q *batchImageQueue) TryAcquireJobLock(ctx context.Context, batchID string, ttl time.Duration) (batchimage.BatchImageJobLock, bool, error) {
 	if !batchimage.IsValidBatchImageID(batchID) {
 		return nil, false, batchimage.ErrInvalidBatchImageQueuePayload
@@ -456,17 +339,10 @@ func (q *batchImageQueue) TryAcquireJobLock(ctx context.Context, batchID string,
 	if ttl <= 0 {
 		ttl = q.lockTTL
 	}
-	token, err := newBatchImageLockToken()
-	if err != nil {
-		return nil, false, err
-	}
 	key := q.lockKey(batchID)
-	ok, err := q.rdb.SetNX(ctx, key, token, ttl).Result()
-	if err != nil {
+	token, ok, err := taskqueue.AcquireLock(ctx, q.rdb, key, ttl)
+	if err != nil || !ok {
 		return nil, false, err
-	}
-	if !ok {
-		return nil, false, nil
 	}
 	return &batchImageRedisJobLock{rdb: q.rdb, key: key, token: token, queue: q, id: batchID}, true, nil
 }
@@ -485,12 +361,10 @@ func (q *batchImageQueue) lockKey(batchID string) string {
 // An incomplete holder is a no-op, and a missing or replacement token also
 // succeeds without deleting another acquisition's lock.
 func (l *batchImageRedisJobLock) Release(ctx context.Context) error {
-	if l == nil || l.rdb == nil || l.key == "" || l.token == "" {
+	if l == nil {
 		return nil
 	}
-	// A holder can outlive its expiring lock. Compare its token during deletion
-	// so releasing that old handle leaves any replacement acquisition intact.
-	return batchImageReleaseLockScript.Run(ctx, l.rdb, []string{l.key}, l.token).Err()
+	return taskqueue.ReleaseLock(ctx, l.rdb, l.key, l.token)
 }
 
 // Refresh renews this holder's matching Redis token or returns
@@ -505,29 +379,14 @@ func (l *batchImageRedisJobLock) Refresh(ctx context.Context, ttl time.Duration)
 	if ttl <= 0 {
 		ttl = defaultBatchImageJobLockTTL
 	}
-	// Check ownership while applying the whole-millisecond expiry. A matching token
-	// plus a positive sub-millisecond TTL can return success while PEXPIRE deletes
-	// the lock; the caller's minimum-TTL rule prevents that lease loss.
-	n, err := batchImageRefreshLockScript.Run(ctx, l.rdb, []string{l.key}, l.token, ttl.Milliseconds()).Int()
+	refreshed, err := taskqueue.RefreshLock(ctx, l.rdb, l.key, l.token, ttl)
 	if err != nil {
 		return err
 	}
-	if n != 1 {
+	if !refreshed {
 		return batchimage.ErrBatchImageLeaseLost
 	}
 	return nil
-}
-
-// newBatchImageLockToken returns a 32-character hex token from sixteen random
-// bytes. Under the repository's Go toolchain, crypto/rand.Read fills the buffer
-// or terminates the process on a random-source error, so a returning call supplies
-// nil error. Tokens distinguish successive acquisitions of one batch ID.
-func newBatchImageLockToken() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b[:]), nil
 }
 
 // Heartbeat refreshes this holder's existing active membership after confirming

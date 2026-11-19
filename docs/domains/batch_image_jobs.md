@@ -275,14 +275,14 @@ API Key 路径：
 
 ## 配置
 
-以下配置键定义在 `backend/internal/config/config.go`：
+以下配置键定义在 `backend/internal/config/runtime_domains.go`（默认值在 `backend/internal/config/defaults.go`）：
 
 ```yaml
 batch_image:
-  max_items_per_job_default: 200
+  max_items_per_job: 200
   max_output_images_per_job: 200
   max_output_images_per_item: 4
-  max_prompt_chars_per_item: 8000
+  max_prompt_bytes_per_item: 8000
   max_reference_images_per_job: 1000
   max_reference_inline_bytes_per_job: 134217728
   default_response_mime_type: "image/png"
@@ -298,28 +298,30 @@ batch_image:
   cleanup_interval_minutes: 30
   cleanup_batch_size: 100
 
-  queue_ready_key: "batch_image:queue:ready"
-  queue_delayed_key: "batch_image:queue:delayed"
-  queue_active_key: "batch_image:queue:active"
-  inflight_key_prefix: "batch_image:queue:inflight:"
-  lock_key_prefix: "batch_image:queue:lock:"
-  inflight_ttl_seconds: 604800
-  job_lock_ttl_seconds: 300
-  default_requeue_delay_seconds: 30
-  error_retry_delay_seconds: 60
-  lock_conflict_delay_seconds: 5
-  stale_active_after_seconds: 600
-  delayed_mover_interval_seconds: 5
-  recovery_interval_seconds: 300
-  delayed_move_limit: 100
-  recover_limit: 100
+  queue:
+    ready_key: "batch_image:queue:ready"
+    delayed_key: "batch_image:queue:delayed"
+    active_key: "batch_image:queue:active"
+    inflight_key_prefix: "batch_image:queue:inflight:"
+    lock_key_prefix: "batch_image:queue:lock:"
+    inflight_ttl_seconds: 604800
+    job_lock_ttl_seconds: 300
+    default_requeue_delay_seconds: 30
+    error_retry_delay_seconds: 60
+    lock_conflict_delay_seconds: 5
+    stale_active_after_seconds: 600
+    delayed_mover_interval_seconds: 5
+    recovery_interval_seconds: 300
+    delayed_move_limit: 100
+    recover_limit: 100
 
-  vertex_project_id: ""
-  vertex_location: "global"
-  vertex_managed_gcs_bucket: ""
-  vertex_managed_gcs_prefix: "batch-image/{env}/{batch_id}"
-  vertex_batch_prediction_base_url: ""
-  vertex_gcs_base_url: ""
+  vertex:
+    project_id: ""
+    location: "global"
+    managed_gcs_bucket: ""
+    managed_gcs_prefix: "batch-image/{env}/{batch_id}"
+    batch_prediction_base_url: ""
+    gcs_base_url: ""
 ```
 
 worker、恢复和清理随应用生命周期运行。关闭分组或提供商的批量协议只限制新建，已提交作业继续使用保存的提供商与资金快照。Vertex 存储桶为空时允许启动；非空时校验存储桶、区域和包含 `{batch_id}` 的前缀。

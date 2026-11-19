@@ -496,18 +496,18 @@ func (s *Results) SettleRun(ctx context.Context, runID string) error {
 	// Capture confirmed provider work before delivery reads. If availability
 	// checking later fails, another settlement attempt uses the same capture ID
 	// so already completed funds work is deduplicated by the billing store.
+	wasAllowanceReserved := run.AllowanceReserved
 	billingResult, err := s.Funding.Capture(ctx, run, successCount)
 	if err != nil {
 		return err
 	}
 	// Capture completed before this metadata marker is cleared. Persist the
-	// allowance state before auth invalidation and terminal delivery completion
-	// so subsequent recovery can read the completed reservation state.
-	if marker, ok := s.Repo.(CreativeRunAllowanceMarker); ok && run.AllowanceReserved {
+	// allowance state using the pre-capture flag before auth invalidation and
+	// terminal delivery completion so subsequent recovery reads the cleared state.
+	if marker, ok := s.Repo.(CreativeRunAllowanceMarker); ok && wasAllowanceReserved {
 		if err := marker.SetCreativeRunAllowanceReserved(ctx, runID, false); err != nil {
 			return err
 		}
-		run.AllowanceReserved = false
 	}
 	s.InvalidateCreativeAuthCache(ctx, run.UserID)
 	actualCost := 0.0
@@ -557,13 +557,14 @@ func (s *Results) ReleaseRun(ctx context.Context, runID string) error {
 	// Return funds before advancing the saved release target. A failed funds
 	// operation leaves release_pending available for another queued or outbox
 	// recovery attempt with the same release identifier.
+	wasAllowanceReserved := run.AllowanceReserved
 	if err := s.Funding.Release(ctx, run); err != nil {
 		return err
 	}
 	// Funds release has completed before clearing its remaining allowance marker.
-	// Persist that state before terminal transition and cache invalidation so
-	// later metadata reads describe the returned reservation.
-	if marker, ok := s.Repo.(CreativeRunAllowanceMarker); ok && run.AllowanceReserved {
+	// Persist that state using the pre-release flag before terminal transition
+	// and cache invalidation so later metadata reads describe the returned reservation.
+	if marker, ok := s.Repo.(CreativeRunAllowanceMarker); ok && wasAllowanceReserved {
 		if err := marker.SetCreativeRunAllowanceReserved(ctx, runID, false); err != nil {
 			return err
 		}
@@ -745,7 +746,7 @@ func (s *Results) RecordCreativeUsageLog(ctx context.Context, run *CreativeRun, 
 	if billingResult != nil {
 		subscriptionAmount = billingResult.SubscriptionAmountUSD
 		balanceAmount = billingResult.BalanceAmountUSD
-		allocations = cloneBillingAllocations(billingResult.BillingAllocations)
+		allocations = billing.CloneBillingAllocations(billingResult.BillingAllocations)
 	}
 	billingType := usage.BillingTypeBalance
 	if subscriptionAmount > 0 {

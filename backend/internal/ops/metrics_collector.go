@@ -65,10 +65,10 @@ type OpsMetricsCollector struct {
 	loopWG           sync.WaitGroup // started collection-loop join
 	// opsRepo receives metric rows and job heartbeats. collectOnce skips attempts
 	// when this dependency is absent.
-	opsRepo OpsRepository // metric and heartbeat writer
+	opsRepo MetricsCollectorRepository // metric and heartbeat writer
 	// settingRepo supplies interval and monitoring settings. An absent reader
 	// selects the minimum interval and permits monitoring.
-	settingRepo Settings // runtime collector settings reader
+	settingRepo SettingValueReader // runtime collector settings reader
 	// cfg is retained from construction. A nonnil Options with Ops.Enabled false
 	// suppresses collection before querying settings or leadership.
 	cfg *Options // process Ops switch source
@@ -84,8 +84,8 @@ type OpsMetricsCollector struct {
 	db MetricsSource // historical metric query source
 	// redisClient owns lease acquisition and release. When it is absent, the
 	// collector runs without selecting an advisory lock.
-	redisClient RuntimeCache // Redis leadership lease adapter
-	instanceID  string       // per-collector lease owner identity
+	redisClient LeaderLeaseCache // Redis leadership lease adapter
+	instanceID  string           // per-collector lease owner identity
 
 	// observer supplies live measurements after leadership succeeds. Collection
 	// requires a nonnil sampler whose returned system stats remain nonnil on
@@ -112,12 +112,12 @@ type OpsMetricsCollector struct {
 // stop channel inactive. A running collection requires a HostSampler that
 // returns nonnil system stats even when reporting a sampling error.
 func NewOpsMetricsCollector(
-	opsRepo OpsRepository,
-	settingRepo Settings,
+	opsRepo MetricsCollectorRepository,
+	settingRepo SettingValueReader,
 	providerRepo ProviderLoadSource,
 	concurrencyService ConcurrencyReader,
 	db MetricsSource,
-	redisClient RuntimeCache,
+	redisClient LeaderLeaseCache,
 	cfg *Options,
 	observer HostSampler,
 ) *OpsMetricsCollector {

@@ -55,11 +55,11 @@ func (r publicBalanceUnit) GetBalanceUnitName(ctx context.Context) string {
 }
 
 // providePublicUsage binds public usage, live balance, and request funding
-// context. Its Key reader uses CopyAPIKey, while billing and subscription
-// callbacks retain the gateway context result; date handling uses the supplied
-// calendar.
-func providePublicUsage(u *usage.UsageService, k *keycore.APIKeyService, users *identity.UserService, store *settings.Store, calendar timezone.Calendar) *usagehttp.PublicUsageHandler {
-	return usagehttp.NewPublicUsageHandler(u, k, usagehttp.PublicBalanceQuery(func(ctx context.Context, id int64) (*usagehttp.PublicUserBalance, error) {
+// context. Its Key reader uses CopyAPIKey, spending windows read directly from
+// KeyUsageStore, and billing/subscription callbacks retain the gateway context
+// result; date handling uses the supplied calendar.
+func providePublicUsage(u *usage.UsageService, keyUsage *billingpg.KeyUsageStore, users *identity.UserService, store *settings.Store, calendar timezone.Calendar) *usagehttp.PublicUsageHandler {
+	return usagehttp.NewPublicUsageHandler(u, keyUsage, usagehttp.PublicBalanceQuery(func(ctx context.Context, id int64) (*usagehttp.PublicUserBalance, error) {
 		v, e := users.GetByID(ctx, id)
 		if e != nil {
 			return nil, e

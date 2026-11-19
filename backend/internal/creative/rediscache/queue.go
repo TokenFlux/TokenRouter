@@ -2,32 +2,28 @@ package rediscache
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/TokenFlux/TokenRouter/internal/creative"
+	"github.com/TokenFlux/TokenRouter/internal/infra/redis/taskqueue"
 )
 
 // queue.go coordinates creative queue admission, reservation, recovery, and
 // job locking in Redis.
-// Redis ready work, active ownership, and inflight admission need to move
-// together when a task is reserved. The reserve script pops one ready ID and
-// publishes its active timestamp and new lease in one operation, while enqueue
-// creates the inflight marker with the ready entry. Polling surrounds the
-// reserve script so cancellation and finite wait budgets can be observed
-// between attempts.
+// Redis ready work, active ownership, and inflight admission move together when
+// a task is reserved. The reserve script pops one ready ID and publishes its
+// active timestamp and new lease in one operation, while shared taskqueue
+// helpers manage atomic enqueue, polling waits, delayed promotion, stale-active
+// recovery, and token-owned job locks.
 //
 // Acknowledgment, requeue, and heartbeat compare active membership and the
-// current lease token before changing queue state. Stale recovery uses the
-// active age, clears the old lease, and moves work back to ready; a later
-// reservation installs a new token. A separate token-owned job lock prevents
-// simultaneous processing and can be renewed without changing queue ownership.
-// Inflight TTL bounds duplicate admission independently from job-lock TTL and
-// heartbeat timestamps.
+// current lease token before changing queue state. Stale recovery resets the
+// inflight key to the run ID with fresh inflight TTL rather than deleting it,
+// fencing the previous reserved worker while keeping duplicate Enqueue calls
+// blocked until acknowledgment or TTL expiration.
 
 // Default keys separate ready, delayed, active, inflight, and job-lock data.
 // Their retention durations govern duplicate admission and processing-lock
@@ -43,39 +39,13 @@ const (
 
 	// creativeReservePollInterval spaces retries when the atomic reserve
 	// script finds no work.
-	// Polling lets the script pop a task and mark it active in one atomic operation.
 	creativeReservePollInterval = time.Second
 )
 
-// These Lua operations move queue entries and compare lease or lock tokens
-// inside Redis so an operation cannot interleave its membership check with
-// another worker bookkeeping write. Compile-time assertions cover the domain interfaces.
+// Domain-specific Lua operations compare active membership and the inflight
+// lease token inside Redis so worker bookkeeping cannot interleave with a
+// replacement reservation or recovery.
 var (
-	// creativeMoveDueDelayedScript transfers due delayed IDs to ready in one
-	// Redis operation, retaining inflight admission until later reservation or
-	// acknowledgment.
-	creativeMoveDueDelayedScript = redis.NewScript(`
-local jobs = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", ARGV[1], "LIMIT", 0, ARGV[2])
-for _, job in ipairs(jobs) do
-  redis.call("ZREM", KEYS[1], job)
-  redis.call("LPUSH", KEYS[2], job)
-end
-return #jobs
-`)
-
-	// creativeRecoverStaleActiveScript moves old active timestamps to ready and
-	// deletes their queue lease keys, fencing the previous reserved worker on its
-	// later updates.
-	creativeRecoverStaleActiveScript = redis.NewScript(`
-local jobs = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", ARGV[1], "LIMIT", 0, ARGV[2])
-for _, job in ipairs(jobs) do
-  redis.call("ZREM", KEYS[1], job)
-  redis.call("LPUSH", KEYS[2], job)
-  redis.call("DEL", KEYS[3] .. job)
-end
-return #jobs
-`)
-
 	// creativeAckScript removes active, delayed, and inflight bookkeeping only
 	// when active membership and the supplied lease token both still match.
 	creativeAckScript = redis.NewScript(`
@@ -115,30 +85,8 @@ end
 return 0
 `)
 
-	// creativeReleaseLockScript deletes a job lock only when its current token
-	// matches, leaving a later owner lock intact after expiry and replacement.
-	creativeReleaseLockScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-  return redis.call("DEL", KEYS[1])
-end
-return 0
-`)
-
-	// creativeRefreshLockScript extends job-lock expiry only for its current
-	// matching token, returning false ownership after expiration or replacement.
-	creativeRefreshLockScript = redis.NewScript(`
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-  return redis.call("PEXPIRE", KEYS[1], ARGV[2])
-end
-return 0
-`)
-
 	// creativeReserveScript atomically moves a ready task into the active
-	// set and assigns a lease.
-	// Separate BRPop and ZAdd calls could lose a task if the process exits
-	// between them,
-	// while the inflight key blocks re-enqueueing for its TTL (seven days
-	// by default).
+	// set and assigns a fresh lease token under the inflight prefix.
 	creativeReserveScript = redis.NewScript(`
 local job = redis.call("RPOP", KEYS[1])
 if not job then
@@ -147,18 +95,6 @@ end
 redis.call("ZADD", KEYS[2], ARGV[1], job)
 redis.call("SET", KEYS[3] .. job, ARGV[2], "PX", ARGV[3])
 return job
-`)
-
-	// creativeEnqueueScript atomically creates the inflight key and pushes
-	// the task onto ready.
-	// Separate SetNX and LPush calls could leave only the inflight key after a crash,
-	// blocking later enqueue attempts for its TTL (seven days by default).
-	creativeEnqueueScript = redis.NewScript(`
-if redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2]) then
-  redis.call("LPUSH", KEYS[2], ARGV[1])
-  return 1
-end
-return 0
 `)
 
 	_ creative.CreativeRunQueue            = (*creativeQueue)(nil)
@@ -239,8 +175,7 @@ func NewCreativeQueue(rdb *redis.Client, cfg *QueueOptions) creative.CreativeRun
 			queue.lockPrefix = cfg.LockKeyPrefix
 		}
 		// Configured whole seconds become the Redis expiration durations used for
-		// duplicate admission and independent job-lock ownership by
-		// later operations.
+		// duplicate admission and independent job-lock ownership by later operations.
 		if cfg.InflightTTLSeconds > 0 {
 			queue.inflightTTL = time.Duration(cfg.InflightTTLSeconds) * time.Second
 		}
@@ -253,20 +188,16 @@ func NewCreativeQueue(rdb *redis.Client, cfg *QueueOptions) creative.CreativeRun
 
 // Enqueue atomically adds valid creative work with its inflight admission
 // marker. Invalid IDs fail before Redis access, and an existing marker returns
-// ErrCreativeAlreadyQueued until acknowledgment, recovery, or expiration
-// removes it.
+// ErrCreativeAlreadyQueued until acknowledgment or expiration removes it.
 func (q *creativeQueue) Enqueue(ctx context.Context, runID string) error {
 	if !creative.IsValidCreativeRunID(runID) {
 		return creative.ErrInvalidCreativeQueuePayload
 	}
-	applied, err := creativeEnqueueScript.Run(ctx, q.rdb,
-		[]string{q.inflightKey(runID), q.readyKey},
-		runID, q.inflightTTL.Milliseconds(),
-	).Int()
+	applied, err := taskqueue.Enqueue(ctx, q.rdb, q.inflightKey(runID), q.readyKey, runID, q.inflightTTL)
 	if err != nil {
 		return err
 	}
-	if applied == 0 {
+	if !applied {
 		return creative.ErrCreativeAlreadyQueued
 	}
 	return nil
@@ -278,35 +209,17 @@ func (q *creativeQueue) Enqueue(ctx context.Context, runID string) error {
 //
 // Only empty results are polled again, with waits capped at the smaller of
 // remaining budget and one second. Context cancellation interrupts waiting,
-// while other script errors return directly. reserveOnce publishes task
-// movement and lease ownership atomically, so a successful result carries the
-// token workers need for their later queue bookkeeping operations.
+// while other script errors return directly.
 func (q *creativeQueue) Reserve(ctx context.Context, blockTimeout time.Duration) (creative.ReservedCreativeRun, error) {
-	deadline := time.Now().Add(blockTimeout)
-	for {
-		runID, leaseToken, err := q.reserveOnce(ctx)
-		if err == nil {
-			return creative.ReservedCreativeRun{RunID: runID, LeaseToken: leaseToken}, nil
-		}
-		if !errors.Is(err, creative.ErrCreativeQueueEmpty) {
+	return taskqueue.PollReserve(ctx, blockTimeout, creativeReservePollInterval, func(err error) bool {
+		return errors.Is(err, creative.ErrCreativeQueueEmpty)
+	}, func(callCtx context.Context) (creative.ReservedCreativeRun, error) {
+		runID, leaseToken, err := q.reserveOnce(callCtx)
+		if err != nil {
 			return creative.ReservedCreativeRun{}, err
 		}
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return creative.ReservedCreativeRun{}, creative.ErrCreativeQueueEmpty
-		}
-		// Retry only confirmed empty reserves within the remaining wait budget.
-		// The timer exposes cancellation between atomic attempts while keeping
-		// a short caller timeout from inheriting the full polling interval.
-		wait := min(remaining, creativeReservePollInterval)
-		timer := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return creative.ReservedCreativeRun{}, ctx.Err()
-		case <-timer.C:
-		}
-	}
+		return creative.ReservedCreativeRun{RunID: runID, LeaseToken: leaseToken}, nil
+	})
 }
 
 // reserveOnce creates a token and invokes the atomic ready-to-active
@@ -315,11 +228,9 @@ func (q *creativeQueue) Reserve(ctx context.Context, blockTimeout time.Duration)
 //
 // The script has already marked returned string IDs active before Go validates
 // their prefix. Invalid nonempty IDs therefore receive best-effort active and
-// inflight cleanup before the payload error is returned. Those cleanup errors
-// are discarded, so any surviving entry remains subject to queue TTL and stale
-// recovery instead of being reported as an executable task.
+// inflight cleanup before the payload error is returned.
 func (q *creativeQueue) reserveOnce(ctx context.Context) (string, string, error) {
-	leaseToken, err := newCreativeLockToken()
+	leaseToken, err := taskqueue.NewToken()
 	if err != nil {
 		return "", "", err
 	}
@@ -413,25 +324,18 @@ func (q *creativeQueue) Heartbeat(ctx context.Context, runID, leaseToken string)
 // using the current millisecond time. Nonpositive limits select one hundred,
 // and returned counts include the entries moved by that script.
 func (q *creativeQueue) MoveDueDelayedToReady(ctx context.Context, limit int) (int, error) {
-	if limit <= 0 {
-		limit = 100
-	}
-	return creativeMoveDueDelayedScript.Run(ctx, q.rdb, []string{q.delayedKey, q.readyKey}, time.Now().UnixMilli(), limit).Int()
+	return taskqueue.MoveDueDelayedToReady(ctx, q.rdb, q.delayedKey, q.readyKey, time.Now().UnixMilli(), limit)
 }
 
-// RecoverStaleActive atomically returns old active entries to ready and
-// removes their lease keys. The stale duration must be positive; nonpositive
-// limits select one hundred, and later reservation assigns replacement
-// ownership.
+// RecoverStaleActive atomically returns old active entries to ready and resets
+// their inflight keys to the run ID with inflightTTL so stale worker lease
+// tokens are fenced while duplicate Enqueue calls remain blocked.
 func (q *creativeQueue) RecoverStaleActive(ctx context.Context, staleAfter time.Duration, limit int) (int, error) {
 	if staleAfter <= 0 {
 		return 0, creative.ErrInvalidCreativeQueuePayload
 	}
-	if limit <= 0 {
-		limit = 100
-	}
 	cutoff := time.Now().Add(-staleAfter).UnixMilli()
-	return creativeRecoverStaleActiveScript.Run(ctx, q.rdb, []string{q.activeKey, q.readyKey, q.inflightPrefix}, cutoff, limit).Int()
+	return taskqueue.RecoverStaleActiveResetInflight(ctx, q.rdb, q.activeKey, q.readyKey, q.inflightPrefix, cutoff, limit, q.inflightTTL)
 }
 
 // TryAcquireJobLock attempts a token-owned Redis task lock for a valid
@@ -445,17 +349,10 @@ func (q *creativeQueue) TryAcquireJobLock(ctx context.Context, runID string, ttl
 	if ttl <= 0 {
 		ttl = q.lockTTL
 	}
-	token, err := newCreativeLockToken()
-	if err != nil {
-		return nil, false, err
-	}
 	key := q.lockKey(runID)
-	ok, err := q.rdb.SetNX(ctx, key, token, ttl).Result()
-	if err != nil {
+	token, ok, err := taskqueue.AcquireLock(ctx, q.rdb, key, ttl)
+	if err != nil || !ok {
 		return nil, false, err
-	}
-	if !ok {
-		return nil, false, nil
 	}
 	return &creativeRedisJobLock{rdb: q.rdb, key: key, token: token}, true, nil
 }
@@ -476,34 +373,21 @@ func (q *creativeQueue) lockKey(runID string) string {
 // incomplete handles succeed directly, and expired or replacement locks remain
 // untouched; Redis transport failures are returned.
 func (l *creativeRedisJobLock) Release(ctx context.Context) error {
-	if l == nil || l.rdb == nil || l.key == "" || l.token == "" {
+	if l == nil {
 		return nil
 	}
-	return creativeReleaseLockScript.Run(ctx, l.rdb, []string{l.key}, l.token).Err()
+	return taskqueue.ReleaseLock(ctx, l.rdb, l.key, l.token)
 }
 
 // Refresh renews the matching job-lock token and reports whether Redis applied
 // the expiry. Nonpositive TTL selects five minutes, nil or incomplete handles
 // return false, and store errors leave ownership uncertain.
 func (l *creativeRedisJobLock) Refresh(ctx context.Context, ttl time.Duration) (bool, error) {
-	if l == nil || l.rdb == nil || l.key == "" || l.token == "" {
+	if l == nil {
 		return false, nil
 	}
 	if ttl <= 0 {
 		ttl = defaultCreativeJobLockTTL
 	}
-	result, err := creativeRefreshLockScript.Run(ctx, l.rdb, []string{l.key}, l.token, ttl.Milliseconds()).Int()
-	return result == 1, err
-}
-
-// newCreativeLockToken returns sixteen random bytes encoded as a lowercase
-// hexadecimal ownership value. A returned token has a nil error.
-// crypto/rand.Read terminates the process when its io.ReadFull operation
-// reports an error.
-func newCreativeLockToken() (string, error) {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b[:]), nil
+	return taskqueue.RefreshLock(ctx, l.rdb, l.key, l.token, ttl)
 }

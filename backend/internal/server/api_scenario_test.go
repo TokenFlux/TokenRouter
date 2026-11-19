@@ -3563,12 +3563,6 @@ func (r *stubApiKeyRepo) ListKeysByGroupID(ctx context.Context, groupID int64) (
 	return nil, errors.New("not implemented")
 }
 
-// IncrementQuotaUsed rejects key quota writes with the fixture's
-// unimplemented-operation error.
-func (r *stubApiKeyRepo) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	return 0, errors.New("not implemented")
-}
-
 // UpdateLastUsed records usedAt as LastUsedAt and UpdatedAt for an existing ID,
 // then republishes an outer key copy in its current lookup views. Missing IDs
 // return ErrAPIKeyNotFound; nested key references remain shared and callers
@@ -3588,25 +3582,6 @@ func (r *stubApiKeyRepo) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 	r.byID[id] = &clone
 	r.byKey[clone.Key] = &clone
 	return nil
-}
-
-// IncrementRateLimitUsage accepts spending updates and leaves seeded key
-// counters unchanged.
-func (r *stubApiKeyRepo) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	return nil
-}
-
-// ResetRateLimitWindows accepts window resets and leaves seeded key counters
-// unchanged.
-func (r *stubApiKeyRepo) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	return nil
-}
-
-// GetRateLimitData reports successful absence of repository rate observations
-// for every key ID. This response fixture stores no separate rate data, so
-// callers receive nil rather than synthesized counters.
-func (r *stubApiKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	return nil, nil
 }
 
 // newStubUsageLogRepo initializes an empty user-indexed usage map for one

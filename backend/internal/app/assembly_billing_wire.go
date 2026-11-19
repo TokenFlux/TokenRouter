@@ -36,6 +36,7 @@ var billingAssemblyProviders = wire.NewSet(
 	provideRedeemAdministration,
 	provideBalanceAdjuster,
 	provideBillingRedeem,
+	provideKeyUsageStore,
 	provideBillingEligibility,
 	provideWindowCostCache,
 	provideBillingSubscriptions,

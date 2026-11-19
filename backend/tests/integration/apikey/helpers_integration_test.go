@@ -16,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	apikeypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -35,12 +36,13 @@ type APIKeyRepoSuite struct {
 	// cleanup closes it.
 	root        *dbent.Client
 	suite.Suite // assertion and suite lifecycle support
-	// ctx, client, and repo are replaced together before each case. client and
-	// repo use that case transaction, which its test cleanup rolls back after
-	// assertions.
-	ctx    context.Context          // case execution context
-	client *dbent.Client            // case transaction client
-	repo   *apikeypostgres.KeyStore // transaction-bound key storage fixture
+	// ctx, client, repo, and usage are replaced together before each case.
+	// client, repo, and usage share that case transaction, which its test cleanup
+	// rolls back after assertions.
+	ctx    context.Context                // case execution context
+	client *dbent.Client                  // case transaction client
+	repo   *apikeypostgres.KeyStore       // transaction-bound key storage fixture
+	usage  *billingpostgres.KeyUsageStore // transaction-bound key usage fixture
 }
 
 // SetupSuite starts the suite database through keyDatabase and retains its Ent
@@ -62,6 +64,7 @@ func (s *APIKeyRepoSuite) SetupTest() {
 	s.T().Cleanup(func() { _ = tx.Rollback() })
 	s.client = tx.Client()
 	s.repo = newKeyStoreFixture(s.client, tx)
+	s.usage = billingpostgres.NewKeyUsageStore(s.client, tx)
 }
 
 // mustCreateUser inserts an active ordinary user with a fixture password hash

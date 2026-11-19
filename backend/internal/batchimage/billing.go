@@ -134,7 +134,7 @@ func BuildHoldCommand(job *BatchImageJob, requestID string, actualAmount float64
 		HoldAmount:                  holdAmount,
 		ActualAmount:                actualAmount,
 		BalanceHoldAmount:           job.BalanceHoldAmount,
-		SubscriptionHoldAllocations: cloneBillingAllocations(job.SubscriptionHoldAllocations),
+		SubscriptionHoldAllocations: billing.CloneBillingAllocations(job.SubscriptionHoldAllocations),
 		AllowanceReserved:           job.AllowanceReserved,
 		ReservedAt:                  job.CreatedAt,
 		RequestPayloadHash:          strings.TrimSpace(payloadHash),
@@ -271,16 +271,9 @@ func (f Funding) Release(ctx context.Context, job *BatchImageJob, payloadHash st
 // SubscriptionAllocations retains positive subscription allocations that
 // carry a subscription identity. The result owns its slice and copies present
 // subscription and plan identity pointers through
-// billing.CloneBillingAllocation.
+// billing.SubscriptionHoldAllocations.
 func SubscriptionAllocations(allocations []billing.BillingAllocation) []billing.BillingAllocation {
-	result := make([]billing.BillingAllocation, 0, len(allocations))
-	for _, allocation := range allocations {
-		if allocation.Type != billing.BillingAllocationTypeSubscription || allocation.AmountUSD <= 0 || allocation.SubscriptionID == nil {
-			continue
-		}
-		result = append(result, billing.CloneBillingAllocation(allocation, allocation.AmountUSD))
-	}
-	return result
+	return billing.SubscriptionHoldAllocations(allocations)
 }
 
 // CloneInt64Ptr returns fresh integer pointer storage for a present value and
@@ -299,20 +292,6 @@ func (f Funding) warn(event string, values ...any) {
 	if f.Observe != nil {
 		f.Observe(event, values...)
 	}
-}
-
-// cloneBillingAllocations copies allocation values and their optional source
-// identity pointers. Nil input remains nil, while a nonnil empty input
-// retains an allocated empty result for its caller.
-func cloneBillingAllocations(values []billing.BillingAllocation) []billing.BillingAllocation {
-	if values == nil {
-		return nil
-	}
-	out := make([]billing.BillingAllocation, len(values))
-	for i, v := range values {
-		out[i] = billing.CloneBillingAllocation(v, v.AmountUSD)
-	}
-	return out
 }
 
 // FundingReference trims the batch identity and pairs its funding scope with

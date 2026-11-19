@@ -32,8 +32,8 @@ func (s *APIKeyRepoSuite) TestRotateCredentialPreservesConcurrentChanges() {
 	stale, err := s.repo.GetByID(s.ctx, key.ID)
 	s.Require().NoError(err)
 	createdAt := stale.CreatedAt
-	s.Require().NoError(s.repo.IncrementRateLimitUsage(s.ctx, key.ID, 17))
-	_, err = s.repo.IncrementQuotaUsed(s.ctx, key.ID, 30)
+	s.Require().NoError(s.usage.IncrementRateLimitUsage(s.ctx, key.ID, 17))
+	_, err = s.usage.IncrementQuotaUsed(s.ctx, key.ID, 30)
 	s.Require().NoError(err)
 	key.Name = "concurrent edit"
 	key.Status = apikey.StatusAPIKeyDisabled
@@ -121,7 +121,7 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentQuotaUsage() {
 	s.Require().NoError(err, "GetByID")
 	s.Require().Zero(stale.QuotaUsed)
 
-	newUsed, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 30)
+	newUsed, err := s.usage.IncrementQuotaUsed(s.ctx, key.ID, 30)
 	s.Require().NoError(err, "IncrementQuotaUsed")
 	// A small tolerance compares the expected persisted quota usage.
 	s.Require().InDelta(30, newUsed, 1e-9)
@@ -157,7 +157,7 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentRateLimitUsage() {
 	s.Require().NoError(err, "GetByID")
 	s.Require().Zero(stale.Usage5h)
 
-	s.Require().NoError(s.repo.IncrementRateLimitUsage(s.ctx, key.ID, 42), "IncrementRateLimitUsage")
+	s.Require().NoError(s.usage.IncrementRateLimitUsage(s.ctx, key.ID, 42), "IncrementRateLimitUsage")
 
 	stale.Name = "after"
 	s.Require().NoError(
@@ -187,9 +187,9 @@ func (s *APIKeyRepoSuite) TestUpdate_StillResetsUsageWhenDeclared() {
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, key), "Create")
 
-	_, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 30)
+	_, err := s.usage.IncrementQuotaUsed(s.ctx, key.ID, 30)
 	s.Require().NoError(err, "IncrementQuotaUsed")
-	s.Require().NoError(s.repo.IncrementRateLimitUsage(s.ctx, key.ID, 42), "IncrementRateLimitUsage")
+	s.Require().NoError(s.usage.IncrementRateLimitUsage(s.ctx, key.ID, 42), "IncrementRateLimitUsage")
 
 	current, err := s.repo.GetByID(s.ctx, key.ID)
 	s.Require().NoError(err, "GetByID")

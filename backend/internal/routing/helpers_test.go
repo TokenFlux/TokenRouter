@@ -98,3 +98,10 @@ func (r *groupAvailabilityProbeRunnerRepoStub) claimSnapshot() (int, int) {
 	defer r.mu.Unlock()
 	return r.claimCalls, r.claimLimit
 }
+
+// testPtrFloat64 allocates a supplied floating-point amount for nullable test
+// prices.
+func testPtrFloat64(value float64) *float64 { return &value }
+
+// testPtrInt allocates a supplied integer value for nullable token ceilings.
+func testPtrInt(value int) *int { return &value }

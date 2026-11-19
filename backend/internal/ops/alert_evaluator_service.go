@@ -56,7 +56,7 @@ type OpsAlertEvaluatorService struct {
 	// opsRepo is required for cycle work and accepted-mail marking. A
 	// missing repository makes evaluateOnce return before inspecting rules
 	// or recording heartbeats.
-	opsRepo OpsRepository // rules events and heartbeats
+	opsRepo AlertEvaluatorRepository // rules events and heartbeats
 	// emailService can be absent. When configured, bind SendEmail and the
 	// enabled template callbacks before evaluation; callbacks and
 	// dependencies remain shared.
@@ -69,7 +69,7 @@ type OpsAlertEvaluatorService struct {
 	// redisClient can be absent, permitting unlocked cycles. A configured
 	// client's claim error or contention rejects evaluation; claimed leases
 	// are not renewed.
-	redisClient RuntimeCache // optional evaluator lease cache
+	redisClient LeaderLeaseCache // optional evaluator lease cache
 	// cfg is retained and read during cycles and diagnostics. Configure it
 	// before starting; a nil cfg permits evaluation and suppresses
 	// reportOptions output.
@@ -144,9 +144,9 @@ type slidingWindowLimiter struct {
 // dependencies remain caller-owned references.
 func NewOpsAlertEvaluatorService(
 	opsService *OpsService,
-	opsRepo OpsRepository,
+	opsRepo AlertEvaluatorRepository,
 	emailService *EmailDelivery,
-	redisClient RuntimeCache,
+	redisClient LeaderLeaseCache,
 	cfg *Options,
 	proxyRepo ProxyStatsReader,
 ) *OpsAlertEvaluatorService {
@@ -759,20 +759,29 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 		return float64(n), true
 	}
 
-	// Construct the repository-backed query facade when no shared
-	// OpsService exists, retaining the raw window path while availability
-	// and email dependencies remain absent.
-	opsQueryService := s.opsService
-	if opsQueryService == nil {
-		opsQueryService = &OpsService{opsRepo: s.opsRepo}
-	}
-	overview, err := opsQueryService.GetDashboardOverview(ctx, &OpsDashboardFilter{
+	// Query the shared OpsService when bound; otherwise validate the raw window
+	// and read traffic ratios directly from the narrowed evaluator repository
+	// without invoking unrelated system-metric or heartbeat queries.
+	filter := &OpsDashboardFilter{
 		StartTime: start,
 		EndTime:   end,
 		Platform:  platform,
 		GroupID:   groupID,
 		QueryMode: OpsQueryModeRaw,
-	})
+	}
+	var (
+		overview *OpsDashboardOverview
+		err      error
+	)
+	if s.opsService != nil {
+		overview, err = s.opsService.GetDashboardOverview(ctx, filter)
+	} else {
+		if s.opsRepo == nil || start.IsZero() || end.IsZero() || start.After(end) {
+			return 0, false
+		}
+		filter.IgnoredStatusCodes = DefaultOpsIgnoredStatusCodes()
+		overview, err = s.opsRepo.GetDashboardOverview(ctx, filter)
+	}
 	if err != nil {
 		return 0, false
 	}

@@ -124,37 +124,18 @@ type apiKeyNameSanitizeRepoStub struct {
 	updated []*apikey.APIKey // captured configuration update records
 }
 
-// quotaStateRepoStub exposes atomic quota observations while retaining count
-// and selected failure state.
-type quotaStateRepoStub struct {
-	quotaBaseAPIKeyRepoStub // embedded unsupported fallback fixture
-	// stateCalls counts each attempt before stateErr takes precedence over state.
-	// Successful state reads copy the record, while nil state yields nil data with
-	// no error.
-	stateCalls int                           // counted atomic quota capability calls
-	state      *apikey.APIKeyQuotaUsageState // configured quota result observation
-	stateErr   error                         // configured quota capability failure
-}
-
-// quotaStateCacheStub captures authentication deletion intent after observed
-// quota exhaustion.
-type quotaStateCacheStub struct {
-	deleteAuthKeys []string // captured exhaustion invalidation identities
-}
-
 // quotaBaseAPIKeyRepoStub counts follow-up Key reads while rejecting
 // unsupported persistence paths.
 type quotaBaseAPIKeyRepoStub struct {
 	getByIDCalls int // counted fallback credential reads
 }
 
-// updateFieldsAPIKeyRepoStub mutates fixture quota and captures selected
-// configuration masks.
+// updateFieldsAPIKeyRepoStub captures selected configuration masks around a
+// retained Key fixture.
 type updateFieldsAPIKeyRepoStub struct {
 	quotaBaseAPIKeyRepoStub // embedded unsupported fallback fixture
-	// key remains shared with the scenario while quota increments change its
-	// scalar usage. updateFields captures status or configuration masks
-	// independently and does not replace that record.
+	// key remains shared with the scenario while updateFields captures status or
+	// configuration masks independently and does not replace that record.
 	key          *apikey.APIKey              // retained quota and mask record
 	updateFields []apikey.APIKeyUpdateFields // captured selected persistence masks
 }
@@ -1370,32 +1351,6 @@ func TestAPIKeyService_UpdateRejectsInvalidIPRestriction(t *testing.T) {
 	require.Empty(t, repo.updated)
 }
 
-// TestAPIKeyService_UpdateQuotaUsed_UsesAtomicStatePath provides the optional
-// atomic quota state capability reporting exhaustion. It checks one capability
-// call, no follow-up Key read and notification of the returned stored
-// credential.
-func TestAPIKeyService_UpdateQuotaUsed_UsesAtomicStatePath(t *testing.T) {
-	repo := &quotaStateRepoStub{
-		state: &apikey.APIKeyQuotaUsageState{
-			QuotaUsed: 12,
-			Quota:     10,
-			Key:       "sk-test-quota",
-			Status:    apikey.StatusAPIKeyQuotaExhausted,
-		},
-	}
-	cache := &quotaStateCacheStub{}
-	svc := newAPIKeyTestService(apiKeyTestDependencies{
-		apiKeyRepo: repo,
-		cache:      cache,
-	})
-
-	err := svc.UpdateQuotaUsed(context.Background(), 101, 2)
-	require.NoError(t, err)
-	require.Equal(t, 1, repo.stateCalls)
-	require.Equal(t, 0, repo.getByIDCalls, "fast path should not re-read API key by id")
-	require.Equal(t, []string{svc.KeyAuthCacheKey("sk-test-quota")}, cache.deleteAuthKeys)
-}
-
 // TestAPIKeyService_Update_ReactivatesQuotaExhaustedWhenQuotaUnlimited sets a
 // quota-exhausted owned credential's allowance to zero. It checks active status
 // and unbounded quota appear in the returned view and captured configuration
@@ -1622,20 +1577,6 @@ func TestAPIKeyUpdate_DeclaresStatusWhenReactivated(t *testing.T) {
 	_, err := svc.Update(context.Background(), 1, 7, apikey.UpdateAPIKeyRequest{Quota: &quota})
 	require.NoError(t, err)
 	require.Equal(t, []apikey.APIKeyUpdateFields{{Quota: true, Status: true}}, repo.updateFields)
-}
-
-// TestUpdateQuotaUsed_ExhaustedMarkOnlyDeclaresStatus increments quota through
-// the repository path lacking atomic state return until the saved allowance is
-// exhausted. It checks the follow-up configuration mask selects status alone
-// while leaving quota and other usage columns unselected.
-func TestUpdateQuotaUsed_ExhaustedMarkOnlyDeclaresStatus(t *testing.T) {
-	repo := &updateFieldsAPIKeyRepoStub{key: &apikey.APIKey{
-		ID: 1, UserID: 7, Key: "sk-test", Status: billing.StatusActive, Quota: 10, QuotaUsed: 10,
-	}}
-	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
-
-	require.NoError(t, svc.UpdateQuotaUsed(context.Background(), 1, 5))
-	require.Equal(t, []apikey.APIKeyUpdateFields{{Status: true}}, repo.updateFields)
 }
 
 // TestValidateAPIKeyLimit supplies zero, finite bounds, negative and nonfinite
@@ -2204,12 +2145,6 @@ func (s *apiKeyRepoStub) ListKeysByGroupID(ctx context.Context, groupID int64) (
 	panic("unexpected ListKeysByGroupID call")
 }
 
-// IncrementQuotaUsed panics when the service repository fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *apiKeyRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed records the supplied Key ID and timestamp before invoking its
 // optional result callback. Missing callback succeeds; captures are
 // unsynchronized, and concurrent touch scenarios use their separately locked
@@ -2221,24 +2156,6 @@ func (s *apiKeyRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt ti
 		return s.updateLastUsed(ctx, id, usedAt)
 	}
 	return nil
-}
-
-// IncrementRateLimitUsage panics when the service repository fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *apiKeyRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the service repository fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *apiKeyRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the service repository fixture receives an
-// unsupported GetRateLimitData call.
-func (s *apiKeyRepoStub) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
 }
 
 // GetCreateAttemptCount returns zero for creator-counter reads in this service
@@ -2444,117 +2361,15 @@ func (s *apiKeyNameSanitizeRepoStub) ListKeysByGroupID(ctx context.Context, grou
 	panic("unexpected ListKeysByGroupID call")
 }
 
-// IncrementQuotaUsed panics when the service repository fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *apiKeyNameSanitizeRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed panics when the service repository fixture receives an
 // unsupported UpdateLastUsed call.
 func (s *apiKeyNameSanitizeRepoStub) UpdateLastUsed(ctx context.Context, id int64, usedAt time.Time) error {
 	panic("unexpected UpdateLastUsed call")
 }
 
-// IncrementRateLimitUsage panics when the service repository fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *apiKeyNameSanitizeRepoStub) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the service repository fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *apiKeyNameSanitizeRepoStub) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the service repository fixture receives an
-// unsupported GetRateLimitData call.
-func (s *apiKeyNameSanitizeRepoStub) GetRateLimitData(ctx context.Context, id int64) (*apikey.APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
-}
-
 // sanitizeFixtureGroupID allocates the ordinary target identifier used by
 // configuration fixture tests.
 func sanitizeFixtureGroupID() *int64 { id := int64(1); return &id }
-
-// IncrementQuotaUsedAndGetState counts the capability call and returns selected
-// error or copied quota state. Nil state succeeds with nil data; the fixture
-// records no actual increment and ignores ID, cost and context.
-func (s *quotaStateRepoStub) IncrementQuotaUsedAndGetState(ctx context.Context, id int64, amount float64) (*apikey.APIKeyQuotaUsageState, error) {
-	s.stateCalls++
-	if s.stateErr != nil {
-		return nil, s.stateErr
-	}
-	if s.state == nil {
-		return nil, nil
-	}
-	out := *s.state
-	return &out, nil
-}
-
-// GetCreateAttemptCount returns zero so quota-notification scenarios impose no
-// creation threshold.
-func (s *quotaStateCacheStub) GetCreateAttemptCount(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-// IncrementCreateAttemptCount accepts unused quota-fixture counter requests
-// without retaining a value.
-func (s *quotaStateCacheStub) IncrementCreateAttemptCount(context.Context, int64) error {
-	return nil
-}
-
-// DeleteCreateAttemptCount acknowledges unused creator-counter cleanup in this
-// quota-state fixture.
-func (s *quotaStateCacheStub) DeleteCreateAttemptCount(context.Context, int64) error {
-	return nil
-}
-
-// IncrementDailyUsage accepts unused daily-counter requests in the
-// quota-notification fixture.
-func (s *quotaStateCacheStub) IncrementDailyUsage(context.Context, string) error {
-	return nil
-}
-
-// SetDailyUsageExpiry acknowledges unused counter-lifetime requests without
-// retaining an expiry.
-func (s *quotaStateCacheStub) SetDailyUsageExpiry(context.Context, string, time.Duration) error {
-	return nil
-}
-
-// GetAuthCache returns nil data with no error for each quota-fixture lookup.
-// The service treats this unusable result as a reload condition, and the
-// fixture retains no authentication entry.
-func (s *quotaStateCacheStub) GetAuthCache(context.Context, string) (*apikey.APIKeyAuthCacheEntry, error) {
-	return nil, nil
-}
-
-// SetAuthCache acknowledges publication attempts while storing no quota-fixture
-// authentication entry.
-func (s *quotaStateCacheStub) SetAuthCache(context.Context, string, *apikey.APIKeyAuthCacheEntry, time.Duration) error {
-	return nil
-}
-
-// DeleteAuthCache captures the supplied hashed identity for quota exhaustion
-// notification assertions.
-func (s *quotaStateCacheStub) DeleteAuthCache(_ context.Context, key string) error {
-	s.deleteAuthKeys = append(s.deleteAuthKeys, key)
-	return nil
-}
-
-// PublishAuthCacheInvalidation acknowledges quota-fixture notification while
-// sending no real cache message.
-func (s *quotaStateCacheStub) PublishAuthCacheInvalidation(context.Context, string) error {
-	return nil
-}
-
-// SubscribeAuthCacheInvalidation returns immediately with nil and invokes no
-// handler. The fixture provides no held subscription, so service lifecycle
-// scenarios use their dedicated subscriber barrier instead.
-func (s *quotaStateCacheStub) SubscribeAuthCacheInvalidation(context.Context, func(string)) error {
-	return nil
-}
 
 // Create panics when the service repository fixture receives an unsupported
 // Create call.
@@ -2678,42 +2493,10 @@ func (s *quotaBaseAPIKeyRepoStub) ListKeysByGroupID(context.Context, int64) ([]s
 	panic("unexpected ListKeysByGroupID call")
 }
 
-// IncrementQuotaUsed panics when the service repository fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *quotaBaseAPIKeyRepoStub) IncrementQuotaUsed(context.Context, int64, float64) (float64, error) {
-	panic("unexpected IncrementQuotaUsed call")
-}
-
 // UpdateLastUsed panics when the service repository fixture receives an
 // unsupported UpdateLastUsed call.
 func (s *quotaBaseAPIKeyRepoStub) UpdateLastUsed(context.Context, int64, time.Time) error {
 	panic("unexpected UpdateLastUsed call")
-}
-
-// IncrementRateLimitUsage panics when the service repository fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *quotaBaseAPIKeyRepoStub) IncrementRateLimitUsage(context.Context, int64, float64) error {
-	panic("unexpected IncrementRateLimitUsage call")
-}
-
-// ResetRateLimitWindows panics when the service repository fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *quotaBaseAPIKeyRepoStub) ResetRateLimitWindows(context.Context, int64) error {
-	panic("unexpected ResetRateLimitWindows call")
-}
-
-// GetRateLimitData panics when the service repository fixture receives an
-// unsupported GetRateLimitData call.
-func (s *quotaBaseAPIKeyRepoStub) GetRateLimitData(context.Context, int64) (*apikey.APIKeyRateLimitData, error) {
-	panic("unexpected GetRateLimitData call")
-}
-
-// IncrementQuotaUsed adds amount to the retained fixture record and returns its
-// updated usage. It ignores context and identifier, allowing mask scenarios to
-// inspect the subsequent status write separately.
-func (s *updateFieldsAPIKeyRepoStub) IncrementQuotaUsed(_ context.Context, _ int64, amount float64) (float64, error) {
-	s.key.QuotaUsed += amount
-	return s.key.QuotaUsed, nil
 }
 
 // GetByID returns a shallow copy of the supplied mask-test record for every ID.

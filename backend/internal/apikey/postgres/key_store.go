@@ -1349,46 +1349,6 @@ func KeyDerefString(s *string) string {
 	return *s
 }
 
-// IncrementQuotaUsed delegates a quota delta for a nondeleted record to
-// KeyUsageStore. The returned value is its updated usage, and missing records
-// report the billing Key-not-found identity; service callers validate any
-// spending-specific amount rule.
-func (r *KeyStore) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) (float64, error) {
-	return billingpostgres.NewKeyUsageStore(r.client, r.sql).IncrementQuotaUsed(ctx, id, amount)
-}
-
-// IncrementQuotaUsedAndGetState delegates the nondeleted Key quota update and
-// conditional exhaustion state read in one SQL operation. It returns current
-// quota, usage, secret and state; this path differs from settlement of
-// already-admitted soft-deleted Keys.
-func (r *KeyStore) IncrementQuotaUsedAndGetState(ctx context.Context, id int64, amount float64) (*keycore.APIKeyQuotaUsageState, error) {
-	return billingpostgres.NewKeyUsageStore(r.client, r.sql).IncrementQuotaUsedAndGetState(ctx, id, amount)
-}
-
-// IncrementRateLimitUsage delegates spending-window increments for a nondeleted
-// Key to KeyUsageStore. It passes cost unchanged, and the SQL helper can report
-// success when no row matched; settlement uses its own admitted-request write
-// path.
-func (r *KeyStore) IncrementRateLimitUsage(ctx context.Context, id int64, cost float64) error {
-	return billingpostgres.NewKeyUsageStore(r.client, r.sql).IncrementRateLimitUsage(ctx, id, cost)
-}
-
-// ResetRateLimitWindows delegates elapsed-window resets to KeyUsageStore using
-// transaction time. It targets nondeleted Keys, retains unelapsed counters, and
-// leaves missing starts unchanged according to that helper's saved-window reset
-// rules.
-func (r *KeyStore) ResetRateLimitWindows(ctx context.Context, id int64) error {
-	return billingpostgres.NewKeyUsageStore(r.client, r.sql).ResetRateLimitWindows(ctx, id)
-}
-
-// GetRateLimitData delegates nondeleted spending counters and saved
-// window-start reads to KeyUsageStore. Missing records return the billing
-// Key-not-found error; the helper owns result-row scanning and closing before
-// this call returns.
-func (r *KeyStore) GetRateLimitData(ctx context.Context, id int64) (result *keycore.APIKeyRateLimitData, err error) {
-	return billingpostgres.NewKeyUsageStore(r.client, r.sql).GetRateLimitData(ctx, id)
-}
-
 // KeyLoadAPIKeyUsageTotals invokes the bound spending reader for supplied Key
 // IDs. Missing callback returns a configuration error; its returned map belongs
 // to the reader, and sorting treats missing entries as zero.

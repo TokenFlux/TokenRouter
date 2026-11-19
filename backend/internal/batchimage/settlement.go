@@ -201,7 +201,7 @@ func (s *Settlement) Settle(ctx context.Context, batchID string) (*BatchImageSet
 		}
 		result.SubscriptionAmountUSD = billingResult.SubscriptionAmountUSD
 		result.BalanceAmountUSD = billingResult.BalanceAmountUSD
-		result.BillingAllocations = cloneBillingAllocations(billingResult.BillingAllocations)
+		result.BillingAllocations = billing.CloneBillingAllocations(billingResult.BillingAllocations)
 	}
 	result.ActualCost = actualCost
 	s.InvalidateAuthCache(ctx, BillingUserID(job))
@@ -353,7 +353,7 @@ func (s *Settlement) RecordUsageLog(ctx context.Context, job *BatchImageJob, act
 	if billingResult != nil {
 		subscriptionAmount = billingResult.SubscriptionAmountUSD
 		balanceAmount = billingResult.BalanceAmountUSD
-		allocations = cloneBillingAllocations(billingResult.BillingAllocations)
+		allocations = billing.CloneBillingAllocations(billingResult.BillingAllocations)
 	}
 	// Treat subscription amounts at or below the monetary comparison tolerance as
 	// balance-classified usage when choosing its billing type.

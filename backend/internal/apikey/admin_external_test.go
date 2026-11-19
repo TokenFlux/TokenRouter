@@ -714,33 +714,9 @@ func (s *apiKeyRepoStubForGroupUpdate) ListKeysByGroupID(context.Context, int64)
 	panic("unexpected")
 }
 
-// IncrementQuotaUsed panics when the administrator group fixture receives an
-// unsupported IncrementQuotaUsed call.
-func (s *apiKeyRepoStubForGroupUpdate) IncrementQuotaUsed(context.Context, int64, float64) (float64, error) {
-	panic("unexpected")
-}
-
 // UpdateLastUsed panics when the administrator group fixture receives an
 // unsupported UpdateLastUsed call.
 func (s *apiKeyRepoStubForGroupUpdate) UpdateLastUsed(context.Context, int64, time.Time) error {
-	panic("unexpected")
-}
-
-// IncrementRateLimitUsage panics when the administrator group fixture receives
-// an unsupported IncrementRateLimitUsage call.
-func (s *apiKeyRepoStubForGroupUpdate) IncrementRateLimitUsage(context.Context, int64, float64) error {
-	panic("unexpected")
-}
-
-// ResetRateLimitWindows panics when the administrator group fixture receives an
-// unsupported ResetRateLimitWindows call.
-func (s *apiKeyRepoStubForGroupUpdate) ResetRateLimitWindows(context.Context, int64) error {
-	panic("unexpected")
-}
-
-// GetRateLimitData panics when the administrator group fixture receives an
-// unsupported GetRateLimitData call.
-func (s *apiKeyRepoStubForGroupUpdate) GetRateLimitData(context.Context, int64) (*apikey.APIKeyRateLimitData, error) {
 	panic("unexpected")
 }
 
