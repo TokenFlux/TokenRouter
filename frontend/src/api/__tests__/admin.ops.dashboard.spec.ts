@@ -1,31 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * { get } provide the controlled request fixtures used by admin.ops.dashboard
- * tests to inspect their observable results.
+ * { get, put } provide the controlled request fixtures used by
+ * admin.ops.dashboard tests to inspect their observable results.
  */
-const { get } = vi.hoisted(() => ({
+const { get, put } = vi.hoisted(() => ({
   get: vi.fn(),
+  put: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
-  apiClient: { get },
+  apiClient: { get, put },
   buildGatewayUrl: vi.fn(),
 }))
 
-import { getLatencyHistogram, getTokenStats } from '@/api/admin/ops'
+import {
+  getLatencyHistogram,
+  getMetricThresholds,
+  getRealtimeTrafficSummary,
+  getTokenStats,
+  updateMetricThresholds,
+} from '@/api/admin/ops'
 
 /**
- * admin.ops.dashboard.spec.ts checks operations dashboard request serialization.
- * Histogram boundaries are joined into the server query format, and token
- * statistics retain the selected interval and ownership filters at their
- * dedicated dashboard endpoint.
+ * admin.ops.dashboard.spec.ts checks operations dashboard request serialization
+ * and cancellation forwarding. Histogram boundaries join into comma-separated
+ * query strings, token statistics retain scope filters, realtime traffic
+ * forwards AbortSignal instances, and metric threshold helpers are exported.
  */
 
 describe('admin ops dashboard API', () => {
   beforeEach(() => {
     get.mockReset()
+    put.mockReset()
     get.mockResolvedValue({ data: {} })
+    put.mockResolvedValue({ data: {} })
   })
 
   /**
@@ -66,6 +75,28 @@ describe('admin ops dashboard API', () => {
         top_n: 20,
       },
       signal: undefined,
+    })
+  })
+
+  /**
+   * Realtime traffic queries forward optional AbortSignal instances and positive
+   * group identifiers while exporting named metric-threshold helpers.
+   */
+  it('forwards AbortSignal for realtime traffic and exports metric threshold endpoints', async () => {
+    const controller = new AbortController()
+    await getRealtimeTrafficSummary('5m', 'openai', 12, { signal: controller.signal })
+
+    expect(get).toHaveBeenCalledWith('/admin/ops/realtime-traffic', {
+      params: { window: '5m', platform: 'openai', group_id: 12 },
+      signal: controller.signal,
+    })
+
+    await getMetricThresholds()
+    expect(get).toHaveBeenCalledWith('/admin/ops/settings/metric-thresholds')
+
+    await updateMetricThresholds({ sla_percent_min: 99.5 })
+    expect(put).toHaveBeenCalledWith('/admin/ops/settings/metric-thresholds', {
+      sla_percent_min: 99.5,
     })
   })
 })

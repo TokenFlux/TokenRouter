@@ -1682,6 +1682,13 @@ export default {
       sourceHint:
         'Choose an explicit source before enabling the method. Not configured methods are not exposed.',
       sourceRequiredError: 'Select a payment source before enabling {title}.',
+      sources: {
+        unconfigured: 'Not configured',
+        officialAlipay: 'Official Alipay',
+        easypayAlipay: 'EasyPay Alipay',
+        officialWxpay: 'Official WeChat Pay',
+        easypayWxpay: 'EasyPay WeChat Pay',
+      },
     },
     openaiQuotaAutoPause: {
       title: 'OpenAI provider quota auto-pause',

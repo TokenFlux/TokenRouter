@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest'
-
 import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
-  type UpdateSettingsRequest,
-} from '@/api/admin/settings'
+} from '../settingsFormHelpers'
+import type { UpdateSettingsRequest } from '@/api/admin/settings.types'
 
 /**
  * settings.authSourceDefaults.spec.ts checks conversion between flat settings

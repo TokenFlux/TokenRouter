@@ -1,9 +1,9 @@
 import { useI18n } from 'vue-i18n'
-import { deriveWeChatConnectStoredMode } from '@/api/admin/settings'
+import { deriveWeChatConnectStoredMode } from './settingsFormHelpers'
 import { useAppStore } from '@/stores'
 import type { useIdentitySettings } from './useIdentitySettings'
 import type { SettingsForm } from './settingsState'
-import type { WeChatConnectMode } from '@/api/admin/settings'
+import type { WeChatConnectMode } from '@/api/admin/settings.types'
 
 /**
  * identitySettingsValidation.ts exposes the WeChat capability check and stored-mode

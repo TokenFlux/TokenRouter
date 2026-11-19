@@ -1,10 +1,10 @@
 import { useI18n } from 'vue-i18n'
-import { normalizeDefaultSubscriptionSettings } from '@/api/admin/settings'
+import { normalizeDefaultSubscriptionSettings } from './settingsFormHelpers'
 import { useAppStore } from '@/stores'
 import { MAX_USER_API_KEY_LIMIT } from '@/constants/user'
 import type { useUsersSettings } from './useUsersSettings'
 import type { SettingsForm } from './settingsState'
-import type { DefaultSubscriptionSetting } from '@/api/admin/settings'
+import type { DefaultSubscriptionSetting } from '@/api/admin/settings.types'
 
 /**
  * usersSettingsValidation.ts validates the default API key limit and prepares

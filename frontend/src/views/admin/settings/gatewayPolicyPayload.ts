@@ -1,5 +1,5 @@
-import type { UpdateSettingsRequest } from '@/api/admin/settings'
-import { sanitizeProviderSchedulingThresholdsMap } from '@/api/admin/settings'
+import type { UpdateSettingsRequest } from '@/api/admin/settings.types'
+import { sanitizeProviderSchedulingThresholdsMap } from './settingsFormHelpers'
 import type { SettingsForm } from './settingsState'
 import type { useGatewaySettings } from './useGatewaySettings'
 

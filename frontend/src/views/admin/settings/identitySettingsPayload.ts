@@ -1,6 +1,6 @@
 import type { SettingsForm } from './settingsState'
-import type { UpdateSettingsRequest, WeChatConnectMode } from '@/api/admin/settings'
-import { defaultWeChatConnectScopesForMode } from '@/api/admin/settings'
+import type { UpdateSettingsRequest, WeChatConnectMode } from '@/api/admin/settings.types'
+import { defaultWeChatConnectScopesForMode } from './settingsFormHelpers'
 
 /**
  * identitySettingsPayload.ts serializes provider identity settings for the

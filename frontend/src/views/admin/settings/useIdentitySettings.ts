@@ -5,8 +5,8 @@ import {
   defaultWeChatConnectScopesForMode,
   deriveWeChatConnectStoredMode,
   resolveWeChatConnectModeCapabilities,
-} from '@/api/admin/settings'
-import type { WeChatConnectMode } from '@/api/admin/settings'
+} from './settingsFormHelpers'
+import type { WeChatConnectMode } from '@/api/admin/settings.types'
 import { useClipboard } from '@/composables/useClipboard'
 import type { SettingsForm } from './settingsState'
 import { currentOrigin } from './settingsDefaults'

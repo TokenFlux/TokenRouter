@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-
-import { defaultWeChatConnectScopesForMode, normalizeWeChatConnectMode } from '@/api/admin/settings'
+import {
+  defaultWeChatConnectScopesForMode,
+  normalizeWeChatConnectMode,
+} from '../settingsFormHelpers'
 
 /**
  * settings.wechatConnect.spec.ts checks WeChat settings compatibility

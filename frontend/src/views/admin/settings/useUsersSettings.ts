@@ -1,12 +1,12 @@
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
-import { buildAuthSourceDefaultsState } from '@/api/admin/settings'
+import { buildAuthSourceDefaultsState } from './settingsFormHelpers'
 import type {
   AuthSourceDefaultsState,
   AuthSourceType,
   DefaultSubscriptionSetting,
-} from '@/api/admin/settings'
+} from '@/api/admin/settings.types'
 import type { SubscriptionPlan } from '@/api/payment.types'
 import type { SettingsForm } from './settingsState'
 

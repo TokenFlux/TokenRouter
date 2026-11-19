@@ -1568,6 +1568,13 @@ export default {
       sourceLabel: '支付来源',
       sourceHint: '启用后必须明确选择一个来源；未配置状态不会对外展示该支付方式。',
       sourceRequiredError: '{title} 已启用，请先选择支付来源。',
+      sources: {
+        unconfigured: '未配置',
+        officialAlipay: '支付宝官方',
+        easypayAlipay: '易支付支付宝',
+        officialWxpay: '微信官方',
+        easypayWxpay: '易支付微信',
+      },
     },
     openaiQuotaAutoPause: {
       title: 'OpenAI 提供商配额自动暂停',

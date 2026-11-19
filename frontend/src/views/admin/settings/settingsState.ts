@@ -2,13 +2,13 @@ import { reactive } from 'vue'
 import type { CustomMenuItem, CustomEndpoint, FooterLinkGroup } from '@/api/settings.types'
 import { originalContent, type LocalizedUpdate } from '@/i18n/content'
 import { getLocale } from '@/i18n'
-import { normalizeProviderSchedulingThresholdsMap } from '@/api/admin/settings'
+import { normalizeProviderSchedulingThresholdsMap } from './settingsFormHelpers'
 import type {
   SystemSettings,
   OpenAIQuotaAutoPauseSettings,
   UsageRankingSortBy,
   CreativeModelSetting,
-} from '@/api/admin/settings'
+} from '@/api/admin/settings.types'
 import type { NotifyEmailEntry } from '@/api/notifications.types'
 import {
   tablePageSizeDefault,

@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
-
+import enAdminSettings from '@/i18n/locales/en/admin/settings'
+import zhAdminSettings from '@/i18n/locales/zh/admin/settings'
 import {
   getPaymentVisibleMethodSourceOptions,
   normalizePaymentVisibleMethodSource,
-} from '@/api/admin/settings'
+} from '../settingsFormHelpers'
 
 /**
  * settings.paymentVisibleMethods.spec.ts checks payment-source normalization and
- * the options exposed by settings controls. Cases cover accepted aliases,
- * cross-method rejection and exact Chinese and English option data for Alipay
- * and WeChat Pay selections.
+ * the locale-keyed options exposed by settings controls. Cases cover accepted
+ * aliases, cross-method rejection, and matching Chinese and English locale
+ * definitions for Alipay and WeChat Pay selections.
  */
 
 describe('admin settings payment visible method helpers', () => {
@@ -41,45 +42,53 @@ describe('admin settings payment visible method helpers', () => {
   })
 
   /**
-   * Payment-source options are inspected separately for both visible methods.
-   * Each list retains its canonical values and Chinese and English labels for
-   * the settings selector.
+   * Payment-source options expose canonical values and locale keys backed by
+   * both English and Chinese settings catalogs rather than hardcoded strings.
    */
-  it('exposes method-scoped source options instead of arbitrary strings', () => {
+  it('exposes method-scoped source options backed by i18n locale keys', () => {
     expect(getPaymentVisibleMethodSourceOptions('alipay')).toEqual([
       {
         value: '',
-        labelZh: '未配置',
-        labelEn: 'Not configured',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.unconfigured',
       },
       {
         value: 'official_alipay',
-        labelZh: '支付宝官方',
-        labelEn: 'Official Alipay',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.officialAlipay',
       },
       {
         value: 'easypay_alipay',
-        labelZh: '易支付支付宝',
-        labelEn: 'EasyPay Alipay',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.easypayAlipay',
       },
     ])
 
     expect(getPaymentVisibleMethodSourceOptions('wxpay')).toEqual([
       {
         value: '',
-        labelZh: '未配置',
-        labelEn: 'Not configured',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.unconfigured',
       },
       {
         value: 'official_wxpay',
-        labelZh: '微信官方',
-        labelEn: 'Official WeChat Pay',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.officialWxpay',
       },
       {
         value: 'easypay_wxpay',
-        labelZh: '易支付微信',
-        labelEn: 'EasyPay WeChat Pay',
+        labelKey: 'admin.settings.paymentVisibleMethods.sources.easypayWxpay',
       },
     ])
+
+    expect(enAdminSettings.settings.paymentVisibleMethods.sources).toEqual({
+      unconfigured: 'Not configured',
+      officialAlipay: 'Official Alipay',
+      easypayAlipay: 'EasyPay Alipay',
+      officialWxpay: 'Official WeChat Pay',
+      easypayWxpay: 'EasyPay WeChat Pay',
+    })
+    expect(zhAdminSettings.settings.paymentVisibleMethods.sources).toEqual({
+      unconfigured: '未配置',
+      officialAlipay: '支付宝官方',
+      easypayAlipay: '易支付支付宝',
+      officialWxpay: '微信官方',
+      easypayWxpay: '易支付微信',
+    })
   })
 })

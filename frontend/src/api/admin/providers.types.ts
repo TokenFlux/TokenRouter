@@ -1,5 +1,7 @@
 import type { Proxy, ProxyProtocol } from '@/api/admin/proxies.types'
+import type { PaginatedResponse } from '@/api/common.types'
 import type { Group } from '@/api/groups.types'
+import type { ProtocolID } from '@/api/protocols.types'
 import type { ModelStat, EndpointStat } from '@/api/usage.types'
 
 // providers.types.ts describes upstream providers, their credentials, and observed
@@ -966,4 +968,378 @@ export interface ProviderUsageStatsResponse {
   models: ModelStat[] // Per-model usage breakdowns.
   endpoints: EndpointStat[] // Endpoint usage breakdowns.
   upstream_endpoints: EndpointStat[] // Upstream endpoint usage breakdowns.
+}
+
+// CodexInviteResetCredit describes an upstream reset opportunity with its
+// identity, lifetime and optional raw metadata.
+export interface CodexInviteResetCredit {
+  id: string // Record identifier value.
+  status?: string // Current server-reported status.
+  title?: string // Human-readable result title.
+  description?: string // Human-readable record description.
+  reset_type?: string // Recorded reset type.
+  granted_at?: string // Recorded granted at.
+  expires_at?: string // Recorded expiration timestamp.
+  profile_user_id?: string // Profile user ID.
+  profile_image_url?: string // Profile image URL.
+  raw?: Record<string, unknown> // Unnormalized upstream data.
+}
+
+// CodexInviteResetStatus combines invitation eligibility, consent requirements
+// and available reset credits for an OAuth provider.
+export interface CodexInviteResetStatus {
+  referral_key: string // Recorded referral key.
+  invite_eligibility?: Record<string, unknown> // Recorded invite eligibility.
+  eligibility_rules?: string[] // Recorded eligibility rules.
+  should_show?: boolean | null // Recorded should show.
+  grant_action?: string // Recorded grant action.
+  grant_amount?: number | null // Recorded grant amount.
+  has_rewards?: boolean | null // Recorded has rewards.
+  grant_type?: 'none' | 'rate_limit_reset' | 'workspace_credits' | 'unknown' | string // Recorded grant type.
+  invite_available: boolean // Recorded invite available.
+  invite_unavailable_reason?: string // Invite unavailable reason.
+  invite_unavailable_message?: string // Invite unavailable message.
+  requires_consent: boolean // Recorded requires consent.
+  available_count: number // Recorded available count.
+  credits: CodexInviteResetCredit[] // Available reset credits.
+  raw_eligibility_rules?: Record<string, unknown> // Raw eligibility rules.
+  raw_credits?: Record<string, unknown> // Recorded raw credits.
+}
+
+// CodexInviteResetInviteResult returns submitted invitation outcomes, failed
+// addresses and optional upstream diagnostic data.
+export interface CodexInviteResetInviteResult {
+  invites?: Array<Record<string, unknown>> // Returned invitation results.
+  failed_emails?: string[] // Recorded failed emails.
+  message?: string // Server-provided result message.
+  raw?: Record<string, unknown> // Unnormalized upstream data.
+}
+
+// CodexInviteResetConsumeResult records a reset redemption identity and any
+// remaining-credit information supplied by the upstream.
+export interface CodexInviteResetConsumeResult {
+  code?: string // Server result code.
+  credit_id?: string // Reset credit identifier.
+  redeem_request_id: string // Redeem request ID.
+  windows_reset: number // Recorded windows reset.
+  available_count?: number // Recorded available count.
+  remaining_credits?: Array<Record<string, unknown>> // Recorded remaining credits.
+  raw?: Record<string, unknown> // Unnormalized upstream data.
+}
+
+// OpenAIRateLimitWindow describes observed quota utilization and reset timing
+// for one upstream rate-limit window.
+export interface OpenAIRateLimitWindow {
+  used_percent: number // Recorded used percent.
+  limit_window_seconds: number // Limit window seconds.
+  reset_after_seconds: number // Reset after seconds.
+  reset_at: number // Quota reset timestamp.
+}
+
+// OpenAIRateLimit combines allowance flags with optional primary and secondary
+// upstream quota windows.
+export interface OpenAIRateLimit {
+  allowed: boolean // Upstream allowance flag.
+  limit_reached: boolean // Recorded limit reached.
+  primary_window?: OpenAIRateLimitWindow | null // Recorded primary window.
+  secondary_window?: OpenAIRateLimitWindow | null // Recorded secondary window.
+}
+
+// OpenAIAdditionalRateLimit identifies a separately metered feature and its
+// optional upstream rate-limit observations.
+export interface OpenAIAdditionalRateLimit {
+  limit_name: string // Recorded limit name.
+  metered_feature: string // Recorded metered feature.
+  rate_limit?: OpenAIRateLimit | null // Recorded rate limit.
+}
+
+// OpenAIRateLimitResetCreditDetail contains an optional expiration timestamp for
+// one reported quota-reset credit.
+export interface OpenAIRateLimitResetCreditDetail {
+  expires_at?: string // Recorded expiration timestamp.
+}
+
+// OpenAIRateLimitResetCredits pairs available reset-credit count with optional
+// per-credit expiration details.
+export interface OpenAIRateLimitResetCredits {
+  available_count: number // Recorded available count.
+  credits?: OpenAIRateLimitResetCreditDetail[] // Available reset credits.
+}
+
+// OpenAIQuotaUsage combines provider account identity, quota windows and reset
+// credits at a fetch timestamp.
+export interface OpenAIQuotaUsage {
+  user_id?: string // Owning user identifier.
+  provider_id?: string // Provider record identifier.
+  email?: string // Account email address.
+  plan_type?: string // Recorded plan type.
+  rate_limit?: OpenAIRateLimit | null // Recorded rate limit.
+  additional_rate_limits?: OpenAIAdditionalRateLimit[] // Additional rate limits.
+  rate_limit_reset_credits?: OpenAIRateLimitResetCredits | null // Rate limit reset credits.
+  fetched_at: number // Observation fetch timestamp.
+}
+
+// OpenAIQuotaRefreshResult adds persistence status to the upstream quota
+// observation returned by a refresh request.
+export interface OpenAIQuotaRefreshResult extends OpenAIQuotaUsage {
+  cache_persisted: boolean // Recorded cache persisted.
+}
+
+// AdvancedSchedulerScoreDiagnosticProvider identifies the provider whose
+// scheduling diagnostics are being displayed.
+export interface AdvancedSchedulerScoreDiagnosticProvider {
+  id: number // Record identifier value.
+  name: string // Human-readable display name.
+  platform: string // Provider platform identifier.
+  type: string // Represented record category.
+  status: string // Current server-reported status.
+}
+
+// AdvancedSchedulerScoreDiagnosticGroup identifies a group included in the
+// provider's scheduling diagnostic response.
+export interface AdvancedSchedulerScoreDiagnosticGroup {
+  id: number // Record identifier value.
+  name: string // Human-readable display name.
+}
+
+// AdvancedSchedulerScoreDiagnosticGroupSummary adds eligibility, status and an
+// optional final score to a diagnostic group.
+export interface AdvancedSchedulerScoreDiagnosticGroupSummary extends AdvancedSchedulerScoreDiagnosticGroup {
+  eligible: boolean // Scheduling admission flag.
+  final_score?: number // Recorded final score.
+  status: string // Current server-reported status.
+}
+
+// AdvancedSchedulerScoreDiagnosticContext describes the model and
+// sticky-provider assumptions used for a score calculation.
+export interface AdvancedSchedulerScoreDiagnosticContext {
+  requested_model?: string // Recorded requested model.
+  sticky_provider_id?: number // Sticky provider ID.
+  previous_response_provider_id?: number // Previous response provider ID.
+  baseline: boolean // Baseline calculation flag.
+}
+
+// AdvancedSchedulerScoreDiagnosticRanges records the candidate-pool ranges used
+// to normalize scheduling score inputs.
+export interface AdvancedSchedulerScoreDiagnosticRanges {
+  priority_min: number // Recorded priority min.
+  priority_max: number // Recorded priority max.
+  max_waiting_count: number // Max waiting count.
+  ttft_min_ms?: number // TTFT min milliseconds.
+  ttft_max_ms?: number // TTFT max milliseconds.
+  reset_min_seconds?: number // Reset min seconds.
+  reset_max_seconds?: number // Reset max seconds.
+}
+
+// AdvancedSchedulerScoreDiagnosticCandidate pairs a provider's rank and score
+// with shortlist membership and optional selection probability.
+export interface AdvancedSchedulerScoreDiagnosticCandidate {
+  id: number // Record identifier value.
+  name: string // Human-readable display name.
+  platform: string // Provider platform identifier.
+  priority: number // Configured selection priority.
+  final_score: number // Recorded final score.
+  rank: number // Position within ranking.
+  in_top_k: boolean // In top k.
+  selection_weight?: number // Recorded selection weight.
+  selection_probability?: number // Recorded selection probability.
+}
+
+// AdvancedSchedulerScoreDiagnosticCandidatePool describes candidate admission,
+// exclusion reasons and normalization values for one scheduling calculation.
+export interface AdvancedSchedulerScoreDiagnosticCandidatePool {
+  total_candidates: number // Recorded total candidates.
+  eligible_candidates: number // Recorded eligible candidates.
+  excluded_candidates: number // Recorded excluded candidates.
+  exclusion_reasons: Record<string, number> // Recorded exclusion reasons.
+  top_k: number // Candidate shortlist size.
+  top_k_minimum_score?: number // Top k minimum score.
+  top_k_weight_sum?: number // Top k weight sum.
+  normalization_ranges: AdvancedSchedulerScoreDiagnosticRanges // Recorded normalization ranges.
+  candidates: AdvancedSchedulerScoreDiagnosticCandidate[] // Eligible candidate entries.
+}
+
+// AdvancedSchedulerScoreDiagnosticScore explains the computed score, bonuses,
+// rank and weighted selection outcome for the diagnostic provider.
+export interface AdvancedSchedulerScoreDiagnosticScore {
+  base_score: number // Recorded base score.
+  sticky_bonus: number // Recorded sticky bonus.
+  final_score: number // Recorded final score.
+  rank: number // Position within ranking.
+  in_top_k: boolean // In top k.
+  selection_weight?: number // Recorded selection weight.
+  selection_probability?: number // Recorded selection probability.
+  selection_mode: string // Recorded selection mode.
+  formula: string // Score calculation formula.
+}
+
+// AdvancedSchedulerScoreDiagnosticMetric pairs one observed scheduling input
+// with normalization, weighting and availability metadata.
+export interface AdvancedSchedulerScoreDiagnosticMetric {
+  key: string // Stable entry key.
+  raw_value: string // Recorded raw value.
+  normalization: string // Metric normalization description.
+  normalized_value: number // Recorded normalized value.
+  weight: number // Configured metric weight.
+  weighted_contribution: number // Recorded weighted contribution.
+  available: boolean // Observation availability flag.
+  neutral: boolean // Neutral metric-contribution flag.
+  source: string // Recorded observation source.
+  observed_at?: string // Recorded observed at.
+}
+
+// AdvancedSchedulerScoreDiagnosticSetting pairs an effective scheduler setting
+// with its value and configuration source.
+export interface AdvancedSchedulerScoreDiagnosticSetting {
+  key: string // Stable entry key.
+  value: string // Represented entry value.
+  source: 'group_override' | 'global_runtime' | 'process_default' | string // Recorded observation source.
+}
+
+// AdvancedSchedulerScoreDiagnosticPolicySignal records one policy signal's state
+// and explanatory detail for scheduling diagnostics.
+export interface AdvancedSchedulerScoreDiagnosticPolicySignal {
+  key: string // Stable entry key.
+  state: string // Current recorded state.
+  detail: string // Detailed observation data.
+}
+
+// AdvancedSchedulerScoreDiagnosticDetail combines one group's admission
+// decision, candidate pool, score inputs and policy observations.
+export interface AdvancedSchedulerScoreDiagnosticDetail {
+  group: AdvancedSchedulerScoreDiagnosticGroup // Group identity details.
+  context: AdvancedSchedulerScoreDiagnosticContext // Score calculation context.
+  eligible: boolean // Scheduling admission flag.
+  hard_filter_reasons?: string[] // Hard filter reasons.
+  candidate_pool: AdvancedSchedulerScoreDiagnosticCandidatePool // Recorded candidate pool.
+  score?: AdvancedSchedulerScoreDiagnosticScore // Computed scheduling score.
+  metrics: AdvancedSchedulerScoreDiagnosticMetric[] // Scheduling metric observations.
+  effective_settings: AdvancedSchedulerScoreDiagnosticSetting[] // Recorded effective settings.
+  policy_signals: AdvancedSchedulerScoreDiagnosticPolicySignal[] // Recorded policy signals.
+}
+
+// AdvancedSchedulerScoreDiagnosticResponse pairs provider identity with
+// per-group summaries and optional detailed score diagnostics.
+export interface AdvancedSchedulerScoreDiagnosticResponse {
+  provider: AdvancedSchedulerScoreDiagnosticProvider // Provider identity details.
+  generated_at: string // Recorded generated at.
+  calculation_version: string // Recorded calculation version.
+  groups: AdvancedSchedulerScoreDiagnosticGroupSummary[] // Per-group score summaries.
+  detail?: AdvancedSchedulerScoreDiagnosticDetail // Detailed observation data.
+}
+
+// AdvancedSchedulerScorePreviewRequest selects a group, model and
+// sticky-provider context for a score preview request.
+export interface AdvancedSchedulerScorePreviewRequest {
+  group_id: number // Group record identifier.
+  requested_model?: string // Requested requested model.
+  sticky_provider_id?: number // Sticky provider ID.
+  previous_response_provider_id?: number // Previous response provider ID.
+}
+
+// ProviderListFilters selects optional platform, status, group, search, and
+// ordering parameters for provider list queries.
+export interface ProviderListFilters {
+  platform?: string // Provider platform identifier.
+  type?: string // Represented record category.
+  status?: string // Current server-reported status.
+  group?: string // Group identity details.
+  search?: string // Free-text search query.
+  privacy_mode?: string // Recorded privacy mode.
+  lite?: string // Reduced-payload query flag.
+  include_scheduler_score?: string // Include scheduler score.
+  sort_by?: string // Requested sort column.
+  sort_order?: 'asc' | 'desc' // Requested ordering direction.
+}
+
+// ProviderListWithEtagResult distinguishes an unchanged conditional response
+// from replacement page data. notModified true pairs with null data; callers
+// retain their current rows and use etag for the next conditional request.
+export interface ProviderListWithEtagResult {
+  notModified: boolean // Conditional cache-reuse flag.
+  // The response header may omit an entity tag even after success, so callers
+  // handle null when preparing their next conditional request.
+  etag: string | null // Response entity tag.
+  // A 304 response carries null data, telling callers to retain existing rows
+  // rather than replacing them with an empty page.
+  data: PaginatedResponse<Provider> | null // Returned response data.
+}
+
+// BatchProviderUsageResponse separates provider-ID-indexed usage observations
+// from per-provider lookup error messages.
+export interface BatchProviderUsageResponse {
+  usage: Record<string, ProviderUsageInfo> // Observed usage entries.
+  errors: Record<string, string> // Recorded failure details.
+}
+
+// BatchTodayStatsResponse maps stringified provider IDs to their returned daily
+// usage statistics.
+export interface BatchTodayStatsResponse {
+  stats: Record<string, WindowStats> // Identifier-indexed usage summaries.
+}
+
+// SyncUpstreamModelsResult returns model identifiers obtained by a provider's
+// upstream model-list synchronization.
+export interface SyncUpstreamModelsResult {
+  models: string[] // Model identifier list.
+  sync_status?: QoderModelCatalogStatus // Account catalog synchronization status.
+  // Catalogue suggestions describe returned IDs and exclude saved manual overrides,
+  // so forms can display them independently from the administrator's editable choices.
+  model_protocols?: Record<string, ProtocolID> // Suggested protocol per model.
+}
+
+// SyncUpstreamPreviewParams supplies platform, provider type and temporary
+// credentials for an upstream model preview.
+export interface SyncUpstreamPreviewParams {
+  platform: string // Provider platform identifier.
+  type: string // Represented record category.
+  base_url?: string // Requested base url.
+  api_key: string // Upstream provider credential.
+  // provider_mode is the drafted credentials.provider_mode for platforms with modes;
+  // OpenCode selects its payg or Go service root and catalog from it.
+  provider_mode?: string // Drafted provider service mode.
+}
+
+// CRSPreviewProvider identifies a remote CRS account and the provider identity
+// proposed for import.
+export interface CRSPreviewProvider {
+  crs_account_id: string // Crs account ID.
+  kind: string // Recorded item category.
+  name: string // Human-readable display name.
+  platform: string // Provider platform identifier.
+  type: string // Represented record category.
+}
+
+// PreviewFromCRSResult separates remote accounts proposed for creation from
+// those matching existing providers.
+export interface PreviewFromCRSResult {
+  new_providers: CRSPreviewProvider[] // Recorded new providers.
+  existing_providers: CRSPreviewProvider[] // Recorded existing providers.
+}
+
+// BatchOperationResult summarizes administrator provider batch outcomes and
+// optional per-provider warnings or errors.
+export interface BatchOperationResult {
+  total: number // Total matching records.
+  success: number // Successful operation count.
+  failed: number // Failed operation count.
+  success_ids?: number[] // Recorded success ids.
+  failed_ids?: number[] // Recorded failed ids.
+  errors?: Array<{
+    provider_id: number // Provider record identifier.
+    error: string // Operation failure detail.
+  }> // Recorded failure details.
+  warnings?: Array<{
+    provider_id: number // Provider record identifier.
+    warning: string // Server advisory message.
+  }> // Per-item advisory messages.
+}
+
+// SparkShadowCreatePayload supplies selected display, scheduling and group
+// settings for a parent's shadow provider.
+export interface SparkShadowCreatePayload {
+  name?: string // Human-readable display name.
+  priority?: number // Configured selection priority.
+  concurrency?: number // Concurrent request limit.
+  group_ids?: number[] // Recorded group ids.
 }
