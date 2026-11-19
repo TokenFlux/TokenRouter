@@ -142,9 +142,7 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 		Antigravity: &provideradapter.AntigravityProviderTest{Probe: func(ctx context.Context, value *provider.Record, request provider.PreparedTestRequest) (*antigravity.TestConnectionResult, error) {
 			probe := *ag
 			if system != nil {
-				retry := *ag.Retry
-				retry.Do = system.Do
-				probe.Retry = &retry
+				probe.Retry = ag.Retry.WithDo(system.Do)
 			}
 			probe.Attributes = probeAttributes
 			return probe.Execute(ctx, value, request)

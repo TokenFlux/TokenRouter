@@ -25,7 +25,6 @@ var apikeyAssemblyProviders = wire.NewSet(
 	provideKeyHTTP,
 	provideKeyAdmin,
 	provideKeyStore,
-	provideKeyRepository,
 	provideKeys,
 	provideKeyInvalidator,
 	apikey.ProvideAuthCacheInvalidationWorker,

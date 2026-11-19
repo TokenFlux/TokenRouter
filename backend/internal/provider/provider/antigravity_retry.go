@@ -141,6 +141,26 @@ type AntigravityRetry struct {
 	defaultCapacity *antigravity.CapacityTracker // fallback tracker when Capacity is nil
 }
 
+// WithDo returns a shallow copy of s configured with do as its default
+// transport callback while sharing s's initialized CapacityTracker without
+// copying sync.Once state.
+func (s *AntigravityRetry) WithDo(do func(*http.Request, string, int64, int) (*http.Response, error)) *AntigravityRetry {
+	if s == nil {
+		return &AntigravityRetry{Do: do}
+	}
+	return &AntigravityRetry{
+		Health:         s.Health,
+		Policy:         s.Policy,
+		Do:             do,
+		BaseURL:        s.BaseURL,
+		BodyLimit:      s.BodyLimit,
+		LogConfig:      s.LogConfig,
+		TruncateString: s.TruncateString,
+		SafeURL:        s.SafeURL,
+		Capacity:       s.capacityTracker(),
+	}
+}
+
 // capacityTracker returns the configured Capacity tracker or initializes a
 // service-scoped fallback tracker once.
 func (s *AntigravityRetry) capacityTracker() *antigravity.CapacityTracker {

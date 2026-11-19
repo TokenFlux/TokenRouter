@@ -33,11 +33,6 @@ func provideKeyStore(client *dbent.Client, db *sql.DB, settings *preaggregation.
 	})
 }
 
-// provideKeyRepository exposes the shared key store through the key repository interface.
-func provideKeyRepository(keys *keypostgres.KeyStore) apikey.APIKeyRepository {
-	return keys
-}
-
 // provideKeys constructs the key service with process cache settings and the
 // application calendar. It connects billing invalidation, live concurrency, and
 // team reads before the service starts its authentication cache lifecycle.

@@ -84,8 +84,8 @@ func (f *Recording) Core(updater gatewayadapter.QuotaUpdater, openAI bool) *comp
 	}
 	deps.ProviderStats = billing.NewPriceResolver(nil, deps.Calculator, nil, nil, stats)
 	effects := f.Effects
-	if auth, ok := updater.(completion.AuthInvalidator); ok {
-		effects.Auth = auth
+	if updater != nil {
+		effects.Auth = updater
 	}
 	deps.Effects = &effects
 	if openAI {
