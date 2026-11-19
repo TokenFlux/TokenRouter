@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -260,7 +259,7 @@ func (s *Antigravity) Forward(ctx context.Context, output Output, provider *gate
 				if upstream.IsGoogleProjectConfigError(msg) {
 					upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody)))
 					upstreamDetail := s.getUpstreamErrorDetail(respBody)
-					log.Printf("%s status=400 google_config_error failover=true upstream_message=%q provider=%d", prefix, upstreamMsg, provider.Record.ID)
+					logging.LegacyPrintf("gateway.antigravity", "%s status=400 google_config_error failover=true upstream_message=%q provider=%d", prefix, upstreamMsg, provider.Record.ID)
 					c.Observe(ops.OpsUpstreamErrorEvent{
 						Platform:           provider.Record.Platform,
 						ProviderID:         provider.Record.ID,

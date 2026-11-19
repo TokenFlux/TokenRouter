@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -44,9 +43,8 @@ const (
 // OpsHandler adapts administrator and realtime Ops requests to the shared core
 // service.
 type OpsHandler struct {
-	wsProxy    OpsWSProxyConfig   // immutable handshake proxy policy
-	wsLimits   opsWSRuntimeLimits // immutable connection admission limits
-	wsUpgrader websocket.Upgrader // instance-owned websocket handshake adapter
+	wsProxy  OpsWSProxyConfig   // immutable handshake proxy policy
+	wsLimits opsWSRuntimeLimits // immutable connection admission limits
 
 	// opsService is the borrowed core retained at construction. App binds its
 	// dependencies and lifecycle; endpoints forward request contexts and leave

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 )
 
 // digest_session_store.go stores Gemini session bindings and matches extending
@@ -15,11 +15,11 @@ import (
 // conversation's longer chain.
 //
 // Save publishes the replacement before deleting a different old key. Those
-// cache operations are individually synchronized, but their sequence is not
+// map operations are individually synchronized, but their sequence is not
 // atomic and can remove an old key replaced by another caller. The default
-// constructor has no cache janitor; reads exclude expired values, and the
-// application's timing wheel calls ExpireRuntimeCaches to remove them
-// physically.
+// constructor starts no cleanup goroutine; reads exclude and evict expired
+// values on lookup, and the application's timing wheel calls
+// ExpireRuntimeCaches to sweep unread expired entries physically.
 
 // digestSessionTTL gives new digest bindings a five-minute default lifetime so
 // inactive conversation identities eventually stop matching and can be physically removed.
@@ -35,17 +35,17 @@ type sessionEntry struct {
 // Construct it with NewDigestSessionStore before Find or Save; a nonnil zero-valued
 // store has no usable cache, while nil receivers skip those operations.
 type DigestSessionStore struct {
-	// cache is initialized by NewDigestSessionStore; its janitor is disabled and
-	// the application supplies physical expiration cleanup through its timing wheel.
-	cache *gocache.Cache
+	// cache is initialized by NewDigestSessionStore; lookups evict expired keys on
+	// observation and the application schedules physical sweeps via ExpireRuntimeCaches.
+	cache *querycache.TTLMap[*sessionEntry]
 }
 
-// NewDigestSessionStore creates an empty five-minute digest cache with its janitor
-// disabled. Reads check expiration, while the application schedules
-// ExpireRuntimeCaches to remove expired physical entries from this shared store.
+// NewDigestSessionStore creates an empty five-minute digest cache without a
+// background janitor. Reads check expiration lazily, while the application
+// schedules ExpireRuntimeCaches to sweep unread expired entries from this store.
 func NewDigestSessionStore() *DigestSessionStore {
 	return &DigestSessionStore{
-		cache: gocache.New(digestSessionTTL, 0),
+		cache: querycache.NewTTLMap[*sessionEntry](digestSessionTTL),
 	}
 }
 
@@ -55,7 +55,7 @@ func NewDigestSessionStore() *DigestSessionStore {
 //
 // The new key is published before a distinct oldDigestChain is removed from the
 // same namespace. Callers pass Find's matched chain to keep one evolving binding
-// in sequential use. Set and Delete remain separate operations, so concurrent
+// in sequential use. SetDefault and Delete remain separate operations, so concurrent
 // same-session writers can remove another caller's replacement; an unchanged old
 // chain is retained to avoid deleting the freshly stored value.
 func (s *DigestSessionStore) Save(groupID int64, prefixHash, digestChain, uuid string, providerID int64, oldDigestChain string) {
@@ -65,7 +65,7 @@ func (s *DigestSessionStore) Save(groupID int64, prefixHash, digestChain, uuid s
 	ns := buildNS(groupID, prefixHash)
 	// Publish the longer conversation chain before retiring its matched prefix
 	// so continued lookup can discover the replacement during this separate-operation sequence.
-	s.cache.Set(ns+digestChain, &sessionEntry{uuid: uuid, providerID: providerID}, gocache.DefaultExpiration)
+	s.cache.SetDefault(ns+digestChain, &sessionEntry{uuid: uuid, providerID: providerID})
 	if oldDigestChain != "" && oldDigestChain != digestChain {
 		s.cache.Delete(ns + oldDigestChain)
 	}
@@ -77,10 +77,9 @@ func (s *DigestSessionStore) Save(groupID int64, prefixHash, digestChain, uuid s
 // empty UUIDs or nonpositive provider IDs are still returned as found.
 //
 // Lookup removes final hyphen-delimited components one at a time, so callers
-// supply the digest builders' role/hash chain format. Expired values and values
-// of another stored type allow shorter prefixes to be tried. Physical removal of
-// expired entries belongs to ExpireRuntimeCaches; Find uses the cache's read-time
-// expiration check and leaves that cleanup to the application.
+// supply the digest builders' role/hash chain format. Expired or nil entries
+// allow shorter prefixes to be tried. Get evicts expired keys observed during
+// lookup, while ExpireRuntimeCaches sweeps unread expired entries on schedule.
 func (s *DigestSessionStore) Find(groupID int64, prefixHash, digestChain string) (uuid string, providerID int64, matchedChain string, found bool) {
 	if s == nil || digestChain == "" {
 		return "", 0, "", false
@@ -88,10 +87,8 @@ func (s *DigestSessionStore) Find(groupID int64, prefixHash, digestChain string)
 	ns := buildNS(groupID, prefixHash)
 	chain := digestChain
 	for {
-		if val, ok := s.cache.Get(ns + chain); ok {
-			if e, ok := val.(*sessionEntry); ok {
-				return e.uuid, e.providerID, chain, true
-			}
+		if e, ok := s.cache.Get(ns + chain); ok && e != nil {
+			return e.uuid, e.providerID, chain, true
 		}
 		// Step to the prior complete transcript prefix when the longer candidate
 		// misses, letting an appended Gemini turn reuse the saved conversation binding.

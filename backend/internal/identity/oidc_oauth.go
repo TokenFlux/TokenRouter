@@ -27,48 +27,48 @@ import (
 // OIDCOAuthOptions carries provider configuration and explicit startup-policy
 // markers for OIDC authorization.
 type OIDCOAuthOptions struct {
-	Enabled      bool   `mapstructure:"enabled"`       // configured OIDC login switch
-	ProviderName string `mapstructure:"provider_name"` // displayed identity provider name
-	ClientID     string `mapstructure:"client_id"`     // upstream authorization client identifier
-	ClientSecret string `mapstructure:"client_secret"` // upstream authorization client credential
-	IssuerURL    string `mapstructure:"issuer_url"`    // expected token issuer URL
-	DiscoveryURL string `mapstructure:"discovery_url"` // provider metadata discovery endpoint
-	AuthorizeURL string `mapstructure:"authorize_url"` // provider browser authorization endpoint
-	TokenURL     string `mapstructure:"token_url"`     // provider token exchange endpoint
-	UserInfoURL  string `mapstructure:"userinfo_url"`  // provider identity lookup endpoint
-	JWKSURL      string `mapstructure:"jwks_url"`      // provider signature-key lookup endpoint
+	Enabled      bool   `yaml:"enabled"`       // configured OIDC login switch
+	ProviderName string `yaml:"provider_name"` // displayed identity provider name
+	ClientID     string `yaml:"client_id"`     // upstream authorization client identifier
+	ClientSecret string `yaml:"client_secret"` // upstream authorization client credential
+	IssuerURL    string `yaml:"issuer_url"`    // expected token issuer URL
+	DiscoveryURL string `yaml:"discovery_url"` // provider metadata discovery endpoint
+	AuthorizeURL string `yaml:"authorize_url"` // provider browser authorization endpoint
+	TokenURL     string `yaml:"token_url"`     // provider token exchange endpoint
+	UserInfoURL  string `yaml:"userinfo_url"`  // provider identity lookup endpoint
+	JWKSURL      string `yaml:"jwks_url"`      // provider signature-key lookup endpoint
 	// Scopes carries requested authorization scopes. Startup defaults use openid
 	// email profile, and runtime OIDC configuration requires the openid scope.
-	Scopes      string `mapstructure:"scopes"`
-	RedirectURL string `mapstructure:"redirect_url"` // registered backend authorization callback
+	Scopes      string `yaml:"scopes"`
+	RedirectURL string `yaml:"redirect_url"` // registered backend authorization callback
 	// FrontendRedirectURL supplies the browser return route. Startup defaults
 	// use /auth/oidc/callback; current OAuth settings can supply a different
 	// configured destination.
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-	TokenAuthMethod     string `mapstructure:"token_auth_method"` // client_secret_post / client_secret_basic / none
+	FrontendRedirectURL string `yaml:"frontend_redirect_url"`
+	TokenAuthMethod     string `yaml:"token_auth_method"` // client_secret_post / client_secret_basic / none
 	// UsePKCE and ValidateIDToken pair with UsePKCEExplicit and
 	// ValidateIDTokenExplicit for startup compatibility defaults. The markers
 	// distinguish an explicitly disabled policy from an implicit false value
 	// when no stored switch overrides it.
-	UsePKCE                 bool `mapstructure:"use_pkce"`          // authorization code proof switch
-	ValidateIDToken         bool `mapstructure:"validate_id_token"` // provider ID-token validation switch
-	UsePKCEExplicit         bool `mapstructure:"-" yaml:"-"`        // explicit PKCE startup choice
-	ValidateIDTokenExplicit bool `mapstructure:"-" yaml:"-"`        // explicit ID-token startup choice
+	UsePKCE                 bool `yaml:"use_pkce"`          // authorization code proof switch
+	ValidateIDToken         bool `yaml:"validate_id_token"` // provider ID-token validation switch
+	UsePKCEExplicit         bool `yaml:"-"`                 // explicit PKCE startup choice
+	ValidateIDTokenExplicit bool `yaml:"-"`                 // explicit ID-token startup choice
 	// AllowedSigningAlgs names comma-separated JWT methods. Startup and direct
 	// blank-input parsing use RS256,ES256,PS256; runtime validation requires a
 	// nonblank list when ID-token checks are enabled.
-	AllowedSigningAlgs string `mapstructure:"allowed_signing_algs"`
+	AllowedSigningAlgs string `yaml:"allowed_signing_algs"`
 	// ClockSkewSeconds is token-time tolerance in seconds. Startup configuration
 	// defaults to 120, while runtime settings accept explicit zero within their
 	// allowed range.
-	ClockSkewSeconds     int  `mapstructure:"clock_skew_seconds"`
-	RequireEmailVerified bool `mapstructure:"require_email_verified"` // require verified email claims
+	ClockSkewSeconds     int  `yaml:"clock_skew_seconds"`
+	RequireEmailVerified bool `yaml:"require_email_verified"` // require verified email claims
 	// UserInfoEmailPath, UserInfoIDPath and UserInfoUsernamePath identify
 	// separate userinfo lookup paths. Empty configured paths use common field
 	// names for their respective profile values.
-	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`    // provider mailbox lookup path
-	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`       // provider subject lookup path
-	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"` // provider username lookup path
+	UserInfoEmailPath    string `yaml:"userinfo_email_path"`    // provider mailbox lookup path
+	UserInfoIDPath       string `yaml:"userinfo_id_path"`       // provider subject lookup path
+	UserInfoUsernamePath string `yaml:"userinfo_username_path"` // provider username lookup path
 }
 
 // OIDCTokenResponse contains upstream access credentials and optional OIDC

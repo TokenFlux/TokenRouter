@@ -9,15 +9,15 @@ import (
 	"unsafe"
 )
 
-// request_validation.go validates inbound JSON request payloads against
-// duplicate object member names and case-variant protocol field collisions
-// before gateway routing, policy enforcement, or upstream forwarding.
+// request_validation.go validates inbound JSON request payloads and upstream
+// usage envelopes against duplicate object member names and case-variant
+// protocol field collisions before gateway routing, policy enforcement,
+// upstream forwarding, or billing accounting.
 // Byte-view readers such as gjson and sjson inspect and rewrite the first
 // matching case-sensitive member, whereas Go struct and map decoders retain
 // the last matching member and fold letter case using Unicode simple case
-// folding. Rejecting ambiguous member sets at ingress keeps both parser
-// families aligned on one unambiguous field binding without reserializing valid
-// client payloads.
+// folding. Rejecting ambiguous member sets keeps both parser families aligned
+// on one unambiguous field binding without reserializing valid payloads.
 //
 // Validation combines encoding/json syntax checking with a single structural
 // scan that unescapes member names only when backslash escapes appear, keeping
@@ -25,15 +25,17 @@ import (
 // larger objects to a map. Protocol-scoped objects compare member names after
 // Unicode simple case folding so repeated names and case-equivalent pairs such
 // as model/MODEL or stream/ſstream are rejected even for extension fields, and
-// core gateway-inspected fields also require canonical spelling when supplied
-// once. User-owned schema, tool-argument, and unstructured metadata values drop
-// back to exact-duplicate enforcement so caller-defined uppercase identifiers
-// remain accepted.
+// core gateway-inspected or billing-inspected fields also require canonical
+// spelling when supplied once. User-owned schema, tool-argument, and
+// unstructured metadata values drop back to exact-duplicate enforcement so
+// caller-defined uppercase identifiers remain accepted.
 
 const (
 	// fieldScope values select which member deduplication and canonical protocol
-	// field rules apply to an object; scopeExactDupOnly checks exact repeats alone.
+	// field rules apply to an object; scopeExactDupOnly checks exact repeats alone,
+	// while scopeSkipSubtree skips unrelated response content subtrees.
 	scopeExactDupOnly fieldScope = iota
+	scopeSkipSubtree
 	scopeRoot
 	scopeMetadata
 	scopeThinking
@@ -55,6 +57,10 @@ const (
 	scopeToolFunction
 	scopeToolChoice
 	scopeBatchItem
+	scopeUsageEnvelope
+	scopeUsage
+	scopeUsageDetails
+	scopeUsageCacheWriteDetails
 	fieldScopeCount
 
 	// inlineObjectKeyCap bounds stack-held member names per object before
@@ -131,11 +137,43 @@ func ValidateRequestObject(data []byte) error {
 // protocol-scoped objects use canonical field casing. Callers may retain and
 // forward data unchanged after a nil return.
 func ValidateRequestJSON(data []byte) error {
+	return validateScopedJSON(data, scopeRoot, false)
+}
+
+// ValidateUsageObject verifies that data encodes one valid JSON usage object
+// with no duplicate decoded member names and canonical spelling on billing and
+// cache-detail counters. Malformed inputs, non-object values, and ambiguous
+// member names return errors so gjson accounting and typed usage decoders
+// cannot observe conflicting token counts.
+func ValidateUsageObject(data []byte) error {
+	return validateScopedJSON(data, scopeUsage, true)
+}
+
+// ValidateUsageEnvelope verifies that a response or stream event JSON object
+// contains unambiguous usage, response, data, and tool_usage wrapper fields and
+// valid nested usage objects while skipping unrelated content subtrees such as
+// choices or output arrays.
+func ValidateUsageEnvelope(data []byte) error {
+	return validateScopedJSON(data, scopeUsageEnvelope, true)
+}
+
+// validateScopedJSON checks RFC 8259 syntax and applies rootScope across data,
+// requiring a top-level JSON object when requireObject is true.
+func validateScopedJSON(data []byte, rootScope fieldScope, requireObject bool) error {
+	pos := skipWhitespace(data, 0)
+	if pos >= len(data) {
+		return ErrInvalidRequestJSON
+	}
+	if requireObject && data[pos] != '{' {
+		if !json.Valid(data) {
+			return ErrInvalidRequestJSON
+		}
+		return ErrRequestJSONMustBeObject
+	}
 	if !json.Valid(data) {
 		return ErrInvalidRequestJSON
 	}
-	pos := skipWhitespace(data, 0)
-	end, err := validateValue(data, pos, scopeRoot)
+	end, err := validateValue(data, pos, rootScope)
 	if err != nil {
 		return err
 	}
@@ -149,6 +187,9 @@ func ValidateRequestJSON(data []byte) error {
 // pos and applies scope when that value is a JSON object.
 func validateValue(data []byte, pos int, scope fieldScope) (int, error) {
 	pos = skipWhitespace(data, pos)
+	if scope == scopeSkipSubtree {
+		return skipAnyValue(data, pos), nil
+	}
 	switch data[pos] {
 	case '{':
 		return validateObject(data, pos, scope)
@@ -201,7 +242,11 @@ func validateObject(data []byte, pos int, scope fieldScope) (int, error) {
 		pos = skipWhitespace(data, nextPos)
 		pos = skipWhitespace(data, pos+1)
 		if data[pos] == '[' {
-			pos, err = validateArray(data, pos, childArrayElemScope(scope, key))
+			if scope == scopeUsageEnvelope {
+				pos = skipAnyValue(data, pos)
+			} else {
+				pos, err = validateArray(data, pos, childArrayElemScope(scope, key))
+			}
 		} else {
 			pos, err = validateValue(data, pos, childObjectScope(scope, key))
 		}
@@ -330,6 +375,27 @@ func childObjectScope(parent fieldScope, key string) fieldScope {
 			return scopeToolFunction
 		}
 		return scopeExactDupOnly
+	case scopeUsageEnvelope:
+		switch key {
+		case "usage", "image_gen":
+			return scopeUsage
+		case "response", "data", "tool_usage", "message":
+			return scopeUsageEnvelope
+		default:
+			return scopeSkipSubtree
+		}
+	case scopeUsage:
+		switch key {
+		case "input_tokens_details", "output_tokens_details", "prompt_tokens_details", "completion_tokens_details", "cache_creation":
+			return scopeUsageDetails
+		default:
+			return scopeExactDupOnly
+		}
+	case scopeUsageDetails:
+		if key == "cache_write_tokens_details" {
+			return scopeUsageCacheWriteDetails
+		}
+		return scopeExactDupOnly
 	default:
 		return scopeExactDupOnly
 	}
@@ -424,6 +490,37 @@ func readObjectKey(data []byte, pos int) (string, int, error) {
 		}
 	}
 	return "", 0, ErrInvalidRequestJSON
+}
+
+// skipAnyValue advances past one syntactically valid JSON value starting at
+// data[pos] without inspecting nested object keys.
+func skipAnyValue(data []byte, pos int) int {
+	pos = skipWhitespace(data, pos)
+	if pos >= len(data) {
+		return pos
+	}
+	switch data[pos] {
+	case '"':
+		return skipString(data, pos)
+	case '{', '[':
+		depth := 1
+		i := pos + 1
+		for i < len(data) && depth > 0 {
+			switch data[i] {
+			case '"':
+				i = skipString(data, i)
+				continue
+			case '{', '[':
+				depth++
+			case '}', ']':
+				depth--
+			}
+			i++
+		}
+		return i
+	default:
+		return skipPrimitive(data, pos)
+	}
 }
 
 // skipString advances past one syntactically valid JSON string starting at '"'.
@@ -572,6 +669,29 @@ func buildCanonicalFieldsByScope() [fieldScopeCount]map[string]string {
 	register(scopeToolChoice, "type", "name", "function")
 	register(scopeBatchItem,
 		"prompt", "model", "size", "quality", "output_format", "background",
+	)
+	register(scopeUsageEnvelope,
+		"usage", "response", "data", "tool_usage", "image_gen", "message",
+	)
+	register(scopeUsage,
+		"input_tokens", "output_tokens", "total_tokens",
+		"prompt_tokens", "completion_tokens",
+		"prompt_cache_hit_tokens", "prompt_cache_miss_tokens",
+		"cache_read_input_tokens", "cache_read_tokens", "cached_tokens",
+		"cache_creation_input_tokens", "cache_creation_tokens",
+		"cache_write_input_tokens", "cache_write_tokens",
+		"input_tokens_details", "output_tokens_details",
+		"prompt_tokens_details", "completion_tokens_details",
+		"cache_creation", "speed",
+	)
+	register(scopeUsageDetails,
+		"cached_tokens", "audio_tokens", "image_tokens", "reasoning_tokens",
+		"cache_creation_tokens", "cache_write_tokens", "cache_write_tokens_details",
+		"accepted_prediction_tokens", "rejected_prediction_tokens",
+		"ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens",
+	)
+	register(scopeUsageCacheWriteDetails,
+		"ttl_30m_tokens", "ttl_12h_tokens",
 	)
 	return scopes
 }

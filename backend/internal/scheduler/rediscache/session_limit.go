@@ -3,11 +3,11 @@ package rediscache
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
@@ -185,7 +185,7 @@ func NewSessionLimitCache(rdb *redis.Client, defaultIdleTimeoutMinutes int) sche
 	}
 	for _, script := range scripts {
 		if err := script.Load(ctx, rdb).Err(); err != nil {
-			log.Printf("[SessionLimitCache] Failed to preload Lua script: %v", err)
+			logging.LegacyPrintf("cache.session_limit", "[SessionLimitCache] Failed to preload Lua script: %v", err)
 		}
 	}
 

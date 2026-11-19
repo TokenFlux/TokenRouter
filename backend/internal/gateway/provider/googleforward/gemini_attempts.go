@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -261,7 +261,7 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 						Detail:             s.upstreamErrorDetail(respBody),
 					})
 					if outcome.googleConfigError {
-						log.Printf("[Gemini] status=400 google_config_error failover=true upstream_message=%q provider=%d", upstreamMsg, provider.Record.ID)
+						logger.LegacyPrintf("gateway.gemini", "[Gemini] status=400 google_config_error failover=true upstream_message=%q provider=%d", upstreamMsg, provider.Record.ID)
 					}
 					return nil, outcome.failover
 				}
@@ -488,7 +488,7 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, provider *gat
 						Detail:             s.upstreamErrorDetail(evBody),
 					})
 					if outcome.googleConfigError {
-						log.Printf("[Gemini] status=400 google_config_error failover=true upstream_message=%q provider=%d", upstreamMsg, provider.Record.ID)
+						logger.LegacyPrintf("gateway.gemini", "[Gemini] status=400 google_config_error failover=true upstream_message=%q provider=%d", upstreamMsg, provider.Record.ID)
 					}
 					return nil, outcome.failover
 				}

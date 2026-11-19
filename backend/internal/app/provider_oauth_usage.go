@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"log"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
@@ -70,7 +69,7 @@ func provideUsageMonitor(store *providerpostgres.ProviderStore, queries *provide
 // provideOAuthUsageStats binds local provider statistics and display cache to
 // the calendar.
 func provideOAuthUsageStats(store *usagepostgres.Store, cache *provider.OAuthUsageCache, calendar timezone.Calendar) *provider.LocalUsageStatistics {
-	return provider.NewLocalUsageStatistics(newProviderLocalUsageStats(store), cache, provider.LocalUsageStatisticsOptions{Now: time.Now, Today: calendar.Today, Log: log.Printf})
+	return provider.NewLocalUsageStatistics(newProviderLocalUsageStats(store), cache, provider.LocalUsageStatisticsOptions{Now: time.Now, Today: calendar.Today, Log: func(format string, args ...any) { logging.LegacyPrintf("service.oauth_usage", format, args...) }})
 }
 
 // provideOAuthUsageCore assembles OAuth platform readers and registers the
@@ -109,7 +108,7 @@ func provideOAuthUsageCore(store *providerpostgres.ProviderStore, usageStore *us
 	qoderOptions := qoderQuery.Options()
 	qoderOptions.Enrich = provideradapter.EnrichUsageWithProviderError
 	options := provider.OAuthUsageOptions{
-		Now: time.Now, Jitter: rand.Int64N, Log: log.Printf, Warn: slog.Warn,
+		Now: time.Now, Jitter: rand.Int64N, Log: func(format string, args ...any) { logging.LegacyPrintf("service.oauth_usage", format, args...) }, Warn: slog.Warn,
 		Qoder: qoderOptions,
 		Anthropic: func(ctx context.Context, value *provider.Record) (*provider.ClaudeUsageResponse, error) {
 			return requests.FetchAnthropic(ctx, value, fetcher)

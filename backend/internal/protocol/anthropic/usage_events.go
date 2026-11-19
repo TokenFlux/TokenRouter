@@ -2,10 +2,12 @@ package anthropic
 
 import (
 	"strings"
+	"unsafe"
 
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // usage_events.go parses Messages usage observations and reconciles compatible
@@ -36,6 +38,9 @@ import (
 // path extraction does not establish complete JSON validity.
 func ParseSSEUsagePassthrough(data string, usage *protocol.TokenUsage) {
 	if usage == nil || data == "" || data == "[DONE]" {
+		return
+	}
+	if wirejson.ValidateUsageEnvelope(unsafe.Slice(unsafe.StringData(data), len(data))) != nil {
 		return
 	}
 
@@ -207,7 +212,7 @@ func NormalizeAnthropicCompatiblePromptUsage(usageNode gjson.Result, usage *prot
 // work is separated from uncached input before the result reaches billing.
 func ParseClaudeUsageFromResponseBody(body []byte) *protocol.TokenUsage {
 	usage := &protocol.TokenUsage{}
-	if len(body) == 0 {
+	if len(body) == 0 || wirejson.ValidateUsageEnvelope(body) != nil {
 		return usage
 	}
 

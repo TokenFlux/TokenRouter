@@ -33,10 +33,14 @@ import (
 // reader.
 func provideOAuthSettings(store *settings.Store, cfg *config.Config) *identity.OAuthSettings {
 	var defaults *identity.OAuthSettingsDefaults
+	validateResolvedIP := false
+	allowPrivateHosts := true
 	if cfg != nil {
 		defaults = &identity.OAuthSettingsDefaults{LinuxDo: cfg.Auth.OAuth.LinuxDo, DingTalk: cfg.Auth.OAuth.DingTalk.IdentityDefaults(), OIDC: cfg.Auth.OAuth.OIDC, WeChat: cfg.Auth.OAuth.WeChat.IdentityDefaults(), GitHubOAuth: cfg.Auth.OAuth.GitHub, GoogleOAuth: cfg.Auth.OAuth.Google}
+		validateResolvedIP = cfg.Security.URLAllowlist.Enabled
+		allowPrivateHosts = cfg.Security.URLAllowlist.AllowPrivateHosts
 	}
-	return identity.NewOAuthSettings(store, defaults, identityprovider.ResolveSettingsOIDCMetadata)
+	return identity.NewOAuthSettings(store, defaults, identityprovider.NewSettingsOIDCMetadataResolver(validateResolvedIP, allowPrivateHosts))
 }
 
 // provideGrantSettings binds signup balance/concurrency defaults and

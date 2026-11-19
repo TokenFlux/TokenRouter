@@ -2,11 +2,11 @@ package antigravity
 
 import (
 	"encoding/json"
-	"log"
 	"strings"
 
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 )
 
@@ -78,7 +78,7 @@ func (p *StreamingProcessor) ProcessLine(line string) []byte {
 
 	result := p.ProcessResponse(&bridge.GeminiResponseInput{Response: v1Resp.Response, ResponseID: v1Resp.ResponseID, ModelVersion: v1Resp.ModelVersion})
 	for _, message := range p.TakeDiagnostics() {
-		log.Printf("%s", message)
+		logging.LegacyPrintf("upstream.antigravity", "%s", message)
 	}
 	return result
 }

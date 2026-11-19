@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imroc/req/v3"
-
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
@@ -135,23 +133,24 @@ func (s *OAuthClient) postTokenForm(ctx context.Context, formData url.Values, pr
 		return s.postTokenFormWithTLS(ctx, formData, proxyURL, failureReason, failureMessage, option)
 	}
 
-	client, err := CreateOAuthReqClient(proxyURL)
+	client, err := CreateOAuthHTTPClient(proxyURL)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
 	}
 
-	var tokenResp TokenResponse
-	userAgent, originator := resolveOpenAIOAuthTokenIdentity(option)
-
-	request := client.R().
-		SetContext(ctx).
-		SetHeader("User-Agent", userAgent).
-		SetFormDataFromValues(formData).
-		SetSuccessResult(&tokenResp)
-	if originator != "" {
-		request.SetHeader("originator", originator)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.tokenURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REQUEST_FAILED", "build request: %v", err)
 	}
-	resp, err := request.Post(s.tokenURL)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	userAgent, originator := resolveOpenAIOAuthTokenIdentity(option)
+	req.Header.Set("User-Agent", userAgent)
+	if originator != "" {
+		req.Header.Set("originator", originator)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		// Direct failures with a live caller context receive proxy-selection guidance;
 		// configured proxy failures and cancellation remain in their normal request-error path.
@@ -160,11 +159,20 @@ func (s *OAuthClient) postTokenForm(ctx context.Context, formData url.Values, pr
 		}
 		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REQUEST_FAILED", "request failed: %v", err)
 	}
-
-	if !resp.IsSuccessState() {
-		return nil, infraerrors.Newf(http.StatusBadGateway, failureReason, "%s: status %d, body: %s", failureMessage, resp.StatusCode, resp.String())
+	defer func() { _ = resp.Body.Close() }()
+	// Cap OpenAI OAuth token responses at 4 MiB to bound buffered error or JSON reads.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REQUEST_FAILED", "read response: %v", err)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, infraerrors.Newf(http.StatusBadGateway, failureReason, "%s: status %d, body: %s", failureMessage, resp.StatusCode, string(bodyBytes))
 	}
 
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
+		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_REQUEST_FAILED", "decode token response: %v", err)
+	}
 	return &tokenResp, nil
 }
 
@@ -217,12 +225,11 @@ func (s *OAuthClient) postTokenFormWithTLS(ctx context.Context, formData url.Val
 	return &tokenResp, nil
 }
 
-// CreateOAuthReqClient returns the shared req client configured for proxyURL
+// CreateOAuthHTTPClient returns the shared HTTP client configured for proxyURL
 // and a two-minute timeout. The client belongs to the shared HTTP
-// infrastructure, so callers use request-local options and leave its cached
-// configuration unchanged.
-func CreateOAuthReqClient(proxyURL string) (*req.Client, error) {
-	return httpclient.GetSharedReqClient(httpclient.ReqClientOptions{
+// infrastructure, so callers leave its cached configuration unchanged.
+func CreateOAuthHTTPClient(proxyURL string) (*http.Client, error) {
+	return httpclient.GetClient(httpclient.Options{
 		ProxyURL: proxyURL,
 		Timeout:  120 * time.Second,
 	})

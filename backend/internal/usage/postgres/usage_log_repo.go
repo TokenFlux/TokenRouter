@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
-
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
@@ -114,7 +113,7 @@ type Store struct {
 	bestEffortBatchCh   chan usageLogBestEffortRequest // acknowledgement-only write admissions
 	// bestEffortRecent records successful request/key submissions for a short
 	// suppression interval; ExpireRuntimeCaches performs its scheduled cleanup.
-	bestEffortRecent *gocache.Cache
+	bestEffortRecent *querycache.TTLMap[struct{}]
 }
 
 // UsageRankingItem is a public billing-user ranking entry with display data.
@@ -144,7 +143,7 @@ func NewUsageLogRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, calend
 	if db, ok := sqlq.(*sql.DB); ok {
 		repo.db = db
 	}
-	repo.bestEffortRecent = gocache.New(usageLogBestEffortRecentTTL, 0)
+	repo.bestEffortRecent = querycache.NewTTLMap[struct{}](usageLogBestEffortRecentTTL)
 	return repo
 }
 

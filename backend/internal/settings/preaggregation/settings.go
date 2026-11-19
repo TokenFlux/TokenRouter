@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -266,7 +266,7 @@ func (s *PreAggregationSettingsService) Resolve(ctx context.Context) PreAggregat
 	if cached := s.cache.Load(); cached != nil {
 		return cached.settings
 	}
-	log.Printf("[INFO] [PreAggregation] Failed to read runtime configuration, using deployment defaults: %v", err)
+	slog.Info("[PreAggregation] Failed to read runtime configuration, using deployment defaults", "error", err)
 	return s.defaults()
 }
 

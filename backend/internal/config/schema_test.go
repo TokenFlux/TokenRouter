@@ -3,7 +3,6 @@ package config
 import (
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
@@ -52,13 +51,11 @@ func TestVersionTwoIgnoresImplicitOverrides(t *testing.T) {
 	require.Equal(t, "0123", cfg.Database.Password)
 }
 
-// TestDefaultsMatchCurrentSchema checks every registered default against decoded paths.
-// Removed keys must leave the default registry too, so sparse current files
-// cannot silently retain a historical setting outside the versioned schema.
+// TestDefaultsMatchCurrentSchema checks every default field against decoded paths.
+// Encoding defaultConfig to YAML must pass checkUnknownKeys so sparse current
+// files cannot inherit fields outside the versioned schema.
 func TestDefaultsMatchCurrentSchema(t *testing.T) {
-	v := viper.New()
-	setDefaults(v)
 	var doc yaml.Node
-	require.NoError(t, doc.Encode(v.AllSettings()))
+	require.NoError(t, doc.Encode(defaultConfig()))
 	require.NoError(t, checkUnknownKeys(&doc))
 }

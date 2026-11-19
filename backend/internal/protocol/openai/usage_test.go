@@ -175,3 +175,24 @@ func TestUsageAccumulatorSharesTerminalPrecedenceWithClient(t *testing.T) {
 	event.Response.Usage.InputTokensDetails.CachedTokens = 1
 	require.Equal(t, 60, accumulator.Snapshot().InputTokensDetails.CachedTokens)
 }
+
+// TestUsageAccumulatorRejectsAmbiguousDuplicateAndCasedUsage feeds duplicate
+// keys and case-folded billing counters into usage observation and envelope parsing.
+// Ambiguous usage objects must be discarded and cleared from terminal events so accounting and forwarded usage stay aligned.
+func TestUsageAccumulatorRejectsAmbiguousDuplicateAndCasedUsage(t *testing.T) {
+	var accumulator UsageAccumulator
+	require.Nil(t, accumulator.Observe([]byte(`{"input_tokens":1,"input_tokens":50000}`)))
+	require.Nil(t, accumulator.Observe([]byte(`{"Input_Tokens":50000,"output_tokens":10}`)))
+	require.Zero(t, accumulator.ForwardUsage().InputTokens)
+
+	raw := []byte(`{"type":"response.completed","response":{"id":"resp_ambig","usage":{"input_tokens":1,"output_tokens":1},"usage":{"input_tokens":9999,"output_tokens":9999}}}`)
+	var event ResponsesStreamEvent
+	require.NoError(t, json.Unmarshal(raw, &event))
+	require.NotNil(t, event.Response.Usage)
+	require.Nil(t, accumulator.ObserveResponsesEvent(raw, &event))
+	require.Nil(t, event.Response.Usage)
+	require.Zero(t, accumulator.ForwardUsage().InputTokens)
+
+	_, ok := ExtractOpenAIUsageFromJSONBytes(raw)
+	require.False(t, ok)
+}

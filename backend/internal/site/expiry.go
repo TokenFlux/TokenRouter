@@ -2,7 +2,7 @@ package site
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -132,10 +132,10 @@ func (s *AnnouncementExpiryService) runOnce() {
 	if err != nil {
 		// A scan failure ends this attempt while the worker remains available;
 		// the next ticker selection rechecks whichever active announcements are eligible then.
-		log.Printf("[AnnouncementExpiry] archive expired announcements failed: %v", err)
+		slog.Error("[AnnouncementExpiry] archive expired announcements failed", "error", err)
 		return
 	}
 	if updated > 0 {
-		log.Printf("[AnnouncementExpiry] archived %d expired announcements", updated)
+		slog.Info("[AnnouncementExpiry] archived expired announcements", "count", updated)
 	}
 }

@@ -3,7 +3,6 @@ package ops
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/notification/contract"
 )
 
@@ -425,7 +425,7 @@ func (s *OpsScheduledReportService) listScheduledReports(ctx context.Context, no
 		// this cycle.
 		sched, err := opsScheduledReportCronParser.Parse(spec)
 		if err != nil {
-			log.Printf("[OpsScheduledReport] invalid cron spec=%q for report=%s: %v", spec, d.kind, err)
+			logging.LegacyPrintf("service.ops_scheduled_report", "[OpsScheduledReport] invalid cron spec=%q for report=%s: %v", spec, d.kind, err)
 			continue
 		}
 
@@ -1108,7 +1108,7 @@ func (s *OpsScheduledReportService) tryAcquireLeaderLock(ctx context.Context) (f
 	// local to each loop.
 	if s.redisClient == nil {
 		s.warnNoRedisOnce.Do(func() {
-			log.Printf("[OpsScheduledReport] redis not configured; running without distributed lock")
+			logging.LegacyPrintf("service.ops_scheduled_report", "[OpsScheduledReport] redis not configured; running without distributed lock")
 		})
 		return nil, true
 	}
@@ -1130,7 +1130,7 @@ func (s *OpsScheduledReportService) tryAcquireLeaderLock(ctx context.Context) (f
 		// A configured Redis claim error rejects this cycle because
 		// ownership was not established; contention likewise skips all
 		// report work.
-		log.Printf("[OpsScheduledReport] leader lock SetNX failed; skipping this cycle: %v", err)
+		logging.LegacyPrintf("service.ops_scheduled_report", "[OpsScheduledReport] leader lock SetNX failed; skipping this cycle: %v", err)
 		return nil, false
 	}
 	if !ok {

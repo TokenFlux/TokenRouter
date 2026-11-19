@@ -19,405 +19,405 @@ import (
 // DatabaseConfig configures database connections and their pool.
 // Pool limits control connection reuse and resource consumption.
 type DatabaseConfig struct {
-	Host     string `mapstructure:"host"`     // PostgreSQL server host text
-	Port     int    `mapstructure:"port"`     // PostgreSQL connection port number
-	User     string `mapstructure:"user"`     // PostgreSQL authentication username text
-	Password string `mapstructure:"password"` // PostgreSQL authentication secret text
-	DBName   string `mapstructure:"dbname"`   // target PostgreSQL database name
-	SSLMode  string `mapstructure:"sslmode"`  // libpq TLS mode text
+	Host     string `yaml:"host"`     // PostgreSQL server host text
+	Port     int    `yaml:"port"`     // PostgreSQL connection port number
+	User     string `yaml:"user"`     // PostgreSQL authentication username text
+	Password string `yaml:"password"` // PostgreSQL authentication secret text
+	DBName   string `yaml:"dbname"`   // target PostgreSQL database name
+	SSLMode  string `yaml:"sslmode"`  // libpq TLS mode text
 	// MaxOpenConns and MaxIdleConns bound one shared SQL pool. Startup validation
 	// requires a positive open capacity and keeps the nonnegative idle limit
 	// within that capacity before database/sql receives them.
-	MaxOpenConns int `mapstructure:"max_open_conns"` // open SQL connection capacity
-	MaxIdleConns int `mapstructure:"max_idle_conns"` // retained idle SQL connection limit
+	MaxOpenConns int `yaml:"max_open_conns"` // open SQL connection capacity
+	MaxIdleConns int `yaml:"max_idle_conns"` // retained idle SQL connection limit
 	// ConnMaxLifetimeMinutes limits a connection's total lifetime in minutes.
-	ConnMaxLifetimeMinutes int `mapstructure:"conn_max_lifetime_minutes"`
+	ConnMaxLifetimeMinutes int `yaml:"conn_max_lifetime_minutes"`
 	// ConnMaxIdleTimeMinutes limits a connection's idle lifetime in minutes.
-	ConnMaxIdleTimeMinutes int `mapstructure:"conn_max_idle_time_minutes"`
+	ConnMaxIdleTimeMinutes int `yaml:"conn_max_idle_time_minutes"`
 }
 
 // RedisConfig holds Redis credentials, pool limits, and configured socket
 // operation budgets.
 type RedisConfig struct {
-	Host     string `mapstructure:"host"`     // Redis server host text
-	Port     int    `mapstructure:"port"`     // Redis connection port number
-	Username string `mapstructure:"username"` // Redis authentication username text
-	Password string `mapstructure:"password"` // Redis authentication secret text
-	DB       int    `mapstructure:"db"`       // Redis logical database number
+	Host     string `yaml:"host"`     // Redis server host text
+	Port     int    `yaml:"port"`     // Redis connection port number
+	Username string `yaml:"username"` // Redis authentication username text
+	Password string `yaml:"password"` // Redis authentication secret text
+	DB       int    `yaml:"db"`       // Redis logical database number
 	// connection establishment budget seconds
-	DialTimeoutSeconds int `mapstructure:"dial_timeout_seconds"`
+	DialTimeoutSeconds int `yaml:"dial_timeout_seconds"`
 	// socket read operation seconds
-	ReadTimeoutSeconds int `mapstructure:"read_timeout_seconds"`
+	ReadTimeoutSeconds int `yaml:"read_timeout_seconds"`
 	// socket write operation seconds
-	WriteTimeoutSeconds int `mapstructure:"write_timeout_seconds"`
+	WriteTimeoutSeconds int `yaml:"write_timeout_seconds"`
 	// PoolSize and MinIdleConns configure one Redis connection pool. Startup
 	// validation requires positive capacity and keeps its nonnegative ready-idle
 	// minimum within that capacity before client construction.
-	PoolSize int `mapstructure:"pool_size"` // Redis connection pool capacity
+	PoolSize int `yaml:"pool_size"` // Redis connection pool capacity
 	// ready idle Redis connection minimum
-	MinIdleConns int `mapstructure:"min_idle_conns"`
+	MinIdleConns int `yaml:"min_idle_conns"`
 	// EnableTLS enables TLS connections.
-	EnableTLS bool `mapstructure:"enable_tls"`
+	EnableTLS bool `yaml:"enable_tls"`
 }
 
 // BillingConfig supplies pre-forwarding balance reserve and billing
 // circuit-breaker deployment settings.
 type BillingConfig struct {
-	BalanceCheckCircuitBreaker BillingBalanceCircuitBreakerConfig `mapstructure:"balance_check_circuit_breaker"` // billing balance check circuit breaker settings
+	BalanceCheckCircuitBreaker BillingBalanceCircuitBreakerConfig `yaml:"balance_check_circuit_breaker"` // billing balance check circuit breaker settings
 	// new-user billing rate multiplier
-	FallbackRateMultiplier float64 `mapstructure:"fallback_rate_multiplier"`
+	FallbackRateMultiplier float64 `yaml:"fallback_rate_multiplier"`
 	// GroupRateCacheTTLSeconds supplies the retained lifetime of user/group
 	// rate multipliers in seconds. Startup requires a positive value before the
 	// rate cache uses this process default.
-	GroupRateCacheTTLSeconds int `mapstructure:"group_rate_cache_ttl_seconds"`
+	GroupRateCacheTTLSeconds int `yaml:"group_rate_cache_ttl_seconds"`
 	// MinimumBalanceReserve is the conservative balance threshold before
 	// balance-funded forwarding.
 	// Zero requires only balance > 0.
-	MinimumBalanceReserve float64 `mapstructure:"minimum_balance_reserve"`
+	MinimumBalanceReserve float64 `yaml:"minimum_balance_reserve"`
 }
 
 // BillingBalanceCircuitBreakerConfig bounds balance-check failures and admission during billing circuit recovery.
 type BillingBalanceCircuitBreakerConfig struct {
 	// billing circuit availability switch
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// failure count opening the circuit
-	FailureThreshold int `mapstructure:"failure_threshold"`
+	FailureThreshold int `yaml:"failure_threshold"`
 	// half-open probe admission count
-	HalfOpenRequests int `mapstructure:"half_open_requests"`
+	HalfOpenRequests int `yaml:"half_open_requests"`
 	// open-circuit reset delay seconds
-	ResetTimeoutSeconds int `mapstructure:"reset_timeout_seconds"`
+	ResetTimeoutSeconds int `yaml:"reset_timeout_seconds"`
 }
 
 // PaymentConfig supplies the explicit signing input for payment-resume token construction.
 type PaymentConfig struct {
-	ResumeSigningKey string `mapstructure:"resume_signing_key"` // Explicit payment resume signing key.
+	ResumeSigningKey string `yaml:"resume_signing_key"` // Explicit payment resume signing key.
 }
 
 // BatchImageConfig holds deployment inputs for batch image limits, storage,
 // queueing, and cleanup.
 type BatchImageConfig struct {
 	// cleanup job batch size
-	CleanupBatchSize int `mapstructure:"cleanup_batch_size"`
+	CleanupBatchSize int `yaml:"cleanup_batch_size"`
 	// batch cleanup polling minutes
-	CleanupIntervalMinutes int `mapstructure:"cleanup_interval_minutes"`
+	CleanupIntervalMinutes int `yaml:"cleanup_interval_minutes"`
 	// default requested image size text
-	DefaultImageSize string `mapstructure:"default_image_size"`
+	DefaultImageSize string `yaml:"default_image_size"`
 	// default output image MIME type
-	DefaultResponseMimeType string `mapstructure:"default_response_mime_type"`
+	DefaultResponseMimeType string `yaml:"default_response_mime_type"`
 	// terminal job input retention hours
-	InputRetentionAfterTerminalHours int `mapstructure:"input_retention_after_terminal_hours"`
+	InputRetentionAfterTerminalHours int `yaml:"input_retention_after_terminal_hours"`
 	// download request byte count limit
-	MaxDownloadBytesPerRequest int64 `mapstructure:"max_download_bytes_per_request"`
+	MaxDownloadBytesPerRequest int64 `yaml:"max_download_bytes_per_request"`
 	// per-user download admission limit
-	MaxDownloadConcurrencyPerUser int `mapstructure:"max_download_concurrency_per_user"`
+	MaxDownloadConcurrencyPerUser int `yaml:"max_download_concurrency_per_user"`
 	// download request budget seconds
-	MaxDownloadDurationSeconds int `mapstructure:"max_download_duration_seconds"`
+	MaxDownloadDurationSeconds int `yaml:"max_download_duration_seconds"`
 	// maximum bundled ZIP item count
-	MaxDownloadItemsZip int `mapstructure:"max_download_items_zip"`
+	MaxDownloadItemsZip int `yaml:"max_download_items_zip"`
 	// ordinary job item count limit
-	MaxItemsPerJob int `mapstructure:"max_items_per_job"`
+	MaxItemsPerJob int `yaml:"max_items_per_job"`
 	// per-item output image count limit
-	MaxOutputImagesPerItem int `mapstructure:"max_output_images_per_item"`
+	MaxOutputImagesPerItem int `yaml:"max_output_images_per_item"`
 	// total output image count limit
-	MaxOutputImagesPerJob int `mapstructure:"max_output_images_per_job"`
+	MaxOutputImagesPerJob int `yaml:"max_output_images_per_job"`
 	// MaxPromptBytesPerItem limits the UTF-8 bytes of each trimmed batch prompt.
-	MaxPromptBytesPerItem int `mapstructure:"max_prompt_bytes_per_item"`
+	MaxPromptBytesPerItem int `yaml:"max_prompt_bytes_per_item"`
 	// expanded reference image count limit
-	MaxReferenceImagesPerJob int `mapstructure:"max_reference_images_per_job"`
+	MaxReferenceImagesPerJob int `yaml:"max_reference_images_per_job"`
 	// expanded inline reference byte limit
-	MaxReferenceInlineBytesPerJob int `mapstructure:"max_reference_inline_bytes_per_job"`
+	MaxReferenceInlineBytesPerJob int `yaml:"max_reference_inline_bytes_per_job"`
 	// terminal job output retention hours
-	OutputRetentionAfterTerminalHours int                    `mapstructure:"output_retention_after_terminal_hours"`
-	Queue                             TaskQueueConfig        `mapstructure:"queue"`  // batch image queue settings
-	Vertex                            BatchImageVertexConfig `mapstructure:"vertex"` // batch image vertex settings
+	OutputRetentionAfterTerminalHours int                    `yaml:"output_retention_after_terminal_hours"`
+	Queue                             TaskQueueConfig        `yaml:"queue"`  // batch image queue settings
+	Vertex                            BatchImageVertexConfig `yaml:"vertex"` // batch image vertex settings
 }
 
 // BatchImageVertexConfig selects managed Vertex batch storage, object prefixes, and endpoint overrides.
 type BatchImageVertexConfig struct {
 	// Vertex batch endpoint override URL
-	BatchPredictionBaseURL string `mapstructure:"batch_prediction_base_url"`
+	BatchPredictionBaseURL string `yaml:"batch_prediction_base_url"`
 	// Cloud Storage endpoint override URL
-	GCSBaseURL string `mapstructure:"gcs_base_url"`
+	GCSBaseURL string `yaml:"gcs_base_url"`
 	// Vertex batch region identifier
-	Location string `mapstructure:"location"`
+	Location string `yaml:"location"`
 	// ManagedGCSBucket is a server-owned bucket for batch JSONL input/output.
 	// Disable Cloud Storage soft delete on this bucket to avoid retaining deleted
 	// batch objects.
-	ManagedGCSBucket string `mapstructure:"managed_gcs_bucket"`
+	ManagedGCSBucket string `yaml:"managed_gcs_bucket"`
 	// ManagedGCSPrefix identifies managed object paths and must contain
 	// {batch_id} while Vertex is enabled. That placeholder separates objects
 	// belonging to different batch jobs in the managed bucket.
-	ManagedGCSPrefix string `mapstructure:"managed_gcs_prefix"`
+	ManagedGCSPrefix string `yaml:"managed_gcs_prefix"`
 	// Vertex batch project identifier
-	ProjectID string `mapstructure:"project_id"`
+	ProjectID string `yaml:"project_id"`
 }
 
 // CreativeConfig supplies studio input limits and process defaults for its
 // worker queue.
 type CreativeConfig struct {
 	// default requested image size text
-	DefaultImageSize string `mapstructure:"default_image_size"`
+	DefaultImageSize string `yaml:"default_image_size"`
 	// Enabled controls Creative Studio HTTP API availability.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// ExecuteTimeoutSeconds bounds one upstream execution attempt.
-	ExecuteTimeoutSeconds int `mapstructure:"execute_timeout_seconds"`
+	ExecuteTimeoutSeconds int `yaml:"execute_timeout_seconds"`
 	// MaxAssetBytes limits each uploaded source image or mask in bytes.
-	MaxAssetBytes int64 `mapstructure:"max_asset_bytes"`
+	MaxAssetBytes int64 `yaml:"max_asset_bytes"`
 	// MaxExecuteAttempts limits attempted upstream executions after transient
 	// provider errors. The count includes the initial execution before any retry,
 	// and enabled startup validation requires a positive value.
-	MaxExecuteAttempts int `mapstructure:"max_execute_attempts"`
+	MaxExecuteAttempts int `yaml:"max_execute_attempts"`
 	// MaxPromptChars limits prompt text by Unicode rune count in creative.Public
 	// validation. It differs from the batch image prompt field, whose consumer
 	// counts trimmed bytes.
-	MaxPromptChars int `mapstructure:"max_prompt_chars"`
+	MaxPromptChars int `yaml:"max_prompt_chars"`
 	// MaxTotalInputBytes limits the total input size of one task in bytes.
-	MaxTotalInputBytes int64           `mapstructure:"max_total_input_bytes"`
-	Queue              TaskQueueConfig `mapstructure:"queue"` // creative queue settings
+	MaxTotalInputBytes int64           `yaml:"max_total_input_bytes"`
+	Queue              TaskQueueConfig `yaml:"queue"` // creative queue settings
 	// QueueWorkerEnabled enables the Creative Studio worker queue.
-	QueueWorkerEnabled bool `mapstructure:"queue_worker_enabled"`
+	QueueWorkerEnabled bool `yaml:"queue_worker_enabled"`
 	// TransientTTLSeconds is the retention for input payloads and temporary output.
-	TransientTTLSeconds int `mapstructure:"transient_ttl_seconds"`
+	TransientTTLSeconds int `yaml:"transient_ttl_seconds"`
 }
 
 // TaskQueueConfig names Redis queues and bounds task locking, retries, and recovery timing.
 type TaskQueueConfig struct {
 	// Redis active-queue key name
-	ActiveKey string `mapstructure:"active_key"`
+	ActiveKey string `yaml:"active_key"`
 	// ordinary requeue delay seconds
-	DefaultRequeueDelaySeconds int `mapstructure:"default_requeue_delay_seconds"`
+	DefaultRequeueDelaySeconds int `yaml:"default_requeue_delay_seconds"`
 	// Redis delayed-queue key name
-	DelayedKey string `mapstructure:"delayed_key"`
+	DelayedKey string `yaml:"delayed_key"`
 	// delayed-task mover batch count
-	DelayedMoveLimit int `mapstructure:"delayed_move_limit"`
+	DelayedMoveLimit int `yaml:"delayed_move_limit"`
 	// delayed-task mover interval seconds
-	DelayedMoverIntervalSeconds int `mapstructure:"delayed_mover_interval_seconds"`
+	DelayedMoverIntervalSeconds int `yaml:"delayed_mover_interval_seconds"`
 	// provider-error retry delay seconds
-	ErrorRetryDelaySeconds int `mapstructure:"error_retry_delay_seconds"`
+	ErrorRetryDelaySeconds int `yaml:"error_retry_delay_seconds"`
 	// Redis active-task key prefix
-	InflightKeyPrefix string `mapstructure:"inflight_key_prefix"`
+	InflightKeyPrefix string `yaml:"inflight_key_prefix"`
 	// active-task marker lifetime seconds
-	InflightTTLSeconds int `mapstructure:"inflight_ttl_seconds"`
+	InflightTTLSeconds int `yaml:"inflight_ttl_seconds"`
 	// job-lock lifetime in seconds
-	JobLockTTLSeconds int `mapstructure:"job_lock_ttl_seconds"`
+	JobLockTTLSeconds int `yaml:"job_lock_ttl_seconds"`
 	// occupied job-lock retry seconds
-	LockConflictDelaySeconds int `mapstructure:"lock_conflict_delay_seconds"`
+	LockConflictDelaySeconds int `yaml:"lock_conflict_delay_seconds"`
 	// Redis job-lock key prefix
-	LockKeyPrefix string `mapstructure:"lock_key_prefix"`
+	LockKeyPrefix string `yaml:"lock_key_prefix"`
 	// Redis ready-queue key name
-	ReadyKey string `mapstructure:"ready_key"`
+	ReadyKey string `yaml:"ready_key"`
 	// active-task recovery batch count
-	RecoverLimit int `mapstructure:"recover_limit"`
+	RecoverLimit int `yaml:"recover_limit"`
 	// active-task recovery interval seconds
-	RecoveryIntervalSeconds int `mapstructure:"recovery_interval_seconds"`
+	RecoveryIntervalSeconds int `yaml:"recovery_interval_seconds"`
 	// active-task recovery threshold seconds
-	StaleActiveAfterSeconds int `mapstructure:"stale_active_after_seconds"`
+	StaleActiveAfterSeconds int `yaml:"stale_active_after_seconds"`
 }
 
 // OpsConfig supplies deployment availability, cleanup, aggregation, and
 // collector cache defaults.
 type OpsConfig struct {
-	Aggregation OpsAggregationConfig `mapstructure:"aggregation"` // ops aggregation settings
-	Cleanup     OpsCleanupConfig     `mapstructure:"cleanup"`     // ops cleanup settings
+	Aggregation OpsAggregationConfig `yaml:"aggregation"` // ops aggregation settings
+	Cleanup     OpsCleanupConfig     `yaml:"cleanup"`     // ops cleanup settings
 	// Enabled controls whether ops features should run.
 	//
 	// The database setting ops_monitoring_enabled controls runtime availability
 	// when this deployment-level switch is enabled.
-	Enabled   bool               `mapstructure:"enabled"`
-	WebSocket OpsWebSocketConfig `mapstructure:"websocket"` // ops websocket settings
+	Enabled   bool               `yaml:"enabled"`
+	WebSocket OpsWebSocketConfig `yaml:"websocket"` // ops websocket settings
 }
 
 // OpsCleanupConfig supplies the schedule, batch pacing, and retention of Ops
 // datasets.
 type OpsCleanupConfig struct {
-	Enabled   bool   `mapstructure:"enabled"`    // Ops cleanup job availability switch
-	Schedule  string `mapstructure:"schedule"`   // Ops cleanup cron expression
-	BatchSize int    `mapstructure:"batch_size"` // deleted rows per cleanup batch
+	Enabled   bool   `yaml:"enabled"`    // Ops cleanup job availability switch
+	Schedule  string `yaml:"schedule"`   // Ops cleanup cron expression
+	BatchSize int    `yaml:"batch_size"` // deleted rows per cleanup batch
 	// cleanup batch pause milliseconds
-	BatchPauseMS int `mapstructure:"batch_pause_ms"`
+	BatchPauseMS int `yaml:"batch_pause_ms"`
 
 	// ErrorLogRetentionDays, SystemLogRetentionDays, MinuteMetricsRetentionDays,
 	// and HourlyMetricsRetentionDays supply day windows for their corresponding
 	// cleanup datasets. They default to thirty days; the cleanup consumer
 	// interprets zero as clearing that target dataset.
 	// error log retention days
-	ErrorLogRetentionDays int `mapstructure:"error_log_retention_days"`
+	ErrorLogRetentionDays int `yaml:"error_log_retention_days"`
 	// system log retention days
-	SystemLogRetentionDays int `mapstructure:"system_log_retention_days"`
+	SystemLogRetentionDays int `yaml:"system_log_retention_days"`
 	// minute metrics retention days
-	MinuteMetricsRetentionDays int `mapstructure:"minute_metrics_retention_days"`
+	MinuteMetricsRetentionDays int `yaml:"minute_metrics_retention_days"`
 	// hourly metrics retention days
-	HourlyMetricsRetentionDays int `mapstructure:"hourly_metrics_retention_days"`
+	HourlyMetricsRetentionDays int `yaml:"hourly_metrics_retention_days"`
 }
 
 // OpsAggregationConfig supplies deployment availability for operational metrics
 // preaggregation jobs.
 type OpsAggregationConfig struct {
-	Enabled bool `mapstructure:"enabled"` // Ops aggregation job availability switch
+	Enabled bool `yaml:"enabled"` // Ops aggregation job availability switch
 }
 
 // OpsWebSocketConfig bounds administrator WebSocket admission and defines handshake proxy trust.
 type OpsWebSocketConfig struct {
-	MaxConns       int      `mapstructure:"max_conns"`        // Global websocket connection admission limit.
-	MaxConnsPerIP  int      `mapstructure:"max_conns_per_ip"` // Per-address admission limit; zero disables it.
-	OriginPolicy   string   `mapstructure:"origin_policy"`    // strict or permissive missing-Origin policy.
-	TrustProxy     bool     `mapstructure:"trust_proxy"`      // Trust forwarded addresses from configured peers.
-	TrustedProxies []string `mapstructure:"trusted_proxies"`  // Trusted peer addresses and CIDR ranges.
+	MaxConns       int      `yaml:"max_conns"`        // Global websocket connection admission limit.
+	MaxConnsPerIP  int      `yaml:"max_conns_per_ip"` // Per-address admission limit; zero disables it.
+	OriginPolicy   string   `yaml:"origin_policy"`    // strict or permissive missing-Origin policy.
+	TrustProxy     bool     `yaml:"trust_proxy"`      // Trust forwarded addresses from configured peers.
+	TrustedProxies []string `yaml:"trusted_proxies"`  // Trusted peer addresses and CIDR ranges.
 }
 
 // UsageConfig groups request-record queues, dashboard caches, aggregation, retention, cleanup, and export tasks.
 type UsageConfig struct {
-	Aggregation    UsageAggregationConfig   `mapstructure:"aggregation"`     // usage aggregation settings
-	CleanupTasks   UsageCleanupConfig       `mapstructure:"cleanup_tasks"`   // usage cleanup tasks settings
-	DashboardCache DashboardCacheConfig     `mapstructure:"dashboard_cache"` // usage dashboard cache settings
-	ExportTasks    UsageExportConfig        `mapstructure:"export_tasks"`    // usage export tasks settings
-	RecordQueue    GatewayUsageRecordConfig `mapstructure:"record_queue"`    // usage record queue settings
-	Retention      UsageRetentionConfig     `mapstructure:"retention"`       // usage retention settings
+	Aggregation    UsageAggregationConfig   `yaml:"aggregation"`     // usage aggregation settings
+	CleanupTasks   UsageCleanupConfig       `yaml:"cleanup_tasks"`   // usage cleanup tasks settings
+	DashboardCache DashboardCacheConfig     `yaml:"dashboard_cache"` // usage dashboard cache settings
+	ExportTasks    UsageExportConfig        `yaml:"export_tasks"`    // usage export tasks settings
+	RecordQueue    GatewayUsageRecordConfig `yaml:"record_queue"`    // usage record queue settings
+	Retention      UsageRetentionConfig     `yaml:"retention"`       // usage retention settings
 }
 
 // UsageAggregationConfig sets background aggregation cadence, backfill limits, and aggregate retention periods.
 type UsageAggregationConfig struct {
 	// BackfillEnabled permits full backfills.
-	BackfillEnabled bool `mapstructure:"backfill_enabled"`
+	BackfillEnabled bool `yaml:"backfill_enabled"`
 	// BackfillMaxDays limits the time span of a backfill.
-	BackfillMaxDays int `mapstructure:"backfill_max_days"`
+	BackfillMaxDays int `yaml:"backfill_max_days"`
 	// daily aggregate retention days
-	DailyRetentionDays int `mapstructure:"daily_retention_days"`
+	DailyRetentionDays int `yaml:"daily_retention_days"`
 	// Enabled enables preaggregation jobs.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// hourly aggregate retention days
-	HourlyRetentionDays int `mapstructure:"hourly_retention_days"`
+	HourlyRetentionDays int `yaml:"hourly_retention_days"`
 	// aggregate refresh interval seconds
-	IntervalSeconds int `mapstructure:"interval_seconds"`
-	LookbackSeconds int `mapstructure:"lookback_seconds"` // recent data lookback seconds
+	IntervalSeconds int `yaml:"interval_seconds"`
+	LookbackSeconds int `yaml:"lookback_seconds"` // recent data lookback seconds
 	// RecomputeDays is the number of recent days recomputed at startup.
-	RecomputeDays int `mapstructure:"recompute_days"`
+	RecomputeDays int `yaml:"recompute_days"`
 }
 
 // UsageCleanupConfig supplies background cleanup range, batching, polling, and
 // execution budgets.
 type UsageCleanupConfig struct {
 	// Enabled enables the cleanup executor.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// MaxRangeDays limits the time span of one cleanup task.
-	MaxRangeDays int `mapstructure:"max_range_days"`
+	MaxRangeDays int `yaml:"max_range_days"`
 	// BatchSize limits rows deleted per batch.
-	BatchSize int `mapstructure:"batch_size"`
+	BatchSize int `yaml:"batch_size"`
 	// cleanup task polling interval seconds
-	WorkerIntervalSeconds int `mapstructure:"worker_interval_seconds"`
+	WorkerIntervalSeconds int `yaml:"worker_interval_seconds"`
 	// cleanup task execution budget seconds
-	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
+	TaskTimeoutSeconds int `yaml:"task_timeout_seconds"`
 }
 
 // UsageExportConfig supplies background CSV export storage, retention, active-task
 // quotas, cursor batching, worker concurrency, polling, and execution budgets.
 type UsageExportConfig struct {
 	// Enabled enables background usage export task creation and worker execution.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Dir selects the local directory holding generated CSV artifacts; normalization
 	// derives <DATA_DIR or storage.dir or ./data>/exports/usage when omitted.
-	Dir string `mapstructure:"dir"`
+	Dir string `yaml:"dir"`
 	// RetentionHours sets how long completed CSV artifacts stay downloadable before expiration cleanup.
-	RetentionHours int `mapstructure:"retention_hours"`
+	RetentionHours int `yaml:"retention_hours"`
 	// MaxActivePerUser and MaxActivePerAdmin cap concurrent pending or running export
 	// tasks per regular user and per administrator respectively.
-	MaxActivePerUser  int `mapstructure:"max_active_per_user"`  // per-user active task cap
-	MaxActivePerAdmin int `mapstructure:"max_active_per_admin"` // per-admin active task cap
+	MaxActivePerUser  int `yaml:"max_active_per_user"`  // per-user active task cap
+	MaxActivePerAdmin int `yaml:"max_active_per_admin"` // per-admin active task cap
 	// BatchSize limits usage log rows scanned per keyset cursor batch.
-	BatchSize int `mapstructure:"batch_size"`
+	BatchSize int `yaml:"batch_size"`
 	// WorkerConcurrency sets the number of background export workers in the process.
-	WorkerConcurrency int `mapstructure:"worker_concurrency"`
+	WorkerConcurrency int `yaml:"worker_concurrency"`
 	// export worker sweep interval seconds
-	WorkerIntervalSeconds int `mapstructure:"worker_interval_seconds"`
+	WorkerIntervalSeconds int `yaml:"worker_interval_seconds"`
 	// export task execution budget seconds
-	TaskTimeoutSeconds int `mapstructure:"task_timeout_seconds"`
+	TaskTimeoutSeconds int `yaml:"task_timeout_seconds"`
 }
 
 // UsageRetentionConfig supplies independent retention periods for usage logs and billing deduplication.
 type UsageRetentionConfig struct {
 	// billing deduplication retention days
-	BillingDedupDays int `mapstructure:"billing_dedup_days"`
+	BillingDedupDays int `yaml:"billing_dedup_days"`
 	// LogsDays and UsageBillingDedupDays retain raw usage and billing
 	// deduplication records in days. Startup validation keeps deduplication
 	// retention at least as long as raw-record retention when both are positive,
 	// including disabled aggregation settings.
-	LogsDays int `mapstructure:"logs_days"` // raw usage record retention days
+	LogsDays int `yaml:"logs_days"` // raw usage record retention days
 }
 
 // DashboardCacheConfig supplies Redis statistics freshness, total retention,
 // and refresh timeout settings.
 type DashboardCacheConfig struct {
 	// Enabled enables dashboard caching.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// KeyPrefix isolates Redis keys across deployments.
-	KeyPrefix string `mapstructure:"key_prefix"`
+	KeyPrefix string `yaml:"key_prefix"`
 	// StatsFreshTTLSeconds and StatsTTLSeconds separate the fresh period from
 	// total Redis retention. Enabled startup validation requires positive values
 	// and bounds freshness by total lifetime, allowing retained statistics to
 	// outlive their fresh period.
 	// statistics freshness duration seconds
-	StatsFreshTTLSeconds int `mapstructure:"stats_fresh_ttl_seconds"`
+	StatsFreshTTLSeconds int `yaml:"stats_fresh_ttl_seconds"`
 	// total statistics retention seconds
-	StatsTTLSeconds int `mapstructure:"stats_ttl_seconds"`
+	StatsTTLSeconds int `yaml:"stats_ttl_seconds"`
 	// background refresh budget seconds
-	StatsRefreshTimeoutSeconds int `mapstructure:"stats_refresh_timeout_seconds"`
+	StatsRefreshTimeoutSeconds int `yaml:"stats_refresh_timeout_seconds"`
 }
 
 // IdempotencyConfig supplies record lifetimes, observation mode, and
 // coordinator maintenance limits.
 type IdempotencyConfig struct {
 	// CleanupBatchSize limits the records removed in one cleanup batch.
-	CleanupBatchSize int `mapstructure:"cleanup_batch_size"`
+	CleanupBatchSize int `yaml:"cleanup_batch_size"`
 	// expired-record cleanup interval seconds
-	CleanupIntervalSeconds int `mapstructure:"cleanup_interval_seconds"`
+	CleanupIntervalSeconds int `yaml:"cleanup_interval_seconds"`
 	// ordinary write record retention seconds
-	DefaultTTLSeconds int `mapstructure:"default_ttl_seconds"`
+	DefaultTTLSeconds int `yaml:"default_ttl_seconds"`
 	// failed-operation retry delay seconds
-	FailedRetryBackoffSeconds int `mapstructure:"failed_retry_backoff_seconds"`
+	FailedRetryBackoffSeconds int `yaml:"failed_retry_backoff_seconds"`
 	// MaxStoredResponseBytes limits persisted response bodies in bytes.
-	MaxStoredResponseBytes int `mapstructure:"max_stored_response_bytes"`
+	MaxStoredResponseBytes int `yaml:"max_stored_response_bytes"`
 	// ObserveOnly permits a missing request key even for commands requiring one.
 	// Present keys still use the coordinator; false allows those command
 	// requirements to reject missing keys.
-	ObserveOnly bool `mapstructure:"observe_only"`
+	ObserveOnly bool `yaml:"observe_only"`
 	// processing record lock timeout seconds
-	ProcessingTimeoutSeconds int `mapstructure:"processing_timeout_seconds"`
+	ProcessingTimeoutSeconds int `yaml:"processing_timeout_seconds"`
 	// system operation record retention seconds
-	SystemOperationTTLSeconds int `mapstructure:"system_operation_ttl_seconds"`
+	SystemOperationTTLSeconds int `yaml:"system_operation_ttl_seconds"`
 }
 
 // ModelCatalogConfig selects remote catalog data, custom supplements, and periodic source checks.
 type ModelCatalogConfig struct {
 	// Model price and attribute catalog URL in models.dev format.
-	CatalogURL string `mapstructure:"catalog_url"`
+	CatalogURL string `yaml:"catalog_url"`
 	// Catalog and local-file check interval, in minutes.
-	CheckIntervalMinutes int `mapstructure:"check_interval_minutes"`
+	CheckIntervalMinutes int `yaml:"check_interval_minutes"`
 	// SupplementFile names the optional custom supplement used alongside catalog and
 	// embedded data. Empty text skips that custom source, and normalization
 	// migrates only missing recognized packaged paths in memory.
-	SupplementFile string `mapstructure:"supplement_file"`
+	SupplementFile string `yaml:"supplement_file"`
 }
 
 // TeamConfig sets the default availability and limits of team features.
 type TeamConfig struct {
 	// initial team membership limit
-	DefaultMaxMembers int  `mapstructure:"default_max_members"`
-	Enabled           bool `mapstructure:"enabled"` // deployment team availability flag
+	DefaultMaxMembers int  `yaml:"default_max_members"`
+	Enabled           bool `yaml:"enabled"` // deployment team availability flag
 	// user team creation availability flag
-	SelfServiceEnabled bool `mapstructure:"self_service_enabled"`
+	SelfServiceEnabled bool `yaml:"self_service_enabled"`
 }
 
 // UserDefaultsConfig supplies fallback concurrency and balance for administrator-managed user grants.
 type UserDefaultsConfig struct {
 	// new-user initial balance amount
-	Balance float64 `mapstructure:"balance"`
+	Balance float64 `yaml:"balance"`
 	// new-user concurrent request limit
-	Concurrency int `mapstructure:"concurrency"`
+	Concurrency int `yaml:"concurrency"`
 }
 
 // RequestLogConfig sets retention in days for request summaries.
 type RequestLogConfig struct {
-	RetentionDays int `mapstructure:"retention_days"` // request summary retention days
+	RetentionDays int `yaml:"retention_days"` // request summary retention days
 }
 
 // DSN formats nonnil PostgreSQL settings as an interpolated libpq keyword

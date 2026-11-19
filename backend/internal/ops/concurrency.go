@@ -2,10 +2,10 @@ package ops
 
 import (
 	"context"
-	"log"
 	"maps"
 	"time"
 
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
@@ -89,7 +89,7 @@ func (s *OpsService) listAllProvidersForOps(ctx context.Context, platformFilter 
 		// The ten-thousand-page limit returns a collected prefix when pagination
 		// never provides a normal stopping point.
 		if page > 10_000 {
-			log.Printf("[Ops] listAllProvidersForOps: aborting after too many pages (platform=%q)", platformFilter)
+			logger.LegacyPrintf("service.ops", "[Ops] listAllProvidersForOps: aborting after too many pages (platform=%q)", platformFilter)
 			break
 		}
 	}
@@ -144,7 +144,7 @@ func (s *OpsService) getProvidersLoadMapBestEffort(ctx context.Context, provider
 		if err != nil {
 			// Keep loads from successful chunks. Views apply their zero-activity
 			// behavior to missing keys after this failed chunk is omitted.
-			log.Printf("[Ops] GetProvidersLoadBatch failed: %v", err)
+			logger.LegacyPrintf("service.ops", "[Ops] GetProvidersLoadBatch failed: %v", err)
 			continue
 		}
 		maps.Copy(out, part)
@@ -359,7 +359,7 @@ func (s *OpsService) listAllActiveUsersForOps(ctx context.Context) ([]UserObserv
 		// The ten-thousand-page limit returns a collected prefix when pagination
 		// never provides a normal stopping point.
 		if page > 10_000 {
-			log.Printf("[Ops] listAllActiveUsersForOps: aborting after too many pages")
+			logger.LegacyPrintf("service.ops", "[Ops] listAllActiveUsersForOps: aborting after too many pages")
 			break
 		}
 	}
@@ -412,7 +412,7 @@ func (s *OpsService) getUsersLoadMapBestEffort(ctx context.Context, users []User
 		if err != nil {
 			// Keep loads from successful chunks. Views apply their zero-activity
 			// behavior to missing keys after this failed chunk is omitted.
-			log.Printf("[Ops] GetUsersLoadBatch failed: %v", err)
+			logger.LegacyPrintf("service.ops", "[Ops] GetUsersLoadBatch failed: %v", err)
 			continue
 		}
 		maps.Copy(out, part)

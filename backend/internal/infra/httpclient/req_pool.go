@@ -62,7 +62,7 @@ func GetSharedReqClient(opts ReqClientOptions) (*req.Client, error) {
 		}
 	}
 
-	client := req.C().SetTimeout(opts.Timeout)
+	client := req.C().SetTimeout(opts.Timeout).SetCookieJar(nil)
 	if opts.ForceHTTP2 {
 		client = client.EnableForceHTTP2()
 	}

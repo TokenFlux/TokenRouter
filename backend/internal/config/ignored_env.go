@@ -131,7 +131,7 @@ func ignoredEnvironmentNames(cfg *Config, doc *yaml.Node, lookup func(string) (s
 	return ignored
 }
 
-// configValueAtPath finds a decoded scalar by mapstructure path for setup comparisons.
+// configValueAtPath finds a decoded scalar by yaml tag path for setup comparisons.
 // An absent field returns an invalid reflection value, allowing diagnostic callers
 // to treat outdated mapping entries as mismatches without panicking.
 func configValueAtPath(value reflect.Value, path string) reflect.Value {
@@ -141,8 +141,8 @@ func configValueAtPath(value reflect.Value, path string) reflect.Value {
 		}
 		found := reflect.Value{}
 		for field := range value.Type().Fields() {
-			name, _, _ := strings.Cut(field.Tag.Get("mapstructure"), ",")
-			if name == part {
+			name, ok := configFieldTagName(field)
+			if ok && name == part {
 				found = value.FieldByIndex(field.Index)
 				break
 			}

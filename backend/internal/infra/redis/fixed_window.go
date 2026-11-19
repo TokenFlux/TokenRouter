@@ -3,11 +3,12 @@ package redis
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // fixed_window.go counts requests in Redis expiry windows and decides whether
@@ -106,7 +107,7 @@ func (r *FixedWindowLimiter) Allow(ctx context.Context, key string, limit int, w
 		return false, 0, 0, err
 	}
 	if repaired {
-		log.Printf("[RateLimit] ttl repaired: key=%s window_ms=%d", redisKey, windowMillis)
+		logging.LegacyPrintf("infra.redis_fixed_window", "[RateLimit] ttl repaired: key=%s window_ms=%d", redisKey, windowMillis)
 	}
 
 	result := allowResult{Allowed: count <= int64(limit), Count: count}

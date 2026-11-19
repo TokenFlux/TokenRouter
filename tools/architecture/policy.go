@@ -166,6 +166,46 @@ func denyProject(values []string) *dependencyRule {
 	return &dependencyRule{ShouldNotDependsOn: &dependencies{Internal: expressions(values, true)}}
 }
 
+// allowsGJSON reports whether location l may import github.com/tidwall/gjson,
+// confining raw byte-path JSON queries to wire modules and reviewed adapter directories.
+func allowsGJSON(l location) bool {
+	if l.module == "internal/gateway" || l.module == "internal/protocol" || l.module == "internal/upstream" {
+		return true
+	}
+	if l.test && l.module == "internal/app" {
+		return true
+	}
+	switch l.dir {
+	case "internal/infra/telemetry/timing", "internal/infra/httpclient",
+		"internal/moderation", "internal/creative/provider",
+		"internal/provider/provider", "internal/provider/httpapi",
+		"internal/routing/httpapi", "internal/server/middleware":
+		return true
+	default:
+		return false
+	}
+}
+
+// allowsSJSON reports whether location l may import github.com/tidwall/sjson
+// for byte-level JSON mutation in gateway, protocol, and upstream packages.
+func allowsSJSON(l location) bool {
+	return l.module == "internal/gateway" || l.module == "internal/protocol" || l.module == "internal/upstream"
+}
+
+// allowsReqV3 reports whether location l may import github.com/imroc/req/v3 for the
+// shared browser-impersonation pool or Cloudflare-protected upstream endpoints.
+func allowsReqV3(l location) bool {
+	if l.test && l.dir == "internal/provider/provider" {
+		return true
+	}
+	switch l.dir {
+	case "internal/app", "internal/infra/httpclient", "internal/upstream/openai", "internal/upstream/anthropic":
+		return true
+	default:
+		return false
+	}
+}
+
 // rulesFor combines module, role, leaf, platform, and global import restrictions.
 // An unregistered source receives a closed dependency set, while registered
 // sources receive only the libraries and collaborations declared for their owner.
@@ -189,6 +229,11 @@ func rulesFor(filename, standardLibrary string) []*dependencyRule {
 	standard := []string{standardLibrary}
 	var external []string
 	for _, library := range roleLibraries[l.role].paths(l.test) {
+		if (library == "github.com/tidwall/gjson" && !allowsGJSON(l)) ||
+			(library == "github.com/tidwall/sjson" && !allowsSJSON(l)) ||
+			(library == "github.com/imroc/req/v3" && !allowsReqV3(l)) {
+			continue
+		}
 		if strings.HasPrefix(library, "golang.org/x") || library == "C" {
 			standard = append(standard, expression(library))
 		} else {
@@ -277,6 +322,12 @@ func rulesFor(filename, standardLibrary string) []*dependencyRule {
 			patterns = append(patterns, expression(imp+"/"))
 		}
 		rules = append(rules, &dependencyRule{ShouldNotDependsOn: &dependencies{Standard: patterns}})
+	}
+	if !l.test && strings.HasPrefix(filename, "internal/") && filename != "internal/infra/telemetry/logging/logger.go" {
+		// Exclude standard log separately from blocked prefixes so internal production packages retain access to log/slog structured logging.
+		rules = append(rules, &dependencyRule{ShouldNotDependsOn: &dependencies{
+			Standard: []string{expression("log"), expression("log/syslog"), expression("log/syslog/")},
+		}})
 	}
 	return rules
 }

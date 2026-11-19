@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -162,7 +161,9 @@ func (a *geminiExecutionAdapter) Log(message string) {
 
 // StdLog writes supplied native attempt diagnostics through the standard
 // logger.
-func (a *geminiExecutionAdapter) StdLog(message string) { log.Printf("%s", message) }
+func (a *geminiExecutionAdapter) StdLog(message string) {
+	logging.LegacyPrintf("gateway.antigravity", "%s", message)
+}
 
 // Retry runs the bound retry inputs and saves their response on success.
 // Execute initializes that binding first; ctx and execution input are accepted

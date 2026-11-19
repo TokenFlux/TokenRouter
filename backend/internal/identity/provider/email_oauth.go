@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
-
-	"github.com/imroc/req/v3"
-	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -40,33 +40,54 @@ type (
 // EmailOAuthClientAdapter implements code exchange and profile retrieval over HTTP.
 type EmailOAuthClientAdapter struct{}
 
+// githubUserPayload decodes GitHub userinfo fields while preserving exact numeric IDs.
+type githubUserPayload struct {
+	ID        any    `json:"id"`         // numeric or string GitHub account identifier
+	Login     string `json:"login"`      // GitHub username handle
+	Name      string `json:"name"`       // optional full display name
+	AvatarURL string `json:"avatar_url"` // optional avatar URL
+}
+
+// githubEmailEntry decodes one item from the GitHub user/emails array response.
+type githubEmailEntry struct {
+	Email    string `json:"email"`    // candidate email address
+	Primary  bool   `json:"primary"`  // primary address flag
+	Verified bool   `json:"verified"` // email verification status
+}
+
+// googleUserInfoPayload decodes Google OpenID userinfo profile fields.
+type googleUserInfoPayload struct {
+	Sub           string `json:"sub"`            // Google subject identifier
+	Email         string `json:"email"`          // account email address
+	EmailVerified any    `json:"email_verified"` // boolean or string verification status
+	Name          string `json:"name"`           // optional full display name
+	GivenName     string `json:"given_name"`     // optional given-name suggestion
+	Picture       string `json:"picture"`        // optional avatar URL
+}
+
 // ExchangeEmailOAuthCode posts an authorization-code grant with the configured
 // client credentials and backend callback. It requires a successful status, decoded
 // JSON, and nonempty access_token before returning the bearer credential to the
 // profile-fetching caller.
 func ExchangeEmailOAuthCode(ctx context.Context, cfg EmailOAuthOptions, code string) (*EmailOAuthTokenResponse, error) {
-	resp, err := req.C().
-		R().
-		SetContext(ctx).
-		SetHeader("Accept", "application/json").
-		SetFormData(map[string]string{
-			"grant_type":    "authorization_code",
-			"client_id":     cfg.ClientID,
-			"client_secret": cfg.ClientSecret,
-			"code":          code,
-			"redirect_uri":  cfg.RedirectURL,
-		}).
-		Post(cfg.TokenURL)
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {cfg.ClientID},
+		"client_secret": {cfg.ClientSecret},
+		"code":          {code},
+		"redirect_uri":  {cfg.RedirectURL},
+	}
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodPost, cfg.TokenURL, "", nil, form)
 	if err != nil {
 		return nil, err
 	}
 	// Bound the endpoint body included in failures so callback error handling
 	// receives at most 1024 bytes at a UTF-8 boundary from this response.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("token endpoint status %d: %s", resp.StatusCode, logredact.TruncateUTF8Value(resp.String(), 1024))
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("token endpoint status %d: %s", statusCode, logredact.TruncateUTF8Value(string(bodyBytes), 1024))
 	}
 	var tokenResp EmailOAuthTokenResponse
-	if err := json.Unmarshal(resp.Bytes(), &tokenResp); err != nil {
+	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(tokenResp.AccessToken) == "" {
@@ -80,25 +101,21 @@ func ExchangeEmailOAuthCode(ctx context.Context, cfg EmailOAuthOptions, code str
 // unsupported providers fail at interpretation, and HTTP failures stop before
 // profile parsing.
 func FetchEmailOAuthProfile(ctx context.Context, provider string, cfg EmailOAuthOptions, token *EmailOAuthTokenResponse) (*EmailOAuthProfile, error) {
-	resp, err := req.C().
-		R().
-		SetContext(ctx).
-		SetBearerAuthToken(token.AccessToken).
-		SetHeader("Accept", "application/json").
-		Get(cfg.UserInfoURL)
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodGet, cfg.UserInfoURL, "Bearer "+token.AccessToken, nil, nil)
 	if err != nil {
 		return nil, err
 	}
+	body := string(bodyBytes)
 	// Bound the endpoint body included in failures so callback error handling
 	// receives at most 1024 bytes at a UTF-8 boundary from this response.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("userinfo endpoint status %d: %s", resp.StatusCode, logredact.TruncateUTF8Value(resp.String(), 1024))
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("userinfo endpoint status %d: %s", statusCode, logredact.TruncateUTF8Value(body, 1024))
 	}
 	switch strings.ToLower(strings.TrimSpace(provider)) {
 	case "github":
-		return ParseGitHubOAuthProfile(ctx, cfg, token, resp.String())
+		return ParseGitHubOAuthProfile(ctx, cfg, token, body)
 	case "google":
-		return ParseGoogleOAuthProfile(resp.String())
+		return ParseGoogleOAuthProfile(body)
 	default:
 		return nil, errors.New("unsupported oauth provider")
 	}
@@ -114,7 +131,11 @@ func FetchEmailOAuthProfile(ctx context.Context, provider string, cfg EmailOAuth
 // and name values leave a subject-derived username suggestion; display fields
 // remain separate from the subject and verified email.
 func ParseGitHubOAuthProfile(ctx context.Context, cfg EmailOAuthOptions, token *EmailOAuthTokenResponse, body string) (*EmailOAuthProfile, error) {
-	subject := strings.TrimSpace(gjson.Get(body, "id").String())
+	var payload githubUserPayload
+	if err := decodeSingleJSON(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse github user profile: %w", err)
+	}
+	subject := strings.TrimSpace(scalarJSONString(payload.ID))
 	if subject == "" {
 		return nil, errors.New("github user id is missing")
 	}
@@ -129,8 +150,8 @@ func ParseGitHubOAuthProfile(ctx context.Context, cfg EmailOAuthOptions, token *
 	if email == "" {
 		return nil, errors.New("github verified email is missing")
 	}
-	login := strings.TrimSpace(gjson.Get(body, "login").String())
-	name := strings.TrimSpace(gjson.Get(body, "name").String())
+	login := strings.TrimSpace(payload.Login)
+	name := strings.TrimSpace(payload.Name)
 	// Missing display fields can still produce a suggested username from the
 	// stable GitHub subject, while the selected verified email remains the signup input.
 	return &EmailOAuthProfile{
@@ -139,7 +160,7 @@ func ParseGitHubOAuthProfile(ctx context.Context, cfg EmailOAuthOptions, token *
 		EmailVerified: true,
 		Username:      identity.OAuthFirstNonEmpty(login, name, "github_"+subject),
 		DisplayName:   identity.OAuthFirstNonEmpty(name, login),
-		AvatarURL:     strings.TrimSpace(gjson.Get(body, "avatar_url").String()),
+		AvatarURL:     strings.TrimSpace(payload.AvatarURL),
 		Metadata: map[string]any{
 			"login": login,
 		},
@@ -156,24 +177,22 @@ func ParseGitHubOAuthProfile(ctx context.Context, cfg EmailOAuthOptions, token *
 // and an empty or unsuitable list returns the missing-verified-email error so
 // local signup cannot proceed from an unverified profile email.
 func FetchGitHubPrimaryVerifiedEmail(ctx context.Context, emailsURL string, accessToken string) (string, error) {
-	resp, err := req.C().
-		R().
-		SetContext(ctx).
-		SetBearerAuthToken(accessToken).
-		SetHeader("Accept", "application/json").
-		Get(emailsURL)
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodGet, emailsURL, "Bearer "+accessToken, nil, nil)
 	if err != nil {
 		return "", err
 	}
 	// Bound the endpoint body included in failures so callback error handling
 	// receives at most 1024 bytes at a UTF-8 boundary from this response.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("github emails endpoint status %d: %s", resp.StatusCode, logredact.TruncateUTF8Value(resp.String(), 1024))
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("github emails endpoint status %d: %s", statusCode, logredact.TruncateUTF8Value(string(bodyBytes), 1024))
 	}
-	items := gjson.Parse(resp.String()).Array()
+	var items []githubEmailEntry
+	if err := json.Unmarshal(bodyBytes, &items); err != nil {
+		return "", fmt.Errorf("parse github emails response: %w", err)
+	}
 	for _, item := range items {
-		if item.Get("primary").Bool() && item.Get("verified").Bool() {
-			if email := strings.TrimSpace(item.Get("email").String()); email != "" {
+		if item.Primary && item.Verified {
+			if email := strings.TrimSpace(item.Email); email != "" {
 				return email, nil
 			}
 		}
@@ -181,8 +200,8 @@ func FetchGitHubPrimaryVerifiedEmail(ctx context.Context, emailsURL string, acce
 	// If no usable primary verified address was found, another verified address
 	// can still supply signup email; response order resolves multiple eligible addresses.
 	for _, item := range items {
-		if item.Get("verified").Bool() {
-			if email := strings.TrimSpace(item.Get("email").String()); email != "" {
+		if item.Verified {
+			if email := strings.TrimSpace(item.Email); email != "" {
 				return email, nil
 			}
 		}
@@ -194,29 +213,51 @@ func FetchGitHubPrimaryVerifiedEmail(ctx context.Context, emailsURL string, acce
 // email from the userinfo body. Suggested username uses given_name, then name,
 // then email; display name and avatar can remain empty in the returned profile.
 func ParseGoogleOAuthProfile(body string) (*EmailOAuthProfile, error) {
-	subject := strings.TrimSpace(gjson.Get(body, "sub").String())
-	email := strings.TrimSpace(gjson.Get(body, "email").String())
-	verified := gjson.Get(body, "email_verified").Bool()
+	var payload googleUserInfoPayload
+	if err := decodeSingleJSON(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse google user profile: %w", err)
+	}
+	subject := strings.TrimSpace(payload.Sub)
+	email := strings.TrimSpace(payload.Email)
+	verified, _ := coerceJSONBool(payload.EmailVerified)
 	if subject == "" {
 		return nil, errors.New("google subject is missing")
 	}
 	if email == "" || !verified {
 		return nil, errors.New("google verified email is missing")
 	}
-	name := strings.TrimSpace(gjson.Get(body, "name").String())
+	name := strings.TrimSpace(payload.Name)
 	// Use the required verified email as the username suggestion when profile
 	// names are empty, allowing an accepted identity to retain a display candidate.
 	return &EmailOAuthProfile{
 		Subject:       subject,
 		Email:         email,
 		EmailVerified: true,
-		Username:      identity.OAuthFirstNonEmpty(strings.TrimSpace(gjson.Get(body, "given_name").String()), name, email),
+		Username:      identity.OAuthFirstNonEmpty(strings.TrimSpace(payload.GivenName), name, email),
 		DisplayName:   name,
-		AvatarURL:     strings.TrimSpace(gjson.Get(body, "picture").String()),
+		AvatarURL:     strings.TrimSpace(payload.Picture),
 		Metadata: map[string]any{
 			"email_verified": true,
 		},
 	}, nil
+}
+
+// decodeSingleJSON decodes one complete JSON document from body with exact
+// json.Number preservation, rejecting trailing values or malformed suffixes.
+func decodeSingleJSON(body string, dst any) error {
+	dec := json.NewDecoder(strings.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values are not allowed")
+		}
+		return err
+	}
+	return nil
 }
 
 // ExchangeCode delegates authorization-code exchange using the supplied identity

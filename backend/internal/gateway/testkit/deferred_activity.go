@@ -2,13 +2,13 @@ package testkit
 
 import (
 	"context"
-	"log"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 )
@@ -43,7 +43,7 @@ func DeferredActivityRecorder(t *testing.T) (*provider.DeferredService, *sync.Ma
 	t.Helper()
 	wheel := timingwheel.New()
 	repo := &deferredActivityRepository{}
-	svc := provider.NewDeferredService(repo, wheel, provider.DeferredOptions{Interval: time.Second, Now: time.Now, Observe: log.Printf})
+	svc := provider.NewDeferredService(repo, wheel, provider.DeferredOptions{Interval: time.Second, Now: time.Now, Observe: func(format string, args ...any) { logging.LegacyPrintf("testkit.deferred", format, args...) }})
 	// Stop the production recorder during cleanup so its registered timer and
 	// queued timestamp batch are handled before the fixture's test lifetime ends.
 	t.Cleanup(func() { require.NoError(t, svc.StopContext(context.Background())) })

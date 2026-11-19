@@ -2,9 +2,9 @@ package ops
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
@@ -57,7 +57,7 @@ func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashbo
 		}
 		overview.SystemMetrics = metrics
 	} else if err != nil && !s.isNotFound(err) {
-		log.Printf("[Ops] GetLatestSystemMetrics failed: %v", err)
+		logging.LegacyPrintf("service.ops", "[Ops] GetLatestSystemMetrics failed: %v", err)
 	}
 
 	// Job diagnostics can fail independently of the system sample. Health scoring
@@ -65,7 +65,7 @@ func (s *OpsService) GetDashboardOverview(ctx context.Context, filter *OpsDashbo
 	if heartbeats, err := s.opsRepo.ListJobHeartbeats(ctx); err == nil {
 		overview.JobHeartbeats = heartbeats
 	} else {
-		log.Printf("[Ops] ListJobHeartbeats failed: %v", err)
+		logging.LegacyPrintf("service.ops", "[Ops] ListJobHeartbeats failed: %v", err)
 	}
 
 	overview.HealthScore = computeDashboardHealthScore(time.Now().UTC(), overview)

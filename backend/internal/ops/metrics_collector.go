@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // metrics_collector.go collects and persists periodic system metrics under
@@ -339,7 +340,7 @@ func (c *OpsMetricsCollector) collectOnce() {
 			LastError:      &msg,
 			LastDurationMs: &dur,
 		})
-		log.Printf("[OpsMetricsCollector] collect failed: %v", err)
+		logger.LegacyPrintf("service.ops_metrics", "[OpsMetricsCollector] collect failed: %v", err)
 		return
 	}
 
@@ -422,7 +423,7 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 		// Keep the sampler's available fields when host observation fails;
 		// HostSampler requires a nonnil result because insertion reads that result
 		// below.
-		log.Printf("[OpsMetricsCollector] system stats error: %v", err)
+		logger.LegacyPrintf("service.ops_metrics", "[OpsMetricsCollector] system stats error: %v", err)
 	}
 
 	dbOK := c.observer.CheckDB(ctx)
@@ -701,7 +702,7 @@ func (c *OpsMetricsCollector) maybeLogSkip() {
 		return
 	}
 	c.skipLogAt = now
-	log.Printf("[OpsMetricsCollector] leader lock held by another instance; skipping")
+	logger.LegacyPrintf("service.ops_metrics", "[OpsMetricsCollector] leader lock held by another instance; skipping")
 }
 
 // float64Ptr returns a pointer to a copy of v.

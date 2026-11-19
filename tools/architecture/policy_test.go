@@ -13,8 +13,8 @@ import (
 // access. Consumer checks require every configured exception to retain a real import.
 
 // TestDependencyBoundaries checks permitted imports and forbidden dependencies
-// for each directory role. File-specific allowances must not authorize nearby
-// files, production counterparts, or broader target subpackages.
+// for each directory role and consolidated technical library boundary.
+// File-specific allowances must not authorize nearby files, production counterparts, or broader target subpackages.
 func TestDependencyBoundaries(t *testing.T) {
 	cases := []struct {
 		file     string // importing source file path
@@ -95,6 +95,28 @@ func TestDependencyBoundaries(t *testing.T) {
 		{"internal/billing/new.go", "golang.org/x/sync/singleflight", true},
 		{"internal/billing/new.go", "golang.org/x/net/proxy", false},
 		{"internal/billing/new.go", "nonstandard/client", false},
+		{"internal/identity/provider/email_oauth.go", "github.com/tidwall/gjson", false},
+		{"internal/billing/new.go", "github.com/tidwall/gjson", false},
+		{"internal/moderation/input.go", "github.com/tidwall/gjson", true},
+		{"internal/moderation/service.go", "github.com/tidwall/gjson", false},
+		{"internal/protocol/openai/usage.go", "github.com/tidwall/sjson", true},
+		{"internal/provider/provider/upstream_health.go", "github.com/tidwall/sjson", false},
+		{"internal/identity/provider/oidc_oauth.go", "github.com/imroc/req/v3", false},
+		{"internal/upstream/grok/oauth_client.go", "github.com/imroc/req/v3", false},
+		{"internal/upstream/openai/oauth_client.go", "github.com/imroc/req/v3", false},
+		{"internal/upstream/openai/privacy_client.go", "github.com/imroc/req/v3", true},
+		{"internal/upstream/anthropic/oauth_client.go", "github.com/imroc/req/v3", true},
+		{"internal/config/config.go", "github.com/spf13/viper", false},
+		{"internal/ops/httpapi/ops_ws_handler.go", "github.com/gorilla/websocket", false},
+		{"internal/ops/httpapi/ops_ws_handler.go", "github.com/coder/websocket", true},
+		{"internal/infra/timingwheel/wheel.go", "github.com/zeromicro/go-zero/core/collection", false},
+		{"internal/billing/group_rate_resolver.go", "github.com/patrickmn/go-cache", false},
+		{"internal/ops/service.go", "log", false},
+		{"internal/ops/service.go", "log/syslog", false},
+		{"internal/ops/service.go", "log/slog", true},
+		{"internal/ops/service_test.go", "log", true},
+		{"internal/infra/telemetry/logging/logger.go", "log", true},
+		{"cmd/server/main.go", "log", true},
 		{"internal/newmodule/new.go", modulePath + "/internal/provider", false},
 		{"internal/provider/new.go", modulePath + "-other/internal/billing", false},
 	}

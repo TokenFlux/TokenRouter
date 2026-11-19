@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -28,7 +27,7 @@ func provideRetryCooldown(store *providerpostgres.ProviderStore) *provider.Retry
 		source = store
 	}
 	return provider.NewRetryCooldown(source, provider.RetryCooldownOptions{
-		Logf: log.Printf,
+		Logf: func(format string, args ...any) { logging.LegacyPrintf("service.gateway", format, args...) },
 		LookupError: func(id int64, err error) {
 			logging.LegacyPrintf("service.gateway", "Failed to look up provider after retry exhaustion: provider=%d error=%v", id, err)
 		},

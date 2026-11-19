@@ -3,13 +3,13 @@ package rediscache
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // error_passthrough_cache.go caches error rules in Redis and local memory and
@@ -83,14 +83,14 @@ func (c *errorPassthroughCache) Get(ctx context.Context) ([]*errorpolicy.ErrorPa
 	data, err := c.rdb.Get(ctx, errorPassthroughCacheKey).Bytes()
 	if err != nil {
 		if err != redis.Nil {
-			log.Printf("[ErrorPassthroughCache] Failed to get from Redis: %v", err)
+			logging.LegacyPrintf("cache.error_passthrough", "[ErrorPassthroughCache] Failed to get from Redis: %v", err)
 		}
 		return nil, false
 	}
 
 	var rules []*errorpolicy.ErrorPassthroughRule
 	if err := json.Unmarshal(data, &rules); err != nil {
-		log.Printf("[ErrorPassthroughCache] Failed to unmarshal rules: %v", err)
+		logging.LegacyPrintf("cache.error_passthrough", "[ErrorPassthroughCache] Failed to unmarshal rules: %v", err)
 		return nil, false
 	}
 

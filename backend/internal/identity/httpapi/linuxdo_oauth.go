@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
@@ -272,7 +272,7 @@ func (h *LinuxDoHandler) LinuxDoOAuthCallback(c *gin.Context) {
 		var exchangeErr *identity.LinuxDoTokenExchangeError
 		if errors.As(err, &exchangeErr) && exchangeErr != nil {
 			// Bound response bodies to two KiB at complete UTF-8 prefixes for logs.
-			log.Printf(
+			logging.LegacyPrintf("handler.linuxdo_oauth",
 				"[LinuxDo OAuth] token exchange failed: status=%d provider_error=%q provider_description=%q body=%s",
 				exchangeErr.StatusCode,
 				exchangeErr.ProviderError,
@@ -281,7 +281,7 @@ func (h *LinuxDoHandler) LinuxDoOAuthCallback(c *gin.Context) {
 			)
 			description = exchangeErr.Error()
 		} else {
-			log.Printf("[LinuxDo OAuth] token exchange failed: %v", err)
+			logging.LegacyPrintf("handler.linuxdo_oauth", "[LinuxDo OAuth] token exchange failed: %v", err)
 			description = err.Error()
 		}
 		RedirectOAuthError(c, frontendCallback, "token_exchange_failed", "failed to exchange oauth code", OAuthSingleLine(description))
@@ -290,7 +290,7 @@ func (h *LinuxDoHandler) LinuxDoOAuthCallback(c *gin.Context) {
 
 	email, username, subject, displayName, avatarURL, err := h.client.FetchUserInfo(c.Request.Context(), cfg, tokenResp)
 	if err != nil {
-		log.Printf("[LinuxDo OAuth] userinfo fetch failed: %v", err)
+		logging.LegacyPrintf("handler.linuxdo_oauth", "[LinuxDo OAuth] userinfo fetch failed: %v", err)
 		RedirectOAuthError(c, frontendCallback, "userinfo_failed", "failed to fetch user info", "")
 		return
 	}

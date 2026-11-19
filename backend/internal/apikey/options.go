@@ -51,18 +51,18 @@ type APIKeyAuthCacheConfig struct {
 	// are positive. L2TTLSeconds independently enables shared caching, while
 	// NegativeTTLSeconds enables bounded local misses; nonpositive lifetimes
 	// disable their layer when the service checks its captured cache configuration.
-	L1Size             int `mapstructure:"l1_size"`              // positive local entry capacity
-	L1TTLSeconds       int `mapstructure:"l1_ttl_seconds"`       // local lifetime in seconds
-	L2TTLSeconds       int `mapstructure:"l2_ttl_seconds"`       // shared lifetime in seconds
-	NegativeTTLSeconds int `mapstructure:"negative_ttl_seconds"` // negative lifetime in seconds
+	L1Size             int `yaml:"l1_size"`              // positive local entry capacity
+	L1TTLSeconds       int `yaml:"l1_ttl_seconds"`       // local lifetime in seconds
+	L2TTLSeconds       int `yaml:"l2_ttl_seconds"`       // shared lifetime in seconds
+	NegativeTTLSeconds int `yaml:"negative_ttl_seconds"` // negative lifetime in seconds
 	// JitterPercent controls expiration sampling in KeyJitterTTL. Nonpositive
 	// values leave lifetimes unchanged; positive values are capped at one hundred.
-	JitterPercent int  `mapstructure:"jitter_percent"` // lifetime variation percentage allowance
-	Singleflight  bool `mapstructure:"singleflight"`   // shared credential-load enablement flag
+	JitterPercent int  `yaml:"jitter_percent"` // lifetime variation percentage allowance
+	Singleflight  bool `yaml:"singleflight"`   // shared credential-load enablement flag
 	// LookupConcurrency overrides the constructor's default when positive.
 	// NewAPIKeyService captures the selected capacity in its bounded storage-load channel.
-	LookupConcurrency int                    `mapstructure:"lookup_concurrency"` // maximum direct credential loads
-	InvalidAbuse      InvalidAuthAbuseConfig `mapstructure:"invalid_abuse"`      // per-client failed-authentication tracking settings
+	LookupConcurrency int                    `yaml:"lookup_concurrency"` // maximum direct credential loads
+	InvalidAbuse      InvalidAuthAbuseConfig `yaml:"invalid_abuse"`      // per-client failed-authentication tracking settings
 }
 
 // InvalidAuthAbuseConfig configures bounded per-client failure tracking and
@@ -71,11 +71,11 @@ type InvalidAuthAbuseConfig struct {
 	// Enabled selects tracking only when Threshold, WindowSeconds, BlockSeconds
 	// and Capacity are all positive. KeyNewInvalidAuthAbuseLimiter rejects the
 	// entire configuration when any required value is nonpositive.
-	Enabled       bool `mapstructure:"enabled"`        // invalid-client tracking enablement flag
-	Threshold     int  `mapstructure:"threshold"`      // failures before temporary blocking
-	WindowSeconds int  `mapstructure:"window_seconds"` // failure window in seconds
-	BlockSeconds  int  `mapstructure:"block_seconds"`  // temporary block in seconds
-	Capacity      int  `mapstructure:"capacity"`       // maximum individually tracked clients
+	Enabled       bool `yaml:"enabled"`        // invalid-client tracking enablement flag
+	Threshold     int  `yaml:"threshold"`      // failures before temporary blocking
+	WindowSeconds int  `yaml:"window_seconds"` // failure window in seconds
+	BlockSeconds  int  `yaml:"block_seconds"`  // temporary block in seconds
+	Capacity      int  `yaml:"capacity"`       // maximum individually tracked clients
 }
 
 // Options supplies authentication startup values and retained callbacks for Key

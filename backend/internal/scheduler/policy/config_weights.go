@@ -21,21 +21,21 @@ import "math"
 // conversion to scoring weights. IsValid enforces finite nonnegative values
 // and a positive base sum for global defaults.
 type ConfigScoreWeights struct {
-	Priority  float64 `mapstructure:"priority"`   // global priority coefficient
-	Load      float64 `mapstructure:"load"`       // provider load coefficient
-	Queue     float64 `mapstructure:"queue"`      // waiting count coefficient
-	ErrorRate float64 `mapstructure:"error_rate"` // feedback health coefficient
-	TTFT      float64 `mapstructure:"ttft"`       // token latency coefficient
-	Reset     float64 `mapstructure:"reset"`      // window reset coefficient
+	Priority  float64 `yaml:"priority"`   // global priority coefficient
+	Load      float64 `yaml:"load"`       // provider load coefficient
+	Queue     float64 `yaml:"queue"`      // waiting count coefficient
+	ErrorRate float64 `yaml:"error_rate"` // feedback health coefficient
+	TTFT      float64 `yaml:"ttft"`       // token latency coefficient
+	Reset     float64 `yaml:"reset"`      // window reset coefficient
 	// platform quota coefficient
-	QuotaHeadroom float64 `mapstructure:"quota_headroom"`
+	QuotaHeadroom float64 `yaml:"quota_headroom"`
 	// PreviousResponse and SessionSticky contribute bonuses only when
 	// advanced weighted stickiness is enabled. They are included in the
 	// total sum checked by IsValid but excluded from the required positive
 	// base sum.
 	// previous response bonus
-	PreviousResponse float64 `mapstructure:"previous_response"`
-	SessionSticky    float64 `mapstructure:"session_sticky"` // session provider bonus
+	PreviousResponse float64 `yaml:"previous_response"`
+	SessionSticky    float64 `yaml:"session_sticky"` // session provider bonus
 }
 
 // BaseWeightSum adds the seven coefficients for ordinary candidate score

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"slices"
 	"time"
@@ -44,7 +43,7 @@ func provideAgentTaskCoordinator() *provider.OpenAITaskCoordinator {
 // provideProviderExpiry constructs one-minute provider expiry maintenance with
 // shared storage and clock.
 func provideProviderExpiry(store *providerpostgres.ProviderStore) *provider.ExpiryService {
-	return provider.NewExpiryService(store, provider.ExpiryOptions{Interval: time.Minute, Now: time.Now, Observe: log.Printf})
+	return provider.NewExpiryService(store, provider.ExpiryOptions{Interval: time.Minute, Now: time.Now, Observe: func(format string, args ...any) { logging.LegacyPrintf("service.provider_test", format, args...) }})
 }
 
 // provideProviderProbeTasks binds agent identity tasks to conditional provider
@@ -153,7 +152,9 @@ func provideProviderTests(store *providerpostgres.ProviderStore, geminiToken *pr
 			return ctx
 		}
 		return routing.WithModelAttributes(ctx, modelAttributes)
-	}, Error: func(message string) { log.Printf("Provider test error: %s", message) }, WriteError: func(err error) { log.Printf("failed to write SSE event: %v", err) }})
+	}, Error: func(message string) {
+		logging.LegacyPrintf("service.provider_test", "Provider test error: %s", message)
+	}, WriteError: func(err error) { logging.LegacyPrintf("service.provider_test", "failed to write SSE event: %v", err) }})
 	return core
 }
 

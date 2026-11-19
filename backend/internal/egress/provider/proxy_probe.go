@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // proxy_probe.go probes proxy connectivity and parses exit information from
@@ -101,7 +101,7 @@ func NewProxyExitInfoProber(options ProxyProbeOptions) egress.ProxyExitInfoProbe
 		maxBytes = defaultProxyProbeResponseMaxBytes
 	}
 	if options.InsecureSkipVerify {
-		log.Printf("[ProxyProbe] Warning: insecure_skip_verify is not allowed and will cause probe failure.")
+		logging.LegacyPrintf("provider.proxy_probe", "[ProxyProbe] Warning: insecure_skip_verify is not allowed and will cause probe failure.")
 	}
 	var targets []configuredProbeTarget
 	if len(options.Targets) > 0 {

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	proxyurl "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	servertiming "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	googlewire "github.com/TokenFlux/TokenRouter/internal/protocol/google"
 )
@@ -440,7 +440,7 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadC
 			// Connection-shaped failure can advance configured account endpoints
 			// while another entry remains; the final endpoint returns its own error.
 			if shouldFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
-				log.Printf("[antigravity] loadCodeAssist URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
+				logging.LegacyPrintf("upstream.antigravity", "[antigravity] loadCodeAssist URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
 				continue
 			}
 			return nil, nil, lastErr
@@ -457,7 +457,7 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadC
 		// Eligible status recovery follows complete body capture and closing, so
 		// advancing endpoints cannot leave this received stream owned by the loop.
 		if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
-			log.Printf("[antigravity] loadCodeAssist URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
+			logging.LegacyPrintf("upstream.antigravity", "[antigravity] loadCodeAssist URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
 			continue
 		}
 
@@ -538,7 +538,7 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 				// Connection-shaped failure can advance configured account endpoints
 				// while another entry remains; the final endpoint returns its own error.
 				if shouldFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
-					log.Printf("[antigravity] onboardUser URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
+					logging.LegacyPrintf("upstream.antigravity", "[antigravity] onboardUser URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
 					break
 				}
 				return "", lastErr
@@ -553,7 +553,7 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 			// Eligible status recovery follows complete body capture and closing, so
 			// advancing endpoints cannot leave this received stream owned by the loop.
 			if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
-				log.Printf("[antigravity] onboardUser URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
+				logging.LegacyPrintf("upstream.antigravity", "[antigravity] onboardUser URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
 				break
 			}
 
@@ -667,7 +667,7 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 			// Connection-shaped failure can advance configured account endpoints
 			// while another entry remains; the final endpoint returns its own error.
 			if shouldFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
-				log.Printf("[antigravity] fetchAvailableModels URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
+				logging.LegacyPrintf("upstream.antigravity", "[antigravity] fetchAvailableModels URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
 				continue
 			}
 			return nil, nil, lastErr
@@ -688,7 +688,7 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		// Eligible status recovery follows complete body capture and closing, so
 		// advancing endpoints cannot leave this received stream owned by the loop.
 		if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
-			log.Printf("[antigravity] fetchAvailableModels URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
+			logging.LegacyPrintf("upstream.antigravity", "[antigravity] fetchAvailableModels URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
 			continue
 		}
 

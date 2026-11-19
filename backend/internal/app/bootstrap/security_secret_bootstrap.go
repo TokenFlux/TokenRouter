@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/securitysecret"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // security_secret_bootstrap.go resolves persisted JWT and MCP OAuth signing
@@ -80,7 +80,7 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 		// An existing persisted value wins across instances. Report a mismatched
 		// configured candidate before publishing the database readback into this config.
 		if storedSecret != cfg.Auth.JWT.Secret {
-			log.Println("Warning: configured JWT secret mismatches persisted value; using persisted secret for cross-instance consistency.")
+			logging.LegacyPrintf("bootstrap.security_secret", "%s", "Warning: configured JWT secret mismatches persisted value; using persisted secret for cross-instance consistency.")
 		}
 		cfg.Auth.JWT.Secret = storedSecret
 		return nil
@@ -93,7 +93,7 @@ func ensureBootstrapSecrets(ctx context.Context, client *ent.Client, cfg *config
 	cfg.Auth.JWT.Secret = secret
 
 	if created {
-		log.Println("Warning: JWT secret auto-generated and persisted to database. Consider rotating to a managed secret for production.")
+		logging.LegacyPrintf("bootstrap.security_secret", "%s", "Warning: JWT secret auto-generated and persisted to database. Consider rotating to a managed secret for production.")
 	}
 	return nil
 }

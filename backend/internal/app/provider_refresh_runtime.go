@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	providerpostgres "github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
@@ -43,7 +43,7 @@ func provideManagedRefresh(admin *provider.Admin, privacy *provider.PrivacyServi
 			return invalidator.InvalidateToken(ctx, value)
 		}
 	}
-	return provider.NewManagedRefreshService(provider.ManagedRefreshOptions{Store: admin, Privacy: privacy, Coordinate: coordinator.WithManagedRefresh, CacheKey: provideradapter.ManagedRefreshCacheKey, Exchange: exchange, Invalidate: invalidate, Log: log.Printf, Warn: slog.Warn, Error: slog.Error})
+	return provider.NewManagedRefreshService(provider.ManagedRefreshOptions{Store: admin, Privacy: privacy, Coordinate: coordinator.WithManagedRefresh, CacheKey: provideradapter.ManagedRefreshCacheKey, Exchange: exchange, Invalidate: invalidate, Log: func(format string, args ...any) { logging.LegacyPrintf("service.provider_refresh", format, args...) }, Warn: slog.Warn, Error: slog.Error})
 }
 
 // provideProviderRefresh constructs the credential coordinator with provider
@@ -73,7 +73,7 @@ func provideRefreshPlatforms(claude *provider.ClaudeAuthorization, openai *provi
 		// Print diagnostics have no error return in the refresh rules. Discard
 		// output failure here while credential exchange and persistence keep their own failure results.
 		Printf: func(format string, args ...any) { _, _ = fmt.Printf(format, args...) },
-		Logf:   log.Printf,
+		Logf:   func(format string, args ...any) { logging.LegacyPrintf("service.provider_refresh", format, args...) },
 	}
 	qoderRefresh := provideradapter.NewQoderTokenRefresher(provideradapter.QoderRefreshOptions{
 		Transport: transport, Profiles: profiles, BuildCredentials: qoder.Core.BuildProviderCredentials,

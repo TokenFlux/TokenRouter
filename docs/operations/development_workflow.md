@@ -74,6 +74,16 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 - 文件级许可：历史依赖按精确源文件和 import 登记，同目录新文件与子包不继承。规则变更须同时验证无标签和 `integration` 两个集合；删除或迁出文件后须同步移除过时许可（使用方测试会拒绝多余条目），并核对删后重建同名文件、旧文件增禁导、同目录新文件及非法子包四种场景。
 - 人工审查范围：静态检查无法发现"通过接口绕过业务用例"或"借已有 import 扩大耦合"，需在代码审查时把关。
 
+同类基础能力收敛为单一默认实现，模块范围与例外许可由 `tools/architecture/policy.go` 锁定：
+
+| 能力 | 默认实现 | 受限例外与门禁 |
+| --- | --- | --- |
+| JSON 解析与改写 | `encoding/json`，安全敏感与计费用量载荷先经 `protocol/wirejson` 校验重复键与大小写冲突 | `tidwall/gjson` 与 `sjson` 仅限 `gateway`、`protocol`、`upstream` 报文层及已登记的单文件许可 |
+| 出站 HTTP 客户端 | `infra/httpclient` 共享标准库连接池 | `imroc/req/v3` 仅限共享浏览器指纹池与已登记的 Cloudflare 站点客户端，详见[上游出站传输安全](upstream_transport_security.md) |
+| WebSocket 与配置解码 | `coder/websocket`、`gopkg.in/yaml.v3` | 架构门禁拒绝引入同类替代库 |
+| 后端生产日志 | `infra/telemetry/logging`（Zap）与 `log/slog` | `internal/` 非测试文件禁止直接导入标准库 `log`（`telemetry/logging/logger.go` 桥接除外） |
+| 进程内缓存与非加密哈希 | 固定小集合用 `pkg/querycache.TTLMap`，高基数限容缓存用 `dgraph-io/ristretto` | 大载荷消息摘要用 `cespare/xxhash/v2`，确定性短键种子与 PostgreSQL 咨询锁保留标准库 `hash/fnv` |
+
 ### 各模块依赖边界
 
 | 模块 | 核心边界与专项约束 |
@@ -96,7 +106,7 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 - 注释规范：编写、修改或审查手写代码时遵循 [code-comments](../../.agents/skills/code-comments/SKILL.md)（含原无注释代码与私有声明），使用英文并核对实现约束、失败行为与设计原因。审查覆盖新增/修改文件、文件总览及受影响调用方，连贯阅读整文件通过后再报告完成。生成文件由生成命令更新。
 - 文字与文档：文档、提交信息和界面文案遵循 [humanizer](../../.agents/skills/humanizer/SKILL.md)。跨模块不变量同步到 Project Doc，并在关键手写入口标注唯一 `@project-doc` 锚点。
 - 前端框架与文案：使用 Vue 3、TypeScript、Pinia、Vue Router、Vue I18n 与自建组件，组件和样式见[前端 UI 规范](../architecture/frontend_ui_conventions.md)。可见文案写入 `src/i18n/locales/` 且中英文 key 一致。
-- 状态、API 与锁文件：API 类型与请求集中在 `src/api/`，跨页状态放入 store 或 composable，避免在 view 中重复协议；改动依赖须同步更新 `frontend/pnpm-lock.yaml`（CI 使用冻结锁文件）。
+- 状态、API 与锁文件：API 类型与请求集中在 `src/api/`（ESLint 禁止 `src/views/` 与 `src/components/` 直接调用全局 `fetch`），跨页状态放入 store 或 composable，避免在 view 中重复协议。改动依赖须同步更新 `frontend/pnpm-lock.yaml`（CI 使用冻结锁文件）。
 - 支付 SDK 分包：支付页动态导入 Stripe 和 Airwallex SDK，`frontend/vite.config.ts` 通过 Rolldown `codeSplitting` 拆成独立 vendor 包（Airwallex 加载时预取远程脚本，须与同命名空间依赖同包）。调整分包后须核对生产构建依赖图，确保仅由支付流程触发加载。
 
 <a id="backend_file_layout"></a>

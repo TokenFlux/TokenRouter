@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
@@ -287,7 +287,7 @@ func (h *OIDCHandler) OIDCOAuthCallback(c *gin.Context) {
 		var exchangeErr *identity.OIDCTokenExchangeError
 		if errors.As(err, &exchangeErr) && exchangeErr != nil {
 			// Bound response bodies to two KiB at complete UTF-8 prefixes for logs.
-			log.Printf(
+			logging.LegacyPrintf("handler.oidc_oauth",
 				"[OIDC OAuth] token exchange failed: status=%d provider_error=%q provider_description=%q body=%s",
 				exchangeErr.StatusCode,
 				exchangeErr.ProviderError,
@@ -296,7 +296,7 @@ func (h *OIDCHandler) OIDCOAuthCallback(c *gin.Context) {
 			)
 			description = exchangeErr.Error()
 		} else {
-			log.Printf("[OIDC OAuth] token exchange failed: %v", err)
+			logging.LegacyPrintf("handler.oidc_oauth", "[OIDC OAuth] token exchange failed: %v", err)
 			description = err.Error()
 		}
 		RedirectOAuthError(c, frontendCallback, "token_exchange_failed", "failed to exchange oauth code", OAuthSingleLine(description))
@@ -312,7 +312,7 @@ func (h *OIDCHandler) OIDCOAuthCallback(c *gin.Context) {
 
 		idClaims, err = h.client.ValidateIDToken(c.Request.Context(), cfg, tokenResp.IDToken, expectedNonce)
 		if err != nil {
-			log.Printf("[OIDC OAuth] id_token validation failed: %v", err)
+			logging.LegacyPrintf("handler.oidc_oauth", "[OIDC OAuth] id_token validation failed: %v", err)
 			RedirectOAuthError(c, frontendCallback, "invalid_id_token", "failed to validate id_token", "")
 			return
 		}
@@ -320,7 +320,7 @@ func (h *OIDCHandler) OIDCOAuthCallback(c *gin.Context) {
 
 	userInfoClaims, err := h.client.FetchUserInfo(c.Request.Context(), cfg, tokenResp)
 	if err != nil {
-		log.Printf("[OIDC OAuth] userinfo fetch failed: %v", err)
+		logging.LegacyPrintf("handler.oidc_oauth", "[OIDC OAuth] userinfo fetch failed: %v", err)
 		RedirectOAuthError(c, frontendCallback, "userinfo_failed", "failed to fetch user info", "")
 		return
 	}
@@ -725,7 +725,7 @@ func (h *OIDCHandler) TryOIDCVerifiedEmailFastPath(
 		return false
 	}
 	if err := h.ensureBackendModeAllowsNewUserLogin(ctx); err != nil {
-		log.Printf("[OIDC OAuth] verified-email fast path blocked by backend mode: reason=%s", infraerrors.Reason(err))
+		logging.LegacyPrintf("handler.oidc_oauth", "[OIDC OAuth] verified-email fast path blocked by backend mode: reason=%s", infraerrors.Reason(err))
 		ClearOAuthPendingSessionCookie(c, IsRequestHTTPS(c))
 		ClearOAuthPendingBrowserCookie(c, IsRequestHTTPS(c))
 		RedirectOAuthError(c, frontendCallback, "login_blocked", infraerrors.Reason(err), infraerrors.Message(err))
@@ -739,7 +739,7 @@ func (h *OIDCHandler) TryOIDCVerifiedEmailFastPath(
 		// A direct authentication error leaves account-choice handling to the
 		// callback. Log the reason and report unhandled status instead of writing a
 		// second error redirect here.
-		log.Printf("[OIDC OAuth] verified-email fast path skipped: reason=%s", infraerrors.Reason(err))
+		logging.LegacyPrintf("handler.oidc_oauth", "[OIDC OAuth] verified-email fast path skipped: reason=%s", infraerrors.Reason(err))
 		return false
 	}
 

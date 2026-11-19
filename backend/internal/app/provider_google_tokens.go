@@ -3,12 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/provider/postgres"
@@ -53,7 +53,7 @@ func provideGeminiQuotaPolicy(cfg *config.Config, store *settings.Store) *provid
 	for id, v := range cfg.Provider.Gemini.Quota.Tiers {
 		tiers[id] = provider.GeminiTierQuotaOverride{ProRPD: v.ProRPD, FlashRPD: v.FlashRPD, CooldownMinutes: v.CooldownMinutes}
 	}
-	return provider.NewGeminiQuotaService(provider.GeminiQuotaOptions{StaticTiers: tiers, StaticPolicy: cfg.Provider.Gemini.Quota.Policy, Now: time.Now, Log: log.Printf, NotFound: settings.ErrSettingNotFound, LoadPolicy: func(ctx context.Context) (string, error) {
+	return provider.NewGeminiQuotaService(provider.GeminiQuotaOptions{StaticTiers: tiers, StaticPolicy: cfg.Provider.Gemini.Quota.Policy, Now: time.Now, Log: func(format string, args ...any) { logging.LegacyPrintf("service.provider_google", format, args...) }, NotFound: settings.ErrSettingNotFound, LoadPolicy: func(ctx context.Context) (string, error) {
 		return store.GetValue(ctx, provider.GeminiQuotaPolicySettingKey)
 	}})
 }
@@ -79,7 +79,7 @@ func provideGeminiTokens(store *postgres.ProviderStore, cache provider.AccessTok
 	executor := &provider.GeminiTokenRefresher{Authorization: authorization, Key: provideradapter.GeminiTokenCacheKey}
 	return &provider.GeminiTokenSource{Options: provider.GeminiTokenOptions{
 		Cache: cache, Repository: store, Policy: provider.GeminiProviderRefreshPolicy(),
-		Debug: slog.Debug, Warn: slog.Warn, Logf: log.Printf,
+		Debug: slog.Debug, Warn: slog.Warn, Logf: func(format string, args ...any) { logging.LegacyPrintf("service.provider_google", format, args...) },
 		Project: authorization.FetchProject, ResolveProxy: authorization.Options.ResolveProxy,
 		Vertex: func(ctx context.Context, value *provider.Record) (string, error) {
 			return provideradapter.VertexServiceAccountAccessToken(ctx, cache, value)
@@ -105,7 +105,7 @@ func provideAntigravityTokens(store *postgres.ProviderStore, cache provider.Acce
 		// Platform print diagnostics have no returned result. Output errors are
 		// discarded by this callback while the refresh operation retains its own credential or persistence error.
 		Printf: func(format string, args ...any) { _, _ = fmt.Printf(format, args...) },
-		Logf:   log.Printf,
+		Logf:   func(format string, args ...any) { logging.LegacyPrintf("service.provider_google", format, args...) },
 	}
 	return &provider.AntigravityTokenSource{Options: provider.AntigravityTokenOptions{
 		Cache: cache, Repository: store, Policy: provider.AntigravityProviderRefreshPolicy(),

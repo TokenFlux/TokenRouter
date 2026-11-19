@@ -33,7 +33,7 @@
 <a id="upstream_client_pool"></a>
 ## 连接池隔离
 
-共享 HTTP 客户端、req 客户端与按提供商隔离的上游池均位于 `infra/httpclient`，各自维护独立命名空间、隔离键和复用策略，不合并。OpenAI 代理 H2 回退状态归 `egress` 的 `TransportPolicy`，Grok CLI 身份与小范围可重放 403 回退归 `upstream/grok`。
+共享 HTTP 客户端、浏览器伪装 req 客户端与按提供商隔离的上游池均位于 `infra/httpclient`，各自维护独立命名空间、隔离键和复用策略，不合并。常规 OAuth、OIDC Discovery、JWKS 与资源下载统一通过标准库 `GetClient` 或 `UpstreamPool` 发起；`imroc/req/v3` 共享池默认禁用跨请求 CookieJar，仅限 `claude.ai` Cookie 授权与 `chatgpt.com` 网页隐私接口两处 Cloudflare 浏览器端点使用，并由架构检查锁死文件白名单。OpenAI 代理 H2 回退状态归 `egress` 的 `TransportPolicy`，Grok CLI 身份与小范围可重放 403 回退归 `upstream/grok`。
 
 - 占用释放：`UpstreamPool.Do` 在请求失败时立即释放占用，成功时将释放绑定至响应体 `Close`（重复关闭仅扣减一次），调用方必须关闭响应体。
 - 请求级重定向隔离：每次执行先克隆缓存客户端、设置本次 `CheckRedirect`（`nil` 恢复默认）再交平台适配（可覆盖重定向但不得修改共享 transport）。回调不入缓存，禁重定向、逐跳公网校验和普通请求可按隔离键共用连接而不受预热顺序影响。

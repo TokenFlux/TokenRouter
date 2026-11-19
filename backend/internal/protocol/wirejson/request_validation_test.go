@@ -221,9 +221,9 @@ func TestValidateRequestObject_AllowsValidPayloadsCustomExtensionsAndUserSchemas
 	require.Zero(t, allocs)
 }
 
-// TestValidateRequestObject_RejectsMalformedAndNonObjectInputs checks empty
-// slices, scalar or array roots, trailing documents, and invalid syntax so
-// callers receive an error before inspecting fields.
+// TestValidateRequestObject_RejectsMalformedAndNonObjectInputs feeds empty
+// slices, scalar or array roots, trailing documents, and invalid syntax to ValidateRequestObject.
+// Each malformed or non-object payload must return an error before callers inspect request fields.
 func TestValidateRequestObject_RejectsMalformedAndNonObjectInputs(t *testing.T) {
 	nonObjects := []string{
 		`[]`,
@@ -249,5 +249,51 @@ func TestValidateRequestObject_RejectsMalformedAndNonObjectInputs(t *testing.T) 
 	}
 	for _, raw := range malformed {
 		require.ErrorIs(t, ValidateRequestObject([]byte(raw)), ErrInvalidRequestJSON, raw)
+	}
+}
+
+// TestValidateUsageObjectAndEnvelope exercises canonical usage counters,
+// vendor extension fields, duplicate keys, and non-canonical billing spellings.
+// Ambiguous counters or duplicate envelope usage objects must fail validation while unrelated output schemas pass.
+func TestValidateUsageObjectAndEnvelope(t *testing.T) {
+	validUsage := []string{
+		`{}`,
+		`{"input_tokens":120,"output_tokens":45,"total_tokens":165,"service_tier":"default","customMetric":true}`,
+		`{"input_tokens":100,"output_tokens":20,"input_tokens_details":{"cached_tokens":40,"cache_write_tokens":60,"cache_write_tokens_details":{"ttl_30m_tokens":60,"ttl_12h_tokens":0}}}`,
+	}
+	for _, raw := range validUsage {
+		require.NoError(t, ValidateUsageObject([]byte(raw)), raw)
+	}
+
+	rejectedUsage := []string{
+		`{"input_tokens":1,"input_tokens":9999}`,
+		`{"Input_Tokens":9999,"output_tokens":10}`,
+		`{"input_tokens":10,"input_tokens_details":{"Cached_Tokens":5}}`,
+		`{"input_tokens":10,"input_tokens_details":{"cache_write_tokens_details":{"TTL_30m_Tokens":5}}}`,
+		`{"customMetric":1,"custommetric":2}`,
+	}
+	for _, raw := range rejectedUsage {
+		var fieldErr *RequestFieldError
+		require.ErrorAs(t, ValidateUsageObject([]byte(raw)), &fieldErr, raw)
+	}
+
+	validEnvelope := []byte(`{"type":"response.completed","response":{"id":"resp_1","output":[{"type":"function_call","arguments":"{\"Model\":\"pro\"}","extra":{"ID":1,"id":2}}],"usage":{"input_tokens":12,"output_tokens":8,"total_tokens":20}}}`)
+	require.NoError(t, ValidateUsageEnvelope(validEnvelope))
+	allocs := testing.AllocsPerRun(20, func() {
+		if err := ValidateUsageEnvelope(validEnvelope); err != nil {
+			t.Fatal(err)
+		}
+	})
+	require.Zero(t, allocs)
+
+	rejectedEnvelopes := []string{
+		`{"usage":{"input_tokens":1},"usage":{"input_tokens":999}}`,
+		`{"Usage":{"input_tokens":999}}`,
+		`{"response":{"usage":{"input_tokens":1},"usage":{"input_tokens":999}}}`,
+		`{"response":{"usage":{"input_tokens":1,"Input_Tokens":999}}}`,
+	}
+	for _, raw := range rejectedEnvelopes {
+		var fieldErr *RequestFieldError
+		require.ErrorAs(t, ValidateUsageEnvelope([]byte(raw)), &fieldErr, raw)
 	}
 }

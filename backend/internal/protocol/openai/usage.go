@@ -5,6 +5,8 @@ import (
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // usage.go normalizes compatible token counters and accumulates sparse usage
@@ -139,13 +141,16 @@ func (a *UsageAccumulator) Observe(raw []byte) *ResponsesUsage {
 // observation, before category presence selects replacements. A complete zero
 // snapshot clears every bucket, while sparse updates preserve omitted categories.
 func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *ResponsesUsage {
-	value := gjson.ParseBytes(raw)
-	if !gjson.ValidBytes(raw) || !value.IsObject() {
-		// An unusable update supplies no replacement evidence; retain the previous
-		// valid observation so malformed tails cannot erase already reported cache work.
+	if wirejson.ValidateUsageObject(raw) != nil {
+		// Ambiguous duplicate or non-canonical usage keys and malformed objects
+		// preserve the previous valid observation so accounting and typed snapshots stay aligned.
 		return a.Snapshot()
 	}
-	counters, _ := OpenAIUsageFromGJSON(value)
+	value := gjson.ParseBytes(raw)
+	counters, ok := OpenAIUsageFromGJSON(value)
+	if !ok {
+		return a.Snapshot()
+	}
 	MergeHostedImageGenToolUsage(imageGen, &counters)
 	var current ResponsesUsage
 	typedDetailsValid := json.Unmarshal(raw, &current) == nil
@@ -238,8 +243,19 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 // Hosted-image details belong to the same envelope as their usage object;
 // ForwardUsage retains those image buckets without extending the client model.
 func (a *UsageAccumulator) ObserveResponsesEvent(raw []byte, event *ResponsesStreamEvent) *ResponsesUsage {
-	if !gjson.ValidBytes(raw) {
-		return a.Snapshot()
+	if wirejson.ValidateUsageEnvelope(raw) != nil {
+		// Replace any unmarshaled usage on an ambiguous envelope with the last
+		// validated snapshot so client events cannot carry uncounted token values.
+		snapshot := a.Snapshot()
+		if event != nil {
+			if event.Usage != nil {
+				event.Usage = a.Snapshot()
+			}
+			if event.Response != nil && event.Response.Usage != nil {
+				event.Response.Usage = a.Snapshot()
+			}
+		}
+		return snapshot
 	}
 	value := gjson.ParseBytes(raw)
 	for _, prefix := range []string{"", "response."} {

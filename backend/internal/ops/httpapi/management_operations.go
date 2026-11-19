@@ -767,14 +767,13 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		Description: "QPSWSHandler admits an enabled realtime socket and serves the shared cached traffic payload. " +
 			"It requires a usable Gin request before checking a nil handler or service. Route middleware " +
 			"supplies administrator authentication.  Disabled realtime attempts an upgrade followed by " +
-			"application close 4001. Gorilla can already write a handshake error before that failure " +
-			"branch attempts its JSON 404 response. Enabled requests prepare the runtime before reserving " +
+			"application close 4001. Handshake rejection can already write an HTTP error before that failure " +
+			"branch checks whether to write its JSON 404 response. Enabled requests prepare the runtime before reserving " +
 			"counts, so a refused admission can still start or keep its sampler active.  Positive global " +
 			"and known-address limits are reserved before upgrade and released by deferred handler " +
 			"cleanup after socket handling returns. Nonpositive global limits bypass reservation although " +
-			"ReleaseTotal still runs. The explicit upgrade headers contain available Server-Timing only; " +
-			"ordinary writer Header mutations during Hijack do not add other headers to Gorilla's 101 " +
-			"serialization. This operation is available through read_operation.",
+			"ReleaseTotal still runs. Authorized Server-Timing headers are copied onto the response " +
+			"writer before completing the 101 handshake. This operation is available through read_operation.",
 		Method:      "GET",
 		Path:        "/api/v1/admin/ops/ws/qps",
 		ReadOnly:    true,

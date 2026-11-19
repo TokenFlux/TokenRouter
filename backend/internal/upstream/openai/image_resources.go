@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imroc/req/v3"
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -228,7 +227,7 @@ func MergeOpenAIImagePointerInfo(existing, next ImagePointerInfo) ImagePointerIn
 // an absent representation returns an error.
 func ResolveOpenAIImageBytes(
 	ctx context.Context,
-	client *req.Client,
+	client *http.Client,
 	headers http.Header,
 	conversationID string,
 	pointer ImagePointerInfo,
@@ -388,21 +387,21 @@ func IsLikelyOpenAIImageDownloadURL(raw string) bool {
 // retry returns the last available failure.
 func FetchOpenAIImageDownloadURL(
 	ctx context.Context,
-	client *req.Client,
+	client *http.Client,
 	headers http.Header,
 	conversationID string,
 	pointer string,
 	errorBodyReadLimit int64,
 ) (string, error) {
-	url := ""
+	targetURL := ""
 	allowConversationRetry := false
 	switch {
 	case strings.HasPrefix(pointer, "file-service://"):
 		fileID := strings.TrimPrefix(pointer, "file-service://")
-		url = fmt.Sprintf("%s/%s/download", OpenAIChatGPTFilesURL, fileID)
+		targetURL = fmt.Sprintf("%s/%s/download", OpenAIChatGPTFilesURL, fileID)
 	case strings.HasPrefix(pointer, "sediment://"):
 		attachmentID := strings.TrimPrefix(pointer, "sediment://")
-		url = fmt.Sprintf("https://chatgpt.com/backend-api/conversation/%s/attachment/%s/download", conversationID, attachmentID)
+		targetURL = fmt.Sprintf("https://chatgpt.com/backend-api/conversation/%s/attachment/%s/download", conversationID, attachmentID)
 		allowConversationRetry = true
 	default:
 		return "", fmt.Errorf("unsupported image pointer: %s", pointer)
@@ -412,18 +411,32 @@ func FetchOpenAIImageDownloadURL(
 	// Retry transport failures for either pointer form and transient conversation
 	// lookup failures for sediment, giving attachment availability several bounded lookup attempts.
 	for attempt := range 8 {
-		var result struct {
-			DownloadURL string `json:"download_url"` // direct asset download URL
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+		if reqErr != nil {
+			return "", reqErr
 		}
-		resp, err := client.R().
-			SetContext(ctx).
-			SetHeaders(HeaderToMap(headers)).
-			SetSuccessResult(&result).
-			Get(url)
+		if headers != nil {
+			req.Header = CloneHTTPHeader(headers)
+		}
+		req.Header.Set("Accept", "application/json")
+		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
-		} else if resp.IsSuccessState() && strings.TrimSpace(result.DownloadURL) != "" {
-			return strings.TrimSpace(result.DownloadURL), nil
+		} else if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+			// Cap pointer lookup JSON bodies at 1 MiB before closing the transport stream.
+			bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+			_ = resp.Body.Close()
+			if readErr != nil {
+				lastErr = readErr
+			} else {
+				var result struct {
+					DownloadURL string `json:"download_url"` // direct asset download URL
+				}
+				if decErr := json.Unmarshal(bodyBytes, &result); decErr == nil && strings.TrimSpace(result.DownloadURL) != "" {
+					return strings.TrimSpace(result.DownloadURL), nil
+				}
+				lastErr = fmt.Errorf("fetch image download url failed: missing download_url")
+			}
 		} else {
 			statusErr := NewOpenAIImageStatusError(resp, "fetch image download url failed", errorBodyReadLimit)
 			if !allowConversationRetry || !IsOpenAIImageTransientConversationNotFoundError(statusErr) {
@@ -453,35 +466,35 @@ func FetchOpenAIImageDownloadURL(
 }
 
 // DownloadOpenAIImageBytes reads a caller-approved asset URL through the
-// configured req client and closes the response. ChatGPT-prefix URLs receive
+// configured HTTP client and closes the response. ChatGPT-prefix URLs receive
 // copied supplied headers with image Accept and no Content-Type, while other
 // URLs receive a selected User-Agent. Client redirect and target checks remain
 // caller responsibilities.
 //
-// Automatic response reading is disabled so successful body capture uses the
-// image byte cap. LimitReader returns a truncated prefix when the body exceeds
-// that cap; this routine does not reject oversize or sniff image format.
+// LimitReader returns a truncated prefix when the body exceeds the image byte
+// cap; this routine does not reject oversize or sniff image format.
 // Non-success responses are converted to ImageStatusError with the configured
 // bounded error read, and their original transport body is released by cleanup.
-func DownloadOpenAIImageBytes(ctx context.Context, client *req.Client, headers http.Header, downloadURL string, errorBodyReadLimit int64) ([]byte, error) {
-	request := client.R().
-		SetContext(ctx).
-		DisableAutoReadResponse()
+func DownloadOpenAIImageBytes(ctx context.Context, client *http.Client, headers http.Header, downloadURL string, errorBodyReadLimit int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if strings.HasPrefix(downloadURL, OpenAIChatGPTStartURL) {
 		downloadHeaders := CloneHTTPHeader(headers)
 		downloadHeaders.Set("Accept", "image/*,*/*;q=0.8")
 		downloadHeaders.Del("Content-Type")
-		request.SetHeaders(HeaderToMap(downloadHeaders))
+		req.Header = downloadHeaders
 	} else {
 		userAgent := strings.TrimSpace(headers.Get("User-Agent"))
 		if userAgent == "" {
 			userAgent = OpenAIImageBackendUserAgent
 		}
-		request.SetHeader("User-Agent", userAgent)
+		req.Header.Set("User-Agent", userAgent)
 	}
 
-	resp, err := request.Get(downloadURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +503,7 @@ func DownloadOpenAIImageBytes(ctx context.Context, client *req.Client, headers h
 			_ = resp.Body.Close()
 		}
 	}()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, NewOpenAIImageStatusError(resp, "download image bytes failed", errorBodyReadLimit)
 	}
 	// The read cap bounds returned bytes by truncation; it does not inspect an
@@ -519,7 +532,7 @@ func (e *ImageStatusError) Error() string {
 // URL, and bounded response bytes, closing the response body. Nonpositive read
 // limits select ImageErrorBodyReadLimit; nil responses return a plain fallback
 // error and display messages sanitize upstream query values.
-func NewOpenAIImageStatusError(resp *req.Response, fallback string, errorBodyReadLimit int64) error {
+func NewOpenAIImageStatusError(resp *http.Response, fallback string, errorBodyReadLimit int64) error {
 	if resp == nil {
 		if strings.TrimSpace(fallback) == "" {
 			fallback = "openai image backend request failed"
@@ -528,26 +541,21 @@ func NewOpenAIImageStatusError(resp *req.Response, fallback string, errorBodyRea
 	}
 
 	statusCode := resp.StatusCode
-	headers := http.Header(nil)
-	requestID := ""
+	headers := resp.Header.Clone()
+	requestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
 	requestURL := ""
+	if resp.Request != nil && resp.Request.URL != nil {
+		requestURL = resp.Request.URL.String()
+	}
 	body := []byte(nil)
-
-	if resp.Response != nil {
-		headers = resp.Header.Clone()
-		requestID = strings.TrimSpace(resp.Header.Get("x-request-id"))
-		if resp.Request != nil && resp.Request.URL != nil {
-			requestURL = resp.Request.URL.String()
+	if resp.Body != nil {
+		if errorBodyReadLimit <= 0 {
+			errorBodyReadLimit = ImageErrorBodyReadLimit
 		}
-		if resp.Body != nil {
-			if errorBodyReadLimit <= 0 {
-				errorBodyReadLimit = ImageErrorBodyReadLimit
-			}
-			// Capture the available bounded error prefix and close transport ownership;
-			// a read failure keeps its partial bytes for diagnostics rather than replacing status evidence.
-			body, _ = io.ReadAll(io.LimitReader(resp.Body, errorBodyReadLimit))
-			_ = resp.Body.Close()
-		}
+		// Capture the available bounded error prefix and close transport ownership;
+		// a read failure keeps its partial bytes for diagnostics rather than replacing status evidence.
+		body, _ = io.ReadAll(io.LimitReader(resp.Body, errorBodyReadLimit))
+		_ = resp.Body.Close()
 	}
 
 	message := logredact.SanitizeUpstreamQueries(upstream.ExtractErrorMessage(body))

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/imroc/req/v3"
-
 	sharedhttp "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -78,11 +76,6 @@ func NewOAuthClient() *OAuthClient {
 // verify authorization state and retain the matching code verifier before
 // invoking this exchange.
 func (c *OAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string) (*TokenResponse, error) {
-	client, err := createGrokReqClient(proxyURL)
-	if err != nil {
-		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
-	}
-
 	clientID = strings.TrimSpace(clientID)
 	if clientID == "" {
 		clientID = EffectiveClientID()
@@ -95,20 +88,7 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	formData.Set("redirect_uri", EffectiveRedirectURI(redirectURI))
 	formData.Set("code_verifier", codeVerifier)
 
-	var tokenResp TokenResponse
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("User-Agent", "tokenrouter-grok-oauth/1.0").
-		SetFormDataFromValues(formData).
-		SetSuccessResult(&tokenResp).
-		Post(c.tokenURL)
-	if err != nil {
-		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
-	}
-	if !resp.IsSuccessState() {
-		return nil, grokOAuthStatusError("GROK_OAUTH_TOKEN_EXCHANGE_FAILED", "token exchange failed", resp)
-	}
-	return &tokenResp, nil
+	return c.postTokenGrant(ctx, formData, proxyURL, "GROK_OAUTH_TOKEN_EXCHANGE_FAILED", "token exchange failed")
 }
 
 // RefreshToken submits the supplied refresh token using the pinned endpoint
@@ -116,11 +96,6 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 // returned token fields are decoded exchange data; callers coordinate refresh
 // races and persist successful credential rotation.
 func (c *OAuthClient) RefreshToken(ctx context.Context, refreshToken, proxyURL, clientID string) (*TokenResponse, error) {
-	client, err := createGrokReqClient(proxyURL)
-	if err != nil {
-		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
-	}
-
 	clientID = strings.TrimSpace(clientID)
 	if clientID == "" {
 		clientID = EffectiveClientID()
@@ -131,18 +106,40 @@ func (c *OAuthClient) RefreshToken(ctx context.Context, refreshToken, proxyURL, 
 	formData.Set("client_id", clientID)
 	formData.Set("refresh_token", refreshToken)
 
-	var tokenResp TokenResponse
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("User-Agent", "tokenrouter-grok-oauth/1.0").
-		SetFormDataFromValues(formData).
-		SetSuccessResult(&tokenResp).
-		Post(c.tokenURL)
+	return c.postTokenGrant(ctx, formData, proxyURL, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed")
+}
+
+// postTokenGrant sends formData to the pinned tokenURL through the shared HTTP
+// client pool and decodes a successful TokenResponse.
+func (c *OAuthClient) postTokenGrant(ctx context.Context, formData url.Values, proxyURL, errorCode, errorMessage string) (*TokenResponse, error) {
+	client, err := createGrokOAuthHTTPClient(proxyURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.tokenURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
 	}
-	if !resp.IsSuccessState() {
-		return nil, grokOAuthStatusError("GROK_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed", resp)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "tokenrouter-grok-oauth/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// Cap Grok OAuth token replies at 4 MiB to bound buffered error or JSON reads.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, grokOAuthStatusError(errorCode, errorMessage, resp.StatusCode, string(bodyBytes))
+	}
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "decode token response: %v", err)
 	}
 	return &tokenResp, nil
 }
@@ -193,12 +190,10 @@ func (c *OAuthClient) ConvertSSOToBuild(ctx context.Context, ssoToken, proxyURL 
 	return tokenResp, nil
 }
 
-// createGrokReqClient obtains the shared req client for a supplied proxy and
-// sixty-second request timeout. Shared-client construction errors propagate;
-// OAuth grant methods attach credential form values to individual requests
-// while client selection uses its proxy and timeout options.
-func createGrokReqClient(proxyURL string) (*req.Client, error) {
-	return sharedhttp.GetSharedReqClient(sharedhttp.ReqClientOptions{
+// createGrokOAuthHTTPClient obtains the shared HTTP client for a supplied proxy
+// and sixty-second request timeout.
+func createGrokOAuthHTTPClient(proxyURL string) (*http.Client, error) {
+	return sharedhttp.GetClient(sharedhttp.Options{
 		ProxyURL: proxyURL,
 		Timeout:  60 * time.Second,
 	})
@@ -252,20 +247,14 @@ func grokSSOConversionError(err error) error {
 
 // grokOAuthStatusError builds a redacted exchange error with upstream
 // status/body context. Only a 403 whose body passes explicit entitlement
-// classification changes the category and reason to entitlement denial; nil
-// responses retain status zero and ordinary failure metadata.
-func grokOAuthStatusError(code, message string, resp *req.Response) error {
+// classification changes the category and reason to entitlement denial.
+func grokOAuthStatusError(code, message string, upstreamStatus int, rawBody string) error {
 	statusCode := http.StatusBadGateway
 	errorCode := code
-	upstreamStatus := 0
-	body := ""
-	if resp != nil {
-		upstreamStatus = resp.StatusCode
-		body = logredact.RedactText(resp.String())
-		if resp.StatusCode == http.StatusForbidden && grokOAuthHasExplicitEntitlementDenial(body) {
-			statusCode = http.StatusForbidden
-			errorCode = "GROK_OAUTH_ENTITLEMENT_DENIED"
-		}
+	body := logredact.RedactText(rawBody)
+	if upstreamStatus == http.StatusForbidden && grokOAuthHasExplicitEntitlementDenial(body) {
+		statusCode = http.StatusForbidden
+		errorCode = "GROK_OAUTH_ENTITLEMENT_DENIED"
 	}
 	return infraerrors.Newf(infraerrors.Category(statusCode), errorCode, "%s: status %d, body: %s", message, upstreamStatus, body)
 }

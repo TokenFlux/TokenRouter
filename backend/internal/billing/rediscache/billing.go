@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"math/rand/v2"
 	"strconv"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // billing.go caches user balances and API-key spending windows in Redis.
@@ -189,7 +189,7 @@ func (c *Cache) DeductUserBalance(ctx context.Context, userID int64, amount floa
 	// Missing-key results leave refill responsibility with eligibility; report
 	// other command failures because this cached deduction may not have completed.
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Printf("Warning: deduct balance cache failed for user %d: %v", userID, err)
+		logging.LegacyPrintf("cache.billing", "Warning: deduct balance cache failed for user %d: %v", userID, err)
 		return err
 	}
 	return nil
@@ -296,7 +296,7 @@ func (c *Cache) UpdateAPIKeyRateLimitUsage(ctx context.Context, keyID int64, cos
 	// Missing-hash results leave refill responsibility with eligibility; report
 	// other command failures because this spending-cache update may not have completed.
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Printf("Warning: update rate limit usage cache failed for api key %d: %v", keyID, err)
+		logging.LegacyPrintf("cache.billing", "Warning: update rate limit usage cache failed for api key %d: %v", keyID, err)
 		return err
 	}
 	return nil

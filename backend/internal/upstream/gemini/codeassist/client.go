@@ -1,11 +1,13 @@
 package codeassist
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"time"
-
-	"github.com/imroc/req/v3"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
@@ -63,26 +65,15 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken, proxyURL strin
 	}
 
 	var out LoadCodeAssistResponse
-	client, err := createGeminiCliReqClient(proxyURL)
-	if err != nil {
-		return nil, fmt.Errorf("create HTTP client: %w", err)
-	}
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("Authorization", "Bearer "+accessToken).
-		SetHeader("Content-Type", "application/json").
-		SetHeader("User-Agent", GeminiCLIUserAgent).
-		SetBody(reqBody).
-		SetSuccessResult(&out).
-		Post(c.BaseURL + "/v1internal:loadCodeAssist")
+	statusCode, bodyBytes, err := c.postCodeAssistJSON(ctx, accessToken, proxyURL, "/v1internal:loadCodeAssist", reqBody)
 	if err != nil {
 		fmt.Printf("[CodeAssist] LoadCodeAssist request error: %v\n", err)
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, err
 	}
-	if !resp.IsSuccessState() {
-		body := resp.String()
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		body := string(bodyBytes)
 		sanitizedBody := SanitizeBodyForLogs(body)
-		fmt.Printf("[CodeAssist] LoadCodeAssist failed: status %d, body: %s\n", resp.StatusCode, sanitizedBody)
+		fmt.Printf("[CodeAssist] LoadCodeAssist failed: status %d, body: %s\n", statusCode, sanitizedBody)
 
 		// Translate a disabled-service envelope into activation guidance so account
 		// authorization can show the required project setup step; other failures
@@ -95,9 +86,12 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken, proxyURL strin
 			return nil, fmt.Errorf("gemini API not enabled for this project, please enable it in the Google Cloud Console at: https://console.cloud.google.com/apis/library/cloudaicompanion.googleapis.com")
 		}
 
-		return nil, fmt.Errorf("loadCodeAssist failed: status %d, body: %s", resp.StatusCode, sanitizedBody)
+		return nil, fmt.Errorf("loadCodeAssist failed: status %d, body: %s", statusCode, sanitizedBody)
 	}
-	fmt.Printf("[CodeAssist] LoadCodeAssist success: status %d, response: %+v\n", resp.StatusCode, out)
+	if err := json.Unmarshal(bodyBytes, &out); err != nil {
+		return nil, fmt.Errorf("decode loadCodeAssist response: %w", err)
+	}
+	fmt.Printf("[CodeAssist] LoadCodeAssist success: status %d, response: %+v\n", statusCode, out)
 	return &out, nil
 }
 
@@ -112,26 +106,15 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, proxyURL string, 
 	fmt.Printf("[CodeAssist] OnboardUser request body: %+v\n", reqBody)
 
 	var out OnboardUserResponse
-	client, err := createGeminiCliReqClient(proxyURL)
-	if err != nil {
-		return nil, fmt.Errorf("create HTTP client: %w", err)
-	}
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("Authorization", "Bearer "+accessToken).
-		SetHeader("Content-Type", "application/json").
-		SetHeader("User-Agent", GeminiCLIUserAgent).
-		SetBody(reqBody).
-		SetSuccessResult(&out).
-		Post(c.BaseURL + "/v1internal:onboardUser")
+	statusCode, bodyBytes, err := c.postCodeAssistJSON(ctx, accessToken, proxyURL, "/v1internal:onboardUser", reqBody)
 	if err != nil {
 		fmt.Printf("[CodeAssist] OnboardUser request error: %v\n", err)
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, err
 	}
-	if !resp.IsSuccessState() {
-		body := resp.String()
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		body := string(bodyBytes)
 		sanitizedBody := SanitizeBodyForLogs(body)
-		fmt.Printf("[CodeAssist] OnboardUser failed: status %d, body: %s\n", resp.StatusCode, sanitizedBody)
+		fmt.Printf("[CodeAssist] OnboardUser failed: status %d, body: %s\n", statusCode, sanitizedBody)
 
 		// Translate a disabled-service envelope into activation guidance so account
 		// authorization can show the required project setup step; other failures
@@ -144,17 +127,52 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, proxyURL string, 
 			return nil, fmt.Errorf("gemini API not enabled for this project, please enable it in the Google Cloud Console at: https://console.cloud.google.com/apis/library/cloudaicompanion.googleapis.com")
 		}
 
-		return nil, fmt.Errorf("onboardUser failed: status %d, body: %s", resp.StatusCode, sanitizedBody)
+		return nil, fmt.Errorf("onboardUser failed: status %d, body: %s", statusCode, sanitizedBody)
 	}
-	fmt.Printf("[CodeAssist] OnboardUser success: status %d, response: %+v\n", resp.StatusCode, out)
+	if err := json.Unmarshal(bodyBytes, &out); err != nil {
+		return nil, fmt.Errorf("decode onboardUser response: %w", err)
+	}
+	fmt.Printf("[CodeAssist] OnboardUser success: status %d, response: %+v\n", statusCode, out)
 	return &out, nil
 }
 
-// createGeminiCliReqClient selects the shared req client for proxyURL with a
-// thirty-second timeout. Construction errors return to the account operation;
-// the shared client retains its configured transport behavior.
-func createGeminiCliReqClient(proxyURL string) (*req.Client, error) {
-	return httpclient.GetSharedReqClient(httpclient.ReqClientOptions{
+// postCodeAssistJSON marshals reqBody and executes a POST through the shared
+// thirty-second HTTP client pool for proxyURL with a 4 MiB response cap.
+func (c *Client) postCodeAssistJSON(ctx context.Context, accessToken, proxyURL, path string, reqBody any) (int, []byte, error) {
+	client, err := createGeminiCliHTTPClient(proxyURL)
+	if err != nil {
+		return 0, nil, fmt.Errorf("create HTTP client: %w", err)
+	}
+	encoded, err := json.Marshal(reqBody)
+	if err != nil {
+		return 0, nil, fmt.Errorf("encode request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+path, bytes.NewReader(encoded))
+	if err != nil {
+		return 0, nil, fmt.Errorf("request failed: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", GeminiCLIUserAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// Cap Code Assist management replies at 4 MiB to bound buffered error and JSON reads.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return 0, nil, fmt.Errorf("request failed: %w", err)
+	}
+	return resp.StatusCode, bodyBytes, nil
+}
+
+// createGeminiCliHTTPClient selects the shared HTTP client for proxyURL with a
+// thirty-second timeout. Construction errors return to the account operation.
+func createGeminiCliHTTPClient(proxyURL string) (*http.Client, error) {
+	return httpclient.GetClient(httpclient.Options{
 		ProxyURL: proxyURL,
 		Timeout:  30 * time.Second,
 	})

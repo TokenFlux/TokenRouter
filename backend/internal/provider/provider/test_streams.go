@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"regexp"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
@@ -422,7 +422,7 @@ func (s TestStreamOutput) SendEvent(c *TestRun, event providercore.TestEvent) {
 	// while TestRun retains the first error and cancels cooperative upstream
 	// execution.
 	if err := c.Emit(event); err != nil {
-		log.Printf("failed to write SSE event: %v", err)
+		logging.LegacyPrintf("provider.test_streams", "failed to write SSE event: %v", err)
 	}
 }
 
@@ -430,7 +430,7 @@ func (s TestStreamOutput) SendEvent(c *TestRun, event providercore.TestEvent) {
 // that message. A sink failure stays in TestRun for final Result handling
 // rather than replacing this diagnostic message.
 func (s TestStreamOutput) Error(c *TestRun, errorMsg string) error {
-	log.Printf("Provider test error: %s", errorMsg)
+	logging.LegacyPrintf("provider.test_streams", "Provider test error: %s", errorMsg)
 	s.SendEvent(c, providercore.TestEvent{Type: "error", Error: errorMsg})
 	return fmt.Errorf("%s", errorMsg)
 }

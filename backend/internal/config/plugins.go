@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/spf13/viper"
 )
 
 // plugins.go defines deployment settings for the single-instance plugin runtime.
@@ -25,30 +23,32 @@ import (
 
 // PluginsConfig controls plugin execution, local storage, and package distribution.
 type PluginsConfig struct {
-	Enabled bool `mapstructure:"enabled"` // global plugin availability switch
+	Enabled bool `yaml:"enabled"` // global plugin availability switch
 	// Dir defaults under DATA_DIR or the existing data directory when omitted; normalization preserves an explicitly supplied path.
-	Dir               string `mapstructure:"dir"`
-	OfficialIndexURL  string `mapstructure:"official_index_url"`  // signed official catalog location
-	DownloadProxy     string `mapstructure:"download_proxy"`      // package distribution proxy URL
-	DownloadURLPrefix string `mapstructure:"download_url_prefix"` // optional GitHub download prefix
-	PluginHTTPProxy   string `mapstructure:"plugin_http_proxy"`   // explicit child HTTP proxy
-	MaxRunning        int    `mapstructure:"max_running"`         // concurrent native plugin limit
-	DevMode           bool   `mapstructure:"dev_mode"`            // development directory availability switch
+	Dir               string `yaml:"dir"`
+	OfficialIndexURL  string `yaml:"official_index_url"`  // signed official catalog location
+	DownloadProxy     string `yaml:"download_proxy"`      // package distribution proxy URL
+	DownloadURLPrefix string `yaml:"download_url_prefix"` // optional GitHub download prefix
+	PluginHTTPProxy   string `yaml:"plugin_http_proxy"`   // explicit child HTTP proxy
+	MaxRunning        int    `yaml:"max_running"`         // concurrent native plugin limit
+	DevMode           bool   `yaml:"dev_mode"`            // development directory availability switch
 	// DevDirs lists unpacked plugin directories; runtime loading ignores the list unless both Enabled and DevMode are true.
-	DevDirs []string `mapstructure:"dev_dirs"`
+	DevDirs []string `yaml:"dev_dirs"`
 }
 
-// setPluginDefaults registers all plugin keys before Viper unmarshals configuration.
-func setPluginDefaults(v *viper.Viper) {
-	v.SetDefault("plugins.enabled", true)
-	v.SetDefault("plugins.dir", "")
-	v.SetDefault("plugins.official_index_url", "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json")
-	v.SetDefault("plugins.download_proxy", "")
-	v.SetDefault("plugins.download_url_prefix", "")
-	v.SetDefault("plugins.plugin_http_proxy", "")
-	v.SetDefault("plugins.max_running", 20)
-	v.SetDefault("plugins.dev_mode", false)
-	v.SetDefault("plugins.dev_dirs", []string{})
+// defaultPluginsConfig constructs version 2 startup defaults for plugin execution and distribution.
+func defaultPluginsConfig() PluginsConfig {
+	return PluginsConfig{
+		Enabled:           true,
+		Dir:               "",
+		OfficialIndexURL:  "https://raw.githubusercontent.com/TokenFlux/tokenrouter-plugins/dist/v1/index.json",
+		DownloadProxy:     "",
+		DownloadURLPrefix: "",
+		PluginHTTPProxy:   "",
+		MaxRunning:        20,
+		DevMode:           false,
+		DevDirs:           []string{},
+	}
 }
 
 // normalize trims deployment strings and derives an omitted plugin storage directory.

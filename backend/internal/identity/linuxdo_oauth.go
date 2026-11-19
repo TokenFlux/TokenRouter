@@ -23,26 +23,26 @@ import (
 // LinuxDoOAuthOptions supplies provider endpoints, credentials and userinfo
 // extraction hints for authorization.
 type LinuxDoOAuthOptions struct {
-	Enabled      bool   `mapstructure:"enabled"`       // configured LinuxDo login switch
-	ClientID     string `mapstructure:"client_id"`     // upstream authorization client identifier
-	ClientSecret string `mapstructure:"client_secret"` // upstream authorization client credential
-	AuthorizeURL string `mapstructure:"authorize_url"` // provider browser authorization endpoint
-	TokenURL     string `mapstructure:"token_url"`     // provider token exchange endpoint
-	UserInfoURL  string `mapstructure:"userinfo_url"`  // provider identity lookup endpoint
-	Scopes       string `mapstructure:"scopes"`        // requested provider authorization scopes
-	RedirectURL  string `mapstructure:"redirect_url"`  // registered backend authorization callback
+	Enabled      bool   `yaml:"enabled"`       // configured LinuxDo login switch
+	ClientID     string `yaml:"client_id"`     // upstream authorization client identifier
+	ClientSecret string `yaml:"client_secret"` // upstream authorization client credential
+	AuthorizeURL string `yaml:"authorize_url"` // provider browser authorization endpoint
+	TokenURL     string `yaml:"token_url"`     // provider token exchange endpoint
+	UserInfoURL  string `yaml:"userinfo_url"`  // provider identity lookup endpoint
+	Scopes       string `yaml:"scopes"`        // requested provider authorization scopes
+	RedirectURL  string `yaml:"redirect_url"`  // registered backend authorization callback
 	// FrontendRedirectURL selects the browser return destination. OAuth settings
 	// can override the built-in /auth/linuxdo/callback route through startup or
 	// stored configuration.
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-	TokenAuthMethod     string `mapstructure:"token_auth_method"` // client_secret_post / client_secret_basic / none
-	UsePKCE             bool   `mapstructure:"use_pkce"`          // authorization code proof switch
-	// UserInfoEmailPath, UserInfoIDPath and UserInfoUsernamePath select gjson
-	// lookups for their separate profile values. Empty paths use common provider
-	// field names during profile extraction.
-	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`    // provider mailbox lookup path
-	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`       // provider subject lookup path
-	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"` // provider username lookup path
+	FrontendRedirectURL string `yaml:"frontend_redirect_url"`
+	TokenAuthMethod     string `yaml:"token_auth_method"` // client_secret_post / client_secret_basic / none
+	UsePKCE             bool   `yaml:"use_pkce"`          // authorization code proof switch
+	// UserInfoEmailPath, UserInfoIDPath and UserInfoUsernamePath select dotted
+	// object lookups for their separate profile values. Empty paths use common
+	// provider field names during profile extraction.
+	UserInfoEmailPath    string `yaml:"userinfo_email_path"`    // provider mailbox lookup path
+	UserInfoIDPath       string `yaml:"userinfo_id_path"`       // provider subject lookup path
+	UserInfoUsernamePath string `yaml:"userinfo_username_path"` // provider username lookup path
 }
 
 // LinuxDoTokenResponse holds provider access credentials and their returned

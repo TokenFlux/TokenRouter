@@ -1,87 +1,86 @@
 package config
 
-import "github.com/spf13/viper"
-
-// defaults.go registers version 2 startup defaults on isolated Viper instances
-// before YAML unmarshaling. Keeping defaults in one registration pass fills
+// defaults.go initializes version 2 startup defaults on a fresh Config value
+// before YAML node decoding. Constructing typed defaults in one place populates
 // omitted keys without activating implicit environment bindings or altering
 // explicit file-presence tracking for client-IP and OIDC flags.
 
-// setDefaults registers current process defaults on the caller's Viper instance.
-// Call before decoding the selected YAML document. Defaults fill omitted values
-// without enabling implicit environment lookup or marking file-presence flags.
-func setDefaults(v *viper.Viper) {
-	v.SetDefault("config_version", CurrentConfigVersion)
-	v.SetDefault("auth.jwt.access_token_ttl_minutes", 1440)
-	v.SetDefault("gateway.openai.proxy_stream_circuit.enabled", true)
-	v.SetDefault("provider.antigravity.fallback_cooldown_seconds", 60)
-	v.SetDefault("provider.antigravity.forward_endpoint", "auto")
-	v.SetDefault("ops.websocket.trust_proxy", true)
-	v.SetDefault("ops.websocket.trusted_proxies", []string{"127.0.0.0/8", "::1/128"})
-	v.SetDefault("ops.websocket.origin_policy", "permissive")
-	v.SetDefault("ops.websocket.max_conns", 100)
-	v.SetDefault("ops.websocket.max_conns_per_ip", 20)
+// defaultConfig constructs a Config populated with current version 2 defaults.
+// Call before decoding the selected YAML document so omitted keys retain their
+// startup defaults without marking explicit file-presence flags.
+func defaultConfig() Config {
+	var cfg Config
+	cfg.ConfigVersion = CurrentConfigVersion
+	cfg.Auth.JWT.AccessTokenTTLMinutes = 1440
+	cfg.Gateway.OpenAI.ProxyStreamCircuit.Enabled = true
+	cfg.Provider.Antigravity.FallbackCooldownSeconds = 60
+	cfg.Provider.Antigravity.ForwardEndpoint = "auto"
+	cfg.Ops.WebSocket.TrustProxy = true
+	cfg.Ops.WebSocket.TrustedProxies = []string{"127.0.0.0/8", "::1/128"}
+	cfg.Ops.WebSocket.OriginPolicy = "permissive"
+	cfg.Ops.WebSocket.MaxConns = 100
+	cfg.Ops.WebSocket.MaxConnsPerIP = 20
 
-	setPluginDefaults(v)
+	cfg.Plugins = defaultPluginsConfig()
 	// Server
-	v.SetDefault("server.host", "0.0.0.0")
-	v.SetDefault("server.port", 8080)
-	v.SetDefault("server.mode", "release")
-	v.SetDefault("server.enable_server_timing", false)
-	v.SetDefault("site.frontend_url", "")
-	v.SetDefault("server.read_header_timeout_seconds", 10) // 10-second header read timeout.
-	v.SetDefault("server.max_header_bytes", 64*1024)
-	v.SetDefault("server.idle_timeout_seconds", 120) // 120-second idle timeout.
-	v.SetDefault("server.max_request_body_bytes", int64(256*1024*1024))
+	cfg.Server.Host = "0.0.0.0"
+	cfg.Server.Port = 8080
+	cfg.Server.Mode = "release"
+	cfg.Server.EnableServerTiming = false
+	cfg.Site.FrontendURL = ""
+	cfg.Server.ReadHeaderTimeoutSeconds = 10 // 10-second header read timeout.
+	cfg.Server.MaxHeaderBytes = 64 * 1024
+	cfg.Server.IdleTimeoutSeconds = 120 // 120-second idle timeout.
+	cfg.Server.MaxRequestBodyBytes = 256 * 1024 * 1024
 	// H2C defaults.
-	v.SetDefault("server.h2c.enabled", false)
-	v.SetDefault("server.h2c.max_concurrent_streams", uint32(50))            // 50 concurrent streams.
-	v.SetDefault("server.h2c.idle_timeout_seconds", 75)                      // 75 seconds.
-	v.SetDefault("server.h2c.max_read_frame_bytes", 1<<20)                   // 1 MiB.
-	v.SetDefault("server.h2c.max_upload_buffer_per_connection_bytes", 2<<20) // 2 MiB
-	v.SetDefault("server.h2c.max_upload_buffer_per_stream_bytes", 512<<10)   // 512 KiB
+	cfg.Server.H2C.Enabled = false
+	cfg.Server.H2C.MaxConcurrentStreams = 50                   // 50 concurrent streams.
+	cfg.Server.H2C.IdleTimeoutSeconds = 75                     // 75 seconds.
+	cfg.Server.H2C.MaxReadFrameBytes = 1 << 20                 // 1 MiB.
+	cfg.Server.H2C.MaxUploadBufferPerConnectionBytes = 2 << 20 // 2 MiB
+	cfg.Server.H2C.MaxUploadBufferPerStreamBytes = 512 << 10   // 512 KiB
 	// The collector starts from the UI; these values supply its listen settings.
-	v.SetDefault("egress.tls_fingerprint_collector.host", "0.0.0.0")
-	v.SetDefault("egress.tls_fingerprint_collector.port", 8443)
-	v.SetDefault("egress.tls_fingerprint_collector.public_base_url", "")
-	v.SetDefault("egress.tls_fingerprint_collector.cert_file", "")
-	v.SetDefault("egress.tls_fingerprint_collector.key_file", "")
-	v.SetDefault("egress.tls_fingerprint_collector.session_ttl_seconds", 1800)
-	v.SetDefault("egress.tls_fingerprint_collector.max_records_per_session", 20)
+	cfg.Egress.TLSFingerprintCollector.Host = "0.0.0.0"
+	cfg.Egress.TLSFingerprintCollector.Port = 8443
+	cfg.Egress.TLSFingerprintCollector.PublicBaseURL = ""
+	cfg.Egress.TLSFingerprintCollector.CertFile = ""
+	cfg.Egress.TLSFingerprintCollector.KeyFile = ""
+	cfg.Egress.TLSFingerprintCollector.SessionTTLSeconds = 1800
+	cfg.Egress.TLSFingerprintCollector.MaxRecordsPerSession = 20
 
 	// Log
-	v.SetDefault("log.level", "info")
-	v.SetDefault("log.format", "console")
-	v.SetDefault("log.service_name", "tokenrouter")
-	v.SetDefault("environment", "production")
-	v.SetDefault("log.caller", true)
-	v.SetDefault("log.stacktrace_level", "error")
-	v.SetDefault("log.output.to_stdout", true)
-	v.SetDefault("log.output.to_file", true)
-	v.SetDefault("log.output.file_path", "")
-	v.SetDefault("log.rotation.max_size_mb", 100)
-	v.SetDefault("log.rotation.max_backups", 10)
-	v.SetDefault("log.rotation.max_age_days", 7)
-	v.SetDefault("log.rotation.compress", true)
-	v.SetDefault("log.rotation.local_time", true)
-	v.SetDefault("log.sampling.enabled", false)
-	v.SetDefault("log.sampling.initial", 100)
-	v.SetDefault("log.sampling.thereafter", 100)
+	cfg.Log.Level = "info"
+	cfg.Log.Format = "console"
+	cfg.Log.ServiceName = "tokenrouter"
+	cfg.Environment = "production"
+	cfg.Log.Caller = true
+	cfg.Log.StacktraceLevel = "error"
+	cfg.Log.Output.ToStdout = true
+	cfg.Log.Output.ToFile = true
+	cfg.Log.Output.FilePath = ""
+	cfg.Log.Rotation.MaxSizeMB = 100
+	cfg.Log.Rotation.MaxBackups = 10
+	cfg.Log.Rotation.MaxAgeDays = 7
+	cfg.Log.Rotation.Compress = true
+	cfg.Log.Rotation.LocalTime = true
+	cfg.Log.Sampling.Enabled = false
+	cfg.Log.Sampling.Initial = 100
+	cfg.Log.Sampling.Thereafter = 100
 
 	// CORS
-	v.SetDefault("security.cors.allowed_origins", []string{})
-	v.SetDefault("security.cors.allow_credentials", true)
+	cfg.Security.CORS.AllowedOrigins = []string{}
+	cfg.Security.CORS.AllowCredentials = true
 
 	// Passkeys are disabled by default; enabling requires a relying-party domain
 	// and trusted browser origins.
-	v.SetDefault("auth.webauthn.enabled", false)
-	v.SetDefault("auth.webauthn.rp_display_name", "TokenRouter")
-	v.SetDefault("auth.webauthn.rp_id", "")
-	v.SetDefault("auth.webauthn.rp_origins", []string{})
+	cfg.Auth.WebAuthn.Enabled = false
+	cfg.Auth.WebAuthn.RPDisplayName = "TokenRouter"
+	cfg.Auth.WebAuthn.RPID = ""
+	cfg.Auth.WebAuthn.RPOrigins = []string{}
 
 	// Security
-	v.SetDefault("security.url_allowlist.enabled", false)
-	v.SetDefault("security.url_allowlist.upstream_hosts", []string{
+	cfg.Security.URLAllowlist.Enabled = false
+	cfg.Security.URLAllowlist.UpstreamHosts = []string{
 		"api.openai.com",
 		"api.anthropic.com",
 		"api.kimi.com",
@@ -95,518 +94,509 @@ func setDefaults(v *viper.Viper) {
 		"generativelanguage.googleapis.com",
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
-	})
-	v.SetDefault("security.url_allowlist.model_catalog_hosts", []string{
+	}
+	cfg.Security.URLAllowlist.ModelCatalogHosts = []string{
 		"models.dev",
 		"raw.githubusercontent.com",
-	})
-	v.SetDefault("security.url_allowlist.crs_sync_hosts", []string{})
-	v.SetDefault("security.url_allowlist.allow_private_hosts", true)
-	v.SetDefault("security.url_allowlist.allow_insecure_http", true)
-	v.SetDefault("gateway.upstream_response_headers.enabled", true)
-	v.SetDefault("gateway.upstream_response_headers.additional_allowed", []string{})
-	v.SetDefault("gateway.upstream_response_headers.force_remove", []string{})
-	v.SetDefault("security.csp.enabled", true)
-	v.SetDefault("security.csp.policy", DefaultCSPPolicy)
-	v.SetDefault("server.client_ip.trust_forwarded_headers", true)
+	}
+	cfg.Security.URLAllowlist.CrsSyncHosts = []string{}
+	cfg.Security.URLAllowlist.AllowPrivateHosts = true
+	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+	cfg.Gateway.ResponseHeaders.Enabled = true
+	cfg.Gateway.ResponseHeaders.AdditionalAllowed = []string{}
+	cfg.Gateway.ResponseHeaders.ForceRemove = []string{}
+	cfg.Security.CSP.Enabled = true
+	cfg.Security.CSP.Policy = DefaultCSPPolicy
+	cfg.Server.ClientIP.TrustForwardedHeaders = true
 
 	// Security - disable direct fallback on proxy error
-	v.SetDefault("outbound_proxy.allow_direct_on_error", false)
+	cfg.OutboundProxy.AllowDirectOnError = false
 
 	// Billing
-	v.SetDefault("billing.balance_check_circuit_breaker.enabled", true)
-	v.SetDefault("billing.balance_check_circuit_breaker.failure_threshold", 5)
-	v.SetDefault("billing.balance_check_circuit_breaker.reset_timeout_seconds", 30)
-	v.SetDefault("billing.balance_check_circuit_breaker.half_open_requests", 3)
-	v.SetDefault("billing.minimum_balance_reserve", 0.000001)
+	cfg.Billing.BalanceCheckCircuitBreaker.Enabled = true
+	cfg.Billing.BalanceCheckCircuitBreaker.FailureThreshold = 5
+	cfg.Billing.BalanceCheckCircuitBreaker.ResetTimeoutSeconds = 30
+	cfg.Billing.BalanceCheckCircuitBreaker.HalfOpenRequests = 3
+	cfg.Billing.MinimumBalanceReserve = 0.000001
 
 	// Turnstile
-	v.SetDefault("auth.require_captcha", false)
+	cfg.Auth.RequireCaptcha = false
 
 	// LinuxDo Connect OAuth login.
-	v.SetDefault("auth.oauth.linuxdo.enabled", false)
-	v.SetDefault("auth.oauth.linuxdo.client_id", "")
-	v.SetDefault("auth.oauth.linuxdo.client_secret", "")
-	v.SetDefault("auth.oauth.linuxdo.authorize_url", "https://connect.linux.do/oauth2/authorize")
-	v.SetDefault("auth.oauth.linuxdo.token_url", "https://connect.linux.do/oauth2/token")
-	v.SetDefault("auth.oauth.linuxdo.userinfo_url", "https://connect.linux.do/api/user")
-	v.SetDefault("auth.oauth.linuxdo.scopes", "user")
-	v.SetDefault("auth.oauth.linuxdo.redirect_url", "")
-	v.SetDefault("auth.oauth.linuxdo.frontend_redirect_url", "/auth/linuxdo/callback")
-	v.SetDefault("auth.oauth.linuxdo.token_auth_method", "client_secret_post")
-	v.SetDefault("auth.oauth.linuxdo.use_pkce", false)
-	v.SetDefault("auth.oauth.linuxdo.userinfo_email_path", "")
-	v.SetDefault("auth.oauth.linuxdo.userinfo_id_path", "")
-	v.SetDefault("auth.oauth.linuxdo.userinfo_username_path", "")
+	cfg.Auth.OAuth.LinuxDo.Enabled = false
+	cfg.Auth.OAuth.LinuxDo.ClientID = ""
+	cfg.Auth.OAuth.LinuxDo.ClientSecret = ""
+	cfg.Auth.OAuth.LinuxDo.AuthorizeURL = "https://connect.linux.do/oauth2/authorize"
+	cfg.Auth.OAuth.LinuxDo.TokenURL = "https://connect.linux.do/oauth2/token"
+	cfg.Auth.OAuth.LinuxDo.UserInfoURL = "https://connect.linux.do/api/user"
+	cfg.Auth.OAuth.LinuxDo.Scopes = "user"
+	cfg.Auth.OAuth.LinuxDo.RedirectURL = ""
+	cfg.Auth.OAuth.LinuxDo.FrontendRedirectURL = "/auth/linuxdo/callback"
+	cfg.Auth.OAuth.LinuxDo.TokenAuthMethod = "client_secret_post"
+	cfg.Auth.OAuth.LinuxDo.UsePKCE = false
+	cfg.Auth.OAuth.LinuxDo.UserInfoEmailPath = ""
+	cfg.Auth.OAuth.LinuxDo.UserInfoIDPath = ""
+	cfg.Auth.OAuth.LinuxDo.UserInfoUsernamePath = ""
 
 	// WeChat Connect OAuth login.
-	v.SetDefault("auth.oauth.wechat.enabled", false)
-	v.SetDefault("auth.oauth.wechat.open_app_id", "")
-	v.SetDefault("auth.oauth.wechat.open_app_secret", "")
-	v.SetDefault("auth.oauth.wechat.mp_app_id", "")
-	v.SetDefault("auth.oauth.wechat.mp_app_secret", "")
-	v.SetDefault("auth.oauth.wechat.mobile_app_id", "")
-	v.SetDefault("auth.oauth.wechat.mobile_app_secret", "")
-	v.SetDefault("auth.oauth.wechat.open_enabled", false)
-	v.SetDefault("auth.oauth.wechat.mp_enabled", false)
-	v.SetDefault("auth.oauth.wechat.mobile_enabled", false)
-	v.SetDefault("auth.oauth.wechat.mode", defaultWeChatConnectMode)
-	v.SetDefault("auth.oauth.wechat.scopes", defaultWeChatConnectScopes)
-	v.SetDefault("auth.oauth.wechat.redirect_url", "")
-	v.SetDefault("auth.oauth.wechat.frontend_redirect_url", defaultWeChatConnectFrontendRedirect)
+	cfg.Auth.OAuth.WeChat.Enabled = false
+	cfg.Auth.OAuth.WeChat.OpenAppID = ""
+	cfg.Auth.OAuth.WeChat.OpenAppSecret = ""
+	cfg.Auth.OAuth.WeChat.MPAppID = ""
+	cfg.Auth.OAuth.WeChat.MPAppSecret = ""
+	cfg.Auth.OAuth.WeChat.MobileAppID = ""
+	cfg.Auth.OAuth.WeChat.MobileAppSecret = ""
+	cfg.Auth.OAuth.WeChat.OpenEnabled = false
+	cfg.Auth.OAuth.WeChat.MPEnabled = false
+	cfg.Auth.OAuth.WeChat.MobileEnabled = false
+	cfg.Auth.OAuth.WeChat.Mode = defaultWeChatConnectMode
+	cfg.Auth.OAuth.WeChat.Scopes = defaultWeChatConnectScopes
+	cfg.Auth.OAuth.WeChat.RedirectURL = ""
+	cfg.Auth.OAuth.WeChat.FrontendRedirectURL = defaultWeChatConnectFrontendRedirect
 
 	// Generic OIDC login.
-	v.SetDefault("auth.oauth.oidc.enabled", false)
-	v.SetDefault("auth.oauth.oidc.provider_name", "OIDC")
-	v.SetDefault("auth.oauth.oidc.client_id", "")
-	v.SetDefault("auth.oauth.oidc.client_secret", "")
-	v.SetDefault("auth.oauth.oidc.issuer_url", "")
-	v.SetDefault("auth.oauth.oidc.discovery_url", "")
-	v.SetDefault("auth.oauth.oidc.authorize_url", "")
-	v.SetDefault("auth.oauth.oidc.token_url", "")
-	v.SetDefault("auth.oauth.oidc.userinfo_url", "")
-	v.SetDefault("auth.oauth.oidc.jwks_url", "")
-	v.SetDefault("auth.oauth.oidc.scopes", "openid email profile")
-	v.SetDefault("auth.oauth.oidc.redirect_url", "")
-	v.SetDefault("auth.oauth.oidc.frontend_redirect_url", "/auth/oidc/callback")
-	v.SetDefault("auth.oauth.oidc.token_auth_method", "client_secret_post")
-	v.SetDefault("auth.oauth.oidc.use_pkce", true)
-	v.SetDefault("auth.oauth.oidc.validate_id_token", true)
-	v.SetDefault("auth.oauth.oidc.allowed_signing_algs", "RS256,ES256,PS256")
-	v.SetDefault("auth.oauth.oidc.clock_skew_seconds", 120)
-	v.SetDefault("auth.oauth.oidc.require_email_verified", false)
-	v.SetDefault("auth.oauth.oidc.userinfo_email_path", "")
-	v.SetDefault("auth.oauth.oidc.userinfo_id_path", "")
-	v.SetDefault("auth.oauth.oidc.userinfo_username_path", "")
+	cfg.Auth.OAuth.OIDC.Enabled = false
+	cfg.Auth.OAuth.OIDC.ProviderName = "OIDC"
+	cfg.Auth.OAuth.OIDC.ClientID = ""
+	cfg.Auth.OAuth.OIDC.ClientSecret = ""
+	cfg.Auth.OAuth.OIDC.IssuerURL = ""
+	cfg.Auth.OAuth.OIDC.DiscoveryURL = ""
+	cfg.Auth.OAuth.OIDC.AuthorizeURL = ""
+	cfg.Auth.OAuth.OIDC.TokenURL = ""
+	cfg.Auth.OAuth.OIDC.UserInfoURL = ""
+	cfg.Auth.OAuth.OIDC.JWKSURL = ""
+	cfg.Auth.OAuth.OIDC.Scopes = "openid email profile"
+	cfg.Auth.OAuth.OIDC.RedirectURL = ""
+	cfg.Auth.OAuth.OIDC.FrontendRedirectURL = "/auth/oidc/callback"
+	cfg.Auth.OAuth.OIDC.TokenAuthMethod = "client_secret_post"
+	cfg.Auth.OAuth.OIDC.UsePKCE = true
+	cfg.Auth.OAuth.OIDC.ValidateIDToken = true
+	cfg.Auth.OAuth.OIDC.AllowedSigningAlgs = "RS256,ES256,PS256"
+	cfg.Auth.OAuth.OIDC.ClockSkewSeconds = 120
+	cfg.Auth.OAuth.OIDC.RequireEmailVerified = false
+	cfg.Auth.OAuth.OIDC.UserInfoEmailPath = ""
+	cfg.Auth.OAuth.OIDC.UserInfoIDPath = ""
+	cfg.Auth.OAuth.OIDC.UserInfoUsernamePath = ""
 
 	// DingTalk Connect OAuth login.
-	v.SetDefault("auth.oauth.dingtalk.enabled", false)
-	v.SetDefault("auth.oauth.dingtalk.authorize_url", "https://login.dingtalk.com/oauth2/auth")
-	v.SetDefault("auth.oauth.dingtalk.token_url", "https://api.dingtalk.com/v1.0/oauth2/userAccessToken")
-	v.SetDefault("auth.oauth.dingtalk.userinfo_url", "https://api.dingtalk.com/v1.0/contact/users/me")
-	v.SetDefault("auth.oauth.dingtalk.scopes", "openid")
-	v.SetDefault("auth.oauth.dingtalk.frontend_redirect_url", "/auth/dingtalk/callback")
-	v.SetDefault("auth.oauth.dingtalk.dingtalk_app_kind", "internal_app")
-	v.SetDefault("auth.oauth.dingtalk.app_type", "public")
-	v.SetDefault("auth.oauth.dingtalk.corp_restriction_policy", "none")
-	v.SetDefault("auth.oauth.dingtalk.require_email", true)
+	cfg.Auth.OAuth.DingTalk.Enabled = false
+	cfg.Auth.OAuth.DingTalk.AuthorizeURL = "https://login.dingtalk.com/oauth2/auth"
+	cfg.Auth.OAuth.DingTalk.TokenURL = "https://api.dingtalk.com/v1.0/oauth2/userAccessToken"
+	cfg.Auth.OAuth.DingTalk.UserInfoURL = "https://api.dingtalk.com/v1.0/contact/users/me"
+	cfg.Auth.OAuth.DingTalk.Scopes = "openid"
+	cfg.Auth.OAuth.DingTalk.FrontendRedirectURL = "/auth/dingtalk/callback"
+	cfg.Auth.OAuth.DingTalk.DingTalkAppKind = "internal_app"
+	cfg.Auth.OAuth.DingTalk.AppType = "public"
+	cfg.Auth.OAuth.DingTalk.CorpRestrictionPolicy = "none"
+	cfg.Auth.OAuth.DingTalk.RequireEmail = true
 
 	// Database
-	v.SetDefault("database.host", "localhost")
-	v.SetDefault("database.port", 5432)
-	v.SetDefault("database.user", "postgres")
-	v.SetDefault("database.password", "postgres")
-	v.SetDefault("database.dbname", "tokenrouter")
-	v.SetDefault("database.sslmode", "prefer")
-	v.SetDefault("database.max_open_conns", 256)
-	v.SetDefault("database.max_idle_conns", 128)
-	v.SetDefault("database.conn_max_lifetime_minutes", 30)
-	v.SetDefault("database.conn_max_idle_time_minutes", 5)
+	cfg.Database.Host = "localhost"
+	cfg.Database.Port = 5432
+	cfg.Database.User = "postgres"
+	cfg.Database.Password = "postgres"
+	cfg.Database.DBName = "tokenrouter"
+	cfg.Database.SSLMode = "prefer"
+	cfg.Database.MaxOpenConns = 256
+	cfg.Database.MaxIdleConns = 128
+	cfg.Database.ConnMaxLifetimeMinutes = 30
+	cfg.Database.ConnMaxIdleTimeMinutes = 5
 
 	// Redis
-	v.SetDefault("redis.host", "localhost")
-	v.SetDefault("redis.port", 6379)
-	v.SetDefault("redis.username", "")
-	v.SetDefault("redis.password", "")
-	v.SetDefault("redis.db", 0)
-	v.SetDefault("redis.dial_timeout_seconds", 5)
-	v.SetDefault("redis.read_timeout_seconds", 3)
-	v.SetDefault("redis.write_timeout_seconds", 3)
-	v.SetDefault("redis.pool_size", 1024)
-	v.SetDefault("redis.min_idle_conns", 128)
-	v.SetDefault("redis.enable_tls", false)
+	cfg.Redis.Host = "localhost"
+	cfg.Redis.Port = 6379
+	cfg.Redis.Username = ""
+	cfg.Redis.Password = ""
+	cfg.Redis.DB = 0
+	cfg.Redis.DialTimeoutSeconds = 5
+	cfg.Redis.ReadTimeoutSeconds = 3
+	cfg.Redis.WriteTimeoutSeconds = 3
+	cfg.Redis.PoolSize = 1024
+	cfg.Redis.MinIdleConns = 128
+	cfg.Redis.EnableTLS = false
 
 	// Batch Image queue
-	v.SetDefault("batch_image.max_items_per_job", 200)
-	v.SetDefault("batch_image.max_output_images_per_job", 200)
-	v.SetDefault("batch_image.max_output_images_per_item", 4)
-	v.SetDefault("batch_image.max_prompt_bytes_per_item", 8000)
-	v.SetDefault("batch_image.max_reference_images_per_job", 1000)
-	v.SetDefault("batch_image.max_reference_inline_bytes_per_job", 134217728)
-	v.SetDefault("batch_image.default_response_mime_type", "image/png")
-	v.SetDefault("batch_image.default_image_size", "1K")
-	v.SetDefault("batch_image.max_download_items_zip", 200)
-	v.SetDefault("batch_image.max_download_bytes_per_request", 536870912)
-	v.SetDefault("batch_image.max_download_duration_seconds", 600)
-	v.SetDefault("batch_image.max_download_concurrency_per_user", 1)
-	v.SetDefault("batch_image.input_retention_after_terminal_hours", 24)
-	v.SetDefault("batch_image.output_retention_after_terminal_hours", 72)
-	v.SetDefault("batch_image.cleanup_interval_minutes", 30)
-	v.SetDefault("batch_image.cleanup_batch_size", 100)
-	v.SetDefault("batch_image.queue.ready_key", "batch_image:queue:ready")
-	v.SetDefault("batch_image.queue.delayed_key", "batch_image:queue:delayed")
-	v.SetDefault("batch_image.queue.active_key", "batch_image:queue:active")
-	v.SetDefault("batch_image.queue.inflight_key_prefix", "batch_image:queue:inflight:")
-	v.SetDefault("batch_image.queue.lock_key_prefix", "batch_image:queue:lock:")
-	v.SetDefault("batch_image.queue.inflight_ttl_seconds", 604800)
-	v.SetDefault("batch_image.queue.job_lock_ttl_seconds", 300)
-	v.SetDefault("batch_image.queue.default_requeue_delay_seconds", 30)
-	v.SetDefault("batch_image.queue.error_retry_delay_seconds", 60)
-	v.SetDefault("batch_image.queue.lock_conflict_delay_seconds", 5)
-	v.SetDefault("batch_image.queue.stale_active_after_seconds", 600)
-	v.SetDefault("batch_image.queue.delayed_mover_interval_seconds", 5)
-	v.SetDefault("batch_image.queue.recovery_interval_seconds", 300)
-	v.SetDefault("batch_image.queue.delayed_move_limit", 100)
-	v.SetDefault("batch_image.queue.recover_limit", 100)
-	v.SetDefault("batch_image.vertex.project_id", "")
-	v.SetDefault("batch_image.vertex.location", "global")
-	v.SetDefault("batch_image.vertex.managed_gcs_bucket", "")
-	v.SetDefault("batch_image.vertex.managed_gcs_prefix", "batch-image/{env}/{batch_id}")
-	v.SetDefault("batch_image.vertex.batch_prediction_base_url", "")
-	v.SetDefault("batch_image.vertex.gcs_base_url", "")
+	cfg.BatchImage.MaxItemsPerJob = 200
+	cfg.BatchImage.MaxOutputImagesPerJob = 200
+	cfg.BatchImage.MaxOutputImagesPerItem = 4
+	cfg.BatchImage.MaxPromptBytesPerItem = 8000
+	cfg.BatchImage.MaxReferenceImagesPerJob = 1000
+	cfg.BatchImage.MaxReferenceInlineBytesPerJob = 134217728
+	cfg.BatchImage.DefaultResponseMimeType = "image/png"
+	cfg.BatchImage.DefaultImageSize = "1K"
+	cfg.BatchImage.MaxDownloadItemsZip = 200
+	cfg.BatchImage.MaxDownloadBytesPerRequest = 536870912
+	cfg.BatchImage.MaxDownloadDurationSeconds = 600
+	cfg.BatchImage.MaxDownloadConcurrencyPerUser = 1
+	cfg.BatchImage.InputRetentionAfterTerminalHours = 24
+	cfg.BatchImage.OutputRetentionAfterTerminalHours = 72
+	cfg.BatchImage.CleanupIntervalMinutes = 30
+	cfg.BatchImage.CleanupBatchSize = 100
+	cfg.BatchImage.Queue.ReadyKey = "batch_image:queue:ready"
+	cfg.BatchImage.Queue.DelayedKey = "batch_image:queue:delayed"
+	cfg.BatchImage.Queue.ActiveKey = "batch_image:queue:active"
+	cfg.BatchImage.Queue.InflightKeyPrefix = "batch_image:queue:inflight:"
+	cfg.BatchImage.Queue.LockKeyPrefix = "batch_image:queue:lock:"
+	cfg.BatchImage.Queue.InflightTTLSeconds = 604800
+	cfg.BatchImage.Queue.JobLockTTLSeconds = 300
+	cfg.BatchImage.Queue.DefaultRequeueDelaySeconds = 30
+	cfg.BatchImage.Queue.ErrorRetryDelaySeconds = 60
+	cfg.BatchImage.Queue.LockConflictDelaySeconds = 5
+	cfg.BatchImage.Queue.StaleActiveAfterSeconds = 600
+	cfg.BatchImage.Queue.DelayedMoverIntervalSeconds = 5
+	cfg.BatchImage.Queue.RecoveryIntervalSeconds = 300
+	cfg.BatchImage.Queue.DelayedMoveLimit = 100
+	cfg.BatchImage.Queue.RecoverLimit = 100
+	cfg.BatchImage.Vertex.ProjectID = ""
+	cfg.BatchImage.Vertex.Location = "global"
+	cfg.BatchImage.Vertex.ManagedGCSBucket = ""
+	cfg.BatchImage.Vertex.ManagedGCSPrefix = "batch-image/{env}/{batch_id}"
+	cfg.BatchImage.Vertex.BatchPredictionBaseURL = ""
+	cfg.BatchImage.Vertex.GCSBaseURL = ""
 
 	// Creative Studio.
-	v.SetDefault("creative.enabled", true)
-	v.SetDefault("creative.queue_worker_enabled", true)
-	v.SetDefault("creative.transient_ttl_seconds", 1800)
-	v.SetDefault("creative.max_asset_bytes", 33554432)
-	v.SetDefault("creative.max_total_input_bytes", 67108864)
-	v.SetDefault("creative.max_prompt_chars", 8000)
-	v.SetDefault("creative.default_image_size", "1K")
-	v.SetDefault("creative.queue.ready_key", "creative:queue:ready")
-	v.SetDefault("creative.queue.delayed_key", "creative:queue:delayed")
-	v.SetDefault("creative.queue.active_key", "creative:queue:active")
-	v.SetDefault("creative.queue.inflight_key_prefix", "creative:queue:inflight:")
-	v.SetDefault("creative.queue.lock_key_prefix", "creative:queue:lock:")
-	v.SetDefault("creative.queue.inflight_ttl_seconds", 604800)
-	v.SetDefault("creative.queue.job_lock_ttl_seconds", 300)
-	v.SetDefault("creative.queue.default_requeue_delay_seconds", 30)
-	v.SetDefault("creative.queue.error_retry_delay_seconds", 60)
-	v.SetDefault("creative.queue.lock_conflict_delay_seconds", 5)
-	v.SetDefault("creative.queue.stale_active_after_seconds", 600)
-	v.SetDefault("creative.queue.delayed_mover_interval_seconds", 5)
-	v.SetDefault("creative.queue.recovery_interval_seconds", 300)
-	v.SetDefault("creative.queue.delayed_move_limit", 100)
-	v.SetDefault("creative.queue.recover_limit", 100)
-	v.SetDefault("creative.execute_timeout_seconds", 300)
-	v.SetDefault("creative.max_execute_attempts", 3)
+	cfg.Creative.Enabled = true
+	cfg.Creative.QueueWorkerEnabled = true
+	cfg.Creative.TransientTTLSeconds = 1800
+	cfg.Creative.MaxAssetBytes = 33554432
+	cfg.Creative.MaxTotalInputBytes = 67108864
+	cfg.Creative.MaxPromptChars = 8000
+	cfg.Creative.DefaultImageSize = "1K"
+	cfg.Creative.Queue.ReadyKey = "creative:queue:ready"
+	cfg.Creative.Queue.DelayedKey = "creative:queue:delayed"
+	cfg.Creative.Queue.ActiveKey = "creative:queue:active"
+	cfg.Creative.Queue.InflightKeyPrefix = "creative:queue:inflight:"
+	cfg.Creative.Queue.LockKeyPrefix = "creative:queue:lock:"
+	cfg.Creative.Queue.InflightTTLSeconds = 604800
+	cfg.Creative.Queue.JobLockTTLSeconds = 300
+	cfg.Creative.Queue.DefaultRequeueDelaySeconds = 30
+	cfg.Creative.Queue.ErrorRetryDelaySeconds = 60
+	cfg.Creative.Queue.LockConflictDelaySeconds = 5
+	cfg.Creative.Queue.StaleActiveAfterSeconds = 600
+	cfg.Creative.Queue.DelayedMoverIntervalSeconds = 5
+	cfg.Creative.Queue.RecoveryIntervalSeconds = 300
+	cfg.Creative.Queue.DelayedMoveLimit = 100
+	cfg.Creative.Queue.RecoverLimit = 100
+	cfg.Creative.ExecuteTimeoutSeconds = 300
+	cfg.Creative.MaxExecuteAttempts = 3
 
 	// Ops
-	v.SetDefault("ops.enabled", true)
-	v.SetDefault("ops.cleanup.enabled", true)
-	v.SetDefault("ops.cleanup.schedule", "0 3 * * *")
-	v.SetDefault("ops.cleanup.batch_size", 1000)
-	v.SetDefault("ops.cleanup.batch_pause_ms", 200)
+	cfg.Ops.Enabled = true
+	cfg.Ops.Cleanup.Enabled = true
+	cfg.Ops.Cleanup.Schedule = "0 3 * * *"
+	cfg.Ops.Cleanup.BatchSize = 1000
+	cfg.Ops.Cleanup.BatchPauseMS = 200
 	// Retain 30 days across Ops datasets by default.
-	v.SetDefault("request_log.retention_days", 30)
-	v.SetDefault("ops.cleanup.error_log_retention_days", 30)
-	v.SetDefault("ops.cleanup.system_log_retention_days", 30)
-	v.SetDefault("ops.cleanup.minute_metrics_retention_days", 30)
-	v.SetDefault("ops.cleanup.hourly_metrics_retention_days", 30)
-	v.SetDefault("ops.aggregation.enabled", true)
+	cfg.RequestLog.RetentionDays = 30
+	cfg.Ops.Cleanup.ErrorLogRetentionDays = 30
+	cfg.Ops.Cleanup.SystemLogRetentionDays = 30
+	cfg.Ops.Cleanup.MinuteMetricsRetentionDays = 30
+	cfg.Ops.Cleanup.HourlyMetricsRetentionDays = 30
+	cfg.Ops.Aggregation.Enabled = true
 	// Register the accepted collector-cache lifetime copied into ops.Options. The
 	// current MetricsQueries reader does not consume it; sixty-five seconds
 	// exceeds the collector's default/minimum one-minute interval, while runtime
 	// cadence can be longer.
 
 	// JWT
-	v.SetDefault("auth.jwt.secret", "")
-	v.SetDefault("auth.jwt.refresh_token_ttl_days", 30) // 30-day refresh-token lifetime.
+	cfg.Auth.JWT.Secret = ""
+	cfg.Auth.JWT.RefreshTokenTTLDays = 30 // 30-day refresh-token lifetime.
 
 	// TOTP
-	v.SetDefault("security.secret_encryption_key", "")
+	cfg.Security.SecretEncryptionKey = ""
 
 	// Default
 	// Admin credentials are created via the setup flow (web wizard / CLI / AUTO_SETUP).
 	// Do not ship fixed defaults here to avoid insecure "known credentials" in
 	// production.
-	v.SetDefault("user_defaults.concurrency", 5)
-	v.SetDefault("user_defaults.balance", 0)
-	v.SetDefault("api_key.prefix", "sk-")
-	v.SetDefault("billing.fallback_rate_multiplier", 1.0)
+	cfg.UserDefaults.Concurrency = 5
+	cfg.UserDefaults.Balance = 0
+	cfg.APIKey.Prefix = "sk-"
+	cfg.Billing.FallbackRateMultiplier = 1.0
 
 	// RateLimit
-	v.SetDefault("provider.cooldown.overload_minutes", 10)
-	v.SetDefault("provider.cooldown.oauth_401_minutes", 10)
+	cfg.Provider.Cooldown.OverloadMinutes = 10
+	cfg.Provider.Cooldown.OAuth401Minutes = 10
 
 	// Pricing uses the models.dev catalog and local supplements for additional
 	// billing dimensions.
-	v.SetDefault("model_catalog.catalog_url", "https://models.dev/experimental/v2.0/api.json")
-	v.SetDefault("storage.dir", "./data")
-	v.SetDefault("model_catalog.supplement_file", "")
-	v.SetDefault("model_catalog.check_interval_minutes", 10)
+	cfg.ModelCatalog.CatalogURL = "https://models.dev/experimental/v2.0/api.json"
+	cfg.Storage.Dir = "./data"
+	cfg.ModelCatalog.SupplementFile = ""
+	cfg.ModelCatalog.CheckIntervalMinutes = 10
 
 	// Default time zone for local-day statistics.
-	v.SetDefault("timezone", "Asia/Shanghai")
-	v.SetDefault("team.enabled", true)
-	v.SetDefault("team.self_service_enabled", true)
-	v.SetDefault("team.default_max_members", 10)
+	cfg.Timezone = "Asia/Shanghai"
+	cfg.Team.Enabled = true
+	cfg.Team.SelfServiceEnabled = true
+	cfg.Team.DefaultMaxMembers = 10
 
 	// API Key auth cache
-	v.SetDefault("api_key.auth_cache.l1_size", 65535)
-	v.SetDefault("api_key.auth_cache.l1_ttl_seconds", 15)
-	v.SetDefault("api_key.auth_cache.l2_ttl_seconds", 300)
-	v.SetDefault("api_key.auth_cache.negative_ttl_seconds", 30)
-	v.SetDefault("api_key.auth_cache.jitter_percent", 10)
-	v.SetDefault("api_key.auth_cache.singleflight", true)
-	v.SetDefault("api_key.lookup_concurrency", 64)
-	v.SetDefault("api_key.invalid_key_abuse.enabled", true)
-	v.SetDefault("api_key.invalid_key_abuse.threshold", 120)
-	v.SetDefault("api_key.invalid_key_abuse.window_seconds", 60)
-	v.SetDefault("api_key.invalid_key_abuse.block_seconds", 60)
-	v.SetDefault("api_key.invalid_key_abuse.capacity", 16384)
+	cfg.APIKey.AuthCache.L1Size = 65535
+	cfg.APIKey.AuthCache.L1TTLSeconds = 15
+	cfg.APIKey.AuthCache.L2TTLSeconds = 300
+	cfg.APIKey.AuthCache.NegativeTTLSeconds = 30
+	cfg.APIKey.AuthCache.JitterPercent = 10
+	cfg.APIKey.AuthCache.Singleflight = true
+	cfg.APIKey.LookupConcurrency = 64
+	cfg.APIKey.InvalidKeyAbuse.Enabled = true
+	cfg.APIKey.InvalidKeyAbuse.Threshold = 120
+	cfg.APIKey.InvalidKeyAbuse.WindowSeconds = 60
+	cfg.APIKey.InvalidKeyAbuse.BlockSeconds = 60
+	cfg.APIKey.InvalidKeyAbuse.Capacity = 16384
 
 	// Subscription auth L1 cache
 
 	// Dashboard cache
-	v.SetDefault("usage.dashboard_cache.enabled", true)
-	v.SetDefault("usage.dashboard_cache.key_prefix", "tokenrouter:")
-	v.SetDefault("usage.dashboard_cache.stats_fresh_ttl_seconds", 15)
-	v.SetDefault("usage.dashboard_cache.stats_ttl_seconds", 30)
-	v.SetDefault("usage.dashboard_cache.stats_refresh_timeout_seconds", 30)
+	cfg.Usage.DashboardCache.Enabled = true
+	cfg.Usage.DashboardCache.KeyPrefix = "tokenrouter:"
+	cfg.Usage.DashboardCache.StatsFreshTTLSeconds = 15
+	cfg.Usage.DashboardCache.StatsTTLSeconds = 30
+	cfg.Usage.DashboardCache.StatsRefreshTimeoutSeconds = 30
 
 	// Dashboard aggregation
-	v.SetDefault("usage.aggregation.enabled", true)
-	v.SetDefault("usage.aggregation.interval_seconds", 60)
-	v.SetDefault("usage.aggregation.lookback_seconds", 120)
-	v.SetDefault("usage.aggregation.backfill_enabled", false)
-	v.SetDefault("usage.aggregation.backfill_max_days", 31)
-	v.SetDefault("usage.retention.logs_days", 90)
-	v.SetDefault("usage.retention.billing_dedup_days", 365)
-	v.SetDefault("usage.aggregation.hourly_retention_days", 180)
-	v.SetDefault("usage.aggregation.daily_retention_days", 730)
-	v.SetDefault("usage.aggregation.recompute_days", 2)
+	cfg.Usage.Aggregation.Enabled = true
+	cfg.Usage.Aggregation.IntervalSeconds = 60
+	cfg.Usage.Aggregation.LookbackSeconds = 120
+	cfg.Usage.Aggregation.BackfillEnabled = false
+	cfg.Usage.Aggregation.BackfillMaxDays = 31
+	cfg.Usage.Retention.LogsDays = 90
+	cfg.Usage.Retention.BillingDedupDays = 365
+	cfg.Usage.Aggregation.HourlyRetentionDays = 180
+	cfg.Usage.Aggregation.DailyRetentionDays = 730
+	cfg.Usage.Aggregation.RecomputeDays = 2
 
 	// Usage cleanup task
-	v.SetDefault("usage.cleanup_tasks.enabled", true)
-	v.SetDefault("usage.cleanup_tasks.max_range_days", 31)
-	v.SetDefault("usage.cleanup_tasks.batch_size", 5000)
-	v.SetDefault("usage.cleanup_tasks.worker_interval_seconds", 10)
-	v.SetDefault("usage.cleanup_tasks.task_timeout_seconds", 1800)
+	cfg.Usage.CleanupTasks.Enabled = true
+	cfg.Usage.CleanupTasks.MaxRangeDays = 31
+	cfg.Usage.CleanupTasks.BatchSize = 5000
+	cfg.Usage.CleanupTasks.WorkerIntervalSeconds = 10
+	cfg.Usage.CleanupTasks.TaskTimeoutSeconds = 1800
 
 	// Usage export task
-	v.SetDefault("usage.export_tasks.enabled", true)
-	v.SetDefault("usage.export_tasks.dir", "")
-	v.SetDefault("usage.export_tasks.retention_hours", 24)
-	v.SetDefault("usage.export_tasks.max_active_per_user", 2)
-	v.SetDefault("usage.export_tasks.max_active_per_admin", 5)
-	v.SetDefault("usage.export_tasks.batch_size", 2000)
-	v.SetDefault("usage.export_tasks.worker_concurrency", 2)
-	v.SetDefault("usage.export_tasks.worker_interval_seconds", 10)
-	v.SetDefault("usage.export_tasks.task_timeout_seconds", 3600)
+	cfg.Usage.ExportTasks.Enabled = true
+	cfg.Usage.ExportTasks.Dir = ""
+	cfg.Usage.ExportTasks.RetentionHours = 24
+	cfg.Usage.ExportTasks.MaxActivePerUser = 2
+	cfg.Usage.ExportTasks.MaxActivePerAdmin = 5
+	cfg.Usage.ExportTasks.BatchSize = 2000
+	cfg.Usage.ExportTasks.WorkerConcurrency = 2
+	cfg.Usage.ExportTasks.WorkerIntervalSeconds = 10
+	cfg.Usage.ExportTasks.TaskTimeoutSeconds = 3600
 
 	// Idempotency
-	v.SetDefault("idempotency.observe_only", true)
-	v.SetDefault("idempotency.default_ttl_seconds", 86400)
-	v.SetDefault("idempotency.system_operation_ttl_seconds", 3600)
-	v.SetDefault("idempotency.processing_timeout_seconds", 30)
-	v.SetDefault("idempotency.failed_retry_backoff_seconds", 5)
-	v.SetDefault("idempotency.max_stored_response_bytes", 64*1024)
-	v.SetDefault("idempotency.cleanup_interval_seconds", 60)
-	v.SetDefault("idempotency.cleanup_batch_size", 500)
+	cfg.Idempotency.ObserveOnly = true
+	cfg.Idempotency.DefaultTTLSeconds = 86400
+	cfg.Idempotency.SystemOperationTTLSeconds = 3600
+	cfg.Idempotency.ProcessingTimeoutSeconds = 30
+	cfg.Idempotency.FailedRetryBackoffSeconds = 5
+	cfg.Idempotency.MaxStoredResponseBytes = 64 * 1024
+	cfg.Idempotency.CleanupIntervalSeconds = 60
+	cfg.Idempotency.CleanupBatchSize = 500
 
 	// Gateway
-	v.SetDefault("gateway.transport.response_header_timeout_seconds", 600) // Allow ten minutes for upstream LLM queueing before response headers.
-	v.SetDefault("gateway.openai.response_header_timeout_seconds", 0)
-	v.SetDefault("gateway.openai.compact_model", "")
-	v.SetDefault("gateway.grok.response_header_timeout_seconds", 120)
-	v.SetDefault("gateway.openai.first_output_timeout_seconds", 0)
-	v.SetDefault("gateway.openai.high_effort_first_output_timeout_seconds", 0)
-	v.SetDefault("gateway.upstream_error_body_log.enabled", true)
-	v.SetDefault("gateway.upstream_error_body_log.max_bytes", 2048)
-	v.SetDefault("gateway.anthropic.inject_beta_for_api_key", false)
-	v.SetDefault("gateway.failover.messages_on_400", false)
-	v.SetDefault("gateway.failover.max_provider_switches", 10)
-	v.SetDefault("gateway.failover.max_provider_switches_gemini", 3)
-	v.SetDefault("gateway.openai.codex.force_cli", false)
-	v.SetDefault("gateway.openai.codex.image_generation_bridge_enabled", false)
-	v.SetDefault("gateway.openai.passthrough_allow_timeout_headers", false)
-	v.SetDefault("gateway.openai.live.max_session_duration_seconds", 3600)
+	cfg.Gateway.Transport.ResponseHeaderTimeoutSeconds = 600 // Allow ten minutes for upstream LLM queueing before response headers.
+	cfg.Gateway.OpenAI.ResponseHeaderTimeoutSeconds = 0
+	cfg.Gateway.OpenAI.CompactModel = ""
+	cfg.Gateway.Grok.ResponseHeaderTimeoutSeconds = 120
+	cfg.Gateway.OpenAI.FirstOutputTimeoutSeconds = 0
+	cfg.Gateway.OpenAI.HighEffortFirstOutputTimeoutSeconds = 0
+	cfg.Gateway.UpstreamErrorBodyLog.Enabled = true
+	cfg.Gateway.UpstreamErrorBodyLog.MaxBytes = 2048
+	cfg.Gateway.Anthropic.InjectBetaForAPIKey = false
+	cfg.Gateway.Failover.MessagesOn400 = false
+	cfg.Gateway.Failover.MaxProviderSwitches = 10
+	cfg.Gateway.Failover.MaxProviderSwitchesGemini = 3
+	cfg.Gateway.OpenAI.Codex.ForceCLI = false
+	cfg.Gateway.OpenAI.Codex.ImageGenerationBridgeEnabled = false
+	cfg.Gateway.OpenAI.PassthroughAllowTimeoutHeaders = false
+	cfg.Gateway.OpenAI.Live.MaxSessionDurationSeconds = 3600
 	// OpenAI Responses WebSocket defaults.
-	v.SetDefault("gateway.openai.responses_ws.client_first_message_timeout_seconds", DefaultOpenAIWSClientFirstMessageTimeoutSeconds)
-	v.SetDefault("gateway.openai.responses_ws.ingress_inter_turn_idle_timeout_seconds", 300)
-	v.SetDefault("gateway.openai.responses_ws.max_ingress_connections_per_api_key", 64)
-	v.SetDefault("gateway.openai.responses_ws.ingress_previous_response_recovery_enabled", true)
-	v.SetDefault("gateway.openai.responses_ws.client_read_limit_bytes", 64*1024*1024)
-	v.SetDefault("gateway.openai.responses_ws.http_bridge_threshold_bytes", 15*1024*1024)
-	v.SetDefault("gateway.openai.responses_ws.max_conns_per_provider", 128)
-	v.SetDefault("gateway.openai.responses_ws.min_idle_per_provider", 4)
-	v.SetDefault("gateway.openai.responses_ws.max_idle_per_provider", 12)
-	v.SetDefault("gateway.openai.responses_ws.dynamic_max_conns_by_provider_concurrency_enabled", true)
-	v.SetDefault("gateway.openai.responses_ws.oauth_max_conns_factor", 1.0)
-	v.SetDefault("gateway.openai.responses_ws.api_key_max_conns_factor", 1.0)
-	v.SetDefault("gateway.openai.responses_ws.dial_timeout_seconds", 10)
-	v.SetDefault("gateway.openai.responses_ws.read_timeout_seconds", 900)
-	v.SetDefault("gateway.openai.responses_ws.write_timeout_seconds", 120)
-	v.SetDefault("gateway.openai.responses_ws.pool_target_utilization", 0.7)
-	v.SetDefault("gateway.openai.responses_ws.queue_limit_per_conn", 64)
-	v.SetDefault("gateway.openai.responses_ws.prewarm_cooldown_ms", 300)
-	v.SetDefault("scheduling.advanced.lb_top_k", 7)
-	v.SetDefault("scheduling.advanced.ewma_error_rate_alpha", 0.2)
-	v.SetDefault("scheduling.advanced.ewma_ttft_alpha", 0.2)
-	v.SetDefault("scheduling.session_affinity.ttl_seconds", 3600)
-	v.SetDefault("scheduling.session_affinity.read_legacy_hash", true)
-	v.SetDefault("scheduling.session_affinity.dual_write_legacy_hash", true)
-	v.SetDefault("scheduling.session_affinity.response_id_ttl_seconds", 3600)
-	v.SetDefault("scheduling.advanced.score_weights.priority", 1.0)
-	v.SetDefault("scheduling.advanced.score_weights.load", 1.0)
-	v.SetDefault("scheduling.advanced.score_weights.queue", 0.7)
-	v.SetDefault("scheduling.advanced.score_weights.error_rate", 0.8)
-	v.SetDefault("scheduling.advanced.score_weights.ttft", 0.5)
-	v.SetDefault("scheduling.advanced.score_weights.reset", 0.0)
-	v.SetDefault("scheduling.advanced.score_weights.quota_headroom", 0.0)
-	v.SetDefault("scheduling.advanced.score_weights.previous_response", 5.0)
-	v.SetDefault("scheduling.advanced.score_weights.session_sticky", 3.0)
+	cfg.Gateway.OpenAI.ResponsesWS.ClientFirstMessageTimeoutSeconds = DefaultOpenAIWSClientFirstMessageTimeoutSeconds
+	cfg.Gateway.OpenAI.ResponsesWS.IngressInterTurnIdleTimeoutSeconds = 300
+	cfg.Gateway.OpenAI.ResponsesWS.MaxIngressConnectionsPerAPIKey = 64
+	cfg.Gateway.OpenAI.ResponsesWS.IngressPreviousResponseRecoveryEnabled = true
+	cfg.Gateway.OpenAI.ResponsesWS.ClientReadLimitBytes = 64 * 1024 * 1024
+	cfg.Gateway.OpenAI.ResponsesWS.HTTPBridgeThresholdBytes = 15 * 1024 * 1024
+	cfg.Gateway.OpenAI.ResponsesWS.MaxConnsPerProvider = 128
+	cfg.Gateway.OpenAI.ResponsesWS.MinIdlePerProvider = 4
+	cfg.Gateway.OpenAI.ResponsesWS.MaxIdlePerProvider = 12
+	cfg.Gateway.OpenAI.ResponsesWS.DynamicMaxConnsByProviderConcurrencyEnabled = true
+	cfg.Gateway.OpenAI.ResponsesWS.OAuthMaxConnsFactor = 1.0
+	cfg.Gateway.OpenAI.ResponsesWS.APIKeyMaxConnsFactor = 1.0
+	cfg.Gateway.OpenAI.ResponsesWS.DialTimeoutSeconds = 10
+	cfg.Gateway.OpenAI.ResponsesWS.ReadTimeoutSeconds = 900
+	cfg.Gateway.OpenAI.ResponsesWS.WriteTimeoutSeconds = 120
+	cfg.Gateway.OpenAI.ResponsesWS.PoolTargetUtilization = 0.7
+	cfg.Gateway.OpenAI.ResponsesWS.QueueLimitPerConn = 64
+	cfg.Gateway.OpenAI.ResponsesWS.PrewarmCooldownMS = 300
+	cfg.Scheduling.Advanced.LBTopK = 7
+	cfg.Scheduling.Advanced.EWMAErrorRateAlpha = 0.2
+	cfg.Scheduling.Advanced.EWMATTFTAlpha = 0.2
+	cfg.Scheduling.SessionAffinity.TTLSeconds = 3600
+	cfg.Scheduling.SessionAffinity.ReadLegacyHash = true
+	cfg.Scheduling.SessionAffinity.DualWriteLegacyHash = true
+	cfg.Scheduling.SessionAffinity.ResponseIDTTLSeconds = 3600
+	cfg.Scheduling.Advanced.ScoreWeights.Priority = 1.0
+	cfg.Scheduling.Advanced.ScoreWeights.Load = 1.0
+	cfg.Scheduling.Advanced.ScoreWeights.Queue = 0.7
+	cfg.Scheduling.Advanced.ScoreWeights.ErrorRate = 0.8
+	cfg.Scheduling.Advanced.ScoreWeights.TTFT = 0.5
+	cfg.Scheduling.Advanced.ScoreWeights.Reset = 0.0
+	cfg.Scheduling.Advanced.ScoreWeights.QuotaHeadroom = 0.0
+	cfg.Scheduling.Advanced.ScoreWeights.PreviousResponse = 5.0
+	cfg.Scheduling.Advanced.ScoreWeights.SessionSticky = 3.0
 	// OpenAI upstream HTTP version policy.
-	v.SetDefault("gateway.openai.http2.enabled", true)
-	v.SetDefault("gateway.openai.http2.allow_proxy_fallback_to_http1", true)
-	v.SetDefault("gateway.openai.http2.fallback_error_threshold", 2)
-	v.SetDefault("gateway.openai.http2.fallback_window_seconds", 60)
-	v.SetDefault("gateway.openai.http2.fallback_ttl_seconds", 600)
-	v.SetDefault("gateway.openai.proxy_stream_circuit.failure_threshold", 2)
-	v.SetDefault("gateway.openai.proxy_stream_circuit.window_seconds", 60)
-	v.SetDefault("gateway.openai.proxy_stream_circuit.ttl_seconds", 600)
+	cfg.Gateway.OpenAI.HTTP2.Enabled = true
+	cfg.Gateway.OpenAI.HTTP2.AllowProxyFallbackToHTTP1 = true
+	cfg.Gateway.OpenAI.HTTP2.FallbackErrorThreshold = 2
+	cfg.Gateway.OpenAI.HTTP2.FallbackWindowSeconds = 60
+	cfg.Gateway.OpenAI.HTTP2.FallbackTTLSeconds = 600
+	cfg.Gateway.OpenAI.ProxyStreamCircuit.FailureThreshold = 2
+	cfg.Gateway.OpenAI.ProxyStreamCircuit.WindowSeconds = 60
+	cfg.Gateway.OpenAI.ProxyStreamCircuit.TTLSeconds = 600
 	// The Grok quota gate applies to scheduling; admin QueryQuota bypasses it.
 	// Only providers marked free are gated, so unknown and paid tiers are unaffected.
-	v.SetDefault("scheduling.grok_free_quota.enabled", true)
-	v.SetDefault("provider.grok.password_auth_enabled", false)
+	cfg.Scheduling.GrokFreeQuota.Enabled = true
+	cfg.Provider.Grok.PasswordAuthEnabled = false
 	// Default nominal allowance: 500,000 tokens in a rolling 24-hour window.
-	v.SetDefault("scheduling.grok_free_quota.token_limit", int64(500_000))
-	v.SetDefault("scheduling.grok_free_quota.threshold_percent", 95)
-	v.SetDefault("scheduling.grok_free_quota.window_hours", 24)
-	v.SetDefault("scheduling.grok_free_quota.stats_cache_seconds", 60)
+	cfg.Scheduling.GrokFreeQuota.TokenLimit = 500_000
+	cfg.Scheduling.GrokFreeQuota.ThresholdPercent = 95
+	cfg.Scheduling.GrokFreeQuota.WindowHours = 24
+	cfg.Scheduling.GrokFreeQuota.StatsCacheSeconds = 60
 	// Supplier monitoring is disabled by default; manual admin queries remain available.
-	v.SetDefault("provider.usage_monitor.enabled", false)
-	v.SetDefault("provider.usage_monitor.pause_below_balance", 0.5)
-	v.SetDefault("provider.usage_monitor.interval_minutes", 10)
-	v.SetDefault("provider.usage_monitor.concurrency", 4)
-	v.SetDefault("provider.usage_monitor.probe_timeout_seconds", 20)
-	v.SetDefault("provider.usage_monitor.round_timeout_seconds", 300)
-	v.SetDefault("gateway.images.concurrency.enabled", false)
-	v.SetDefault("gateway.images.concurrency.max_concurrent_requests", 0)
-	v.SetDefault("gateway.images.concurrency.overflow_mode", ImageConcurrencyOverflowModeReject)
-	v.SetDefault("gateway.images.concurrency.wait_timeout_seconds", 30)
-	v.SetDefault("gateway.images.concurrency.max_waiting_requests", 100)
-	v.SetDefault("gateway.max_request_body_bytes", int64(256*1024*1024))
-	v.SetDefault("gateway.text_max_request_body_bytes", int64(32*1024*1024))
-	v.SetDefault("gateway.upstream_response_max_bytes", DefaultUpstreamResponseReadMaxBytes)
-	v.SetDefault("gateway.models_list_response_max_bytes", DefaultModelsListReadMaxBytes)
-	v.SetDefault("egress.proxy_probe.response_max_bytes", int64(1024*1024))
-	v.SetDefault("gateway.gemini.debug_response_headers", false)
-	v.SetDefault("gateway.transport.connection_pool_isolation", ConnectionPoolIsolationProviderProxy)
+	cfg.Provider.UsageMonitor.Enabled = false
+	cfg.Provider.UsageMonitor.PauseBelowBalance = 0.5
+	cfg.Provider.UsageMonitor.IntervalMinutes = 10
+	cfg.Provider.UsageMonitor.Concurrency = 4
+	cfg.Provider.UsageMonitor.ProbeTimeoutSeconds = 20
+	cfg.Provider.UsageMonitor.RoundTimeoutSeconds = 300
+	cfg.Gateway.Images.Concurrency.Enabled = false
+	cfg.Gateway.Images.Concurrency.MaxConcurrentRequests = 0
+	cfg.Gateway.Images.Concurrency.OverflowMode = ImageConcurrencyOverflowModeReject
+	cfg.Gateway.Images.Concurrency.WaitTimeoutSeconds = 30
+	cfg.Gateway.Images.Concurrency.MaxWaitingRequests = 100
+	cfg.Gateway.MaxRequestBodyBytes = 256 * 1024 * 1024
+	cfg.Gateway.TextMaxRequestBodyBytes = 32 * 1024 * 1024
+	cfg.Gateway.UpstreamResponseMaxBytes = DefaultUpstreamResponseReadMaxBytes
+	cfg.Gateway.ModelsListResponseMaxBytes = DefaultModelsListReadMaxBytes
+	cfg.Egress.ProxyProbe.ResponseMaxBytes = 1024 * 1024
+	cfg.Gateway.Gemini.DebugResponseHeaders = false
+	cfg.Gateway.Transport.ConnectionPoolIsolation = ConnectionPoolIsolationProviderProxy
 	// Upstream HTTP connection-pool defaults.
-	v.SetDefault("gateway.transport.max_idle_conns", 2560)          // Total idle connection limit.
-	v.SetDefault("gateway.transport.max_idle_conns_per_host", 120)  // Idle connection limit per host.
-	v.SetDefault("gateway.transport.max_conns_per_host", 1024)      // Active and idle connection limit per host.
-	v.SetDefault("gateway.transport.idle_conn_timeout_seconds", 90) // Idle timeout, in seconds.
-	v.SetDefault("gateway.transport.client_cache.max_clients", 5000)
-	v.SetDefault("gateway.transport.client_cache.idle_ttl_seconds", 900)
-	v.SetDefault("scheduling.concurrency_slot_ttl_minutes", 30) // Slot lifetime accommodates long requests.
-	v.SetDefault("gateway.streaming.data_idle_timeout_seconds", 180)
-	v.SetDefault("gateway.streaming.keepalive_interval_seconds", 10)
-	v.SetDefault("gateway.images.stream_data_idle_timeout_seconds", 900)
-	v.SetDefault("gateway.images.stream_keepalive_interval_seconds", 10)
-	v.SetDefault("gateway.images.nonstream_keepalive_interval_seconds", 0)
-	v.SetDefault("gateway.max_sse_line_bytes", 500*1024*1024)
-	v.SetDefault("scheduling.sticky_provider_wait.max_waiting", 3)
-	v.SetDefault("scheduling.sticky_provider_wait.timeout_seconds", 120)
-	v.SetDefault("scheduling.alternate_provider_wait.timeout_seconds", 30)
-	v.SetDefault("scheduling.alternate_provider_wait.max_waiting", 100)
-	v.SetDefault("scheduling.alternate_selection_mode", "last_used")
-	v.SetDefault("scheduling.prefer_soonest_reset", false)
-	v.SetDefault("scheduling.load_batch.enabled", true)
-	v.SetDefault("scheduling.load_batch.cache_ttl_ms", 200)
-	v.SetDefault("scheduling.snapshot.mget_chunk_size", 128)
-	v.SetDefault("scheduling.snapshot.write_chunk_size", 256)
-	v.SetDefault("scheduling.slot_cleanup_interval_seconds", 30)
-	v.SetDefault("scheduling.snapshot.db_fallback_enabled", true)
-	v.SetDefault("scheduling.snapshot.db_fallback_timeout_seconds", 0)
-	v.SetDefault("scheduling.snapshot.db_fallback_max_qps", 0)
-	v.SetDefault("scheduling.snapshot.outbox_poll_interval_seconds", 1)
-	v.SetDefault("scheduling.snapshot.outbox_lag_warn_seconds", 5)
-	v.SetDefault("scheduling.snapshot.outbox_lag_rebuild_seconds", 10)
-	v.SetDefault("scheduling.snapshot.outbox_lag_rebuild_failures", 3)
-	v.SetDefault("scheduling.snapshot.outbox_backlog_rebuild_rows", 10000)
-	v.SetDefault("scheduling.snapshot.full_rebuild_interval_seconds", 300)
-	v.SetDefault("usage.record_queue.worker_count", 128)
-	v.SetDefault("usage.record_queue.queue_size", 16384)
-	v.SetDefault("usage.record_queue.task_timeout_seconds", 5)
+	cfg.Gateway.Transport.MaxIdleConns = 2560         // Total idle connection limit.
+	cfg.Gateway.Transport.MaxIdleConnsPerHost = 120   // Idle connection limit per host.
+	cfg.Gateway.Transport.MaxConnsPerHost = 1024      // Active and idle connection limit per host.
+	cfg.Gateway.Transport.IdleConnTimeoutSeconds = 90 // Idle timeout, in seconds.
+	cfg.Gateway.Transport.ClientCache.MaxClients = 5000
+	cfg.Gateway.Transport.ClientCache.IdleTTLSeconds = 900
+	cfg.Scheduling.ConcurrencySlotTTLMinutes = 30 // Slot lifetime accommodates long requests.
+	cfg.Gateway.Streaming.DataIdleTimeoutSeconds = 180
+	cfg.Gateway.Streaming.KeepaliveIntervalSeconds = 10
+	cfg.Gateway.Images.StreamDataIdleTimeoutSeconds = 900
+	cfg.Gateway.Images.StreamKeepaliveIntervalSeconds = 10
+	cfg.Gateway.Images.NonstreamKeepaliveIntervalSeconds = 0
+	cfg.Gateway.MaxSSELineBytes = 500 * 1024 * 1024
+	cfg.Scheduling.StickyProviderWait.MaxWaiting = 3
+	cfg.Scheduling.StickyProviderWait.TimeoutSeconds = 120
+	cfg.Scheduling.AlternateProviderWait.TimeoutSeconds = 30
+	cfg.Scheduling.AlternateProviderWait.MaxWaiting = 100
+	cfg.Scheduling.AlternateSelectionMode = "last_used"
+	cfg.Scheduling.PreferSoonestReset = false
+	cfg.Scheduling.LoadBatch.Enabled = true
+	cfg.Scheduling.LoadBatch.CacheTTLMS = 200
+	cfg.Scheduling.Snapshot.MGetChunkSize = 128
+	cfg.Scheduling.Snapshot.WriteChunkSize = 256
+	cfg.Scheduling.SlotCleanupIntervalSeconds = 30
+	cfg.Scheduling.Snapshot.DbFallbackEnabled = true
+	cfg.Scheduling.Snapshot.DbFallbackTimeoutSeconds = 0
+	cfg.Scheduling.Snapshot.DbFallbackMaxQPS = 0
+	cfg.Scheduling.Snapshot.OutboxPollIntervalSeconds = 1
+	cfg.Scheduling.Snapshot.OutboxLagWarnSeconds = 5
+	cfg.Scheduling.Snapshot.OutboxLagRebuildSeconds = 10
+	cfg.Scheduling.Snapshot.OutboxLagRebuildFailures = 3
+	cfg.Scheduling.Snapshot.OutboxBacklogRebuildRows = 10000
+	cfg.Scheduling.Snapshot.FullRebuildIntervalSeconds = 300
+	cfg.Usage.RecordQueue.WorkerCount = 128
+	cfg.Usage.RecordQueue.QueueSize = 16384
+	cfg.Usage.RecordQueue.TaskTimeoutSeconds = 5
 	// The default sync policy runs overflow tasks inline after the response is written.
 	// sample and drop can discard billing tasks, creating charge and usage_logs
 	// reconciliation gaps (issue #3656).
 	// Use those policies only when the deployment accepts that loss.
-	v.SetDefault("usage.record_queue.overflow_policy", UsageRecordOverflowPolicySync)
-	v.SetDefault("usage.record_queue.overflow_sample_percent", 10)
-	v.SetDefault("usage.record_queue.auto_scale_enabled", true)
-	v.SetDefault("usage.record_queue.auto_scale_min_workers", 128)
-	v.SetDefault("usage.record_queue.auto_scale_max_workers", 512)
-	v.SetDefault("usage.record_queue.auto_scale_up_queue_percent", 70)
-	v.SetDefault("usage.record_queue.auto_scale_down_queue_percent", 15)
-	v.SetDefault("usage.record_queue.auto_scale_up_step", 32)
-	v.SetDefault("usage.record_queue.auto_scale_down_step", 16)
-	v.SetDefault("usage.record_queue.auto_scale_check_interval_seconds", 3)
-	v.SetDefault("usage.record_queue.auto_scale_cooldown_seconds", 10)
-	v.SetDefault("billing.group_rate_cache_ttl_seconds", 30)
+	cfg.Usage.RecordQueue.OverflowPolicy = UsageRecordOverflowPolicySync
+	cfg.Usage.RecordQueue.OverflowSamplePercent = 10
+	cfg.Usage.RecordQueue.AutoScaleEnabled = true
+	cfg.Usage.RecordQueue.AutoScaleMinWorkers = 128
+	cfg.Usage.RecordQueue.AutoScaleMaxWorkers = 512
+	cfg.Usage.RecordQueue.AutoScaleUpQueuePercent = 70
+	cfg.Usage.RecordQueue.AutoScaleDownQueuePercent = 15
+	cfg.Usage.RecordQueue.AutoScaleUpStep = 32
+	cfg.Usage.RecordQueue.AutoScaleDownStep = 16
+	cfg.Usage.RecordQueue.AutoScaleCheckIntervalSeconds = 3
+	cfg.Usage.RecordQueue.AutoScaleCooldownSeconds = 10
+	cfg.Billing.GroupRateCacheTTLSeconds = 30
 	// User-message queue defaults.
-	v.SetDefault("gateway.anthropic.user_message_queue.lock_ttl_ms", 120000)
-	v.SetDefault("gateway.anthropic.user_message_queue.wait_timeout_ms", 30000)
-	v.SetDefault("gateway.anthropic.user_message_queue.min_delay_ms", 200)
-	v.SetDefault("gateway.anthropic.user_message_queue.max_delay_ms", 2000)
-	v.SetDefault("gateway.anthropic.user_message_queue.cleanup_interval_seconds", 60)
+	cfg.Gateway.Anthropic.UserMessageQueue.LockTTLMs = 120000
+	cfg.Gateway.Anthropic.UserMessageQueue.WaitTimeoutMs = 30000
+	cfg.Gateway.Anthropic.UserMessageQueue.MinDelayMs = 200
+	cfg.Gateway.Anthropic.UserMessageQueue.MaxDelayMs = 2000
+	cfg.Gateway.Anthropic.UserMessageQueue.CleanupIntervalSeconds = 60
 
 	// Enable TLS fingerprint support by default.
-	v.SetDefault("gateway.streaming.wait_ping_interval_seconds", 10)
+	cfg.Gateway.Streaming.WaitPingIntervalSeconds = 10
 
 	// TokenRefresh
-	v.SetDefault("provider.token_refresh.enabled", true)
-	v.SetDefault("provider.token_refresh.check_interval_minutes", 5)        // Check every five minutes.
-	v.SetDefault("provider.token_refresh.refresh_before_expiry_hours", 0.5) // Half-hour proactive refresh window.
-	v.SetDefault("provider.token_refresh.max_attempts", 3)                  // Three total exchange attempts, including the first.
-	v.SetDefault("provider.token_refresh.retry_backoff_seconds", 2)         // Two-second base backoff.
-	v.SetDefault("provider.token_refresh.candidate_page_size", 200)
-	v.SetDefault("provider.token_refresh.platform_concurrency", 4)
-	v.SetDefault("provider.token_refresh.platform_qps", 2)
-	v.SetDefault("provider.token_refresh.platform_failure_threshold", 3)
-	v.SetDefault("provider.token_refresh.attempt_timeout_seconds", 15)
-	v.SetDefault("provider.token_refresh.cycle_timeout_seconds", 240)
+	cfg.Provider.TokenRefresh.Enabled = true
+	cfg.Provider.TokenRefresh.CheckIntervalMinutes = 5       // Check every five minutes.
+	cfg.Provider.TokenRefresh.RefreshBeforeExpiryHours = 0.5 // Half-hour proactive refresh window.
+	cfg.Provider.TokenRefresh.MaxAttempts = 3                // Three total exchange attempts, including the first.
+	cfg.Provider.TokenRefresh.RetryBackoffSeconds = 2        // Two-second base backoff.
+	cfg.Provider.TokenRefresh.CandidatePageSize = 200
+	cfg.Provider.TokenRefresh.PlatformConcurrency = 4
+	cfg.Provider.TokenRefresh.PlatformQPS = 2
+	cfg.Provider.TokenRefresh.PlatformFailureThreshold = 3
+	cfg.Provider.TokenRefresh.AttemptTimeoutSeconds = 15
+	cfg.Provider.TokenRefresh.CycleTimeoutSeconds = 240
 
 	// Gemini OAuth credential and scope inputs remain empty by default.
 	// Application construction passes them to the OAuth consumer, which selects
 	// its effective client configuration.
-	v.SetDefault("provider.gemini.oauth.client_id", "")
-	v.SetDefault("provider.gemini.oauth.client_secret", "")
-	v.SetDefault("provider.gemini.oauth.scopes", "")
-	v.SetDefault("provider.gemini.quota.policy", "")
+	cfg.Provider.Gemini.OAuth.ClientID = ""
+	cfg.Provider.Gemini.OAuth.ClientSecret = ""
+	cfg.Provider.Gemini.OAuth.Scopes = ""
+	cfg.Provider.Gemini.Quota.Policy = ""
 
-	v.SetDefault("gateway.openai.codex.forced_instructions_template_file", "")
-	v.SetDefault("scheduling.default_session_idle_timeout_minutes", 0)
-	v.SetDefault("gateway.anthropic.user_message_queue.default_mode", "")
-	v.SetDefault("outbound_proxy.url", "")
+	cfg.Gateway.OpenAI.Codex.ForcedInstructionsTemplateFile = ""
+	cfg.Scheduling.DefaultSessionIdleTimeoutMinutes = 0
+	cfg.Gateway.Anthropic.UserMessageQueue.DefaultMode = ""
+	cfg.OutboundProxy.URL = ""
 
 	// Register sticky-escape defaults as decode keys so supplied zero error rate
 	// stays meaningful and zero TTFT reaches validation. YAML and usable
 	// file values can replace these defaults.
-	v.SetDefault("scheduling.advanced.sticky_escape_enabled", true)
-	v.SetDefault("scheduling.advanced.sticky_escape_error_rate", 0.5)
-	v.SetDefault("scheduling.advanced.sticky_escape_ttft_ms", 15000)
+	cfg.Scheduling.Advanced.StickyEscapeEnabled = true
+	cfg.Scheduling.Advanced.StickyEscapeErrorRate = 0.5
+	cfg.Scheduling.Advanced.StickyEscapeTTFTMs = 15000
 
 	// Register OAuth client secrets and login defaults for sparse version 2 files.
 	// Explicit references resolve before this instance decodes the selected document.
-	for _, provider := range []string{"auth.oauth.github", "auth.oauth.google"} {
-		v.SetDefault(provider+".enabled", false)
-		v.SetDefault(provider+".client_id", "")
-		v.SetDefault(provider+".client_secret", "")
-		v.SetDefault(provider+".authorize_url", "")
-		v.SetDefault(provider+".token_url", "")
-		v.SetDefault(provider+".userinfo_url", "")
-		v.SetDefault(provider+".emails_url", "")
-		v.SetDefault(provider+".scopes", "")
-		v.SetDefault(provider+".redirect_url", "")
-		v.SetDefault(provider+".frontend_redirect_url", "")
-	}
+	cfg.Auth.OAuth.GitHub = EmailOAuthProviderConfig{}
+	cfg.Auth.OAuth.Google = EmailOAuthProviderConfig{}
 
-	v.SetDefault("auth.oauth.dingtalk.client_id", "")
-	v.SetDefault("auth.oauth.dingtalk.client_secret", "")
-	v.SetDefault("auth.oauth.dingtalk.internal_corp_id", "")
-	v.SetDefault("auth.oauth.dingtalk.redirect_url", "")
-	v.SetDefault("auth.oauth.dingtalk.bypass_registration", false)
-	v.SetDefault("auth.oauth.dingtalk.sync_display_name", false)
-	v.SetDefault("auth.oauth.dingtalk.sync_display_name_attr_key", "")
-	v.SetDefault("auth.oauth.dingtalk.sync_display_name_attr_name", "")
-	v.SetDefault("auth.oauth.dingtalk.sync_dept", false)
-	v.SetDefault("auth.oauth.dingtalk.sync_dept_attr_key", "")
-	v.SetDefault("auth.oauth.dingtalk.sync_dept_attr_name", "")
-	v.SetDefault("auth.oauth.dingtalk.sync_corp_email", false)
-	v.SetDefault("auth.oauth.dingtalk.sync_corp_email_attr_key", "")
-	v.SetDefault("auth.oauth.dingtalk.sync_corp_email_attr_name", "")
+	cfg.Auth.OAuth.DingTalk.ClientID = ""
+	cfg.Auth.OAuth.DingTalk.ClientSecret = ""
+	cfg.Auth.OAuth.DingTalk.InternalCorpID = ""
+	cfg.Auth.OAuth.DingTalk.RedirectURL = ""
+	cfg.Auth.OAuth.DingTalk.BypassRegistration = false
+	cfg.Auth.OAuth.DingTalk.SyncDisplayName = false
+	cfg.Auth.OAuth.DingTalk.SyncDisplayNameAttrKey = ""
+	cfg.Auth.OAuth.DingTalk.SyncDisplayNameAttrName = ""
+	cfg.Auth.OAuth.DingTalk.SyncDept = false
+	cfg.Auth.OAuth.DingTalk.SyncDeptAttrKey = ""
+	cfg.Auth.OAuth.DingTalk.SyncDeptAttrName = ""
+	cfg.Auth.OAuth.DingTalk.SyncCorpEmail = false
+	cfg.Auth.OAuth.DingTalk.SyncCorpEmailAttrKey = ""
+	cfg.Auth.OAuth.DingTalk.SyncCorpEmailAttrName = ""
+	return cfg
 }

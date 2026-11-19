@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/require"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 )
 
 // userGroupRateRepoHotpathStub holds one delayed lookup result for concurrent
@@ -65,7 +66,7 @@ func TestGetUserGroupRateMultiplier_UsesCacheAndSingleflight(t *testing.T) {
 		rate: &rate,
 		wait: unblock,
 	}
-	svc := NewGroupRateResolver(repo, gocache.New(time.Minute, time.Minute), 30*time.Second, nil, "service.gateway", nil)
+	svc := NewGroupRateResolver(repo, querycache.NewTTLMap[float64](time.Minute), 30*time.Second, nil, "service.gateway", nil)
 
 	const concurrent = 12
 	results := make([]float64, concurrent)
@@ -124,7 +125,7 @@ func TestGetUserGroupRateMultiplier_FallbackOnRepoError(t *testing.T) {
 	repo := &userGroupRateRepoHotpathStub{
 		err: errors.New("db down"),
 	}
-	svc := NewGroupRateResolver(repo, gocache.New(time.Minute, time.Minute), 30*time.Second, nil, "service.gateway", nil)
+	svc := NewGroupRateResolver(repo, querycache.NewTTLMap[float64](time.Minute), 30*time.Second, nil, "service.gateway", nil)
 
 	got := svc.Resolve(context.Background(), 101, 202, 1.25)
 	require.Equal(t, 1.25, got)
@@ -144,7 +145,7 @@ func TestGetUserGroupRateMultiplier_CacheHitAndNilRepo(t *testing.T) {
 	repo := &userGroupRateRepoHotpathStub{
 		err: errors.New("should not be called"),
 	}
-	svc := NewGroupRateResolver(repo, gocache.New(time.Minute, time.Minute), DefaultGroupRateCacheTTL, nil, "service.gateway", nil)
+	svc := NewGroupRateResolver(repo, querycache.NewTTLMap[float64](time.Minute), DefaultGroupRateCacheTTL, nil, "service.gateway", nil)
 	key := "101:202"
 	svc.cache.Set(key, 2.3, time.Minute)
 
@@ -159,7 +160,7 @@ func TestGetUserGroupRateMultiplier_CacheHitAndNilRepo(t *testing.T) {
 	require.Equal(t, int64(0), repo.calls.Load())
 
 	// A cached value remains usable without a repository; invalid IDs return the group default.
-	svc2 := NewGroupRateResolver(nil, gocache.New(time.Minute, time.Minute), DefaultGroupRateCacheTTL, nil, "service.gateway", nil)
+	svc2 := NewGroupRateResolver(nil, querycache.NewTTLMap[float64](time.Minute), DefaultGroupRateCacheTTL, nil, "service.gateway", nil)
 	svc2.cache.Set(key, 1.9, time.Minute)
 	require.Equal(t, 1.9, svc2.Resolve(context.Background(), 101, 202, 1.4))
 	require.Equal(t, 1.4, svc2.Resolve(context.Background(), 0, 202, 1.4))
@@ -192,10 +193,10 @@ func TestUserGroupRateResolverResolve_FallbackForNilResolverAndInvalidIDs(t *tes
 	require.Equal(t, 1.4, resolver.Resolve(context.Background(), 101, 0, 1.4))
 }
 
-// TestUserGroupRateResolverResolve_InvalidCacheEntryLoadsRepoAndCaches stores
-// a string at a multiplier cache key. It checks one repository load,
-// replacement with the numeric override and the resulting cache/load counters.
-func TestUserGroupRateResolverResolve_InvalidCacheEntryLoadsRepoAndCaches(t *testing.T) {
+// TestUserGroupRateResolverResolve_ExpiredCacheEntryLoadsRepoAndCaches stores
+// a short-lived multiplier entry and waits past its expiration deadline.
+// Resolving the expired key must reload the repository once, cache the fresh override, and update miss/load counters.
+func TestUserGroupRateResolverResolve_ExpiredCacheEntryLoadsRepoAndCaches(t *testing.T) {
 	// Reset the global counters before this synchronous case begins, so previous
 	// resolver activity cannot supply the expected hit/miss totals.
 	groupRateMetrics.Hit.Store(0)
@@ -206,8 +207,9 @@ func TestUserGroupRateResolverResolve_InvalidCacheEntryLoadsRepoAndCaches(t *tes
 
 	rate := 1.7
 	repo := &userGroupRateResolverRepoStub{rate: &rate}
-	cache := gocache.New(time.Minute, time.Minute)
-	cache.Set("101:202", "bad-cache", time.Minute)
+	cache := querycache.NewTTLMap[float64](time.Minute)
+	cache.Set("101:202", 0.5, 10*time.Millisecond)
+	time.Sleep(25 * time.Millisecond)
 	resolver := NewGroupRateResolver(repo, cache, time.Minute, nil, "service.test", nil)
 
 	got := resolver.Resolve(context.Background(), 101, 202, 1.2)

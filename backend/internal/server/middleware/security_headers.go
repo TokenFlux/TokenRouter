@@ -4,12 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"slices"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/server/httpconfig"
 )
 
@@ -228,7 +228,7 @@ func SecurityHeaders(cfg httpconfig.CSPConfig, getFrameSrcOrigins func() []strin
 			if err != nil {
 				// If the nonce helper returns an error, replace each placeholder with
 				// unsafe-inline because rendering has no request nonce to share with CSP.
-				log.Printf("[SecurityHeaders] %v; using CSP without a nonce", err)
+				logging.LegacyPrintf("middleware.security_headers", "[SecurityHeaders] %v; using CSP without a nonce", err)
 				c.Header("Content-Security-Policy", strings.ReplaceAll(finalPolicy, NonceTemplate, "'unsafe-inline'"))
 			} else {
 				// Publish the nonce before downstream frontend rendering. A

@@ -4,10 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync/atomic"
 	"time"
 
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 )
 
@@ -155,7 +155,7 @@ func NewNonStreamingProcessor() *NonStreamingProcessor {
 func (p *NonStreamingProcessor) Process(response *GeminiResponse, responseID, model string) *ClaudeResponse {
 	result := p.GeminiToAnthropicResponseProcessor.Process(response, responseID, model)
 	for _, message := range p.TakeDiagnostics() {
-		log.Printf("%s", message)
+		logger.LegacyPrintf("upstream.antigravity", "%s", message)
 	}
 	return result
 }

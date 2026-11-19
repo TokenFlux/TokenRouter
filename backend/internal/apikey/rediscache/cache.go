@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // cache.go stores authentication snapshots and creation counters in Redis
@@ -183,7 +183,7 @@ func (c *ApiKeyCache) SubscribeAuthCacheInvalidation(ctx context.Context, handle
 	// or channel failure before the service can join and close local cache storage.
 	defer func() {
 		if err := pubsub.Close(); err != nil {
-			log.Printf("Warning: failed to close auth cache invalidation pubsub: %v", err)
+			logging.LegacyPrintf("cache.apikey_auth", "Warning: failed to close auth cache invalidation pubsub: %v", err)
 		}
 	}()
 	keycore.NotifyAuthCacheSubscriptionReady(ctx)

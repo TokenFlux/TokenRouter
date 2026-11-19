@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/locale"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
@@ -144,7 +144,7 @@ func ErrorFrom(c *gin.Context, err error) bool {
 	// The response uses the mapped status, while diagnostics retain the original
 	// cause chain. Redact that text before logging request-associated server failures.
 	if statusCode >= 500 && c.Request != nil {
-		log.Printf("[ERROR] %s %s\n  Error: %s", c.Request.Method, c.Request.URL.Path, logredact.RedactText(err.Error()))
+		logger.LegacyPrintf("server.httpx", "[ERROR] %s %s\n  Error: %s", c.Request.Method, c.Request.URL.Path, logredact.RedactText(err.Error()))
 	}
 
 	ErrorWithDetails(c, statusCode, status.Message, status.Reason, status.Metadata)

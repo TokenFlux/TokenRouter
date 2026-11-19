@@ -12,7 +12,6 @@ import (
 	"github.com/imroc/req/v3"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
-	proxyurl "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/oauth"
@@ -329,25 +328,13 @@ func (s *OAuthClient) RefreshToken(ctx context.Context, refreshToken, proxyURL s
 	return &tokenResp, nil
 }
 
-// createReqClient builds an instrumented Chrome-impersonating req client with a
-// sixty-second timeout and no cookie jar. Proxy parsing errors return
-// immediately; a blank proxy uses the client's ordinary direct path.
+// createReqClient selects the shared Chrome-impersonating req client with a
+// sixty-second timeout and disabled cookie jar so authorization requests reuse
+// pooled connections without accumulating cookies across sessions.
 func createReqClient(proxyURL string) (*req.Client, error) {
-	// Disable the cookie jar on this client so authorization requests carry
-	// their supplied session cookie instead of accumulating cookies from earlier
-	// HTTP responses.
-	client := req.C().
-		SetTimeout(60 * time.Second).
-		ImpersonateChrome().
-		SetCookieJar(nil)
-
-	trimmed, _, err := proxyurl.Parse(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-	if trimmed != "" {
-		client.SetProxyURL(trimmed)
-	}
-
-	return httpclient.InstrumentReqClient(client), nil
+	return httpclient.GetSharedReqClient(httpclient.ReqClientOptions{
+		ProxyURL:    proxyURL,
+		Timeout:     60 * time.Second,
+		Impersonate: true,
+	})
 }

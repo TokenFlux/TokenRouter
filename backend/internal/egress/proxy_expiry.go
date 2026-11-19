@@ -3,9 +3,10 @@ package egress
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // proxy_expiry.go runs periodic proxy expiration sweeps and coordinates their
@@ -116,11 +117,11 @@ func (s *ProxyExpiryService) sweep(parent context.Context) {
 	// A failed scan leaves later ticker events available for another attempt.
 	// Log the repository result because sweep has no direct error-return caller.
 	if err != nil {
-		log.Printf("[ProxyExpiry] sweep expired proxies failed: %v", err)
+		logging.LegacyPrintf("service.proxy_expiry", "[ProxyExpiry] sweep expired proxies failed: %v", err)
 		return
 	}
 	if changed > 0 {
-		log.Printf("[ProxyExpiry] re-routed %d providers off expired proxies", changed)
+		logging.LegacyPrintf("service.proxy_expiry", "[ProxyExpiry] re-routed %d providers off expired proxies", changed)
 	}
 }
 

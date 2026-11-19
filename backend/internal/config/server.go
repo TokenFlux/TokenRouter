@@ -35,37 +35,37 @@ const (
 // ServerConfig holds listener, ingress, trusted-proxy, and optional collector
 // settings for server construction.
 type ServerConfig struct {
-	ClientIP            ServerClientIPConfig `mapstructure:"client_ip"`              // server client ip settings
-	EnableServerTiming  bool                 `mapstructure:"enable_server_timing"`   // Return Server-Timing for admin page requests.
-	H2C                 H2CConfig            `mapstructure:"h2c"`                    // server h2c settings
-	Host                string               `mapstructure:"host"`                   // listener host address text
-	IdleTimeoutSeconds  int                  `mapstructure:"idle_timeout_seconds"`   // Idle connection timeout, in seconds.
-	MaxHeaderBytes      int                  `mapstructure:"max_header_bytes"`       // Header size limit in bytes; maps to the HTTP/2 header-list limit.
-	MaxRequestBodyBytes int64                `mapstructure:"max_request_body_bytes"` // Global request-body size limit, in bytes.
+	ClientIP            ServerClientIPConfig `yaml:"client_ip"`              // server client ip settings
+	EnableServerTiming  bool                 `yaml:"enable_server_timing"`   // Return Server-Timing for admin page requests.
+	H2C                 H2CConfig            `yaml:"h2c"`                    // server h2c settings
+	Host                string               `yaml:"host"`                   // listener host address text
+	IdleTimeoutSeconds  int                  `yaml:"idle_timeout_seconds"`   // Idle connection timeout, in seconds.
+	MaxHeaderBytes      int                  `yaml:"max_header_bytes"`       // Header size limit in bytes; maps to the HTTP/2 header-list limit.
+	MaxRequestBodyBytes int64                `yaml:"max_request_body_bytes"` // Global request-body size limit, in bytes.
 	// Gin debug or release mode
-	Mode                     string `mapstructure:"mode"`
-	Port                     int    `mapstructure:"port"`                        // listener TCP port number
-	ReadHeaderTimeoutSeconds int    `mapstructure:"read_header_timeout_seconds"` // Request-header read timeout, in seconds.
+	Mode                     string `yaml:"mode"`
+	Port                     int    `yaml:"port"`                        // listener TCP port number
+	ReadHeaderTimeoutSeconds int    `yaml:"read_header_timeout_seconds"` // Request-header read timeout, in seconds.
 }
 
 // ServerClientIPConfig combines startup forwarding policy, explicit proxy presence, and live policy publication.
 type ServerClientIPConfig struct {
 	// startup client-address header names
-	ForwardedHeaders []string `mapstructure:"forwarded_headers" json:"forwarded_headers" yaml:"forwarded_headers"`
+	ForwardedHeaders []string `json:"forwarded_headers" yaml:"forwarded_headers"`
 	// TrustForwardedHeaders lets raw forwarding headers determine client IPs.
 	// When disabled, client IP consumers rely on server.client_ip.trusted_proxies.
-	TrustForwardedHeaders bool `mapstructure:"trust_forwarded_headers"`
+	TrustForwardedHeaders bool `yaml:"trust_forwarded_headers"`
 	// TrustedProxies is the ordered startup list of proxy IPs and CIDRs.
 	// TrustedProxiesConfigured distinguishes omission from supplied emptiness,
 	// while server/clientip interprets that presence when selecting address
 	// handling.
-	TrustedProxies []string `mapstructure:"trusted_proxies"`
+	TrustedProxies []string `yaml:"trusted_proxies"`
 	// TrustedProxiesConfigured records file presence independently of list length.
 	// An explicit empty list therefore remains a configured client-IP policy.
-	TrustedProxiesConfigured bool `mapstructure:"-" json:"-" yaml:"-"`
+	TrustedProxiesConfigured bool `json:"-" yaml:"-"`
 	// forwardedClientIPSettingsLive owns immutable copied policy snapshots. Initialize
 	// this cell before concurrent access; subsequent stores publish the entire pair.
-	forwardedClientIPSettingsLive *atomic.Pointer[ForwardedClientIPSettings] `mapstructure:"-" json:"-" yaml:"-"`
+	forwardedClientIPSettingsLive *atomic.Pointer[ForwardedClientIPSettings] `json:"-" yaml:"-"`
 }
 
 // ForwardedClientIPSettings pairs one live forwarding trust flag with its
@@ -82,12 +82,12 @@ type ForwardedClientIPSettings struct {
 // settings.
 type H2CConfig struct {
 	// HTTP/2 cleartext listener switch
-	Enabled                           bool   `mapstructure:"enabled"`
-	IdleTimeoutSeconds                int    `mapstructure:"idle_timeout_seconds"`                   // Idle timeout, in seconds.
-	MaxConcurrentStreams              uint32 `mapstructure:"max_concurrent_streams"`                 // Maximum concurrent streams.
-	MaxReadFrameBytes                 int    `mapstructure:"max_read_frame_bytes"`                   // Maximum frame size, in bytes.
-	MaxUploadBufferPerConnectionBytes int    `mapstructure:"max_upload_buffer_per_connection_bytes"` // Upload buffer per connection, in bytes.
-	MaxUploadBufferPerStreamBytes     int    `mapstructure:"max_upload_buffer_per_stream_bytes"`     // Upload buffer per stream, in bytes.
+	Enabled                           bool   `yaml:"enabled"`
+	IdleTimeoutSeconds                int    `yaml:"idle_timeout_seconds"`                   // Idle timeout, in seconds.
+	MaxConcurrentStreams              uint32 `yaml:"max_concurrent_streams"`                 // Maximum concurrent streams.
+	MaxReadFrameBytes                 int    `yaml:"max_read_frame_bytes"`                   // Maximum frame size, in bytes.
+	MaxUploadBufferPerConnectionBytes int    `yaml:"max_upload_buffer_per_connection_bytes"` // Upload buffer per connection, in bytes.
+	MaxUploadBufferPerStreamBytes     int    `yaml:"max_upload_buffer_per_stream_bytes"`     // Upload buffer per stream, in bytes.
 }
 
 // CORSConfig aliases the HTTP configuration values consumed by server CORS
@@ -101,135 +101,135 @@ type CSPConfig = httpconfig.CSPConfig
 // SecurityConfig supplies browser security, outbound URL admission, and persistent
 // credential encryption inputs used during application construction.
 type SecurityConfig struct {
-	CORS CORSConfig `mapstructure:"cors"` // browser cross-origin response settings
-	CSP  CSPConfig  `mapstructure:"csp"`  // security csp settings
+	CORS CORSConfig `yaml:"cors"` // browser cross-origin response settings
+	CSP  CSPConfig  `yaml:"csp"`  // security csp settings
 	// SecretEncryptionKey is the hex-encoded 32-byte AES-256 key used to encrypt TOTP secrets.
 	// Empty generates a random development key at startup.
-	SecretEncryptionKey string             `mapstructure:"secret_encryption_key"`
-	URLAllowlist        URLAllowlistConfig `mapstructure:"url_allowlist"` // security url allowlist settings
+	SecretEncryptionKey string             `yaml:"secret_encryption_key"`
+	URLAllowlist        URLAllowlistConfig `yaml:"url_allowlist"` // security url allowlist settings
 	// SecretEncryptionKeyConfigured distinguishes supplied encryption input from an
 	// ephemeral generated key, allowing administration to require stable credential storage.
-	SecretEncryptionKeyConfigured bool `mapstructure:"-" json:"-" yaml:"-"`
+	SecretEncryptionKeyConfigured bool `json:"-" yaml:"-"`
 }
 
 // URLAllowlistConfig supplies host patterns and private or HTTP admission
 // choices for URL checks.
 type URLAllowlistConfig struct {
 	// AllowInsecureHTTP permits HTTP in format-only operator URL checks when the
-	// allowlist is disabled. setDefaults enables this flag; enabled
+	// allowlist is disabled. defaultConfig enables this flag; enabled
 	// OperatorURLPolicy instead applies its HTTPS allowlist check.
-	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
+	AllowInsecureHTTP bool `yaml:"allow_insecure_http"`
 	// private target address admission switch
-	AllowPrivateHosts bool `mapstructure:"allow_private_hosts"`
+	AllowPrivateHosts bool `yaml:"allow_private_hosts"`
 	// permitted CRS hostname patterns
-	CrsSyncHosts []string `mapstructure:"crs_sync_hosts"`
-	Enabled      bool     `mapstructure:"enabled"` // outbound allowlist check switch
+	CrsSyncHosts []string `yaml:"crs_sync_hosts"`
+	Enabled      bool     `yaml:"enabled"` // outbound allowlist check switch
 	// permitted catalog hostname patterns
-	ModelCatalogHosts []string `mapstructure:"model_catalog_hosts"`
+	ModelCatalogHosts []string `yaml:"model_catalog_hosts"`
 	// permitted upstream hostname patterns
-	UpstreamHosts []string `mapstructure:"upstream_hosts"`
+	UpstreamHosts []string `yaml:"upstream_hosts"`
 }
 
 // SiteConfig supplies the public-site URL fallback used by application link builders.
 type SiteConfig struct {
-	FrontendURL string `mapstructure:"frontend_url"` // Default frontend address for email links and MCP OAuth.
+	FrontendURL string `yaml:"frontend_url"` // Default frontend address for email links and MCP OAuth.
 }
 
 // StorageConfig supplies the application data directory used by catalog and plugin fallbacks.
 type StorageConfig struct {
-	Dir string `mapstructure:"dir"` // Local data directory.
+	Dir string `yaml:"dir"` // Local data directory.
 }
 
 // LogConfig holds process logging thresholds, labels, sinks, rotation, and
 // sampling controls.
 type LogConfig struct {
-	Caller bool `mapstructure:"caller"` // caller location inclusion flag
+	Caller bool `yaml:"caller"` // caller location inclusion flag
 	// console or JSON encoding selection
-	Format   string            `mapstructure:"format"`
-	Level    string            `mapstructure:"level"`    // minimum process log severity
-	Output   LogOutputConfig   `mapstructure:"output"`   // log output settings
-	Rotation LogRotationConfig `mapstructure:"rotation"` // log rotation settings
-	Sampling LogSamplingConfig `mapstructure:"sampling"` // log sampling settings
+	Format   string            `yaml:"format"`
+	Level    string            `yaml:"level"`    // minimum process log severity
+	Output   LogOutputConfig   `yaml:"output"`   // log output settings
+	Rotation LogRotationConfig `yaml:"rotation"` // log rotation settings
+	Sampling LogSamplingConfig `yaml:"sampling"` // log sampling settings
 	// record service label text
-	ServiceName string `mapstructure:"service_name"`
+	ServiceName string `yaml:"service_name"`
 	// stacktrace inclusion severity text
-	StacktraceLevel string `mapstructure:"stacktrace_level"`
+	StacktraceLevel string `yaml:"stacktrace_level"`
 }
 
 // LogOutputConfig selects stdout and file sinks plus the optional file
 // destination.
 type LogOutputConfig struct {
-	ToStdout bool `mapstructure:"to_stdout"` // standard output sink switch
-	ToFile   bool `mapstructure:"to_file"`   // rotating file sink switch
+	ToStdout bool `yaml:"to_stdout"` // standard output sink switch
+	ToFile   bool `yaml:"to_file"`   // rotating file sink switch
 	// FilePath selects the rotating log destination. Empty text lets
 	// logging.buildFileCore resolve its default path before creating the parent
 	// directory and file writer.
-	FilePath string `mapstructure:"file_path"`
+	FilePath string `yaml:"file_path"`
 }
 
 // LogRotationConfig supplies lumberjack file rotation sizes, retention,
 // compression, and naming time.
 type LogRotationConfig struct {
-	MaxSizeMB  int  `mapstructure:"max_size_mb"`  // rotation size in MiB
-	MaxBackups int  `mapstructure:"max_backups"`  // retained rotated file count
-	MaxAgeDays int  `mapstructure:"max_age_days"` // rotated file retention days
-	Compress   bool `mapstructure:"compress"`     // rotated file compression switch
-	LocalTime  bool `mapstructure:"local_time"`   // local-time filename timestamp switch
+	MaxSizeMB  int  `yaml:"max_size_mb"`  // rotation size in MiB
+	MaxBackups int  `yaml:"max_backups"`  // retained rotated file count
+	MaxAgeDays int  `yaml:"max_age_days"` // rotated file retention days
+	Compress   bool `yaml:"compress"`     // rotated file compression switch
+	LocalTime  bool `yaml:"local_time"`   // local-time filename timestamp switch
 }
 
 // LogSamplingConfig supplies repeated-message admission counts to the
 // configured Zap sampler.
 type LogSamplingConfig struct {
-	Enabled bool `mapstructure:"enabled"` // repeated-message sampling switch
+	Enabled bool `yaml:"enabled"` // repeated-message sampling switch
 	// Initial and Thereafter configure repeated messages in the logging sampler's
 	// one-second tick. Initial admits the first messages and Thereafter selects
 	// the stride after that count; Enabled selects whether sampling runs.
-	Initial    int `mapstructure:"initial"`    // initial messages admitted per tick
-	Thereafter int `mapstructure:"thereafter"` // subsequent message sampling stride
+	Initial    int `yaml:"initial"`    // initial messages admitted per tick
+	Thereafter int `yaml:"thereafter"` // subsequent message sampling stride
 }
 
 // DebugConfig selects optional routing, request-body, and Claude identity diagnostics.
 type DebugConfig struct {
-	ClaudeMimicLog     bool   `mapstructure:"claude_mimic_log"`      // Write Claude mimic request diagnostics.
-	GatewayBodyLogFile string `mapstructure:"gateway_body_log_file"` // Gateway request body diagnostic file path.
-	ModelRoutingLog    bool   `mapstructure:"model_routing_log"`     // Write detailed model routing diagnostics.
+	ClaudeMimicLog     bool   `yaml:"claude_mimic_log"`      // Write Claude mimic request diagnostics.
+	GatewayBodyLogFile string `yaml:"gateway_body_log_file"` // Gateway request body diagnostic file path.
+	ModelRoutingLog    bool   `yaml:"model_routing_log"`     // Write detailed model routing diagnostics.
 }
 
 // UpdateConfig supplies GitHub authentication for the application release-check client.
 type UpdateConfig struct {
-	GitHubToken string `mapstructure:"github_token"` // GitHub release download authentication token.
+	GitHubToken string `yaml:"github_token"` // GitHub release download authentication token.
 }
 
 // EgressConfig groups proxy-exit probes and the optional TLS fingerprint collector listener.
 type EgressConfig struct {
-	ProxyProbe              EgressProxyProbeConfig        `mapstructure:"proxy_probe"`               // egress proxy probe settings
-	TLSFingerprintCollector TLSFingerprintCollectorConfig `mapstructure:"tls_fingerprint_collector"` // egress tls fingerprint collector settings
+	ProxyProbe              EgressProxyProbeConfig        `yaml:"proxy_probe"`               // egress proxy probe settings
+	TLSFingerprintCollector TLSFingerprintCollectorConfig `yaml:"tls_fingerprint_collector"` // egress tls fingerprint collector settings
 }
 
 // EgressProxyProbeConfig supplies startup configuration for its application consumers and validators.
 type EgressProxyProbeConfig struct {
 	// Proxy-probe response limit, in bytes.
-	ResponseMaxBytes int64 `mapstructure:"response_max_bytes"`
+	ResponseMaxBytes int64 `yaml:"response_max_bytes"`
 	// URLs lists probe endpoints in priority order; empty uses the built-in list.
-	URLs []ProbeURLConfig `mapstructure:"urls"`
+	URLs []ProbeURLConfig `yaml:"urls"`
 }
 
 // ProbeURLConfig describes a proxy-egress probe endpoint and its response parser.
 type ProbeURLConfig struct {
-	URL    string `mapstructure:"url"`    // proxy probe endpoint URL
-	Parser string `mapstructure:"parser"` // ip-api, ipify, or chatgpt-trace parser
+	URL    string `yaml:"url"`    // proxy probe endpoint URL
+	Parser string `yaml:"parser"` // ip-api, ipify, or chatgpt-trace parser
 }
 
 // TLSFingerprintCollectorConfig supplies listen settings and session limits for
 // fingerprint capture.
 type TLSFingerprintCollectorConfig struct {
-	Host                 string `mapstructure:"host"`                    // Collector listen address.
-	Port                 int    `mapstructure:"port"`                    // Collector listen port.
-	PublicBaseURL        string `mapstructure:"public_base_url"`         // Client-accessible collection URL prefix.
-	CertFile             string `mapstructure:"cert_file"`               // Optional server certificate path.
-	KeyFile              string `mapstructure:"key_file"`                // Optional server private-key path.
-	SessionTTLSeconds    int    `mapstructure:"session_ttl_seconds"`     // Collection session lifetime, in seconds.
-	MaxRecordsPerSession int    `mapstructure:"max_records_per_session"` // Maximum collection records retained per session.
+	Host                 string `yaml:"host"`                    // Collector listen address.
+	Port                 int    `yaml:"port"`                    // Collector listen port.
+	PublicBaseURL        string `yaml:"public_base_url"`         // Client-accessible collection URL prefix.
+	CertFile             string `yaml:"cert_file"`               // Optional server certificate path.
+	KeyFile              string `yaml:"key_file"`                // Optional server private-key path.
+	SessionTTLSeconds    int    `yaml:"session_ttl_seconds"`     // Collection session lifetime, in seconds.
+	MaxRecordsPerSession int    `yaml:"max_records_per_session"` // Maximum collection records retained per session.
 }
 
 // OutboundProxyConfig controls auxiliary downloads and their permitted behavior after proxy initialization fails.
@@ -242,11 +242,11 @@ type OutboundProxyConfig struct {
 	// AI gateway connections, including Claude, OpenAI, Gemini, and Antigravity,
 	// return proxy errors rather than connecting directly.
 	// The default is false to prevent proxy misconfiguration from exposing the server IP.
-	AllowDirectOnError bool `mapstructure:"allow_direct_on_error"`
+	AllowDirectOnError bool `yaml:"allow_direct_on_error"`
 	// URL is the proxy address for GitHub access.
 	// Supported schemes are http, https, socks5, and socks5h.
 	// Examples: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080".
-	URL string `mapstructure:"url"`
+	URL string `yaml:"url"`
 }
 
 // NormalizeForwardedClientIPHeaders delegates ordered HTTP field-name

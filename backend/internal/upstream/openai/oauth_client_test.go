@@ -604,11 +604,11 @@ func newOAuthLocalTestServer(t testing.TB, handler http.Handler) *httptest.Serve
 	return httptest.NewServer(handler)
 }
 
-// TestCreateOpenAIReqClient_Timeout120Seconds builds the shared OAuth req
+// TestCreateOpenAIHTTPClient_Timeout120Seconds builds the shared OAuth HTTP
 // client with a proxy URL. It checks the concrete client timeout is two
 // minutes, protecting the token-exchange transport budget.
-func TestCreateOpenAIReqClient_Timeout120Seconds(t *testing.T) {
-	client, err := CreateOAuthReqClient("http://proxy.local:8080")
+func TestCreateOpenAIHTTPClient_Timeout120Seconds(t *testing.T) {
+	client, err := CreateOAuthHTTPClient("http://proxy.local:8080")
 	require.NoError(t, err)
-	require.Equal(t, 120*time.Second, client.GetClient().Timeout)
+	require.Equal(t, 120*time.Second, client.Timeout)
 }

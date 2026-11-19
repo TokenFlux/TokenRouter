@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"slices"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
@@ -511,7 +511,7 @@ func buildGenerationConfig(req *ClaudeRequest, resolutions ...*modelrules.Resolu
 	}
 	result, diagnostics := bridge.BuildInternalGeminiGenerationConfig(req, options)
 	for _, message := range diagnostics {
-		log.Printf("%s", message)
+		logging.LegacyPrintf("upstream.antigravity", "%s", message)
 	}
 	return result
 }
@@ -532,7 +532,7 @@ func hasMixedToolInvocations(declarations []GeminiToolDeclaration) bool {
 func buildTools(tools []ClaudeTool) []GeminiToolDeclaration {
 	result, diagnostics := bridge.BuildInternalGeminiTools(tools)
 	for _, message := range diagnostics {
-		log.Printf("%s", message)
+		logging.LegacyPrintf("upstream.antigravity", "%s", message)
 	}
 	return result
 }

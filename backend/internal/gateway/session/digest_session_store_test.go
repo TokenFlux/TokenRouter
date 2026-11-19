@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
 
@@ -158,11 +158,12 @@ func TestDigestSessionStore_EmptyDigestChain(t *testing.T) {
 	assert.False(t, found)
 }
 
-// TestDigestSessionStore_TTLExpiration uses a short-lived cache with its own cleanup interval.
-// The binding matches immediately and stops matching after the test waits beyond its deadline.
+// TestDigestSessionStore_TTLExpiration uses a short-lived TTL map to check
+// read-time expiration. The binding matches immediately and stops matching
+// after the test waits past its configured deadline.
 func TestDigestSessionStore_TTLExpiration(t *testing.T) {
 	store := &DigestSessionStore{
-		cache: gocache.New(100*time.Millisecond, 50*time.Millisecond),
+		cache: querycache.NewTTLMap[*sessionEntry](100 * time.Millisecond),
 	}
 
 	store.Save(1, "prefix", "u:a-m:b", "uuid-1", 100, "")
@@ -171,9 +172,9 @@ func TestDigestSessionStore_TTLExpiration(t *testing.T) {
 	_, _, _, found := store.Find(1, "prefix", "u:a-m:b")
 	require.True(t, found)
 
-	// Wait three configured TTLs so the fixture read observes expiration;
-	// its shorter janitor interval also permits physical cleanup before the assertion.
-	time.Sleep(300 * time.Millisecond)
+	// Wait two configured TTLs so the subsequent lookup observes and evicts the
+	// expired binding without relying on a background cleanup goroutine.
+	time.Sleep(200 * time.Millisecond)
 
 	// Expired bindings must not match.
 	_, _, _, found = store.Find(1, "prefix", "u:a-m:b")
@@ -322,13 +323,12 @@ func TestDigestSessionStore_CacheItemCountStable(t *testing.T) {
 }
 
 // TestDigestSessionStore_TTLPreventsUnboundedGrowth writes five hundred new
-// sessions into a short-TTL cache.
-// Its enabled janitor removes all entries after the wait; this fixture differs
-// from the production constructor without a janitor.
+// sessions into a short-TTL store and invokes ExpireRuntimeCaches after the
+// deadline passes. Sweeping removes every unread expired entry physically.
 func TestDigestSessionStore_TTLPreventsUnboundedGrowth(t *testing.T) {
-	// A short TTL checks cleanup after a burst of new sessions.
+	// A short TTL checks physical sweep cleanup after a burst of new sessions.
 	store := &DigestSessionStore{
-		cache: gocache.New(100*time.Millisecond, 50*time.Millisecond),
+		cache: querycache.NewTTLMap[*sessionEntry](100 * time.Millisecond),
 	}
 
 	// All 500 writes start new sessions, so no prior chain can be removed.
@@ -339,9 +339,10 @@ func TestDigestSessionStore_TTLPreventsUnboundedGrowth(t *testing.T) {
 
 	assert.Equal(t, 500, store.cache.ItemCount())
 
-	// Wait three configured TTLs so the fixture read observes expiration;
-	// its shorter janitor interval also permits physical cleanup before the assertion.
-	time.Sleep(300 * time.Millisecond)
+	// Wait two configured TTLs before triggering the runtime sweep that production
+	// schedules on its timing wheel to reclaim unread expired entries.
+	time.Sleep(200 * time.Millisecond)
+	store.ExpireRuntimeCaches()
 
 	assert.Equal(t, 0, store.cache.ItemCount(), "all items should be expired and cleaned up")
 }

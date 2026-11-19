@@ -3,7 +3,7 @@ package lifecycle
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -37,8 +37,8 @@ func Serve(ctx context.Context, server *http.Server) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Server started on %s", server.Addr)
-	defer log.Println("Server exited")
+	slog.Info("Server started", "addr", server.Addr)
+	defer slog.Info("Server exited")
 	// Serving can finish while Shutdown is still running. Buffer its one result
 	// so that completion does not require the shutdown caller to receive immediately.
 	result := make(chan error, 1)
@@ -52,7 +52,7 @@ func Serve(ctx context.Context, server *http.Server) error {
 		}
 		return err
 	case <-ctx.Done():
-		log.Println("Shutting down server...")
+		slog.Info("Shutting down server...")
 		// The application context is already cancelled. A fresh budget lets active
 		// HTTP requests finish before background dependencies begin their separate drain.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"log"
 	"runtime"
 	"runtime/debug"
 
@@ -46,7 +45,7 @@ import (
 // GOMAXPROCS, and queue creation is distinct from its lazy worker admission on
 // first enqueue.
 func provideOpsErrorQueue(manager *lifecycle.Manager) *ops.ErrorLogQueue {
-	q := ops.NewErrorLogQueue(ops.ErrorLogQueueOptions{Processors: func() int { return runtime.GOMAXPROCS(0) }, Logf: log.Printf, Stack: debug.Stack})
+	q := ops.NewErrorLogQueue(ops.ErrorLogQueueOptions{Processors: func() int { return runtime.GOMAXPROCS(0) }, Logf: func(format string, args ...any) { logger.LegacyPrintf("service.ops_error_queue", format, args...) }, Stack: debug.Stack})
 	// Error records may arrive through request and completion shutdown phases.
 	// Drain their owned queue before later shared storage closes at the registered cleanup level.
 	manager.Register(lifecycle.Hook{Name: "OpsErrorLogWorkers", StartOrder: 924, StopOrder: 76, Stop: q.Shutdown})

@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	ippkg "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 )
 
@@ -126,7 +126,7 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 	return func(c *gin.Context) {
 		result, err := r.Allow(c.Request.Context(), key+":"+clientIPForRateLimit(c), limit, window)
 		if err != nil {
-			log.Printf("[RateLimit] redis error: key=%s mode=%s err=%v", r.prefix+key, failureModeLabel(failureMode), err)
+			logger.LegacyPrintf("middleware.rate_limiter", "[RateLimit] redis error: key=%s mode=%s err=%v", r.prefix+key, failureModeLabel(failureMode), err)
 			// When fail-close is selected, the route requires a working counter before
 			// admission. Its configured window supplies a retry delay when counting
 			// provides no remaining TTL.

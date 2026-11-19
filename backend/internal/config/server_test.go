@@ -150,7 +150,7 @@ func TestForwardedClientIPSettingsConcurrentPublication(t *testing.T) {
 }
 
 // TestLoadRejectsInvalidForwardedClientIPHeader supplies malformed header text
-// through Viper configuration. Loading must return an error naming the header
+// through the configuration fixture. Loading must return an error naming the header
 // list, protecting rejection of this invalid input at the loader check.
 func TestLoadRejectsInvalidForwardedClientIPHeader(t *testing.T) {
 	fixture := newConfigFixture(t)
@@ -161,8 +161,8 @@ func TestLoadRejectsInvalidForwardedClientIPHeader(t *testing.T) {
 }
 
 // TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode supplies an empty
-// trusted-proxy list through Viper. Loading must retain emptiness and set the
-// presence flag, separating this input from an omitted policy.
+// trusted-proxy list through the configuration fixture. Loading must retain
+// emptiness and set the presence flag, separating this input from an omitted policy.
 func TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode(t *testing.T) {
 	fixture := newConfigFixture(t)
 	fixture.SetValue("server.client_ip.trusted_proxies", []string{})
@@ -174,8 +174,8 @@ func TestLoadExplicitEmptyTrustedProxiesEnablesConfiguredMode(t *testing.T) {
 }
 
 // TestLoadExplicitTrustedProxiesEnablesConfiguredMode supplies one trusted
-// loopback range through Viper. Loading must retain the range and mark the
-// trusted-proxy policy as configured for downstream address selection.
+// loopback range through the configuration fixture. Loading must retain the range
+// and mark the trusted-proxy policy as configured for downstream address selection.
 func TestLoadExplicitTrustedProxiesEnablesConfiguredMode(t *testing.T) {
 	fixture := newConfigFixture(t)
 	fixture.SetValue("server.client_ip.trusted_proxies", []string{"127.0.0.1/32"})

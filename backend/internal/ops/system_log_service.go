@@ -3,10 +3,10 @@ package ops
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
@@ -121,7 +121,7 @@ func (s *OpsService) CleanupSystemLogs(ctx context.Context, filter *OpsSystemLog
 	}); auditErr != nil {
 		// The deletion has already completed when audit insertion fails. Log that
 		// diagnostic and return its count even if this shared context expired.
-		log.Printf("[OpsSystemLog] cleanup audit failed: %v", auditErr)
+		logging.LegacyPrintf("service.ops_system_log", "[OpsSystemLog] cleanup audit failed: %v", auditErr)
 	}
 	return deletedRows, nil
 }

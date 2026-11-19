@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -111,7 +110,7 @@ func (s *AntigravityErrorObserver) handleModelRateLimit(p *AntigravityErrorInput
 	// recording a provider-specific model window here would change that
 	// recovery path.
 	if info.IsModelCapacityExhausted {
-		log.Printf("%s status=%d model_capacity_exhausted model=%s (not switching provider, retry handled by smart retry)",
+		logging.LegacyPrintf("provider.antigravity", "%s status=%d model_capacity_exhausted model=%s (not switching provider, retry handled by smart retry)",
 			p.Prefix, p.Status, info.ModelName)
 		return &AntigravityModelLimitResult{
 			Handled: true,

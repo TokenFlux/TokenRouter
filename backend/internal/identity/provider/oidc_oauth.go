@@ -10,14 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/imroc/req/v3"
-	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
@@ -116,8 +115,6 @@ func OidcExchangeCode(
 	redirectURI string,
 	codeVerifier string,
 ) (*OidcTokenResponse, error) {
-	client := req.C().SetTimeout(30 * time.Second)
-
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", cfg.ClientID)
@@ -127,31 +124,28 @@ func OidcExchangeCode(
 		form.Set("code_verifier", codeVerifier)
 	}
 
-	r := client.R().
-		SetContext(ctx).
-		SetHeader("Accept", "application/json")
-
+	var basicAuth *[2]string
 	// Send credentials through the configured authentication form so basic-auth
 	// providers receive a header and post-auth providers receive grant-body credentials.
 	switch strings.ToLower(strings.TrimSpace(cfg.TokenAuthMethod)) {
 	case "", "client_secret_post":
 		form.Set("client_secret", cfg.ClientSecret)
 	case "client_secret_basic":
-		r.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
+		basicAuth = &[2]string{cfg.ClientID, cfg.ClientSecret}
 	case "none":
 	default:
 		return nil, fmt.Errorf("unsupported token_auth_method: %s", cfg.TokenAuthMethod)
 	}
 
-	resp, err := r.SetFormDataFromValues(form).Post(cfg.TokenURL)
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodPost, cfg.TokenURL, "", basicAuth, form)
 	if err != nil {
 		return nil, fmt.Errorf("request token: %w", err)
 	}
-	body := strings.TrimSpace(resp.String())
-	if !resp.IsSuccessState() {
+	body := strings.TrimSpace(string(bodyBytes))
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		providerErr, providerDesc := ParseOAuthProviderError(body)
 		return nil, &OidcTokenExchangeError{
-			StatusCode:          resp.StatusCode,
+			StatusCode:          statusCode,
 			ProviderError:       providerErr,
 			ProviderDescription: providerDesc,
 			Body:                body,
@@ -160,7 +154,7 @@ func OidcExchangeCode(
 
 	tokenResp, ok := OidcParseTokenResponse(body)
 	if !ok {
-		return nil, &OidcTokenExchangeError{StatusCode: resp.StatusCode, Body: body}
+		return nil, &OidcTokenExchangeError{StatusCode: statusCode, Body: body}
 	}
 	if strings.TrimSpace(tokenResp.TokenType) == "" {
 		// An omitted type selects the Bearer scheme accepted by the userinfo helper,
@@ -168,7 +162,7 @@ func OidcExchangeCode(
 		tokenResp.TokenType = "Bearer"
 	}
 	if strings.TrimSpace(tokenResp.AccessToken) == "" && strings.TrimSpace(tokenResp.IDToken) == "" {
-		return nil, &OidcTokenExchangeError{StatusCode: resp.StatusCode, Body: body}
+		return nil, &OidcTokenExchangeError{StatusCode: statusCode, Body: body}
 	}
 	return tokenResp, nil
 }
@@ -189,21 +183,23 @@ func OidcParseTokenResponse(body string) (*OidcTokenResponse, bool) {
 		return nil, false
 	}
 
-	accessToken := strings.TrimSpace(GetGJSON(body, "access_token"))
-	idToken := strings.TrimSpace(GetGJSON(body, "id_token"))
-	if accessToken != "" || idToken != "" {
-		tokenType := strings.TrimSpace(GetGJSON(body, "token_type"))
-		refreshToken := strings.TrimSpace(GetGJSON(body, "refresh_token"))
-		scope := strings.TrimSpace(GetGJSON(body, "scope"))
-		expiresIn := gjson.Get(body, "expires_in").Int()
-		return &OidcTokenResponse{
-			AccessToken:  accessToken,
-			TokenType:    tokenType,
-			ExpiresIn:    expiresIn,
-			RefreshToken: refreshToken,
-			Scope:        scope,
-			IDToken:      idToken,
-		}, true
+	if doc, ok := decodeOAuthJSONObject(body); ok {
+		accessToken := strings.TrimSpace(lookupOAuthJSONString(doc, "access_token"))
+		idToken := strings.TrimSpace(lookupOAuthJSONString(doc, "id_token"))
+		if accessToken != "" || idToken != "" {
+			tokenType := strings.TrimSpace(lookupOAuthJSONString(doc, "token_type"))
+			refreshToken := strings.TrimSpace(lookupOAuthJSONString(doc, "refresh_token"))
+			scope := strings.TrimSpace(lookupOAuthJSONString(doc, "scope"))
+			expiresIn := lookupOAuthJSONInt64(doc, "expires_in")
+			return &OidcTokenResponse{
+				AccessToken:  accessToken,
+				TokenType:    tokenType,
+				ExpiresIn:    expiresIn,
+				RefreshToken: refreshToken,
+				Scope:        scope,
+				IDToken:      idToken,
+			}, true
+		}
 	}
 
 	// Try form fields after JSON has no usable credential, retaining compatibility
@@ -212,8 +208,8 @@ func OidcParseTokenResponse(body string) (*OidcTokenResponse, bool) {
 	if err != nil {
 		return nil, false
 	}
-	accessToken = strings.TrimSpace(values.Get("access_token"))
-	idToken = strings.TrimSpace(values.Get("id_token"))
+	accessToken := strings.TrimSpace(values.Get("access_token"))
+	idToken := strings.TrimSpace(values.Get("id_token"))
 	if accessToken == "" && idToken == "" {
 		return nil, false
 	}
@@ -253,84 +249,83 @@ func OidcFetchUserInfo(
 		return nil, errors.New("missing access_token for userinfo request")
 	}
 
-	client := req.C().SetTimeout(30 * time.Second)
 	authorization, err := BuildBearerAuthorization(token.TokenType, token.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("invalid token for userinfo request: %w", err)
 	}
 
-	resp, err := client.R().
-		SetContext(ctx).
-		SetHeader("Accept", "application/json").
-		SetHeader("Authorization", authorization).
-		Get(cfg.UserInfoURL)
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodGet, cfg.UserInfoURL, authorization, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("request userinfo: %w", err)
 	}
-	if !resp.IsSuccessState() {
-		return nil, fmt.Errorf("userinfo status=%d", resp.StatusCode)
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("userinfo status=%d", statusCode)
 	}
 
-	return OidcParseUserInfo(resp.String(), cfg), nil
+	return OidcParseUserInfo(string(bodyBytes), cfg), nil
 }
 
 // OidcParseUserInfo builds suggested identity and profile claims from provider
 // JSON using configured paths before common field names. Missing text stays
 // empty, and the HTTP flow decides whether the resulting identity is complete.
 //
-// email_verified retains its presence separately from the gjson boolean value.
+// email_verified retains its presence separately from its boolean value.
 // A present false flag can therefore override an ID-token verification flag during
 // HTTP reconciliation, while an omitted flag leaves that other claim available.
 // Display and avatar suggestions are selected independently from the subject
 // fields, and accepted text values are trimmed before returning the profile.
 func OidcParseUserInfo(body string, cfg OIDCOptions) *OidcUserInfoClaims {
 	claims := &OidcUserInfoClaims{}
+	doc, ok := decodeOAuthJSONObject(body)
+	if !ok {
+		return claims
+	}
 	// Configured email, username, and subject paths precede common shapes so
 	// an administrator's selected response fields win when they provide nonempty values.
 	claims.Email = identity.OAuthFirstNonEmpty(
-		GetGJSON(body, cfg.UserInfoEmailPath),
-		GetGJSON(body, "email"),
-		GetGJSON(body, "user.email"),
-		GetGJSON(body, "data.email"),
-		GetGJSON(body, "attributes.email"),
+		lookupOAuthJSONString(doc, cfg.UserInfoEmailPath),
+		lookupOAuthJSONString(doc, "email"),
+		lookupOAuthJSONString(doc, "user.email"),
+		lookupOAuthJSONString(doc, "data.email"),
+		lookupOAuthJSONString(doc, "attributes.email"),
 	)
 	claims.Username = identity.OAuthFirstNonEmpty(
-		GetGJSON(body, cfg.UserInfoUsernamePath),
-		GetGJSON(body, "preferred_username"),
-		GetGJSON(body, "username"),
-		GetGJSON(body, "name"),
-		GetGJSON(body, "user.username"),
-		GetGJSON(body, "user.name"),
+		lookupOAuthJSONString(doc, cfg.UserInfoUsernamePath),
+		lookupOAuthJSONString(doc, "preferred_username"),
+		lookupOAuthJSONString(doc, "username"),
+		lookupOAuthJSONString(doc, "name"),
+		lookupOAuthJSONString(doc, "user.username"),
+		lookupOAuthJSONString(doc, "user.name"),
 	)
 	claims.Subject = identity.OAuthFirstNonEmpty(
-		GetGJSON(body, cfg.UserInfoIDPath),
-		GetGJSON(body, "sub"),
-		GetGJSON(body, "id"),
-		GetGJSON(body, "user_id"),
-		GetGJSON(body, "uid"),
-		GetGJSON(body, "user.id"),
+		lookupOAuthJSONString(doc, cfg.UserInfoIDPath),
+		lookupOAuthJSONString(doc, "sub"),
+		lookupOAuthJSONString(doc, "id"),
+		lookupOAuthJSONString(doc, "user_id"),
+		lookupOAuthJSONString(doc, "uid"),
+		lookupOAuthJSONString(doc, "user.id"),
 	)
 	// Carry a present verification flag even when false so userinfo can override
 	// a true ID-token claim when the HTTP flow reconciles the two sources.
-	if verified, ok := GetGJSONBool(body, "email_verified"); ok {
+	if verified, ok := lookupOAuthJSONBool(doc, "email_verified"); ok {
 		claims.EmailVerified = &verified
 	}
 	// Select optional display and avatar candidates independently from subject
 	// fields, giving the HTTP account flow suggestions without making them login identity.
 	claims.DisplayName = identity.OAuthFirstNonEmpty(
-		GetGJSON(body, "name"),
-		GetGJSON(body, "nickname"),
-		GetGJSON(body, "display_name"),
-		GetGJSON(body, "preferred_username"),
-		GetGJSON(body, "username"),
+		lookupOAuthJSONString(doc, "name"),
+		lookupOAuthJSONString(doc, "nickname"),
+		lookupOAuthJSONString(doc, "display_name"),
+		lookupOAuthJSONString(doc, "preferred_username"),
+		lookupOAuthJSONString(doc, "username"),
 	)
 	claims.AvatarURL = identity.OAuthFirstNonEmpty(
-		GetGJSON(body, "picture"),
-		GetGJSON(body, "avatar_url"),
-		GetGJSON(body, "avatar"),
-		GetGJSON(body, "profile_image_url"),
-		GetGJSON(body, "user.avatar"),
-		GetGJSON(body, "user.avatar_url"),
+		lookupOAuthJSONString(doc, "picture"),
+		lookupOAuthJSONString(doc, "avatar_url"),
+		lookupOAuthJSONString(doc, "avatar"),
+		lookupOAuthJSONString(doc, "profile_image_url"),
+		lookupOAuthJSONString(doc, "user.avatar"),
+		lookupOAuthJSONString(doc, "user.avatar_url"),
 	)
 	claims.Email = strings.TrimSpace(claims.Email)
 	claims.Username = strings.TrimSpace(claims.Username)
@@ -338,21 +333,6 @@ func OidcParseUserInfo(body string, cfg OIDCOptions) *OidcUserInfoClaims {
 	claims.DisplayName = strings.TrimSpace(claims.DisplayName)
 	claims.AvatarURL = strings.TrimSpace(claims.AvatarURL)
 	return claims
-}
-
-// GetGJSONBool returns gjson's boolean conversion and whether a trimmed path
-// exists in the JSON. Empty paths or absent values return false with false
-// presence; present values are converted without requiring a JSON boolean type.
-func GetGJSONBool(body string, path string) (bool, bool) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return false, false
-	}
-	res := gjson.Get(body, path)
-	if !res.Exists() {
-		return false, false
-	}
-	return res.Bool(), true
 }
 
 // OidcParseAndValidateIDToken verifies a trimmed ID token using freshly fetched
@@ -457,20 +437,15 @@ func OidcFetchJWKSet(ctx context.Context, jwksURL string) (*OidcJWKSet, error) {
 	if jwksURL == "" {
 		return nil, errors.New("missing jwks_url")
 	}
-	resp, err := req.C().
-		SetTimeout(30*time.Second).
-		R().
-		SetContext(ctx).
-		SetHeader("Accept", "application/json").
-		Get(jwksURL)
+	statusCode, bodyBytes, err := doIdentityOAuthRequest(ctx, http.MethodGet, jwksURL, "", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("request jwks: %w", err)
 	}
-	if !resp.IsSuccessState() {
-		return nil, fmt.Errorf("jwks status=%d", resp.StatusCode)
+	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("jwks status=%d", statusCode)
 	}
 	set := &OidcJWKSet{}
-	if err := json.Unmarshal(resp.Bytes(), set); err != nil {
+	if err := json.Unmarshal(bodyBytes, set); err != nil {
 		return nil, fmt.Errorf("parse jwks: %w", err)
 	}
 	if len(set.Keys) == 0 {

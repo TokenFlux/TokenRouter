@@ -2,11 +2,13 @@ package codeassist
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"strings"
 	"time"
-
-	"github.com/imroc/req/v3"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/google"
@@ -16,8 +18,8 @@ import (
 // selected Gemini OAuth account type.
 // Code Assist and Google One token exchanges use the built-in Gemini CLI
 // credentials even when configured credentials exist. AI Studio reads its
-// configured client on each exchange or refresh, and the shared OAuth client
-// supplies proxy routing and a sixty-second timeout.
+// configured client on each exchange or refresh, and the shared HTTP client
+// pool supplies proxy routing and a sixty-second timeout.
 
 // OAuthClient exchanges Google authorization codes and refresh tokens using
 // dynamic configuration.
@@ -45,11 +47,6 @@ func NewOAuthClient(config func() OAuthConfig) *OAuthClient {
 // the built-in client; HTTP, proxy, configuration, and decode errors return to
 // the caller.
 func (c *OAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*TokenResponse, error) {
-	client, err := CreateOAuthReqClient(proxyURL)
-	if err != nil {
-		return nil, fmt.Errorf("create HTTP client: %w", err)
-	}
-
 	// Resolve each request from current configuration, then clear configured
 	// credentials for the CLI variants so EffectiveOAuthConfig selects their
 	// built-in OAuth identity.
@@ -72,19 +69,7 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVer
 	formData.Set("code_verifier", codeVerifier)
 	formData.Set("redirect_uri", redirectURI)
 
-	var tokenResp TokenResponse
-	resp, err := client.R().
-		SetContext(ctx).
-		SetFormDataFromValues(formData).
-		SetSuccessResult(&tokenResp).
-		Post(c.TokenURL)
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	if !resp.IsSuccessState() {
-		return nil, fmt.Errorf("token exchange failed: status %d, body: %s", resp.StatusCode, SanitizeBodyForLogs(resp.String()))
-	}
-	return &tokenResp, nil
+	return c.postTokenForm(ctx, proxyURL, formData, "token exchange failed")
 }
 
 // RefreshToken exchanges refreshToken using current effective OAuth
@@ -92,11 +77,6 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVer
 // resolving scopes; the returned fields are server observations and do not
 // validate access-token presence here.
 func (c *OAuthClient) RefreshToken(ctx context.Context, oauthType, refreshToken, proxyURL string) (*TokenResponse, error) {
-	client, err := CreateOAuthReqClient(proxyURL)
-	if err != nil {
-		return nil, fmt.Errorf("create HTTP client: %w", err)
-	}
-
 	oauthCfgInput := c.Config()
 	if oauthType == "code_assist" || oauthType == "google_one" {
 		// Refresh with the same built-in client identity used by these CLI
@@ -117,26 +97,47 @@ func (c *OAuthClient) RefreshToken(ctx context.Context, oauthType, refreshToken,
 	formData.Set("client_id", oauthCfg.ClientID)
 	formData.Set("client_secret", oauthCfg.ClientSecret)
 
-	var tokenResp TokenResponse
-	resp, err := client.R().
-		SetContext(ctx).
-		SetFormDataFromValues(formData).
-		SetSuccessResult(&tokenResp).
-		Post(c.TokenURL)
+	return c.postTokenForm(ctx, proxyURL, formData, "token refresh failed")
+}
+
+// postTokenForm posts formData to TokenURL through the shared HTTP client pool
+// and decodes a successful TokenResponse.
+func (c *OAuthClient) postTokenForm(ctx context.Context, proxyURL string, formData url.Values, errPrefix string) (*TokenResponse, error) {
+	client, err := CreateOAuthHTTPClient(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("create HTTP client: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenURL, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	if !resp.IsSuccessState() {
-		return nil, fmt.Errorf("token refresh failed: status %d, body: %s", resp.StatusCode, SanitizeBodyForLogs(resp.String()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	// Cap Google OAuth token responses at 4 MiB to bound buffered error or JSON reads.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("%s: status %d, body: %s", errPrefix, resp.StatusCode, SanitizeBodyForLogs(string(bodyBytes)))
+	}
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
+		return nil, fmt.Errorf("decode token response: %w", err)
 	}
 	return &tokenResp, nil
 }
 
-// CreateOAuthReqClient selects the shared proxy-aware req client with a
-// sixty-second timeout. Client construction errors return to token operations,
-// and the caller uses its configured protocol negotiation.
-func CreateOAuthReqClient(proxyURL string) (*req.Client, error) {
-	return httpclient.GetSharedReqClient(httpclient.ReqClientOptions{
+// CreateOAuthHTTPClient selects the shared proxy-aware HTTP client with a
+// sixty-second timeout. Client construction errors return to token operations.
+func CreateOAuthHTTPClient(proxyURL string) (*http.Client, error) {
+	return httpclient.GetClient(httpclient.Options{
 		ProxyURL: proxyURL,
 		Timeout:  60 * time.Second,
 	})

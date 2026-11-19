@@ -25,7 +25,7 @@ github.com/testcontainers/testcontainers-go/modules/redis github.com/tidwall/gjs
 go.uber.org/zap/zaptest/observer modernc.org/sqlite`},
 		"core": {Production: `github.com/alitto/pond/v2 github.com/cespare/xxhash/v2 github.com/dgraph-io/ristretto
 github.com/go-webauthn/webauthn/protocol github.com/go-webauthn/webauthn/webauthn
-github.com/golang-jwt/jwt/v5 github.com/google/uuid github.com/patrickmn/go-cache
+github.com/golang-jwt/jwt/v5 github.com/google/uuid
 github.com/pquerna/otp github.com/pquerna/otp/totp github.com/robfig/cron/v3
 github.com/shopspring/decimal github.com/tidwall/gjson github.com/tidwall/sjson
 github.com/tiktoken-go/tokenizer go.uber.org/zap golang.org/x/crypto/bcrypt golang.org/x/image/draw
@@ -38,22 +38,22 @@ github.com/stretchr/testify/require github.com/stretchr/testify/suite
 github.com/testcontainers/testcontainers-go github.com/testcontainers/testcontainers-go/wait
 github.com/testcontainers/testcontainers-go/modules/postgres
 github.com/testcontainers/testcontainers-go/modules/redis modernc.org/sqlite`, Tests: `github.com/DATA-DOG/go-sqlmock github.com/fxamacker/cbor/v2 github.com/golang-jwt/jwt/v5
-github.com/google/uuid github.com/patrickmn/go-cache github.com/pquerna/otp/totp
+github.com/google/uuid github.com/pquerna/otp/totp
 github.com/stretchr/testify/assert github.com/stripe/stripe-go/v85`},
 		"http": {Production: `github.com/modelcontextprotocol/go-sdk/mcp github.com/google/jsonschema-go/jsonschema github.com/coder/websocket github.com/gin-gonic/gin github.com/gin-gonic/gin/binding
-github.com/google/uuid github.com/google/wire github.com/gorilla/websocket
+github.com/google/uuid github.com/google/wire
 github.com/klauspost/compress/zstd github.com/tidwall/gjson github.com/tidwall/sjson go.uber.org/zap
-golang.org/x/net/http/httpguts golang.org/x/net/http2 golang.org/x/sync/singleflight`, Tests: `entgo.io/ent/dialect entgo.io/ent/dialect/sql github.com/modelcontextprotocol/go-sdk/auth github.com/modelcontextprotocol/go-sdk/oauthex golang.org/x/oauth2 github.com/alicebob/miniredis/v2 github.com/redis/go-redis/v9 github.com/cespare/xxhash/v2 github.com/imroc/req/v3 github.com/stretchr/testify/assert
+golang.org/x/net/http/httpguts golang.org/x/net/http2 golang.org/x/sync/singleflight`, Tests: `entgo.io/ent/dialect entgo.io/ent/dialect/sql github.com/modelcontextprotocol/go-sdk/auth github.com/modelcontextprotocol/go-sdk/oauthex golang.org/x/oauth2 github.com/alicebob/miniredis/v2 github.com/redis/go-redis/v9 github.com/cespare/xxhash/v2 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require go.uber.org/zap/zaptest/observer`},
 		"infra": {Production: `github.com/tidwall/gjson github.com/andybalholm/brotli github.com/imroc/req/v3 github.com/klauspost/compress/zstd
 github.com/lib/pq github.com/redis/go-redis/v9 github.com/refraction-networking/utls
-github.com/zeromicro/go-zero/core/collection go.uber.org/zap go.uber.org/zap/zapcore
+go.uber.org/zap go.uber.org/zap/zapcore
 golang.org/x/net/http2 golang.org/x/net/proxy gopkg.in/natefinch/lumberjack.v2`, Tests: `github.com/DATA-DOG/go-sqlmock github.com/alicebob/miniredis/v2 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require github.com/testcontainers/testcontainers-go/modules/redis
 github.com/tidwall/gjson`},
 		"postgres": {Production: `entgo.io/ent/dialect entgo.io/ent/dialect/sql entgo.io/ent/dialect/sql/sqljson
 github.com/go-webauthn/webauthn/webauthn github.com/google/uuid github.com/lib/pq
-github.com/patrickmn/go-cache golang.org/x/sync/errgroup`, Tests: `github.com/DATA-DOG/go-sqlmock github.com/redis/go-redis/v9 github.com/stretchr/testify/assert
+golang.org/x/sync/errgroup`, Tests: `github.com/DATA-DOG/go-sqlmock github.com/redis/go-redis/v9 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require github.com/stretchr/testify/suite
 github.com/testcontainers/testcontainers-go/modules/postgres
 github.com/testcontainers/testcontainers-go/modules/redis modernc.org/sqlite`},
@@ -72,7 +72,7 @@ github.com/go-webauthn/webauthn/protocol github.com/go-webauthn/webauthn/webauth
 github.com/golang-jwt/jwt/v5 github.com/google/uuid github.com/imroc/req/v3
 github.com/redis/go-redis/v9 github.com/robfig/cron/v3 github.com/shirou/gopsutil/v4/cpu
 github.com/shirou/gopsutil/v4/host github.com/shirou/gopsutil/v4/disk github.com/shirou/gopsutil/v4/mem github.com/shopspring/decimal
-github.com/smartwalle/alipay/v3 github.com/spf13/viper github.com/stripe/stripe-go/v85
+github.com/smartwalle/alipay/v3 github.com/stripe/stripe-go/v85
 github.com/stripe/stripe-go/v85/webhook
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/captcha/v20190722
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common
@@ -434,8 +434,20 @@ internal/upstream/zhipu/...`, Tests: ""},
 		// conversion; adjacent creative files retain their existing dependency limits.
 		{Scope: "internal/creative", Imports: "internal/upstream/openai", Files: "provider/openai.go"},
 		{Scope: "internal/gateway", Imports: "internal/modelcatalog/testkit", Files: "httpapi/grok_media_execution_test.go httpapi/helpers_test.go provider/creative_catalog_test.go provider/googleforward/gemini_attempts_external_test.go provider/googleforward/gemini_openai_external_test.go provider/googleforward/helpers_external_test.go provider/grok_codec_test.go provider/model_attributes_test.go provider/model_qualification_test.go provider/selection/candidate_policy_test.go provider/selection/probes_test.go testkit/runtime_settings.go ws/httpapi/openai_ws_http_bridge_test.go"},
-		// Timing observers and response-body decoding tests inspect protocol events through these permitted files.
+		// Timing observers and reviewed streaming/probe files inspect raw protocol JSON without authorizing ordinary domain packages.
 		{Scope: "internal/infra", Imports: "github.com/tidwall/gjson", Files: "telemetry/timing/events.go telemetry/timing/performance.go httpclient/response_body_test.go"},
+		{Scope: "internal/moderation", Imports: "github.com/tidwall/gjson", Files: "cyber.go input.go"},
+		{Scope: "internal/creative/provider", Imports: "github.com/tidwall/gjson", Files: "openai.go openai_test.go"},
+		{Scope: "internal/provider/provider", Imports: "github.com/tidwall/gjson", Files: "system_usage_stream.go system_usage_transport.go upstream_health.go codex_identity_test.go grok_quota_factory_test.go openai_test_execution_test.go"},
+		{Scope: "internal/provider/httpapi", Imports: "github.com/tidwall/gjson", Files: "provider_probe_scenario_test.go"},
+		{Scope: "internal/routing/httpapi", Imports: "github.com/tidwall/gjson", Files: "default_pricing_test.go"},
+		{Scope: "internal/server/middleware", Imports: "github.com/tidwall/gjson", Files: "api_key_model_scenario_test.go openai_fast_policy_forwarding_scenario_test.go"},
+		// Browser-impersonation HTTP/2 requests remain isolated to the shared req pool and the two Cloudflare-gated web endpoints.
+		{Scope: "internal/app", Imports: "github.com/imroc/req/v3", Files: "provider_management.go"},
+		{Scope: "internal/infra", Imports: "github.com/imroc/req/v3", Files: "httpclient/pool.go httpclient/req_pool.go httpclient/req_pool_test.go"},
+		{Scope: "internal/upstream/openai", Imports: "github.com/imroc/req/v3", Files: "privacy_client.go"},
+		{Scope: "internal/upstream/anthropic", Imports: "github.com/imroc/req/v3", Files: "oauth_client.go oauth_client_test.go"},
+		{Scope: "internal/provider/provider", Imports: "github.com/imroc/req/v3", Files: "crs_client_test.go openai_authorization_test.go privacy_test.go refresh_errors_test.go"},
 		// Catalogue readers and offline capability fixtures receive permissions only
 		// in the production or test files that consume them.
 		{Scope: "internal/modelcatalog", Imports: "internal/provider/modelrules", Files: "testkit/catalog.go"},

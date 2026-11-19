@@ -15,18 +15,18 @@ const DefaultCSPPolicy = "default-src 'self'; worker-src 'self' blob:; script-sr
 type CORSConfig struct {
 	// AllowedOrigins is normalized by CORS. A wildcard takes precedence over
 	// explicit origins and disables AllowCredentials for that middleware instance.
-	AllowedOrigins []string `mapstructure:"allowed_origins"`
+	AllowedOrigins []string `yaml:"allowed_origins"`
 	// AllowCredentials permits browser credentials for matched explicit origins.
 	// CORS forces it false when AllowedOrigins contains the wildcard.
-	AllowCredentials bool `mapstructure:"allow_credentials"`
+	AllowCredentials bool `yaml:"allow_credentials"`
 }
 
 // CSPConfig supplies browser policy settings to the security-header middleware.
 type CSPConfig struct {
 	// Enabled publishes CSP on paths that SecurityHeaders treats as browser
 	// pages. Baseline security headers are still emitted when CSP is disabled.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// Policy selects the CSP template. SecurityHeaders uses DefaultCSPPolicy
 	// when blank and supplements configured sources for supported frontend integrations.
-	Policy string `mapstructure:"policy"`
+	Policy string `yaml:"policy"`
 }

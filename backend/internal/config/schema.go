@@ -24,6 +24,22 @@ func knownConfigKeys() map[string]reflect.Type {
 	return keys
 }
 
+// configFieldTagName extracts the YAML key name for an exported Config struct
+// field, returning false for unexported or excluded yaml:"-" fields.
+func configFieldTagName(field reflect.StructField) (string, bool) {
+	if field.PkgPath != "" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
+	if name == "-" {
+		return "", false
+	}
+	if name == "" {
+		name = strings.ToLower(field.Name)
+	}
+	return name, true
+}
+
 // collectConfigKeys records exported decoded fields and recursively describes containers.
 // Private fields and excluded tags stay outside the schema. Pointer wrappers
 // do not change path identity; maps terminate traversal at their own key.
@@ -32,15 +48,9 @@ func collectConfigKeys(typ reflect.Type, prefix string, out map[string]reflect.T
 		typ = typ.Elem()
 	}
 	for field := range typ.Fields() {
-		if field.PkgPath != "" {
+		name, ok := configFieldTagName(field)
+		if !ok {
 			continue
-		}
-		name, _, _ := strings.Cut(field.Tag.Get("mapstructure"), ",")
-		if name == "-" {
-			continue
-		}
-		if name == "" {
-			name = strings.ToLower(field.Name)
 		}
 		key := name
 		if prefix != "" {

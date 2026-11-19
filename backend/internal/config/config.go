@@ -1,20 +1,17 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
-
-	"github.com/spf13/viper"
 )
 
 // config.go decodes, normalizes, and validates versioned process configuration.
 // Startup selects one YAML document, upgrades historical input through the
 // migration layer, rejects unknown keys, and resolves explicit references before
-// decoding with local Viper state. Application construction receives the
-// resulting settings through typed module options.
+// decoding the expanded YAML AST onto typed defaults. Application construction
+// receives the resulting settings through typed module options.
 //
 // Normalize canonicalizes trimmed strings, slices, Live session defaults,
 // enabled WebAuthn origins, valid forwarded-IP header snapshots, and valid
@@ -22,49 +19,49 @@ import (
 // deterministic startup order. Bootstrap may defer JWT signing-key selection to
 // persistent storage before calling Validate again.
 
-// Config holds process startup settings decoded from Viper and supplied to
+// Config holds process startup settings decoded from YAML and supplied to
 // application construction. Load normalizes and validates these values, while
 // the forwarded-IP accessors separately publish copied live policy snapshots.
 type Config struct {
-	APIKey        APIKeyConfig        `mapstructure:"api_key"`        // api key settings
-	Auth          AuthConfig          `mapstructure:"auth"`           // process auth settings
-	BatchImage    BatchImageConfig    `mapstructure:"batch_image"`    // batch image settings
-	Billing       BillingConfig       `mapstructure:"billing"`        // process billing settings
-	ConfigVersion int                 `mapstructure:"config_version"` // Current configuration schema version.
-	Creative      CreativeConfig      `mapstructure:"creative"`       // process creative settings
-	Database      DatabaseConfig      `mapstructure:"database"`       // process database settings
-	Debug         DebugConfig         `mapstructure:"debug"`          // process debug settings
-	Egress        EgressConfig        `mapstructure:"egress"`         // process egress settings
-	Environment   string              `mapstructure:"environment"`    // record environment label text
-	Gateway       GatewayConfig       `mapstructure:"gateway"`        // process gateway settings
-	Idempotency   IdempotencyConfig   `mapstructure:"idempotency"`    // process idempotency settings
-	Log           LogConfig           `mapstructure:"log"`            // process log settings
-	ModelCatalog  ModelCatalogConfig  `mapstructure:"model_catalog"`  // model catalog settings
-	Ops           OpsConfig           `mapstructure:"ops"`            // process ops settings
-	OutboundProxy OutboundProxyConfig `mapstructure:"outbound_proxy"` // outbound proxy settings
-	Payment       PaymentConfig       `mapstructure:"payment"`        // process payment settings
-	Plugins       PluginsConfig       `mapstructure:"plugins"`        // process plugins settings
-	Provider      ProviderConfig      `mapstructure:"provider"`       // process provider settings
-	Redis         RedisConfig         `mapstructure:"redis"`          // process redis settings
-	RequestLog    RequestLogConfig    `mapstructure:"request_log"`    // request log settings
-	Scheduling    SchedulingConfig    `mapstructure:"scheduling"`     // process scheduling settings
-	Security      SecurityConfig      `mapstructure:"security"`       // process security settings
-	Server        ServerConfig        `mapstructure:"server"`         // process server settings
-	Site          SiteConfig          `mapstructure:"site"`           // process site settings
-	Storage       StorageConfig       `mapstructure:"storage"`        // process storage settings
-	Team          TeamConfig          `mapstructure:"team"`           // process team settings
+	APIKey        APIKeyConfig        `yaml:"api_key"`        // api key settings
+	Auth          AuthConfig          `yaml:"auth"`           // process auth settings
+	BatchImage    BatchImageConfig    `yaml:"batch_image"`    // batch image settings
+	Billing       BillingConfig       `yaml:"billing"`        // process billing settings
+	ConfigVersion int                 `yaml:"config_version"` // Current configuration schema version.
+	Creative      CreativeConfig      `yaml:"creative"`       // process creative settings
+	Database      DatabaseConfig      `yaml:"database"`       // process database settings
+	Debug         DebugConfig         `yaml:"debug"`          // process debug settings
+	Egress        EgressConfig        `yaml:"egress"`         // process egress settings
+	Environment   string              `yaml:"environment"`    // record environment label text
+	Gateway       GatewayConfig       `yaml:"gateway"`        // process gateway settings
+	Idempotency   IdempotencyConfig   `yaml:"idempotency"`    // process idempotency settings
+	Log           LogConfig           `yaml:"log"`            // process log settings
+	ModelCatalog  ModelCatalogConfig  `yaml:"model_catalog"`  // model catalog settings
+	Ops           OpsConfig           `yaml:"ops"`            // process ops settings
+	OutboundProxy OutboundProxyConfig `yaml:"outbound_proxy"` // outbound proxy settings
+	Payment       PaymentConfig       `yaml:"payment"`        // process payment settings
+	Plugins       PluginsConfig       `yaml:"plugins"`        // process plugins settings
+	Provider      ProviderConfig      `yaml:"provider"`       // process provider settings
+	Redis         RedisConfig         `yaml:"redis"`          // process redis settings
+	RequestLog    RequestLogConfig    `yaml:"request_log"`    // request log settings
+	Scheduling    SchedulingConfig    `yaml:"scheduling"`     // process scheduling settings
+	Security      SecurityConfig      `yaml:"security"`       // process security settings
+	Server        ServerConfig        `yaml:"server"`         // process server settings
+	Site          SiteConfig          `yaml:"site"`           // process site settings
+	Storage       StorageConfig       `yaml:"storage"`        // process storage settings
+	Team          TeamConfig          `yaml:"team"`           // process team settings
 	// Timezone selects the calendar zone initialized by app/bootstrap after
 	// loading. The file value and bootstrap empty-value fallback use Asia/Shanghai
 	// by default; invalid IANA names fail before time.Local is published.
-	Timezone     string             `mapstructure:"timezone"`
-	Update       UpdateConfig       `mapstructure:"update"`        // process update settings
-	Usage        UsageConfig        `mapstructure:"usage"`         // process usage settings
-	UserDefaults UserDefaultsConfig `mapstructure:"user_defaults"` // user defaults settings
+	Timezone     string             `yaml:"timezone"`
+	Update       UpdateConfig       `yaml:"update"`        // process update settings
+	Usage        UsageConfig        `yaml:"usage"`         // process usage settings
+	UserDefaults UserDefaultsConfig `yaml:"user_defaults"` // user defaults settings
 	// MCPOAuthSigningSecret is loaded from persistent security storage during
 	// bootstrap. File decoding never accepts or overwrites this signing material.
 	// MCPOAuthSigningSecret is loaded from persistent security storage during
 	// bootstrap. File decoding never accepts or overwrites this signing material.
-	MCPOAuthSigningSecret string `mapstructure:"-" json:"-" yaml:"-"`
+	MCPOAuthSigningSecret string `json:"-" yaml:"-"`
 }
 
 // firstNonEmptyString returns the first trimmed nonblank value in supplied
@@ -80,9 +77,8 @@ func firstNonEmptyString(values ...string) string {
 }
 
 // Load decodes normalized process configuration and requires a nonempty,
-// sufficiently long JWT secret during validation. It uses process Viper state,
-// so callers serialize loader use and handle its configuration-source,
-// decoding, template-read, or validation errors.
+// sufficiently long JWT secret during validation. Callers handle its
+// configuration-source, decoding, template-read, or validation errors.
 func Load() (*Config, error) {
 	return load(false)
 }
@@ -109,15 +105,15 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 
 // loadFrom upgrades and validates one explicitly selected configuration file.
 // The supplied environment is consulted only for version 1 imports and explicit
-// references. Defaults use a local Viper instance, so independent loads do not
-// share overrides or bindings. Bootstrap loading can defer JWT secret selection
-// until persistent storage is available.
+// references. Defaults initialize a fresh Config value before decoding, so
+// independent loads share no mutable state. Bootstrap loading can defer JWT
+// secret selection until persistent storage is available.
 //
 // Unknown keys fail before interpolation, and interpolation uses a copied YAML
-// graph so disk references remain intact. Presence flags derive from the file
-// itself, including explicitly empty lists and false OAuth choices. Validation
-// completes before ignored-environment diagnostics describe residual deployment
-// variables, and secret values never enter those diagnostics.
+// graph so disk references remain intact. Presence flags derive from non-null
+// entries in the file itself, including explicitly empty lists and false OAuth
+// choices. Validation completes before ignored-environment diagnostics describe
+// residual deployment variables, and secret values never enter those diagnostics.
 func loadFrom(path string, exists bool, env upgradeEnvironment, allowMissingJWTSecret bool) (*Config, error) {
 	env = completeUpgradeEnvironment(env)
 	doc, err := upgradeConfigFile(path, exists, env)
@@ -131,25 +127,14 @@ func loadFrom(path string, exists bool, env upgradeEnvironment, allowMissingJWTS
 	if err != nil {
 		return nil, err
 	}
-	v := viper.New()
-	v.SetConfigType("yaml")
-	setDefaults(v)
-	if decoded != nil {
-		raw, err := encodeConfigDocument(decoded)
-		if err != nil {
-			return nil, err
-		}
-		if err = v.ReadConfig(bytes.NewReader(raw)); err != nil {
-			return nil, fmt.Errorf("read configuration %s", path)
-		}
-	}
-	var cfg Config
-	if err = v.Unmarshal(&cfg); err != nil {
+	cfg := defaultConfig()
+	present, err := decodeConfigNode(decoded, &cfg)
+	if err != nil {
 		return nil, fmt.Errorf("configuration %s contains an invalid value type", path)
 	}
-	cfg.Server.ClientIP.TrustedProxiesConfigured = v.InConfig("server.client_ip.trusted_proxies")
-	cfg.Auth.OAuth.OIDC.UsePKCEExplicit = v.InConfig("auth.oauth.oidc.use_pkce")
-	cfg.Auth.OAuth.OIDC.ValidateIDTokenExplicit = v.InConfig("auth.oauth.oidc.validate_id_token")
+	cfg.Server.ClientIP.TrustedProxiesConfigured = present["server.client_ip.trusted_proxies"]
+	cfg.Auth.OAuth.OIDC.UsePKCEExplicit = present["auth.oauth.oidc.use_pkce"]
+	cfg.Auth.OAuth.OIDC.ValidateIDTokenExplicit = present["auth.oauth.oidc.validate_id_token"]
 	cfg.Normalize()
 
 	if _, err := NormalizeForwardedClientIPHeaders(cfg.Server.ClientIP.ForwardedHeaders); err != nil {

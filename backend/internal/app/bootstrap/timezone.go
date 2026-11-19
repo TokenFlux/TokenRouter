@@ -2,9 +2,9 @@ package bootstrap
 
 import (
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
@@ -27,6 +27,6 @@ func InitTimezone(name string) error {
 		return fmt.Errorf("invalid timezone %q: %w", name, err)
 	}
 	time.Local = location
-	log.Printf("Timezone initialized: %s (UTC offset: %s)", name, timezone.NewCalendar(location).UTCOffset(time.Now()))
+	logging.LegacyPrintf("bootstrap.timezone", "Timezone initialized: %s (UTC offset: %s)", name, timezone.NewCalendar(location).UTCOffset(time.Now()))
 	return nil
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/lib/pq"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
@@ -56,7 +56,7 @@ func NewDashboardAggregationRepository(sqlDB *sql.DB, calendar timezone.Calendar
 		return nil
 	}
 	if !isPostgresDriver(sqlDB) {
-		log.Printf("[DashboardAggregation] Non-PostgreSQL driver detected, pre-aggregation disabled")
+		logging.LegacyPrintf("repository.dashboard_aggregation", "[DashboardAggregation] Non-PostgreSQL driver detected, pre-aggregation disabled")
 		return nil
 	}
 	return NewAggregationStoreWithSQL(sqlDB, calendar, archive)

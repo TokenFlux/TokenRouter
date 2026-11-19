@@ -2,6 +2,8 @@ package openai
 
 import (
 	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // forward_usage.go extracts and combines token observations from Responses,
@@ -82,6 +84,9 @@ func AddForwardUsage(dst *ForwardUsage, usage ForwardUsage) {
 // before input detail. Callers validate the complete body separately because
 // these gjson path reads can expose usage from partially parsed JSON.
 func ExtractEmbeddingsUsage(body []byte) ForwardUsage {
+	if len(body) == 0 || wirejson.ValidateUsageEnvelope(body) != nil {
+		return ForwardUsage{}
+	}
 	usage := gjson.GetBytes(body, "usage")
 	if !usage.Exists() || !usage.IsObject() {
 		return ForwardUsage{}

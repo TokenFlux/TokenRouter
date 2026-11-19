@@ -2,11 +2,12 @@ package ops
 
 import (
 	"context"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
 // ingress_reject.go aggregates ingress rejection counts and queues their
@@ -554,7 +555,7 @@ func (a *OpsIngressRejectAggregator) flushPending() {
 		if err != nil {
 			a.flushFailures.Add(1)
 			a.lastError.Store(err.Error())
-			log.Printf("[IngressRejectAggregator] flush failed: %v", err)
+			logging.LegacyPrintf("service.ops_ingress_reject", "[IngressRejectAggregator] flush failed: %v", err)
 			return
 		}
 		// Remove this completed head before advancing the flushed counter, so later

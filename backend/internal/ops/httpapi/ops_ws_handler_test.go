@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,41 +28,55 @@ func TestOpsWSHelpers(t *testing.T) {
 }
 
 // TestOpsWSBrandNegotiation offers legacy, current, and mixed administrator
-// subprotocol names to a local upgrade server. It checks legacy compatibility
-// and current-name preference; jwt.fixture is not echoed, and this fixture
-// performs no JWT validation.
+// subprotocol names to a local upgrade server. It checks legacy compatibility,
+// server preference for tokenrouter-admin, Server-Timing header propagation,
+// and HTTP 403 rejection when Origin mismatches.
 func TestOpsWSBrandNegotiation(t *testing.T) {
 	handler := NewOpsHandler(nil, OpsWSOptions{OriginPolicy: OriginPolicyPermissive})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := handler.wsUpgrader.Upgrade(w, r, nil)
+		conn, err := handler.acceptOpsWebSocket(w, r, http.Header{"Server-Timing": []string{"app;dur=1.2"}})
 		if err != nil {
 			return
 		}
 		// Release the server side immediately after handshake; these cases inspect
-		// protocol selection and require no traffic-push loop.
-		_ = conn.Close()
+		// protocol selection and response headers without a traffic-push loop.
+		_ = conn.Close(websocket.StatusNormalClosure, "")
 	}))
 	// Stop accepting local handshakes after the cases. The server handler closes
 	// each upgraded socket separately, and client cases close their returned
 	// connections.
 	defer server.Close()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
 	for _, protocols := range [][]string{
 		{"sub2api-admin", "jwt.fixture"},
 		{"tokenrouter-admin", "jwt.fixture"},
 		{"sub2api-admin", "tokenrouter-admin", "jwt.fixture"},
 	} {
-		dialer := websocket.Dialer{Subprotocols: protocols}
-		// Open each case through a real local handshake to observe Gorilla's selected
-		// response subprotocol, then close the resulting connection.
-		conn, _, err := dialer.Dial("ws"+strings.TrimPrefix(server.URL, "http"), nil)
+		// Open each case through a real local handshake to observe the selected
+		// response subprotocol and Server-Timing header, then close the socket.
+		conn, resp, err := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{
+			Subprotocols: protocols,
+		})
 		require.NoError(t, err)
 		want := "tokenrouter-admin"
 		if len(protocols) == 2 && protocols[0] == "sub2api-admin" {
 			want = "sub2api-admin"
 		}
 		require.Equal(t, want, conn.Subprotocol())
-		require.NoError(t, conn.Close())
+		require.Equal(t, "app;dur=1.2", resp.Header.Get("Server-Timing"))
+		_ = conn.CloseNow()
 	}
+
+	// Verify mismatched Origin headers are rejected with HTTP 403 Forbidden before upgrade.
+	badConn, badResp, badErr := websocket.Dial(t.Context(), wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Origin": []string{"https://evil.example"}},
+	})
+	require.Error(t, badErr)
+	if badConn != nil {
+		_ = badConn.CloseNow()
+	}
+	require.NotNil(t, badResp)
+	require.Equal(t, http.StatusForbidden, badResp.StatusCode)
 }
 
 // TestOpsWebSocketPoliciesAreInstanceOwned constructs opposite trust and origin policies.

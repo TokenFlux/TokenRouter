@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/server/httpconfig"
 )
 
@@ -56,13 +56,13 @@ func CORS(cfg httpconfig.CORSConfig) gin.HandlerFunc {
 
 	corsWarningOnce.Do(func() {
 		if len(allowedOrigins) == 0 {
-			log.Println("Warning: CORS allowed_origins not configured; cross-origin requests will be rejected.")
+			logging.LegacyPrintf("middleware.cors", "%s", "Warning: CORS allowed_origins not configured; cross-origin requests will be rejected.")
 		}
 		if wildcardWithSpecific {
-			log.Println("Warning: CORS allowed_origins includes '*'; wildcard will take precedence over explicit origins.")
+			logging.LegacyPrintf("middleware.cors", "%s", "Warning: CORS allowed_origins includes '*'; wildcard will take precedence over explicit origins.")
 		}
 		if allowAll && allowCredentials {
-			log.Println("Warning: CORS allowed_origins set to '*', disabling allow_credentials.")
+			logging.LegacyPrintf("middleware.cors", "%s", "Warning: CORS allowed_origins set to '*', disabling allow_credentials.")
 		}
 	})
 	// Browsers reject credentialed wildcard permissions. Keep the advertised

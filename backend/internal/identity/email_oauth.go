@@ -17,26 +17,26 @@ import (
 type EmailOAuthOptions struct {
 	// Enabled is the login configuration switch consumed before the provider flow
 	// starts. Exchange and profile adapters receive the selected options directly.
-	Enabled bool `mapstructure:"enabled"`
+	Enabled bool `yaml:"enabled"`
 	// provider client application identifier
-	ClientID string `mapstructure:"client_id"`
+	ClientID string `yaml:"client_id"`
 	// provider client application secret
-	ClientSecret string `mapstructure:"client_secret"`
+	ClientSecret string `yaml:"client_secret"`
 	// provider authorization endpoint URL
-	AuthorizeURL string `mapstructure:"authorize_url"`
+	AuthorizeURL string `yaml:"authorize_url"`
 	// provider token exchange URL
-	TokenURL string `mapstructure:"token_url"`
+	TokenURL string `yaml:"token_url"`
 	// provider profile retrieval URL
-	UserInfoURL string `mapstructure:"userinfo_url"`
+	UserInfoURL string `yaml:"userinfo_url"`
 	// EmailsURL is used by GitHub's separate verified-email lookup. The Google
 	// profile parser obtains its verified email from the userinfo response itself.
-	EmailsURL string `mapstructure:"emails_url"`
+	EmailsURL string `yaml:"emails_url"`
 	// requested OAuth scope text
-	Scopes string `mapstructure:"scopes"`
+	Scopes string `yaml:"scopes"`
 	// backend OAuth callback URL
-	RedirectURL string `mapstructure:"redirect_url"`
+	RedirectURL string `yaml:"redirect_url"`
 	// browser completion callback URL
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
+	FrontendRedirectURL string `yaml:"frontend_redirect_url"`
 }
 
 // EmailOAuthTokenResponse carries the decoded credential used for provider

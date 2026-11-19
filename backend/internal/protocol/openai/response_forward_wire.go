@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"unsafe"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // response_forward_wire.go parses OpenAI SSE frames, repairs selected response
@@ -359,9 +361,10 @@ func ExtractOpenAIUsageFromJSONBytes(body []byte) (ForwardUsage, bool) {
 
 // extractOpenAIUsage returns parsed counters and the selected raw usage object.
 // The raw observation distinguishes omitted and explicit zero cache writes on
-// sparse frames. Source order keeps hosted images paired with their envelope.
+// sparse frames. Source order keeps hosted images paired with their envelope,
+// while ambiguous duplicate or non-canonical usage envelopes return no match.
 func extractOpenAIUsage(body []byte) (ForwardUsage, gjson.Result, bool) {
-	if len(body) == 0 || !gjson.ValidBytes(body) {
+	if len(body) == 0 || wirejson.ValidateUsageEnvelope(body) != nil {
 		return ForwardUsage{}, gjson.Result{}, false
 	}
 	// Envelopes select both main and hosted-image usage locations. Return the
@@ -428,6 +431,9 @@ func MergeHostedImageGenToolUsage(imageGen gjson.Result, usage *ForwardUsage) {
 	if usage == nil || !imageGen.Exists() || !imageGen.IsObject() {
 		return
 	}
+	if imageGen.Raw != "" && wirejson.ValidateUsageObject(unsafe.Slice(unsafe.StringData(imageGen.Raw), len(imageGen.Raw))) != nil {
+		return
+	}
 	// Hosted details fill exact zero categories independently. Existing nonzero
 	// image observations, including negative ones, remain outside this filling rule.
 	if usage.ImageOutputTokens == 0 {
@@ -469,6 +475,9 @@ func ExtractOpenAIResponseIDFromJSONBytes(body []byte) string {
 // work.
 func OpenAIUsageFromGJSON(value gjson.Result) (ForwardUsage, bool) {
 	if !value.Exists() || !value.IsObject() {
+		return ForwardUsage{}, false
+	}
+	if value.Raw != "" && wirejson.ValidateUsageObject(unsafe.Slice(unsafe.StringData(value.Raw), len(value.Raw))) != nil {
 		return ForwardUsage{}, false
 	}
 	// Canonical numeric zero permits the Chat aliases to supply the count.

@@ -108,9 +108,9 @@ func (w *requestIDWriter) Flush() {
 
 // Hijack reapplies correlation values to the header map and delegates
 // connection ownership transfer to Gin. A successful caller owns the returned
-// connection and closes it after use. Upgraders such as Gorilla serialize their
-// supplied responseHeader separately, so include intended handshake headers
-// there.
+// connection and closes it after use. Protocol upgraders that serialize raw
+// HTTP 101 responses over the hijacked buffer bypass later writer flushes, so
+// include intended handshake headers in the upgrade options.
 func (w *requestIDWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	w.protect()
 	return w.ResponseWriter.Hijack()

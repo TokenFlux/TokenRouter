@@ -2,8 +2,8 @@ package provider
 
 import (
 	"context"
-	"log"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/oauth"
 )
@@ -12,7 +12,7 @@ import (
 // to Claude provider authorization. Claude authorization distinguishes full
 // OAuth, API-key creation and inference scopes when preparing provider
 // sessions. The core authorization workflow receives the platform's PKCE and
-// URL operations together with those scope choices, standard logging and the
+// URL operations together with those scope choices, telemetry logging and the
 // supplied proxy resolver for later exchanges.
 
 // ClaudeAuthorizationOptions supplies platform OAuth scopes and authorization
@@ -30,7 +30,7 @@ func ClaudeAuthorizationOptions(resolveProxy func(context.Context, int64) (strin
 		GenerateCodeChallenge: oauth.GenerateCodeChallenge,
 		GenerateSessionID:     oauth.GenerateSessionID,
 		BuildAuthorizationURL: oauth.BuildAuthorizationURL,
-		Logf:                  log.Printf,
+		Logf:                  func(format string, args ...any) { logging.LegacyPrintf("provider.claude_oauth", format, args...) },
 		ResolveProxy:          resolveProxy,
 	}
 }

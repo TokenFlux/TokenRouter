@@ -25,54 +25,54 @@ import (
 // DingTalkOAuthOptions carries application, organization and profile-sync
 // configuration for provider authorization.
 type DingTalkOAuthOptions struct {
-	Enabled             bool   `mapstructure:"enabled"`               // configured DingTalk login switch
-	ClientID            string `mapstructure:"client_id"`             // upstream application client identifier
-	ClientSecret        string `mapstructure:"client_secret"`         // upstream application client credential
-	AuthorizeURL        string `mapstructure:"authorize_url"`         // provider browser authorization endpoint
-	TokenURL            string `mapstructure:"token_url"`             // provider token exchange endpoint
-	UserInfoURL         string `mapstructure:"userinfo_url"`          // provider identity lookup endpoint
-	Scopes              string `mapstructure:"scopes"`                // requested provider authorization scopes
-	RedirectURL         string `mapstructure:"redirect_url"`          // registered backend authorization callback
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"` // browser authorization return destination
+	Enabled             bool   `yaml:"enabled"`               // configured DingTalk login switch
+	ClientID            string `yaml:"client_id"`             // upstream application client identifier
+	ClientSecret        string `yaml:"client_secret"`         // upstream application client credential
+	AuthorizeURL        string `yaml:"authorize_url"`         // provider browser authorization endpoint
+	TokenURL            string `yaml:"token_url"`             // provider token exchange endpoint
+	UserInfoURL         string `yaml:"userinfo_url"`          // provider identity lookup endpoint
+	Scopes              string `yaml:"scopes"`                // requested provider authorization scopes
+	RedirectURL         string `yaml:"redirect_url"`          // registered backend authorization callback
+	FrontendRedirectURL string `yaml:"frontend_redirect_url"` // browser authorization return destination
 	// DingTalkAppKind must be internal_app for enabled settings under
 	// authconfig.ValidateDingTalkConfig. Disabled drafts can remain incomplete
 	// while the administrator configures them.
-	DingTalkAppKind string `mapstructure:"dingtalk_app_kind"`
+	DingTalkAppKind string `yaml:"dingtalk_app_kind"`
 	// AppType selects public or internal application behavior. Configuration
 	// defaults use public, while internal_only policy requires the internal
 	// application type.
-	AppType string `mapstructure:"app_type"`
+	AppType string `yaml:"app_type"`
 	// CorpRestrictionPolicy selects none or internal_only membership handling.
 	// DingTalkCorpAllowed accepts those labels without comparing corpID; the
 	// callback performs the required directory lookup.
-	CorpRestrictionPolicy string `mapstructure:"corp_restriction_policy"`
-	InternalCorpID        string `mapstructure:"internal_corp_id"` // configured organization identifier hint
+	CorpRestrictionPolicy string `yaml:"corp_restriction_policy"`
+	InternalCorpID        string `yaml:"internal_corp_id"` // configured organization identifier hint
 	// BypassRegistration permits the global-registration exemption only with
 	// internal_only policy. Validated provider settings and the registration
 	// observation still come from the calling authentication flow.
-	BypassRegistration bool `mapstructure:"bypass_registration"`
+	BypassRegistration bool `yaml:"bypass_registration"`
 	// SyncCorpEmail, SyncDisplayName and SyncDept select independent attribute
 	// writes in DingTalkProfileSync. The OAuth settings reader disables these
 	// organization-directory selections outside internal_only policy.
-	SyncCorpEmail           bool   `mapstructure:"sync_corp_email"`             // corporate-email attribute synchronization switch
-	SyncDisplayName         bool   `mapstructure:"sync_display_name"`           // staff-name attribute synchronization switch
-	SyncDept                bool   `mapstructure:"sync_dept"`                   // department attribute synchronization switch
-	SyncCorpEmailAttrKey    string `mapstructure:"sync_corp_email_attr_key"`    // corporate-email destination attribute key
-	SyncDisplayNameAttrKey  string `mapstructure:"sync_display_name_attr_key"`  // staff-name destination attribute key
-	SyncDeptAttrKey         string `mapstructure:"sync_dept_attr_key"`          // department destination attribute key
-	SyncCorpEmailAttrName   string `mapstructure:"sync_corp_email_attr_name"`   // corporate-email destination display label
-	SyncDisplayNameAttrName string `mapstructure:"sync_display_name_attr_name"` // staff-name destination display label
-	SyncDeptAttrName        string `mapstructure:"sync_dept_attr_name"`         // department destination display label
-	RequireEmail            bool   `mapstructure:"require_email"`               // configured upstream-email requirement flag
-	UsernameOverwritePolicy string `mapstructure:"username_overwrite_policy"`   // configured username replacement policy
-	UsernameAttributeKey    string `mapstructure:"username_attribute_key"`      // configured username destination attribute
-	EnableAttributeMatching bool   `mapstructure:"enable_attribute_matching"`   // configured attribute matching switch
-	EnableAttributeSync     bool   `mapstructure:"enable_attribute_sync"`       // configured attribute synchronization switch
+	SyncCorpEmail           bool   `yaml:"sync_corp_email"`             // corporate-email attribute synchronization switch
+	SyncDisplayName         bool   `yaml:"sync_display_name"`           // staff-name attribute synchronization switch
+	SyncDept                bool   `yaml:"sync_dept"`                   // department attribute synchronization switch
+	SyncCorpEmailAttrKey    string `yaml:"sync_corp_email_attr_key"`    // corporate-email destination attribute key
+	SyncDisplayNameAttrKey  string `yaml:"sync_display_name_attr_key"`  // staff-name destination attribute key
+	SyncDeptAttrKey         string `yaml:"sync_dept_attr_key"`          // department destination attribute key
+	SyncCorpEmailAttrName   string `yaml:"sync_corp_email_attr_name"`   // corporate-email destination display label
+	SyncDisplayNameAttrName string `yaml:"sync_display_name_attr_name"` // staff-name destination display label
+	SyncDeptAttrName        string `yaml:"sync_dept_attr_name"`         // department destination display label
+	RequireEmail            bool   `yaml:"require_email"`               // configured upstream-email requirement flag
+	UsernameOverwritePolicy string `yaml:"username_overwrite_policy"`   // configured username replacement policy
+	UsernameAttributeKey    string `yaml:"username_attribute_key"`      // configured username destination attribute
+	EnableAttributeMatching bool   `yaml:"enable_attribute_matching"`   // configured attribute matching switch
+	EnableAttributeSync     bool   `yaml:"enable_attribute_sync"`       // configured attribute synchronization switch
 	// AttributeSyncFields retains the supplied configuration slice during
 	// ordinary option copying. Callers keep that shared field selection stable
 	// while a consumer reads it.
-	AttributeSyncFields          []string `mapstructure:"attribute_sync_fields"`
-	AttributeSyncOverwritePolicy string   `mapstructure:"attribute_sync_overwrite_policy"` // configured attribute replacement policy
+	AttributeSyncFields          []string `yaml:"attribute_sync_fields"`
+	AttributeSyncOverwritePolicy string   `yaml:"attribute_sync_overwrite_policy"` // configured attribute replacement policy
 }
 
 // DingTalkUserTokenResp carries upstream user credentials and an optional

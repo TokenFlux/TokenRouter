@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"math/rand/v2"
 	"slices"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
@@ -478,7 +478,7 @@ func jitterDuration(base time.Duration, percent int) time.Duration {
 // chooses the winning timestamp across callers; successes and restarts do not
 // reset the gate, and a backward clock can prolong suppression.
 //
-// The timestamp is stored before log.Printf executes, so a concurrent failure
+// The timestamp is stored before LegacyPrintf executes, so a concurrent failure
 // can see the gate while the winning message is still being written. Polling
 // counts each failed attempt separately; suppression limits messages without
 // reducing the failure counter.
@@ -496,7 +496,7 @@ func (s *OpsService) logRuntimeSettingsRefreshFailure(err error) {
 			return
 		}
 		if s.runtimeRefreshLastFailureLog.CompareAndSwap(last, now) {
-			log.Printf("[Ops] runtime settings refresh failed: %v", err)
+			logger.LegacyPrintf("service.ops", "[Ops] runtime settings refresh failed: %v", err)
 			return
 		}
 	}
@@ -614,7 +614,7 @@ func SanitizeOpsUpstreamErrorsForQueue(entry *OpsInsertErrorLogInput) error {
 func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogInput) error {
 	prepared, ok, err := s.prepareErrorLogInput(ctx, entry)
 	if err != nil {
-		log.Printf("[Ops] RecordError prepare failed: %v", err)
+		logger.LegacyPrintf("service.ops", "[Ops] RecordError prepare failed: %v", err)
 		return err
 	}
 	if !ok {
@@ -625,7 +625,7 @@ func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogIn
 		// A synchronous write failure remains visible to the caller after preparation
 		// has changed the input. Log it once here and return the same repository
 		// error.
-		log.Printf("[Ops] RecordError failed: %v", err)
+		logger.LegacyPrintf("service.ops", "[Ops] RecordError failed: %v", err)
 		return err
 	}
 	return nil
@@ -653,7 +653,7 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 		// observations. Logging the preparation error does not make the final batch
 		// call fail by itself.
 		if err != nil {
-			log.Printf("[Ops] RecordErrorBatch prepare failed: %v", err)
+			logger.LegacyPrintf("service.ops", "[Ops] RecordErrorBatch prepare failed: %v", err)
 			continue
 		}
 		if ok {
@@ -692,7 +692,7 @@ func logOpsErrorBatchWriteFailure(ctx context.Context, format string, err error)
 	if isContextDoneError(ctx, err) {
 		return
 	}
-	log.Printf(format, err)
+	logger.LegacyPrintf("service.ops", format, err)
 }
 
 // prepareErrorLogInput returns the supplied entry after in-place preparation
@@ -926,7 +926,7 @@ func (s *OpsService) GetErrorLogs(ctx context.Context, filter *OpsErrorLogFilter
 	}
 	result, err := s.opsRepo.ListErrorLogs(ctx, filter)
 	if err != nil {
-		log.Printf("[Ops] GetErrorLogs failed: %v", err)
+		logger.LegacyPrintf("service.ops", "[Ops] GetErrorLogs failed: %v", err)
 		return nil, err
 	}
 

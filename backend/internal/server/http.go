@@ -1,7 +1,6 @@
 package server
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/google/wire"
 	"golang.org/x/net/http2"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 )
 
@@ -52,20 +52,20 @@ func ProvideRouter(cfg Options, runtime *RouterRuntime) *gin.Engine {
 func configureTrustedProxies(r *gin.Engine, cfg Options) {
 	if cfg.TrustedProxiesConfigured {
 		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
-			log.Printf("Failed to set trusted proxies: %v", err)
+			logging.LegacyPrintf("server.http", "Failed to set trusted proxies: %v", err)
 			// Gin may retain a valid prefix from the rejected list. Clear all peers
 			// so a malformed configuration cannot leave partially enabled forwarding trust.
 			_ = r.SetTrustedProxies(nil)
 		}
 		if len(cfg.TrustedProxies) == 0 && cfg.Mode == "release" {
-			log.Printf("Warning: server.client_ip.trusted_proxies is explicitly empty; forwarded client IP trust is disabled")
+			logging.LegacyPrintf("server.http", "Warning: server.client_ip.trusted_proxies is explicitly empty; forwarded client IP trust is disabled")
 		}
 	} else {
 		if err := r.SetTrustedProxies(nil); err != nil {
-			log.Printf("Failed to disable trusted proxies: %v", err)
+			logging.LegacyPrintf("server.http", "Failed to disable trusted proxies: %v", err)
 		}
 		if cfg.Mode == "release" {
-			log.Printf("Warning: server.client_ip.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
+			logging.LegacyPrintf("server.http", "Warning: server.client_ip.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
 		}
 	}
 }
@@ -98,7 +98,7 @@ func ProvideHTTPServer(cfg Options, router *gin.Engine) *http.Server {
 		// even when their route also applies a narrower request-body limit.
 		httpHandler = http.MaxBytesHandler(httpHandler, globalMaxSize)
 		// Express the byte cap as MiB in this diagnostic.
-		log.Printf("Global max request body size: %d bytes (%.2f MB)", globalMaxSize, float64(globalMaxSize)/(1<<20))
+		logging.LegacyPrintf("server.http", "Global max request body size: %d bytes (%.2f MB)", globalMaxSize, float64(globalMaxSize)/(1<<20))
 	}
 
 	// The adapter accepts a separate H2C idle timeout while http.Server holds
@@ -115,13 +115,13 @@ func ProvideHTTPServer(cfg Options, router *gin.Engine) *http.Server {
 		}); err != nil {
 			// Keep the returned server's Protocols unset on this error path. The
 			// diagnostic reports configuration failure before explicit H2C opt-in occurs.
-			log.Printf("Failed to configure HTTP/2 Cleartext (h2c): %v", err)
+			logging.LegacyPrintf("server.http", "Failed to configure HTTP/2 Cleartext (h2c): %v", err)
 		} else {
 			protocols := new(http.Protocols)
 			protocols.SetHTTP1(true)
 			protocols.SetUnencryptedHTTP2(true)
 			server.Protocols = protocols
-			log.Printf("HTTP/2 Cleartext (h2c) enabled: max_concurrent_streams=%d, idle_timeout=%ds, max_read_frame_size=%d, max_upload_buffer_per_connection=%d, max_upload_buffer_per_stream=%d",
+			logging.LegacyPrintf("server.http", "HTTP/2 Cleartext (h2c) enabled: max_concurrent_streams=%d, idle_timeout=%ds, max_read_frame_size=%d, max_upload_buffer_per_connection=%d, max_upload_buffer_per_stream=%d",
 				h2cConfig.MaxConcurrentStreams,
 				h2cConfig.IdleTimeout,
 				h2cConfig.MaxReadFrameSize,

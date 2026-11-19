@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"log"
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -48,7 +47,7 @@ type providerSchedulerEvents struct {
 // assembly; the deferred service owns scheduling and shutdown of its accepted
 // writes.
 func provideProviderDeferred(store *providerpostgres.ProviderStore, wheel *timingwheel.Wheel) *acctcore.DeferredService {
-	return acctcore.NewDeferredService(store, wheel, acctcore.DeferredOptions{Interval: 10 * time.Second, Now: time.Now, Observe: log.Printf})
+	return acctcore.NewDeferredService(store, wheel, acctcore.DeferredOptions{Interval: 10 * time.Second, Now: time.Now, Observe: func(format string, args ...any) { logging.LegacyPrintf("service.provider_deferred", format, args...) }})
 }
 
 // newProviderEvents binds current provider reads to cache publication and

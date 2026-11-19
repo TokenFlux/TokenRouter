@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -367,7 +366,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			// active retry work, so concurrently admitted sequences may each continue.
 			if decision.ModelName != "" {
 				if cooldownUntil, active := s.Options.Capacity.CooldownUntil(decision.ModelName, time.Now()); active {
-					log.Printf("%s status=%d model_capacity_exhausted_dedup model=%s provider=%d cooldown_until=%v (skip retry)",
+					logger.LegacyPrintf("upstream.antigravity", "%s status=%d model_capacity_exhausted_dedup model=%s provider=%d cooldown_until=%v (skip retry)",
 						p.Prefix, resp.StatusCode, decision.ModelName, p.ProviderID, cooldownUntil.Format("15:04:05"))
 					return &SmartRetryResult{
 						Action: SmartRetryActionBreakWithResp,
@@ -382,7 +381,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 		}
 
 		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			log.Printf("%s status=%d oauth_smart_retry attempt=%d/%d delay=%v model=%s provider=%d",
+			logger.LegacyPrintf("upstream.antigravity", "%s status=%d oauth_smart_retry attempt=%d/%d delay=%v model=%s provider=%d",
 				p.Prefix, resp.StatusCode, attempt, maxAttempts, waitDuration, decision.ModelName, p.ProviderID)
 
 			// Wait before dispatching again and let caller cancellation stop this
@@ -391,7 +390,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			select {
 			case <-p.Ctx.Done():
 				timer.Stop()
-				log.Printf("%s status=context_canceled_during_smart_retry", p.Prefix)
+				logger.LegacyPrintf("upstream.antigravity", "%s status=context_canceled_during_smart_retry", p.Prefix)
 				return &SmartRetryResult{Action: SmartRetryActionBreakWithResp, Err: p.Ctx.Err()}
 			case <-timer.C:
 			}
@@ -413,7 +412,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 
 			retryResp, retryErr := s.Options.Do(retryReq)
 			if retryErr == nil && retryResp != nil && retryResp.StatusCode != http.StatusTooManyRequests && retryResp.StatusCode != http.StatusServiceUnavailable {
-				log.Printf("%s status=%d smart_retry_success attempt=%d/%d", p.Prefix, retryResp.StatusCode, attempt, maxAttempts)
+				logger.LegacyPrintf("upstream.antigravity", "%s status=%d smart_retry_success attempt=%d/%d", p.Prefix, retryResp.StatusCode, attempt, maxAttempts)
 				// Clear capacity state when a retry leaves 429/503, including a different
 				// HTTP failure, because this sequence terminates on that broader response
 				// classification.
@@ -426,7 +425,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			// Consume a transport-failed attempt without replacing captured HTTP bytes,
 			// allowing a later dispatch within the remaining smart-retry budget.
 			if retryErr != nil || retryResp == nil {
-				log.Printf("%s status=smart_retry_network_error attempt=%d/%d error=%v", p.Prefix, attempt, maxAttempts, retryErr)
+				logger.LegacyPrintf("upstream.antigravity", "%s status=smart_retry_network_error attempt=%d/%d error=%v", p.Prefix, attempt, maxAttempts, retryErr)
 				continue
 			}
 
@@ -475,7 +474,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 				now := time.Now()
 				s.Options.Capacity.MarkExhausted(decision.ModelName, now.Add(AntigravityModelCapacityCooldown), now)
 			}
-			log.Printf("%s status=%d smart_retry_exhausted_model_capacity attempts=%d model=%s provider=%d body=%s (model capacity exhausted, not switching provider)",
+			logger.LegacyPrintf("upstream.antigravity", "%s status=%d smart_retry_exhausted_model_capacity attempts=%d model=%s provider=%d body=%s (model capacity exhausted, not switching provider)",
 				p.Prefix, resp.StatusCode, maxAttempts, decision.ModelName, p.ProviderID, s.Options.TruncateForLog(retryBody, 200))
 			return &SmartRetryResult{
 				Action: SmartRetryActionBreakWithResp,
@@ -502,7 +501,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			}
 		}
 
-		log.Printf("%s status=%d smart_retry_exhausted attempts=%d model=%s provider=%d upstream_retry_delay=%v body=%s (switch provider)",
+		logger.LegacyPrintf("upstream.antigravity", "%s status=%d smart_retry_exhausted attempts=%d model=%s provider=%d upstream_retry_delay=%v body=%s (switch provider)",
 			p.Prefix, resp.StatusCode, maxAttempts, decision.ModelName, p.ProviderID, rateLimitDuration, s.Options.TruncateForLog(retryBody, 200))
 
 		resetAt := time.Now().Add(rateLimitDuration)
