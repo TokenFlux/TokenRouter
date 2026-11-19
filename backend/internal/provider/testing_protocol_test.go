@@ -87,7 +87,7 @@ func TestGroupProbeOpenCodeRoutesFollowModelProtocol(t *testing.T) {
 			executed := false
 			loader := &testLoaderStub{target: testTargetStub{info: TestTargetInfo{ProviderSnapshot: snapshot}, run: func(_ context.Context, request PreparedTestRequest, _ TestEventSink) error {
 				executed = true
-				require.Equal(t, TestRouteOpenCode, request.Route)
+				require.Equal(t, TestRouteDefault, request.Route)
 				return nil
 			}}}
 			err := NewTestService(loader, TestOptions{}).Test(t.Context(), TestRequest{Model: tc.model, ProtocolRoute: route}, &testSinkStub{})

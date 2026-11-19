@@ -36,23 +36,38 @@ const (
 // usageAdapterCatalog associates each supported format with its display name and
 // automatic selection rule for catalog and administrator-option consumers.
 var usageAdapterCatalog = []UsageAdapterSpec{
-	{Name: UpstreamUsageAdapterOpenCodeGo, Label: "OpenCode Go", Automatic: true},
+	{Name: UpstreamUsageAdapterOpenCodeGo, Label: "OpenCode Go", Automatic: true, DefaultBaseURL: OpenCodeGoUsageDefaultBaseURL},
 	{Name: UpstreamUsageAdapterSub2API, Label: "Sub2API / TokenRouter", Automatic: false},
 	{Name: UpstreamUsageAdapterNewAPI, Label: "New API", Automatic: false},
 	{Name: UpstreamUsageAdapterZivv, Label: "Zivv", Automatic: false},
-	{Name: UpstreamUsageAdapterDerouter, Label: "derouter.ai (Account Key)", Automatic: false},
+	{Name: UpstreamUsageAdapterDerouter, Label: "derouter.ai (Account Key)", Automatic: false, DefaultBaseURL: DerouterUsageDefaultBaseURL},
 	{Name: UpstreamUsageAdapterKimiCoding, Label: "Kimi Coding Plan", Automatic: true},
 	{Name: UpstreamUsageAdapterZhipuCoding, Label: "Zhipu Coding Plan", Automatic: true},
 	{Name: UpstreamUsageAdapterKimiBalance, Label: "Kimi Balance", Automatic: true},
 	{Name: UpstreamUsageAdapterDeepseekBalance, Label: "DeepSeek Balance", Automatic: true},
 }
 
-// UsageAdapterSpec names a usage format and its selection category.
+// UsageAdapterSpec names a usage format, its selection category, and its
+// optional dedicated management root.
 type UsageAdapterSpec struct {
 	Name, Label string // registered adapter name and administrator display label
+	// DefaultBaseURL supplies the official management root when an adapter queries
+	// a host separate from model forwarding and no override is configured.
+	DefaultBaseURL string
 	// Automatic excludes the adapter from administrator choices because
 	// PlatformUsageAdapter selects it from platform and provider mode.
 	Automatic bool // platform selects adapter
+}
+
+// DefaultUsageAdapterBaseURL returns the catalog's default management root for
+// name, or empty when the adapter shares the provider's forwarding host.
+func DefaultUsageAdapterBaseURL(name string) string {
+	for _, registration := range usageAdapterCatalog {
+		if registration.Name == name {
+			return registration.DefaultBaseURL
+		}
+	}
+	return ""
 }
 
 // UpstreamUsageAdapterCatalog returns a new slice containing every catalog entry

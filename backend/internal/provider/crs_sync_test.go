@@ -6,8 +6,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/provider/transfer"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
+
+// crsExporterStub returns a preconfigured CRS export payload for sync tests.
+type crsExporterStub struct {
+	response *transfer.CRSExportResponse // configured export payload
+}
+
+// crsProviderStoreStub extends crsShadowStore with CRS account ID lookups for
+// SyncFromCRS and PreviewFromCRS unit tests.
+type crsProviderStoreStub struct {
+	*crsShadowStore // embedded shadow and configuration store
+}
 
 // TestBuildSelectedSet supplies absent, empty, populated, and duplicate
 // source-ID selections. It asserts nil and nonnil empty maps retain distinct
@@ -166,4 +178,64 @@ func TestGuardCRSShadowParentInvariant(t *testing.T) {
 
 	// Allow OpenAI OAuth resynchronization while shadows exist.
 	require.NoError(t, GuardCRSShadowParentInvariant(ctx, repo, mother, capability.PlatformOpenAI, capability.ProviderTypeOAuth))
+}
+
+// Fetch returns the stub's configured CRS export payload without network I/O.
+func (s crsExporterStub) Fetch(context.Context, string, string, string) (*transfer.CRSExportResponse, error) {
+	return s.response, nil
+}
+
+// GetByCRSAccountID scans stored records for a matching crs_account_id Extra
+// value.
+func (s crsProviderStoreStub) GetByCRSAccountID(_ context.Context, crsID string) (*Record, error) {
+	for _, row := range s.rows {
+		if row != nil && row.GetExtraString("crs_account_id") == crsID {
+			return row, nil
+		}
+	}
+	return nil, nil
+}
+
+// ListCRSAccountIDs returns every stored crs_account_id mapped to its record ID.
+func (s crsProviderStoreStub) ListCRSAccountIDs(_ context.Context) (map[string]int64, error) {
+	ids := make(map[string]int64, len(s.rows))
+	for _, row := range s.rows {
+		if row != nil && row.GetExtraString("crs_account_id") != "" {
+			ids[row.GetExtraString("crs_account_id")] = row.ID
+		}
+	}
+	return ids, nil
+}
+
+// TestSyncFromCRSOpenAIResponsesPreservesCallerCredentialsMap imports OpenAI
+// Responses entries with omitted and /v1-suffixed base URLs. Persisted records
+// receive normalized base_url values while the caller's source maps stay
+// unchanged.
+func TestSyncFromCRSOpenAIResponsesPreservesCallerCredentialsMap(t *testing.T) {
+	omittedBase := map[string]any{"api_key": "sk-one"}
+	versionedBase := map[string]any{"api_key": "sk-two", "base_url": "https://relay.example.com/v1"}
+	export := &transfer.CRSExportResponse{Success: true}
+	export.Data.OpenAIResponsesProviders = []transfer.CRSOpenAIResponsesProvider{
+		{ID: "resp-1", Kind: "openai-responses", Name: "one", IsActive: true, Schedulable: true, Credentials: omittedBase},
+		{ID: "resp-2", Kind: "openai-responses", Name: "two", IsActive: false, Schedulable: true, Credentials: versionedBase},
+	}
+
+	repo := crsProviderStoreStub{crsShadowStore: newCRSShadowStore()}
+	syncer := NewCRSSync(repo, nil, crsExporterStub{response: export}, CRSOptions{})
+	res, err := syncer.SyncFromCRS(context.Background(), SyncFromCRSInput{})
+	require.NoError(t, err)
+	require.Equal(t, 2, res.Created)
+
+	require.NotContains(t, omittedBase, "base_url")
+	require.Equal(t, "https://relay.example.com/v1", versionedBase["base_url"])
+
+	createdOne, err := repo.GetByCRSAccountID(context.Background(), "resp-1")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.openai.com", createdOne.Credentials["base_url"])
+	require.Equal(t, "active", createdOne.Status)
+
+	createdTwo, err := repo.GetByCRSAccountID(context.Background(), "resp-2")
+	require.NoError(t, err)
+	require.Equal(t, "https://relay.example.com", createdTwo.Credentials["base_url"])
+	require.Equal(t, "inactive", createdTwo.Status)
 }

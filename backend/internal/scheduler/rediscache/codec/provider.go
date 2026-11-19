@@ -32,6 +32,7 @@ import (
 // come from Record; callers keep the source graph stable while marshaling.
 type providerWire struct {
 	QoderCatalogIdentityHint string  `json:",omitempty"` // private account observation identity
+	UsageMonitorIdentityHint string  `json:",omitempty"` // private usage-monitor observation identity
 	ID                       int64   // persisted provider identity
 	Name                     string  // configured display name
 	Notes                    *string // optional administrator notes
@@ -175,6 +176,7 @@ func recordToWire(value *provider.Record, seen map[*provider.Record]*providerWir
 	out.Platform = value.Platform
 	out.Type = value.Type
 	out.QoderCatalogIdentityHint = value.QoderCatalogIdentityHint
+	out.UsageMonitorIdentityHint = value.UsageMonitorIdentityHint
 	out.Credentials = value.Credentials
 	out.Extra = value.Extra
 	out.ProxyID = value.ProxyID
@@ -256,6 +258,7 @@ func recordFromWire(value *providerWire) *provider.Record {
 	out.Platform = value.Platform
 	out.Type = value.Type
 	out.QoderCatalogIdentityHint = value.QoderCatalogIdentityHint
+	out.UsageMonitorIdentityHint = value.UsageMonitorIdentityHint
 	out.Credentials = value.Credentials
 	out.Extra = value.Extra
 	out.ProxyID = value.ProxyID

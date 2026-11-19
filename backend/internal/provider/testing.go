@@ -34,18 +34,10 @@ import (
 // TestRoute values identify execution families selected from provider metadata
 // before a prepared test request reaches its platform target.
 const (
-	TestRouteClaude              TestRoute = iota // default Anthropic execution family
+	TestRouteDefault             TestRoute = iota // dedicated platform execution target
 	TestRouteTextAPIKeyAdaptive                   // Kimi/Zhipu/DeepSeek configured-protocol adaptive test
 	TestRouteTextAPIKeyResponses                  // Kimi/Zhipu/DeepSeek shared Responses execution
-	TestRouteTextAPIKeyChat                       // Kimi/Zhipu/DeepSeek fixed Chat execution
-	TestRouteTextAPIKeyMessages                   // Kimi/Zhipu/DeepSeek fixed Messages execution
-	TestRouteOpenAI                               // OpenAI platform execution family
-	TestRouteGemini                               // Gemini platform execution family
-	TestRouteGrok                                 // Grok platform execution family
-	TestRouteAntigravity                          // Antigravity platform execution family
-	TestRouteQoder                                // Qoder platform execution family
-	TestRouteJev                                  // Jev SystemOne execution family
-	TestRouteOpenCode                             // OpenCode per-model protocol family
+	TestRouteTextAPIKeyFixed                      // Kimi/Zhipu/DeepSeek fixed Chat or Messages execution
 
 	// Provider test-type and mode strings normalize administrator selections and
 	// recognized legacy arguments before a request reaches its platform executor.
@@ -368,12 +360,11 @@ func (s *TestService) Test(ctx context.Context, request TestRequest, sink TestEv
 // images require OpenAI, Gemini, or Grok and select default mode. A known
 // explicit image protocol bypasses the separate provider protocol check. Other
 // selected protocols use testProtocolAllowed. Kimi, Zhipu, and DeepSeek routing
-// uses APIProtocol: adaptive, Responses, and Chat select their dedicated
-// families, while other values select Messages. Remaining platforms choose
-// their family with Anthropic as the default. Routed probes validate the exact
-// endpoint for the requested model and retain its protocol pair in the
-// execution context. Target execution receives the original borrowed payload
-// storage.
+// uses APIProtocol to choose adaptive, Responses, or fixed execution, while
+// remaining platforms use their dedicated target with TestRouteDefault. Routed
+// probes validate the exact endpoint for the requested model and retain its
+// protocol pair in the execution context. Target execution receives the
+// original borrowed payload storage.
 func (s *TestService) execute(ctx context.Context, request TestRequest, sink TestEventSink) error {
 	if request.Protocol != "" && TestProtocolID(request.Protocol) == "" {
 		return s.fail(ctx, sink, "Invalid test protocol")
@@ -429,8 +420,7 @@ func (s *TestService) execute(ctx context.Context, request TestRequest, sink Tes
 	prepared := PreparedTestRequest{TestRequest: request, TestType: kind, ExplicitType: explicit}
 	// Kimi, Zhipu, and DeepSeek target execution consumes Route together with
 	// its configured protocol. Choose that combination after eligibility
-	// validation; other platform targets receive their corresponding prepared
-	// family.
+	// validation; dedicated platform targets use TestRouteDefault.
 	prepared.Mode = mode
 	if platformRuleRegistry[info.Platform].text != nil {
 		switch info.APIProtocol {
@@ -438,30 +428,11 @@ func (s *TestService) execute(ctx context.Context, request TestRequest, sink Tes
 			prepared.Route = TestRouteTextAPIKeyAdaptive
 		case APIProtocolResponses:
 			prepared.Route = TestRouteTextAPIKeyResponses
-		case APIProtocolChatCompletions:
-			prepared.Route = TestRouteTextAPIKeyChat
 		default:
-			prepared.Route = TestRouteTextAPIKeyMessages
+			prepared.Route = TestRouteTextAPIKeyFixed
 		}
 	} else {
-		switch info.Platform {
-		case PlatformOpenAI:
-			prepared.Route = TestRouteOpenAI
-		case PlatformGemini:
-			prepared.Route = TestRouteGemini
-		case PlatformGrok:
-			prepared.Route = TestRouteGrok
-		case PlatformAntigravity:
-			prepared.Route = TestRouteAntigravity
-		case PlatformJev:
-			prepared.Route = TestRouteJev
-		case PlatformQoder:
-			prepared.Route = TestRouteQoder
-		case PlatformOpenCode:
-			prepared.Route = TestRouteOpenCode
-		default:
-			prepared.Route = TestRouteClaude
-		}
+		prepared.Route = TestRouteDefault
 	}
 	return target.Execute(ctx, prepared, sink)
 }
@@ -489,32 +460,28 @@ func TestProtocolID(protocol string) capability.ProtocolID {
 
 // testProtocolAllowed reports whether provider metadata permits a selected test
 // protocol. OpenAI API keys allow Responses or Chat regardless of enabled
-// protocols, and other OpenAI types permit Responses. Jev, OpenCode, and Kimi,
-// Zhipu, and DeepSeek targets honor the selection, so they allow a protocol
-// that is both enabled and among the supplied native options for the provider's
-// type.
+// protocols, and other OpenAI types permit Responses. Platforms declaring text
+// endpoint rules or explicitTestProtocol in platformRuleRegistry allow a
+// protocol that is both enabled and among the supplied native options for the
+// provider's type.
 //
 // Remaining platforms run one fixed probe and reject explicit text protocol
 // selection. execute calls this helper after spelling validation and image
 // eligibility; explicit images skip this check once their protocol spelling is
 // known.
 func testProtocolAllowed(info TestTargetInfo, native []capability.ProtocolID, protocol string) bool {
-	if platformRuleRegistry[info.Platform].text != nil {
+	rules := platformRuleRegistry[info.Platform]
+	if rules.text != nil || rules.explicitTestProtocol {
 		selected := TestProtocolID(protocol)
 		return slices.Contains(info.EnabledProtocols, selected) && slices.Contains(native, selected)
 	}
-	switch info.Platform {
-	case PlatformOpenAI:
+	if info.Platform == PlatformOpenAI {
 		if info.Type == ProviderTypeAPIKey {
 			return protocol == APIProtocolResponses || protocol == APIProtocolChatCompletions
 		}
 		return protocol == APIProtocolResponses
-	case PlatformJev, PlatformOpenCode:
-		selected := TestProtocolID(protocol)
-		return slices.Contains(info.EnabledProtocols, selected) && slices.Contains(native, selected)
-	default:
-		return false
 	}
+	return false
 }
 
 // fail reports a service failure, emits its error event, and returns a new error

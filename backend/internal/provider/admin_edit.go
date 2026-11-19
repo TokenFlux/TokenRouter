@@ -201,31 +201,10 @@ func (s *Admin) UpdateProvider(ctx context.Context, id int64, input *UpdateProvi
 				normalizedExtra[UpstreamBalanceAlertExtraKey] = value
 			}
 		}
-		delete(normalizedExtra, OllamaCloudUsageSessionExtraKey)
-		delete(normalizedExtra, OllamaCloudUsageAutoRefreshExtraKey)
-		delete(normalizedExtra, OllamaCloudUsageSnapshotExtraKey)
-		delete(normalizedExtra, UsageMonitorSnapshotExtraKey)
-		// Retain the initial managed observations for prospective validation.
-		// The configuration writer later substitutes the latest billing and
-		// maintenance values under lock.
-		for _, key := range []string{
-			"quota_used",
-			"quota_daily_used",
-			"quota_daily_start",
-			"quota_weekly_used",
-			"quota_monthly_used",
-			"quota_weekly_start",
-			"quota_monthly_start",
-			"grok_billing_snapshot",
-			OllamaCloudUsageSessionExtraKey,
-			OllamaCloudUsageAutoRefreshExtraKey,
-			OllamaCloudUsageSnapshotExtraKey,
-			UsageMonitorSnapshotExtraKey,
-		} {
-			if v, ok := provider.Extra[key]; ok {
-				normalizedExtra[key] = v
-			}
-		}
+		// Retain cloned managed observations for prospective validation and
+		// plain-update stores. ConfigurationWriter later substitutes the latest
+		// billing and maintenance values under lock.
+		RestoreManagedConfigurationExtra(normalizedExtra, provider.Extra)
 		if IsOpenAIAPIKeyProvider(provider) {
 			// Continuation capability has an independent control. Carry its
 			// saved value through validation when omitted, and ask storage to
@@ -795,10 +774,9 @@ func normalizeProviderExtraPatch(updates map[string]any) (map[string]any, error)
 	// Dedicated maintenance APIs own these observations. Discard submitted
 	// snapshot keys so a configuration patch cannot install usage or session
 	// state from a client.
-	delete(updates, OllamaCloudUsageSessionExtraKey)
-	delete(updates, OllamaCloudUsageAutoRefreshExtraKey)
-	delete(updates, OllamaCloudUsageSnapshotExtraKey)
-	delete(updates, UsageMonitorSnapshotExtraKey)
+	for _, key := range discardedAdminPatchExtraKeys {
+		delete(updates, key)
+	}
 	return updates, nil
 }
 

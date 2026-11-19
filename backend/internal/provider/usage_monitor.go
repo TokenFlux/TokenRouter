@@ -631,8 +631,12 @@ func UsageMonitorOfficialHost(platform, host string) bool {
 }
 
 // usageMonitorFingerprint hashes the provider query context and its selected
-// protocol base URL.
+// protocol base URL, reusing UsageMonitorIdentityHint when present on a
+// lightweight scheduler metadata record.
 func usageMonitorFingerprint(value *Record, config UpstreamUsageQueryConfig) string {
+	if value != nil && value.UsageMonitorIdentityHint != "" {
+		return value.UsageMonitorIdentityHint
+	}
 	return UpstreamUsageContextFingerprint(value, config, value.OpenAIBaseURL(value.ConfiguredAPIProtocol() == APIProtocolAdaptive))
 }
 

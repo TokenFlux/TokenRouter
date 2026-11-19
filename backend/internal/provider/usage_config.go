@@ -69,16 +69,11 @@ func EffectiveUpstreamUsageConfig(provider *Record) (UpstreamUsageQueryConfig, e
 	} else if !IsKnownUpstreamUsageAdapter(config.Adapter) {
 		return UpstreamUsageQueryConfig{}, ErrUpstreamUsageUnsupported
 	}
-	// Derouter and OpenCode Go management use a separate host from model
-	// forwarding. Resolve their defaults here so execution and query identity
-	// checks use the same destination.
+	// Adapters whose management host differs from model forwarding declare their
+	// default root in usageAdapterCatalog; resolve it here so execution and query
+	// identity checks share one destination.
 	if config.BaseURL == "" {
-		switch config.Adapter {
-		case UpstreamUsageAdapterDerouter:
-			config.BaseURL = DerouterUsageDefaultBaseURL
-		case UpstreamUsageAdapterOpenCodeGo:
-			config.BaseURL = OpenCodeGoUsageDefaultBaseURL
-		}
+		config.BaseURL = DefaultUsageAdapterBaseURL(config.Adapter)
 	}
 	if config.BaseURL != "" {
 		if err := egress.ValidateUsageBaseURLFormat(config.BaseURL); err != nil {
@@ -257,14 +252,12 @@ func IsKnownUpstreamUsageAdapter(name string) bool {
 // EffectiveUpstreamUsageConfig resolves that case as disabled, and query
 // execution reports it as unsupported before sending a request.
 func PlatformUsageAdapter(provider *Record) (name string, fixed bool) {
-	if provider.IsOpenCode() {
-		if provider.OpenCodeMode() == ProviderModeGo {
-			return UpstreamUsageAdapterOpenCodeGo, true
-		}
-		return "", true
-	}
-	if !provider.rules().usage.fixedAdapter {
+	rules := provider.rules().usage
+	if !rules.fixedAdapter {
 		return "", false
+	}
+	if rules.modeAdapter != nil {
+		return rules.modeAdapter(provider), true
 	}
 	return provider.textMode().usageAdapter, true
 }

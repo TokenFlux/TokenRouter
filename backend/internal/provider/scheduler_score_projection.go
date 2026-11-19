@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // scheduler_score_projection.go builds administrative provider scores from
@@ -115,11 +116,11 @@ func NewSchedulerScoreView(reader SchedulerScoreProviders, options SchedulerScor
 	return &SchedulerScoreView{reader, options}
 }
 
-// scoreAdvancedSchedulerPool scores records passing IsSchedulable and copies
-// callback values into a new map. Empty usable pools return nil; nil loadMap
-// triggers a batch read, while supplied maps are passed directly. Keep
-// provider data and supplied loads stable through the synchronous Score
-// callback.
+// scoreAdvancedSchedulerPool scores records passing IsSchedulable and group
+// OAuth, privacy, and protocol gates, then copies callback values into a new
+// map. Empty usable pools return nil; nil loadMap triggers a batch read, while
+// supplied maps are passed directly. Keep provider data and supplied loads
+// stable through the synchronous Score callback.
 func (h *SchedulerScoreView) scoreAdvancedSchedulerPool(ctx context.Context, group *accessview.GroupConfig, providers []Record, loadMap map[int64]*SchedulerLoad) map[int64]ProviderSchedulerScore {
 	if len(providers) == 0 {
 		return nil
@@ -128,7 +129,7 @@ func (h *SchedulerScoreView) scoreAdvancedSchedulerPool(ctx context.Context, gro
 	schedulableProviders := make([]*Record, 0, len(providers))
 	for i := range providers {
 		provider := &providers[i]
-		if !provider.IsSchedulable() {
+		if !provider.IsSchedulable() || !providerEligibleForSchedulerScoreGroup(provider, group) {
 			continue
 		}
 		schedulableProviders = append(schedulableProviders, provider)
@@ -152,6 +153,43 @@ func (h *SchedulerScoreView) scoreAdvancedSchedulerPool(ctx context.Context, gro
 		}
 	}
 	return result
+}
+
+// providerEligibleForSchedulerScoreGroup checks static group authentication,
+// privacy, and client-protocol gates for administrative score pools. Nil groups
+// admit all candidates; unhydrated groups with nil AllowedProtocols skip the
+// protocol check while explicit empty selections reject all candidates.
+func providerEligibleForSchedulerScoreGroup(provider *Record, group *accessview.GroupConfig) bool {
+	if provider == nil {
+		return false
+	}
+	if group == nil {
+		return true
+	}
+	if group.RequireOAuthOnly && !provider.IsOAuth() {
+		return false
+	}
+	if group.RequirePrivacySet && !provider.IsPrivacySet() {
+		return false
+	}
+	if group.AllowedProtocols == nil {
+		return true
+	}
+	if len(group.AllowedProtocols) == 0 {
+		return false
+	}
+	protocols := capability.ProviderProtocols{
+		Platform: provider.Platform,
+		Type:     provider.Type,
+		AuthMode: ProtocolAuthMode(provider),
+		Enabled:  provider.UpstreamProtocolsForLegacy((ProtocolTarget{Record: provider}).GetAPIProtocol()),
+	}
+	for _, entry := range group.AllowedProtocols {
+		if _, ok := capability.ResolveRoute(protocols, entry, group.ProtocolFallbacks); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchAdvancedSchedulerLoadMap reads one deduplicated batch using each

@@ -41,8 +41,8 @@ var platformRuleRegistry = map[string]platformRules{
 		apiKeyHeaderOverrides: true,
 		oauthHeaderOverrides:  true,
 	},
-	PlatformJev:      {apiKeyHeaderOverrides: true},
-	PlatformOpenCode: {apiKeyHeaderOverrides: true},
+	PlatformJev:      {apiKeyHeaderOverrides: true, explicitTestProtocol: true},
+	PlatformOpenCode: openCodeRules(),
 }
 
 // platformRules holds independent choices consumed by provider workflow owners.
@@ -58,6 +58,7 @@ type platformRules struct {
 	repairToolSchema         bool                 // repair compatible tool schemas
 	apiKeyHeaderOverrides    bool                 // allow API-key Header overrides
 	oauthHeaderOverrides     bool                 // allow OAuth Header overrides
+	explicitTestProtocol     bool                 // honor enabled native test protocol selection
 
 	// prepareChatBody adapts the outbound Chat payload for this platform. A nil
 	// function leaves the supplied body available to the sender as-is.
@@ -96,6 +97,9 @@ type usageMonitoringRules struct {
 	enabled       bool     // permits periodic usage monitoring
 	fixedAdapter  bool     // platform selects usage format
 	officialHosts []string // trusted automatic query hosts
+	// modeAdapter resolves a fixed adapter for platforms that do not declare
+	// textEndpointRules. Nil falls back to textMode().usageAdapter.
+	modeAdapter func(*Record) string
 }
 
 // rules returns the immutable rules for this record's exact platform spelling.

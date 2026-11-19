@@ -33,6 +33,24 @@ const (
 	OpenCodeCatalogProtocolsKey = "opencode_catalog_protocols" // accepted catalog encoding key
 )
 
+// openCodeRules declares OpenCode Header override, test protocol, and
+// mode-selected usage adapter policies for platformRuleRegistry.
+func openCodeRules() platformRules {
+	return platformRules{
+		apiKeyHeaderOverrides: true,
+		explicitTestProtocol:  true,
+		usage: usageMonitoringRules{
+			fixedAdapter: true,
+			modeAdapter: func(r *Record) string {
+				if r.OpenCodeMode() == ProviderModeGo {
+					return UpstreamUsageAdapterOpenCodeGo
+				}
+				return ""
+			},
+		},
+	}
+}
+
 // IsOpenCode reports whether this record uses the OpenCode inference platform.
 func (r *Record) IsOpenCode() bool { return r != nil && r.Platform == PlatformOpenCode }
 

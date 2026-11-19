@@ -36,73 +36,6 @@ const (
 	duplicateProviderOperationIDExtraKey = "duplicate_operation_id"
 )
 
-// duplicateProviderDiscardedExtraKeys identifies state tied to the source's
-// observations, synchronization identity, quota history, or previous
-// duplication operation.
-var duplicateProviderDiscardedExtraKeys = map[string]struct{}{
-	// Each copy requires its own reminder opt-in and recipient review.
-	UpstreamBalanceAlertExtraKey: {},
-	// Retry identifiers belong to the operation that produced the record.
-	duplicateProviderOperationIDExtraKey: {},
-	// External synchronization identifiers belong to one local provider.
-	"crs_account_id": {},
-	"crs_kind":       {},
-	"crs_synced_at":  {},
-	// Start local usage counters and derived quota windows empty.
-	"quota_used":             {},
-	"quota_daily_used":       {},
-	"quota_weekly_used":      {},
-	"quota_monthly_used":     {},
-	"quota_daily_start":      {},
-	"quota_weekly_start":     {},
-	"quota_monthly_start":    {},
-	"quota_daily_reset_at":   {},
-	"quota_weekly_reset_at":  {},
-	"quota_monthly_reset_at": {},
-	// Generate a fresh provider-specific Codex fingerprint seed for the duplicate.
-	CodexFingerprintSeedExtraKey: {},
-	// Upstream observations, capability probes, and temporary scheduling state
-	// are not copied as configuration.
-	"model_rate_limits":                      {},
-	"session_window_utilization":             {},
-	"passive_usage_7d_utilization":           {},
-	"passive_usage_7d_reset":                 {},
-	"passive_usage_7d_oi_utilization":        {},
-	"passive_usage_7d_oi_reset":              {},
-	"passive_usage_sampled_at":               {},
-	"grok_usage_snapshot":                    {},
-	"grok_billing_snapshot":                  {},
-	"qoder_quota_snapshot":                   {},
-	QoderCatalogExtraKey:                     {},
-	"qoder_quota_updated_at":                 {},
-	UsageMonitorSnapshotExtraKey:             {},
-	"antigravity_credits_overages":           {},
-	"antigravity_force_token_refresh":        {},
-	"antigravity_force_token_refresh_at":     {},
-	"antigravity_force_token_refresh_reason": {},
-	"drive_storage_limit":                    {},
-	"drive_storage_usage":                    {},
-	"drive_tier_updated_at":                  {},
-	"codex_primary_used_percent":             {},
-	"codex_primary_reset_after_seconds":      {},
-	"codex_primary_window_minutes":           {},
-	"codex_secondary_used_percent":           {},
-	"codex_secondary_reset_after_seconds":    {},
-	"codex_secondary_window_minutes":         {},
-	"codex_primary_over_secondary_percent":   {},
-	"codex_usage_updated_at":                 {},
-	"codex_5h_used_percent":                  {},
-	"codex_5h_reset_after_seconds":           {},
-	"codex_5h_window_minutes":                {},
-	"codex_5h_reset_at":                      {},
-	"codex_7d_used_percent":                  {},
-	"codex_7d_reset_after_seconds":           {},
-	"codex_7d_window_minutes":                {},
-	"codex_7d_reset_at":                      {},
-	"upstream_billing_probe":                 {},
-	"upstream_billing_probe_enabled":         {},
-}
-
 // duplicateProviderName trims the source label and appends the copy suffix
 // within the rune limit. Long labels are truncated by rune so the suffix fits
 // without splitting a Unicode code point. Storage's separate byte-length
@@ -147,7 +80,7 @@ func duplicateProviderExtra(value map[string]any) (map[string]any, error) {
 	// Remove source-owned observations and synchronization identity after
 	// cloning, keeping configured settings while the copy starts its own usage
 	// and retry history.
-	for key := range duplicateProviderDiscardedExtraKeys {
+	for key := range duplicateProviderDiscardedExtraSet {
 		delete(cloned, key)
 	}
 	return cloned, nil

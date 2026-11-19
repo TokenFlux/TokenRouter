@@ -155,6 +155,38 @@ type CRSPreviewProvider struct {
 	Type         string `json:"type"`           // target provider credential type
 }
 
+// crsCategorySpec defines per-category validation, credential normalization,
+// Extra assembly, and post-write maintenance for CRS imports.
+type crsCategorySpec struct {
+	platform               string                               // target TokenRouter platform
+	fixedType              string                               // target credential type when fixed
+	resolveAuthType        func(string) (string, string)        // source authType -> targetType, skipReason
+	requiredCredential     string                               // required nonblank source credential key
+	copySourceExtra        bool                                 // copy source Extra map before sync stamps
+	prepareCredentials     func(map[string]any)                 // mutate sanitized credential copy in place
+	prepareExtra           func(crsSourceEntry, map[string]any) // add category-specific Extra fields
+	refreshOAuth           func(string) bool                    // report whether targetType triggers OAuth refresh
+	propagateShadowProxies bool                                 // propagate updated parent proxy to Spark shadows
+}
+
+// crsSourceEntry normalizes one exported CRS item across all six source
+// collections while borrowing the caller's source maps as read-only inputs.
+type crsSourceEntry struct {
+	spec               crsCategorySpec    // category normalization rules
+	id                 string             // source account identifier
+	kind               string             // source category label
+	name               string             // source display name
+	authType           string             // optional source authentication hint
+	isActive           bool               // source activation switch
+	schedulable        bool               // source scheduling switch
+	priority           int                // source ordering priority
+	status             string             // source status text
+	maxConcurrentTasks int                // optional positive concurrency override
+	proxy              *transfer.CRSProxy // optional source proxy specification
+	credentials        map[string]any     // borrowed read-only source credentials
+	extra              map[string]any     // borrowed read-only source Extra map
+}
+
 // NewCRSSync retains provider, proxy, and export dependencies for later serial
 // synchronization. Missing clock and warning callbacks receive defaults.
 // Call SyncFromCRS or PreviewFromCRS to begin work with the retained storage
@@ -222,9 +254,10 @@ func GuardCRSShadowParentInvariant(ctx context.Context, repo ShadowProxyStore, e
 // creation selection and provider persistence. An accepted proxy can remain
 // after a later lookup, shadow check, or provider write fails.
 // Credentials/Extra merge supported stored containers, omit source null
-// credential values, and restore managed Ollama state only for unchanged
-// supported identity. A nil imported proxy leaves the existing association
-// outside CRSSyncConfiguration's selected fields.
+// credential values, never mutate caller-owned source maps, and restore managed
+// Ollama state only for unchanged supported identity. A nil imported proxy
+// leaves the existing association outside CRSSyncConfiguration's selected
+// fields.
 //
 // OAuth post-import refresh runs after accepted writes and leaves their counts
 // unchanged. OpenAI OAuth parent updates also attempt shadow proxy inheritance
@@ -238,946 +271,356 @@ func (s *CRSSync) SyncFromCRS(ctx context.Context, input SyncFromCRSInput) (*Syn
 		return nil, err
 	}
 
+	entries := collectCRSSourceEntries(exported)
 	now := s.options.Now().UTC().Format(time.RFC3339)
-
 	result := &SyncFromCRSResult{
-		Items: make(
-			[]SyncFromCRSItemResult,
-			0,
-			len(exported.Data.ClaudeProviders)+len(exported.Data.ClaudeConsoleProviders)+len(exported.Data.OpenAIOAuthProviders)+len(exported.Data.OpenAIResponsesProviders)+len(exported.Data.GeminiOAuthProviders)+len(exported.Data.GeminiAPIKeyProviders),
-		),
+		Items: make([]SyncFromCRSItemResult, 0, len(entries)),
 	}
-
 	selectedSet := CRSBuildSelectedSet(input.SelectedProviderIDs)
 
 	var proxies []egress.Proxy
 	if input.SyncProxies {
-		// A failed active-proxy listing does not stop provider import;
-		// matching
-		// uses whatever slice was returned and can create missing
-		// source
-		// connections.
+		// A failed active-proxy listing does not stop provider import; matching
+		// uses whatever slice was returned and can create missing source connections.
 		proxies, _ = s.proxyRepo.ListActive(ctx)
 	}
 
-	// Claude sources accept OAuth or setup-token credentials with a
-	// nonblank
-	// access token. Each item resolves its proxy before source-ID lookup,
-	// merges saved metadata, and restricts selection to creation; OAuth
-	// refresh
-	// follows accepted writes, while setup-token items skip that exchange.
-	for _, src := range exported.Data.ClaudeProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		targetType := strings.TrimSpace(src.AuthType)
-		if targetType == "" {
-			targetType = "oauth"
-		}
-		if targetType != ProviderTypeOAuth && targetType != ProviderTypeSetupToken {
-			item.Action = "skipped"
-			item.Error = "unsupported authType: " + targetType
-			result.Skipped++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		accessToken, _ := src.Credentials["access_token"].(string)
-		if strings.TrimSpace(accessToken) == "" {
-			item.Action = "failed"
-			item.Error = "missing access_token"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo, input.SyncProxies, &proxies, src.Proxy, fmt.Sprintf("crs-%s", src.Name))
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		// Claude endpoint consumers use their root path; remove an
-		// imported /v1
-		// suffix when matched, leaving unmatched base URL text for its
-		// ordinary
-		// consumer rules.
-		CRSCleanBaseURL(credentials, "/v1")
-		// Claude credential readers accept Unix seconds; normalize
-		// parseable
-		// RFC3339 input while retaining an unparseable source value for
-		// later
-		// credential interpretation.
-		if expiresAtStr, ok := credentials["expires_at"].(string); ok && expiresAtStr != "" {
-			if t, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
-				credentials["expires_at"] = t.Unix()
-			}
-		}
-		// Default warmup interception to false when omitted.
-		if _, exists := credentials["intercept_warmup_requests"]; !exists {
-			credentials["intercept_warmup_requests"] = false
-		}
-		priority := CRSClampPriority(src.Priority)
-		concurrency := 3
-		status := MapCRSStatus(src.IsActive, src.Status)
-
-		// Copy source Extra fields before adding synchronization
-		// metadata.
-		extra := make(map[string]any)
-		if src.Extra != nil {
-			maps.Copy(extra, src.Extra)
-		}
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
-		// Copy organization and account IDs from source credentials to
-		// Extra.
-		if orgUUID, ok := src.Credentials["org_uuid"]; ok {
-			extra["org_uuid"] = orgUUID
-		}
-		if providerUUID, ok := src.Credentials["account_uuid"]; ok {
-			extra["account_uuid"] = providerUUID
-		}
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		if existing != nil {
-			extra = CRSMergeMap(existing.Extra, extra)
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformAnthropic, targetType, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformAnthropic,
-				Type:        targetType,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: concurrency,
-				Priority:    priority,
-				Status:      status,
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			// Use the accepted persisted row for optional OAuth
-			// exchange;
-			// failure in that later maintenance step leaves the
-			// import item
-			// outcome successful.
-			if targetType == ProviderTypeOAuth {
-				s.refreshOAuthToken(ctx, provider)
-			}
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Source IDs can reuse a parent created as OpenAI OAuth. Check
-		// its
-		// Spark shadows before accepting this incompatible category
-		// conversion.
-		if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, PlatformAnthropic, targetType); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Apply source configuration to the existing provider.
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformAnthropic
-		existing.Type = targetType
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = concurrency
-		existing.Priority = priority
-		existing.Status = status
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Use the accepted persisted row for optional OAuth exchange;
-		// failure
-		// in that later maintenance step leaves the import item outcome
-		// successful.
-		if targetType == ProviderTypeOAuth {
-			s.refreshOAuthToken(ctx, existing)
-		}
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
-	}
-
-	// Console sources become Anthropic API Key records and can supply their
-	// concurrency limit. Their Extra starts from synchronization metadata,
-	// then
-	// inherits existing values; proxy and provider writes remain separate,
-	// and
-	// shadow-parent conversion is checked before configuration replacement.
-	for _, src := range exported.Data.ClaudeConsoleProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		apiKey, _ := src.Credentials["api_key"].(string)
-		if strings.TrimSpace(apiKey) == "" {
-			item.Action = "failed"
-			item.Error = "missing api_key"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo, input.SyncProxies, &proxies, src.Proxy, fmt.Sprintf("crs-%s", src.Name))
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		priority := CRSClampPriority(src.Priority)
-		concurrency := 3
-		if src.MaxConcurrentTasks > 0 {
-			concurrency = src.MaxConcurrentTasks
-		}
-		status := MapCRSStatus(src.IsActive, src.Status)
-
-		extra := map[string]any{
-			"crs_account_id": src.ID,
-			"crs_kind":       src.Kind,
-			"crs_synced_at":  now,
-		}
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		if existing != nil {
-			extra = CRSMergeMap(existing.Extra, extra)
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformAnthropic, ProviderTypeAPIKey, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformAnthropic,
-				Type:        ProviderTypeAPIKey,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: concurrency,
-				Priority:    priority,
-				Status:      status,
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Source IDs can reuse a parent created as OpenAI OAuth. Check
-		// its
-		// Spark shadows before accepting this incompatible category
-		// conversion.
-		if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, PlatformAnthropic, ProviderTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformAnthropic
-		existing.Type = ProviderTypeAPIKey
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = concurrency
-		existing.Priority = priority
-		existing.Status = status
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
-	}
-
-	// OpenAI OAuth sources replace accepted source configuration before
-	// post-import refresh and separate shadow proxy propagation. Source
-	// metadata is merged with saved values and deprecated keys are dropped;
-	// an
-	// existing proxy is retained when matching supplies no imported
-	// association.
-	for _, src := range exported.Data.OpenAIOAuthProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		accessToken, _ := src.Credentials["access_token"].(string)
-		if strings.TrimSpace(accessToken) == "" {
-			item.Action = "failed"
-			item.Error = "missing access_token"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo,
-			input.SyncProxies,
-			&proxies,
-			src.Proxy,
-			fmt.Sprintf("crs-%s", src.Name),
-		)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		// Default a missing or blank token type to Bearer.
-		if v, ok := credentials["token_type"].(string); !ok || strings.TrimSpace(v) == "" {
-			credentials["token_type"] = "Bearer"
-		}
-		// OpenAI imported expiry uses Unix seconds after successful
-		// parsing; a
-		// malformed source string remains present for the post-import
-		// credential refresh path.
-		if expiresAtStr, ok := credentials["expires_at"].(string); ok && expiresAtStr != "" {
-			if t, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
-				credentials["expires_at"] = t.Unix()
-			}
-		}
-		priority := CRSClampPriority(src.Priority)
-		concurrency := 3
-		status := MapCRSStatus(src.IsActive, src.Status)
-
-		// Copy source Extra fields before adding synchronization
-		// metadata.
-		extra := make(map[string]any)
-		if src.Extra != nil {
-			maps.Copy(extra, src.Extra)
-		}
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
-		// Expose the source crs_email as email.
-		if crsEmail, ok := src.Extra["crs_email"]; ok {
-			extra["email"] = crsEmail
-		}
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		var existingExtra map[string]any
-		if existing != nil {
-			existingExtra = existing.Extra
-		}
-		extra = CRSMergeMap(existingExtra, extra)
-		// Remove obsolete billing-probe and long-context settings from
-		// merged
-		// Extra before saving this source configuration, including keys
-		// inherited
-		// from an older local record.
-		DiscardDeprecatedExtra(extra)
-		if existing != nil {
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformOpenAI, ProviderTypeOAuth, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformOpenAI,
-				Type:        ProviderTypeOAuth,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: concurrency,
-				Priority:    priority,
-				Status:      status,
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			// Creation has already saved this OpenAI provider. A
-			// failed optional
-			// token exchange leaves that created row available for
-			// later refresh
-			// and keeps this item counted.
-			s.refreshOAuthToken(ctx, provider)
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformOpenAI
-		existing.Type = ProviderTypeOAuth
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = concurrency
-		existing.Priority = priority
-		existing.Status = status
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Configuration has accepted the imported OpenAI identity
-		// before this
-		// exchange. Refresh failure keeps the accepted update while
-		// shadow proxy
-		// propagation remains a separate following step.
-		s.refreshOAuthToken(ctx, existing)
-
-		// The parent configuration write has returned success before
-		// shadow
-		// proxy inheritance runs. Report propagation failure separately
-		// so it
-		// cannot reverse the accepted parent item outcome.
-		if perr := PropagateProviderProxyToShadows(ctx, s.providerRepo, existing.ID, existing.ProxyID); perr != nil {
-			s.options.Warn("crs_sync_propagate_proxy_to_shadows_failed", "provider_id", existing.ID, "error", perr)
-		}
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
-	}
-
-	// Responses sources become OpenAI API Key records after source base-URL
-	// defaulting and suffix cleanup. New-creation selection follows proxy
-	// resolution, and existing OAuth parents with Spark shadows are
-	// rejected
-	// before their credential type can be replaced.
-	for _, src := range exported.Data.OpenAIResponsesProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		apiKey, _ := src.Credentials["api_key"].(string)
-		if strings.TrimSpace(apiKey) == "" {
-			item.Action = "failed"
-			item.Error = "missing api_key"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		if baseURL, ok := src.Credentials["base_url"].(string); !ok || strings.TrimSpace(baseURL) == "" {
-			src.Credentials["base_url"] = "https://api.openai.com"
-		}
-		// The Responses source map is normalized before sanitizing its
-		// copy;
-		// removing a matched /v1 suffix supplies the root endpoint
-		// expected by
-		// OpenAI consumers.
-		CRSCleanBaseURL(src.Credentials, "/v1")
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo,
-			input.SyncProxies,
-			&proxies,
-			src.Proxy,
-			fmt.Sprintf("crs-%s", src.Name),
-		)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		priority := CRSClampPriority(src.Priority)
-		concurrency := 3
-		status := MapCRSStatus(src.IsActive, src.Status)
-
-		extra := make(map[string]any, len(src.Extra)+3)
-		maps.Copy(extra, src.Extra)
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		var existingExtra map[string]any
-		if existing != nil {
-			existingExtra = existing.Extra
-		}
-		extra = CRSMergeMap(existingExtra, extra)
-		DiscardDeprecatedExtra(extra)
-		if existing != nil {
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformOpenAI, ProviderTypeAPIKey, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformOpenAI,
-				Type:        ProviderTypeAPIKey,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: concurrency,
-				Priority:    priority,
-				Status:      status,
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// This API Key conversion would invalidate an OpenAI OAuth
-		// shadow parent.
-		// Require shadows to be deleted before changing their parent's
-		// credential type.
-		if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, PlatformOpenAI, ProviderTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformOpenAI
-		existing.Type = ProviderTypeAPIKey
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = concurrency
-		existing.Priority = priority
-		existing.Status = status
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
-	}
-
-	// Gemini OAuth sources require refresh_token and represent parsed
-	// expiry as
-	// Unix-seconds text. Proxy resolution and source-ID merge precede
-	// selected
-	// creation or guarded configuration update; accepted rows can still
-	// lack
-	// access_token until their post-import exchange completes.
-	for _, src := range exported.Data.GeminiOAuthProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		refreshToken, _ := src.Credentials["refresh_token"].(string)
-		if strings.TrimSpace(refreshToken) == "" {
-			item.Action = "failed"
-			item.Error = "missing refresh_token"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo, input.SyncProxies, &proxies, src.Proxy, fmt.Sprintf("crs-%s", src.Name))
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		if v, ok := credentials["token_type"].(string); !ok || strings.TrimSpace(v) == "" {
-			credentials["token_type"] = "Bearer"
-		}
-		// Gemini credential builders use decimal Unix-seconds text;
-		// convert
-		// parseable RFC3339 expiry while leaving malformed source text
-		// available to later credential handling.
-		if expiresAtStr, ok := credentials["expires_at"].(string); ok && strings.TrimSpace(expiresAtStr) != "" {
-			if t, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
-				credentials["expires_at"] = strconv.FormatInt(t.Unix(), 10)
-			}
-		}
-
-		extra := make(map[string]any)
-		if src.Extra != nil {
-			maps.Copy(extra, src.Extra)
-		}
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		if existing != nil {
-			extra = CRSMergeMap(existing.Extra, extra)
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformGemini, ProviderTypeOAuth, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformGemini,
-				Type:        ProviderTypeOAuth,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: 3,
-				Priority:    CRSClampPriority(src.Priority),
-				Status:      MapCRSStatus(src.IsActive, src.Status),
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			// Gemini creation accepts refresh_token before
-			// access-token exchange.
-			// The saved row stays counted even when this follow-up
-			// cannot supply
-			// its first access token.
-			s.refreshOAuthToken(ctx, provider)
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Source IDs can reuse a parent created as OpenAI OAuth. Check
-		// its
-		// Spark shadows before accepting this incompatible category
-		// conversion.
-		if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, PlatformGemini, ProviderTypeOAuth); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformGemini
-		existing.Type = ProviderTypeOAuth
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = 3
-		existing.Priority = CRSClampPriority(src.Priority)
-		existing.Status = MapCRSStatus(src.IsActive, src.Status)
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Gemini configuration is already stored before renewal. A
-		// failed
-		// exchange leaves that accepted identity for later maintenance
-		// while
-		// this item still reports an update.
-		s.refreshOAuthToken(ctx, existing)
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
-	}
-
-	// Gemini API Key sources select the official endpoint when missing and
-	// merge metadata with existing Extra. Proxy creation is independent,
-	// selection skips only new rows, and shadow-parent conversion is
-	// checked
-	// before an existing record is changed.
-	for _, src := range exported.Data.GeminiAPIKeyProviders {
-		item := SyncFromCRSItemResult{
-			CRSAccountID: src.ID,
-			Kind:         src.Kind,
-			Name:         src.Name,
-		}
-
-		apiKey, _ := src.Credentials["api_key"].(string)
-		if strings.TrimSpace(apiKey) == "" {
-			item.Action = "failed"
-			item.Error = "missing api_key"
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo, input.SyncProxies, &proxies, src.Proxy, fmt.Sprintf("crs-%s", src.Name))
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "proxy sync failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		credentials := CRSSanitizeCredentialsMap(src.Credentials)
-		if baseURL, ok := credentials["base_url"].(string); !ok || strings.TrimSpace(baseURL) == "" {
-			credentials["base_url"] = "https://generativelanguage.googleapis.com"
-		}
-
-		extra := make(map[string]any)
-		if src.Extra != nil {
-			maps.Copy(extra, src.Extra)
-		}
-		extra["crs_account_id"] = src.ID
-		extra["crs_kind"] = src.Kind
-		extra["crs_synced_at"] = now
-
-		existing, err := s.providerRepo.GetByCRSAccountID(ctx, src.ID)
-		if err != nil {
-			item.Action = "failed"
-			item.Error = "db lookup failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-		if existing != nil {
-			extra = CRSMergeMap(existing.Extra, extra)
-			credentials = CRSMergeMap(existing.Credentials, credentials)
-		}
-		ReconcileCRSOllamaCloudUsageExtra(existing, PlatformGemini, ProviderTypeAPIKey, credentials, extra)
-
-		if existing == nil {
-			if !CRSShouldCreateProvider(src.ID, selectedSet) {
-				item.Action = "skipped"
-				item.Error = "not selected"
-				result.Skipped++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			provider := &Record{
-				Name:        CRSDefaultName(src.Name, src.ID),
-				Platform:    PlatformGemini,
-				Type:        ProviderTypeAPIKey,
-				Credentials: credentials,
-				Extra:       CloneValues(extra),
-				ProxyID:     proxyID,
-				Concurrency: 3,
-				Priority:    CRSClampPriority(src.Priority),
-				Status:      MapCRSStatus(src.IsActive, src.Status),
-				Schedulable: src.Schedulable,
-			}
-			if err := s.providerRepo.Create(ctx, provider); err != nil {
-				item.Action = "failed"
-				item.Error = "create failed: " + err.Error()
-				result.Failed++
-				result.Items = append(result.Items, item)
-				continue
-			}
-			item.Action = "created"
-			result.Created++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		// Source IDs can reuse a parent created as OpenAI OAuth. Check
-		// its
-		// Spark shadows before accepting this incompatible category
-		// conversion.
-		if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, PlatformGemini, ProviderTypeAPIKey); gerr != nil {
-			item.Action = "failed"
-			item.Error = gerr.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		existing.Extra = CloneValues(extra)
-		existing.Name = CRSDefaultName(src.Name, src.ID)
-		existing.Platform = PlatformGemini
-		existing.Type = ProviderTypeAPIKey
-		existing.Credentials = credentials
-		if proxyID != nil {
-			existing.ProxyID = proxyID
-		}
-		existing.Concurrency = 3
-		existing.Priority = CRSClampPriority(src.Priority)
-		existing.Status = MapCRSStatus(src.IsActive, src.Status)
-		existing.Schedulable = src.Schedulable
-
-		if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
-			item.Action = "failed"
-			item.Error = "update failed: " + err.Error()
-			result.Failed++
-			result.Items = append(result.Items, item)
-			continue
-		}
-
-		item.Action = "updated"
-		result.Updated++
-		result.Items = append(result.Items, item)
+	for _, entry := range entries {
+		s.syncCRSItem(ctx, input.SyncProxies, selectedSet, now, &proxies, entry, result)
 	}
 
 	return result, nil
+}
+
+// syncCRSItem validates, normalizes, and persists one exported CRS entry into
+// result without mutating entry.credentials or entry.extra.
+func (s *CRSSync) syncCRSItem(
+	ctx context.Context,
+	syncProxies bool,
+	selectedSet map[string]struct{},
+	now string,
+	proxies *[]egress.Proxy,
+	entry crsSourceEntry,
+	result *SyncFromCRSResult,
+) {
+	item := SyncFromCRSItemResult{
+		CRSAccountID: entry.id,
+		Kind:         entry.kind,
+		Name:         entry.name,
+	}
+	spec := entry.spec
+	targetType := spec.fixedType
+	if spec.resolveAuthType != nil {
+		var skipReason string
+		targetType, skipReason = spec.resolveAuthType(entry.authType)
+		if skipReason != "" {
+			item.Action = "skipped"
+			item.Error = skipReason
+			result.Skipped++
+			result.Items = append(result.Items, item)
+			return
+		}
+	}
+
+	secret, _ := entry.credentials[spec.requiredCredential].(string)
+	if strings.TrimSpace(secret) == "" {
+		item.Action = "failed"
+		item.Error = "missing " + spec.requiredCredential
+		result.Failed++
+		result.Items = append(result.Items, item)
+		return
+	}
+
+	proxyID, err := egress.MatchOrCreateCRSProxy(ctx, s.proxyRepo, syncProxies, proxies, entry.proxy, fmt.Sprintf("crs-%s", entry.name))
+	if err != nil {
+		item.Action = "failed"
+		item.Error = "proxy sync failed: " + err.Error()
+		result.Failed++
+		result.Items = append(result.Items, item)
+		return
+	}
+
+	// Sanitize and clone source credentials before category normalization so
+	// defaulting or base_url cleanup never mutates caller-supplied export maps.
+	credentials := CRSSanitizeCredentialsMap(entry.credentials)
+	if spec.prepareCredentials != nil {
+		spec.prepareCredentials(credentials)
+	}
+
+	priority := CRSClampPriority(entry.priority)
+	concurrency := 3
+	if entry.maxConcurrentTasks > 0 {
+		concurrency = entry.maxConcurrentTasks
+	}
+	status := MapCRSStatus(entry.isActive, entry.status)
+
+	extra := make(map[string]any, len(entry.extra)+4)
+	if spec.copySourceExtra && entry.extra != nil {
+		maps.Copy(extra, entry.extra)
+	}
+	extra["crs_account_id"] = entry.id
+	extra["crs_kind"] = entry.kind
+	extra["crs_synced_at"] = now
+	if spec.prepareExtra != nil {
+		spec.prepareExtra(entry, extra)
+	}
+
+	existing, err := s.providerRepo.GetByCRSAccountID(ctx, entry.id)
+	if err != nil {
+		item.Action = "failed"
+		item.Error = "db lookup failed: " + err.Error()
+		result.Failed++
+		result.Items = append(result.Items, item)
+		return
+	}
+	if existing != nil {
+		extra = CRSMergeMap(existing.Extra, extra)
+		credentials = CRSMergeMap(existing.Credentials, credentials)
+	}
+	ReconcileCRSOllamaCloudUsageExtra(existing, spec.platform, targetType, credentials, extra)
+
+	if existing == nil {
+		if !CRSShouldCreateProvider(entry.id, selectedSet) {
+			item.Action = "skipped"
+			item.Error = "not selected"
+			result.Skipped++
+			result.Items = append(result.Items, item)
+			return
+		}
+		provider := &Record{
+			Name:        CRSDefaultName(entry.name, entry.id),
+			Platform:    spec.platform,
+			Type:        targetType,
+			Credentials: credentials,
+			Extra:       CloneValues(extra),
+			ProxyID:     proxyID,
+			Concurrency: concurrency,
+			Priority:    priority,
+			Status:      status,
+			Schedulable: entry.schedulable,
+		}
+		if err := s.providerRepo.Create(ctx, provider); err != nil {
+			item.Action = "failed"
+			item.Error = "create failed: " + err.Error()
+			result.Failed++
+			result.Items = append(result.Items, item)
+			return
+		}
+		// Creation has already persisted the row; optional OAuth token exchange
+		// runs as best-effort maintenance without altering the created count.
+		if spec.refreshOAuth != nil && spec.refreshOAuth(targetType) {
+			s.refreshOAuthToken(ctx, provider)
+		}
+		item.Action = "created"
+		result.Created++
+		result.Items = append(result.Items, item)
+		return
+	}
+
+	// Global source IDs can target a parent created as OpenAI OAuth; verify Spark
+	// shadows before replacing its platform or credential type.
+	if gerr := GuardCRSShadowParentInvariant(ctx, s.providerRepo, existing, spec.platform, targetType); gerr != nil {
+		item.Action = "failed"
+		item.Error = gerr.Error()
+		result.Failed++
+		result.Items = append(result.Items, item)
+		return
+	}
+
+	existing.Extra = CloneValues(extra)
+	existing.Name = CRSDefaultName(entry.name, entry.id)
+	existing.Platform = spec.platform
+	existing.Type = targetType
+	existing.Credentials = credentials
+	if proxyID != nil {
+		existing.ProxyID = proxyID
+	}
+	existing.Concurrency = concurrency
+	existing.Priority = priority
+	existing.Status = status
+	existing.Schedulable = entry.schedulable
+
+	if err := WriteConfiguration(ctx, s.providerRepo, existing, CRSSyncConfiguration(proxyID != nil)); err != nil {
+		item.Action = "failed"
+		item.Error = "update failed: " + err.Error()
+		result.Failed++
+		result.Items = append(result.Items, item)
+		return
+	}
+
+	if spec.refreshOAuth != nil && spec.refreshOAuth(targetType) {
+		s.refreshOAuthToken(ctx, existing)
+	}
+	// Propagate an updated OpenAI OAuth parent's proxy to its Spark shadows after
+	// the parent configuration write succeeds, logging failures separately.
+	if spec.propagateShadowProxies {
+		if perr := PropagateProviderProxyToShadows(ctx, s.providerRepo, existing.ID, existing.ProxyID); perr != nil {
+			s.options.Warn("crs_sync_propagate_proxy_to_shadows_failed", "provider_id", existing.ID, "error", perr)
+		}
+	}
+
+	item.Action = "updated"
+	result.Updated++
+	result.Items = append(result.Items, item)
+}
+
+// collectCRSSourceEntries flattens the six exported CRS collections in their
+// canonical import and preview traversal order.
+func collectCRSSourceEntries(exported *transfer.CRSExportResponse) []crsSourceEntry {
+	if exported == nil {
+		return nil
+	}
+	data := exported.Data
+	claudeSpec := crsCategorySpec{
+		platform: PlatformAnthropic,
+		resolveAuthType: func(raw string) (string, string) {
+			targetType := strings.TrimSpace(raw)
+			if targetType == "" {
+				targetType = ProviderTypeOAuth
+			}
+			if targetType != ProviderTypeOAuth && targetType != ProviderTypeSetupToken {
+				return targetType, "unsupported authType: " + targetType
+			}
+			return targetType, ""
+		},
+		requiredCredential: "access_token",
+		copySourceExtra:    true,
+		prepareCredentials: func(credentials map[string]any) {
+			CRSCleanBaseURL(credentials, "/v1")
+			if expiresAtStr, ok := credentials["expires_at"].(string); ok && expiresAtStr != "" {
+				if parsed, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
+					credentials["expires_at"] = parsed.Unix()
+				}
+			}
+			if _, exists := credentials["intercept_warmup_requests"]; !exists {
+				credentials["intercept_warmup_requests"] = false
+			}
+		},
+		prepareExtra: func(entry crsSourceEntry, extra map[string]any) {
+			if orgUUID, ok := entry.credentials["org_uuid"]; ok {
+				extra["org_uuid"] = orgUUID
+			}
+			if accountUUID, ok := entry.credentials["account_uuid"]; ok {
+				extra["account_uuid"] = accountUUID
+			}
+		},
+		refreshOAuth: func(targetType string) bool { return targetType == ProviderTypeOAuth },
+	}
+	consoleSpec := crsCategorySpec{
+		platform:           PlatformAnthropic,
+		fixedType:          ProviderTypeAPIKey,
+		requiredCredential: "api_key",
+	}
+	openAIOAuthSpec := crsCategorySpec{
+		platform:           PlatformOpenAI,
+		fixedType:          ProviderTypeOAuth,
+		requiredCredential: "access_token",
+		copySourceExtra:    true,
+		prepareCredentials: func(credentials map[string]any) {
+			if v, ok := credentials["token_type"].(string); !ok || strings.TrimSpace(v) == "" {
+				credentials["token_type"] = "Bearer"
+			}
+			if expiresAtStr, ok := credentials["expires_at"].(string); ok && expiresAtStr != "" {
+				if parsed, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
+					credentials["expires_at"] = parsed.Unix()
+				}
+			}
+		},
+		prepareExtra: func(entry crsSourceEntry, extra map[string]any) {
+			if crsEmail, ok := entry.extra["crs_email"]; ok {
+				extra["email"] = crsEmail
+			}
+		},
+		refreshOAuth:           func(string) bool { return true },
+		propagateShadowProxies: true,
+	}
+	openAIResponsesSpec := crsCategorySpec{
+		platform:           PlatformOpenAI,
+		fixedType:          ProviderTypeAPIKey,
+		requiredCredential: "api_key",
+		copySourceExtra:    true,
+		prepareCredentials: func(credentials map[string]any) {
+			if baseURL, ok := credentials["base_url"].(string); !ok || strings.TrimSpace(baseURL) == "" {
+				credentials["base_url"] = "https://api.openai.com"
+			}
+			CRSCleanBaseURL(credentials, "/v1")
+		},
+	}
+	geminiOAuthSpec := crsCategorySpec{
+		platform:           PlatformGemini,
+		fixedType:          ProviderTypeOAuth,
+		requiredCredential: "refresh_token",
+		copySourceExtra:    true,
+		prepareCredentials: func(credentials map[string]any) {
+			if v, ok := credentials["token_type"].(string); !ok || strings.TrimSpace(v) == "" {
+				credentials["token_type"] = "Bearer"
+			}
+			if expiresAtStr, ok := credentials["expires_at"].(string); ok && strings.TrimSpace(expiresAtStr) != "" {
+				if parsed, err := time.Parse(time.RFC3339, expiresAtStr); err == nil {
+					credentials["expires_at"] = strconv.FormatInt(parsed.Unix(), 10)
+				}
+			}
+		},
+		refreshOAuth: func(string) bool { return true },
+	}
+	geminiAPIKeySpec := crsCategorySpec{
+		platform:           PlatformGemini,
+		fixedType:          ProviderTypeAPIKey,
+		requiredCredential: "api_key",
+		copySourceExtra:    true,
+		prepareCredentials: func(credentials map[string]any) {
+			if baseURL, ok := credentials["base_url"].(string); !ok || strings.TrimSpace(baseURL) == "" {
+				credentials["base_url"] = "https://generativelanguage.googleapis.com"
+			}
+		},
+	}
+
+	total := len(data.ClaudeProviders) + len(data.ClaudeConsoleProviders) + len(data.OpenAIOAuthProviders) +
+		len(data.OpenAIResponsesProviders) + len(data.GeminiOAuthProviders) + len(data.GeminiAPIKeyProviders)
+	entries := make([]crsSourceEntry, 0, total)
+	for _, src := range data.ClaudeProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: claudeSpec, id: src.ID, kind: src.Kind, name: src.Name, authType: src.AuthType,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			proxy: src.Proxy, credentials: src.Credentials, extra: src.Extra,
+		})
+	}
+	for _, src := range data.ClaudeConsoleProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: consoleSpec, id: src.ID, kind: src.Kind, name: src.Name,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			maxConcurrentTasks: src.MaxConcurrentTasks, proxy: src.Proxy, credentials: src.Credentials,
+		})
+	}
+	for _, src := range data.OpenAIOAuthProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: openAIOAuthSpec, id: src.ID, kind: src.Kind, name: src.Name,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			proxy: src.Proxy, credentials: src.Credentials, extra: src.Extra,
+		})
+	}
+	for _, src := range data.OpenAIResponsesProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: openAIResponsesSpec, id: src.ID, kind: src.Kind, name: src.Name,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			proxy: src.Proxy, credentials: src.Credentials, extra: src.Extra,
+		})
+	}
+	for _, src := range data.GeminiOAuthProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: geminiOAuthSpec, id: src.ID, kind: src.Kind, name: src.Name,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			proxy: src.Proxy, credentials: src.Credentials, extra: src.Extra,
+		})
+	}
+	for _, src := range data.GeminiAPIKeyProviders {
+		entries = append(entries, crsSourceEntry{
+			spec: geminiAPIKeySpec, id: src.ID, kind: src.Kind, name: src.Name,
+			isActive: src.IsActive, schedulable: src.Schedulable, priority: src.Priority, status: src.Status,
+			proxy: src.Proxy, credentials: src.Credentials, extra: src.Extra,
+		})
+	}
+	return entries
 }
 
 // CRSMergeMap returns a map with update keys overriding existing keys, then
@@ -1384,27 +827,12 @@ func (s *CRSSync) PreviewFromCRS(ctx context.Context, input SyncFromCRSInput) (*
 		}
 	}
 
-	for _, src := range exported.Data.ClaudeProviders {
-		authType := strings.TrimSpace(src.AuthType)
-		if authType == "" {
-			authType = ProviderTypeOAuth
+	for _, entry := range collectCRSSourceEntries(exported) {
+		providerType := entry.spec.fixedType
+		if entry.spec.resolveAuthType != nil {
+			providerType, _ = entry.spec.resolveAuthType(entry.authType)
 		}
-		classify(src.ID, src.Kind, src.Name, PlatformAnthropic, authType)
-	}
-	for _, src := range exported.Data.ClaudeConsoleProviders {
-		classify(src.ID, src.Kind, src.Name, PlatformAnthropic, ProviderTypeAPIKey)
-	}
-	for _, src := range exported.Data.OpenAIOAuthProviders {
-		classify(src.ID, src.Kind, src.Name, PlatformOpenAI, ProviderTypeOAuth)
-	}
-	for _, src := range exported.Data.OpenAIResponsesProviders {
-		classify(src.ID, src.Kind, src.Name, PlatformOpenAI, ProviderTypeAPIKey)
-	}
-	for _, src := range exported.Data.GeminiOAuthProviders {
-		classify(src.ID, src.Kind, src.Name, PlatformGemini, ProviderTypeOAuth)
-	}
-	for _, src := range exported.Data.GeminiAPIKeyProviders {
-		classify(src.ID, src.Kind, src.Name, PlatformGemini, ProviderTypeAPIKey)
+		classify(entry.id, entry.kind, entry.name, entry.spec.platform, providerType)
 	}
 
 	return result, nil

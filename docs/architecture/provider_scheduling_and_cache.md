@@ -19,7 +19,7 @@
 
 调度使用请求携带的分组、强制平台、客户端模型、映射后的模型、endpoint 和媒体意图、协议 transport、OAuth 和 privacy 要求，以及可选的 session 标识。提供商优先级只有一个来源：`providers.priority`。`provider_groups` 只记录成员关系，分组内没有单独的优先级。
 
-普通请求读取分组内全部提供商的平台无关快照。平台为空的 `single` bucket 包含九类平台的提供商；指定平台的 bucket 用于专用入口或明确的能力选择。`/antigravity/*` 等强制入口额外加上平台过滤，分组成员、模型和协议门禁照常执行。所有请求都限定在请求的分组范围内，没有关联分组的提供商不会进入候选池。
+普通请求读取分组内全部提供商的平台无关快照。平台为空的 `single` bucket 包含十一类平台的提供商；指定平台的 bucket 用于专用入口或明确的能力选择。`/antigravity/*` 等强制入口额外加上平台过滤，分组成员、模型和协议门禁照常执行。所有请求都限定在请求的分组范围内，没有关联分组的提供商不会进入候选池。
 
 同一个提供商可以属于多个分组。每个 bucket 的资格和模型范围单独计算，提供商的全局优先级在所有分组里一致。分组查询按 `providers.priority` 和 `provider_id` 稳定排序。
 
@@ -79,7 +79,7 @@ Codex 自动审查请求和父线程的关联，只在以下条件下建立：�
 
 管理员可以通过 `scheduler/httpapi` 的高级调度评分诊断，查看当前候选池的实时解释。候选、参数和解释由 `scheduler.DiagnosticService` 计算，selection 适配层只在单次调用中关联执行数据，凭据始终留在核心之外。基准诊断不指定模型、会话粘性和上一响应粘性。模拟诊断只接受模型和两个提供商 ID；session hash、previous response 内容、凭据和代理认证信息都无法传入。
 
-诊断用不分页的分组全集统计排除原因，并复用生产服务里可以安全执行的检查：模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI 和 Grok 配额自动暂停、影子母提供商健康、分组白名单。诊断只读：不获取并发槽、不注册会话、不写入粘性，也不修改运行时统计。endpoint、transport、Compact、媒体等需要请求输入才能判断的门禁，以 `not_evaluated` 策略信号返回，实际请求会在完整上下文里补做这些检查。
+诊断用不分页的分组全集统计排除原因，并复用生产服务里可以安全执行的检查：分组 OAuth-only 和协议准入、模型映射与白名单、模型运行时封禁、API Key/Bedrock 额度、窗口费用、RPM、只读自动停调阈值、代理流隔离、OpenAI 和 Grok 配额自动暂停、Grok 团队冷却和免费层缓存、影子母提供商健康、分组上游白名单。诊断只读：不获取并发槽、不注册会话、不写入粘性、不持久化停调状态、不启动后台配额刷新，也不修改运行时统计。endpoint、transport、Compact、媒体等需要请求输入才能判断的门禁，以 `not_evaluated` 策略信号返回，实际请求会在完整上下文里补做这些检查。
 
 Spark 影子的母提供商资格由 `provider.ParentHealthyForShadow` 判断，调度、诊断和 WS 复核都使用这条规则：母提供商要存在、仍是 OpenAI OAuth，凭据没有因状态、到期或临时停调失效。母提供商自己的全局限流、过载和手动调度开关不影响影子。`provider/provider.DefaultSparkShadowModels` 在调用时根据 OpenAI 的 Codex 别名表构造一份独立的恒等映射，app 直接把它注入提供商管理，模型表只有别名表这一份。
 
@@ -103,9 +103,9 @@ OpenAI 兼容选择、诊断和 WS 复核共用 `ModelPolicy.SupportsCompatibleR
 <a id="scheduler_snapshot_consistency"></a>
 ## 快照一致性
 
-跨平台分组的调度 Redis 快照命名空间是 `sched:v5:`。OpenCode 的完整和轻量快照保留模式、已接受目录及人工模型协议覆盖，候选过滤按最终映射模型解析原生协议。解析结果把最终模型和协议一起交给执行方，自动探针同样检查模型协议的启用状态。完整和轻量两种提供商快照都带有 `upstream_protocols`、认证方式和 `responses_ws_connection_mode`，分组认证快照（版本 46）带有准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次换号、fresh 复核和数据库复核时重新检查；转发目标只保存在本次的提供商副本里，共享缓存保持原样。
+跨平台分组的调度 Redis 快照命名空间是 `sched:v6:`。OpenCode 的完整和轻量快照保留模式、已接受目录及人工模型协议覆盖，候选过滤按最终映射模型解析原生协议。解析结果把最终模型和协议一起交给执行方，自动探针同样检查模型协议的启用状态。完整和轻量两种提供商快照都带有 `upstream_protocols`、认证方式、`responses_ws_connection_mode`、代理关联 ID 和 Coding Plan 监控快照的身份摘要（轻量快照保留 `api_key` 与非敏感策略字段，排除 OAuth、会话和云签名密钥），分组认证快照（版本 48）带有准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次换号、fresh 复核和数据库复核时重新检查；转发目标只保存在本次的提供商副本里，共享缓存保持原样。
 
-调度事件的格式、去重编码和 SQL 读写在 `scheduler` 和 `scheduler/postgres`。同一事务里写入的事件，提交后尽力发布。`scheduler.SnapshotService` 负责重建、事件消费和受限回退，网关读取和生命周期都直接绑定这个实例。`scheduler/rediscache` 负责 `sched:v5` 的快照发布、epoch 和 tombstone，bucket 锁继续使用 `sched:v4:lock:`，其中 `codec.ProviderCodec` 负责完整和轻量提供商的存储格式和字段过滤，使用 Provider 的字段名，并区分 nil 和空集合。
+调度事件的格式、去重编码和 SQL 读写在 `scheduler` 和 `scheduler/postgres`。同一事务里写入的事件，提交后尽力发布。`scheduler.SnapshotService` 负责重建、事件消费和受限回退，网关读取和生命周期都直接绑定这个实例。`scheduler/rediscache` 负责 `sched:v6` 的快照发布、epoch 和 tombstone，bucket 锁继续使用 `sched:v4:lock:`，其中 `codec.ProviderCodec` 负责完整和轻量提供商的存储格式和字段过滤，使用 Provider 的字段名，并区分 nil 和空集合。
 
 Gemini 配额预检在补全提供商凭据之前执行，轻量快照需要保存 `provider_type`、`oauth_type` 和 `tier_id`。第三方提供商跳过本地官方配额预检，官方提供商按保存的等级选取配额；遗漏这些字段会让候选被按默认档位过滤。服务启动和周期重建会从数据库重新生成快照，修复字段过滤后，已有缓存通过重建更新。
 
@@ -113,7 +113,7 @@ Gemini 配额预检在补全提供商凭据之前执行，轻量快照需要保�
 
 PostgreSQL 和 Redis 在读取 Qoder 记录时为账号模型建立只读索引。一次路由筛选复用相同索引，账号切换或快照替换后使用新版本。Qoder 的轻量快照保留站点、账号模型观察和编码器从完整凭据派生的目录身份摘要。候选筛选可以在不复制访问令牌的情况下验证观察身份；完整记录仍直接从凭据计算摘要。账号、组织或站点变化后，完整记录和轻量快照都会拒绝旧目录。已识别账号轮换访问令牌时可以继续使用有效快照。目录尚未同步时，实际选号拒绝该提供商，错误诊断将其视为暂时不可用，而不是据此认定模型不存在。
 
-app 把 provider 和 routing 的存储、凭据刷新后的提供商记录绑定到同一个缓存，执行目标通过 app 注入的受控读取接口取得。编码器内部持有完整记录，核心只读取不含凭据的候选元数据。执行凭据由 provider 模块受控提供，分组数据从 routing 读取。
+app 把 provider 和 routing 的存储、凭据刷新后的提供商记录绑定到同一个缓存，执行目标通过 app 注入的受控读取接口取得。编码器内部持有完整记录，轻量快照排除 OAuth、会话和云签名密钥，调度核心只读取不含凭据的候选数据。执行凭据由 provider 模块受控提供，分组数据从 routing 读取。
 
 `scheduler.SnapshotService` 管理 bucket 快照和提供商数据。启动时异步执行初始重建，outbox 立即消费第一轮；运行中持续消费调度 outbox，并定期全量重建，修复漏掉的通知和外部写入。提供商状态的热更新可以先发布快照，再通过 outbox 和失效通知更新相关缓存。
 

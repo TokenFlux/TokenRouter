@@ -13,10 +13,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
+	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
@@ -558,6 +561,117 @@ func TestAdvancedSchedulerScoreDiagnosticService_EscapedStickyUsesRegularWindowC
 	signal := findAdvancedSchedulerDiagnosticPolicy(result.Detail.PolicySignals, "session_sticky")
 	require.NotNil(t, signal)
 	require.Equal(t, "escaped", signal.State)
+}
+
+// TestAdvancedSchedulerScoreDiagnosticService_ParityHardFiltersAndGroupModelMapping
+// checks OAuth-only admission, persistent API-key quota exhaustion, group
+// protocol routes, read-only scheduling thresholds, and group model mapping.
+// Each gate reports its production reason without mutating provider state.
+func TestAdvancedSchedulerScoreDiagnosticService_ParityHardFiltersAndGroupModelMapping(t *testing.T) {
+	now := time.Now().UTC()
+
+	t.Run("oauth_required", func(t *testing.T) {
+		group := &routing.Group{ID: 1401, SchedulerType: routing.GroupSchedulerTypeAdvanced, RequireOAuthOnly: true}
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{
+				ID: 14011, GroupIDs: []int64{group.ID}, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey,
+				Status: billing.StatusActive, Schedulable: true, LoadLocation: time.LoadLocation,
+			},
+		}
+		core, scope := withDiagnosticParameters(newDiagnosticsForTest(nil, nil)).diagnosticCore()
+		reason := core.HardFilterReason(context.Background(), scope.provider(provider), scope.group(group), policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID}, now)
+		require.Equal(t, "oauth_required", reason)
+	})
+
+	t.Run("quota_exceeded_precedes_model_runtime_blocked", func(t *testing.T) {
+		group := &routing.Group{ID: 1402, SchedulerType: routing.GroupSchedulerTypeAdvanced}
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{
+				ID: 14021, GroupIDs: []int64{group.ID}, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey,
+				Status: billing.StatusActive, Schedulable: true, LoadLocation: time.LoadLocation,
+				Credentials: map[string]any{"model_whitelist": []string{"*"}},
+				Extra:       map[string]any{"quota_limit": 10.0, "quota_used": 10.0},
+			},
+		}
+		core, scope := withDiagnosticParameters(newDiagnosticsForTest(nil, nil)).diagnosticCore()
+		reason := core.HardFilterReason(context.Background(), scope.provider(provider), scope.group(group), policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID, RequestedModel: "gpt-5.4"}, now)
+		require.Equal(t, "quota_exceeded", reason)
+	})
+
+	t.Run("protocol_unavailable", func(t *testing.T) {
+		group := &routing.Group{
+			ID:                1403,
+			SchedulerType:     routing.GroupSchedulerTypeAdvanced,
+			AllowedProtocols:  []protocol.ProtocolID{protocol.ProtocolAnthropicMessages},
+			ProtocolFallbacks: map[protocol.ProtocolID][]protocol.ProtocolID{protocol.ProtocolAnthropicMessages: {}},
+		}
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{
+				ID: 14031, GroupIDs: []int64{group.ID}, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth,
+				Status: billing.StatusActive, Schedulable: true, LoadLocation: time.LoadLocation,
+				Credentials: map[string]any{"model_whitelist": []string{"*"}},
+			},
+		}
+		core, scope := withDiagnosticParameters(newDiagnosticsForTest(nil, nil)).diagnosticCore()
+		reason := core.HardFilterReason(context.Background(), scope.provider(provider), scope.group(group), policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID}, now)
+		require.Equal(t, "protocol_unavailable", reason)
+	})
+
+	t.Run("read_only_scheduling_threshold", func(t *testing.T) {
+		group := &routing.Group{ID: 1404, SchedulerType: routing.GroupSchedulerTypeAdvanced}
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{
+				ID: 14041, GroupIDs: []int64{group.ID}, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeOAuth,
+				Status: billing.StatusActive, Schedulable: true, LoadLocation: time.LoadLocation,
+				Credentials: map[string]any{"chatgpt_account_id": "acct-diag", "model_whitelist": []string{"*"}},
+				Extra: map[string]any{
+					"chatgpt_account_id":     "acct-diag",
+					"codex_usage_updated_at": now.Format(time.RFC3339),
+					"codex_5h_used_percent":  90.0,
+					"codex_5h_reset_at":      now.Add(30 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}
+		health := &provideradapter.UpstreamHealth{
+			Core: providercore.NewHealthService(nil, nil, providercore.HealthOptions{
+				Now:                  func() time.Time { return now },
+				HasThresholdSettings: func() bool { return true },
+				Thresholds:           func(context.Context) map[string]int { return map[string]int{capability.PlatformOpenAI: 80} },
+			}),
+		}
+		diagnostics := withDiagnosticParameters(newDiagnosticsForTest(nil, nil))
+		diagnostics.openAIGateway = newCompatibleSelectionForTest(CompatibleDependencies{Shared: Shared{Health: health}}, nil)
+
+		core, scope := diagnostics.diagnosticCore()
+		reason := core.HardFilterReason(context.Background(), scope.provider(provider), scope.group(group), policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID}, now)
+		require.Equal(t, "scheduling_threshold", reason)
+		require.Nil(t, provider.Record.TempUnschedulableUntil)
+		require.Empty(t, provider.Record.TempUnschedulableReason)
+	})
+
+	t.Run("group_model_mapping", func(t *testing.T) {
+		group := &routing.Group{ID: 1405, SchedulerType: routing.GroupSchedulerTypeAdvanced}
+		price := 0.01
+		pricingSvc := routingtestkit.PricingConfig(group.ID, capability.PlatformOpenAI, routingtestkit.Configuration{
+			ID:           91,
+			Status:       billing.StatusActive,
+			ModelMapping: map[string]string{"client-alias": "gpt-5.4"},
+			ModelPricing: []routing.ModelPricingEntry{{Models: []string{"gpt-5.4"}, InputPrice: &price}},
+		})
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{
+				ID: 14051, GroupIDs: []int64{group.ID}, Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey,
+				Status: billing.StatusActive, Schedulable: true, LoadLocation: time.LoadLocation,
+				Credentials: map[string]any{"model_whitelist": []string{"gpt-5.4"}},
+			},
+		}
+		diagnostics := withDiagnosticParameters(newDiagnosticsForTest(nil, nil))
+		diagnostics.openAIGateway = newCompatibleSelectionForTest(CompatibleDependencies{Shared: Shared{GroupPolicies: pricingSvc}}, nil)
+
+		core, scope := diagnostics.diagnosticCore()
+		reason := core.HardFilterReason(context.Background(), scope.provider(provider), scope.group(group), policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID, RequestedModel: "client-alias"}, now)
+		require.Empty(t, reason)
+	})
 }
 
 // newDiagnosticsForTest constructs diagnostics with the supplied source and

@@ -78,7 +78,7 @@ Jev 的公开入口为 `POST /v1/systemone`，原生协议、模型同步和用�
 | --- | --- | --- |
 | Anthropic Messages：`/v1/messages` | 分组允许 Messages 后，从组内选出能处理这个模型的提供商，再按实际的提供商转换或原生转发 | 各平台文档；共同链路见[网关请求生命周期](../architecture/gateway_request_lifecycle.md) |
 | Anthropic token count：`/v1/messages/count_tokens`、`/messages/count_tokens` | Anthropic、OpenAI、Gemini 走各自的统计路径，Grok、OpenCode、Kimi、Zhipu、DeepSeek 在本地估算；Antigravity 和 Qoder 返回 `404`，Anthropic 的 Bedrock 提供商也不支持 | 各平台文档；客户端应保留本地估算作为回退 |
-| OpenAI Responses：`/v1/responses`、`/responses` 和允许的子路径 | 最终分组允许 Responses 时，按选中的提供商进入十一个平台各自的适配；Kimi 和 Zhipu 不要求提供商有上游原生的 Responses，DeepSeek 可以手动使用它的 `/responses`；Qoder 不支持 Responses 子路径和 WebSocket | 各平台文档；WebSocket 和 Realtime 见 [OpenAI 上游](openai_upstream.md) |
+| OpenAI Responses：`/v1/responses`、`/responses` 和允许的子路径 | 最终分组允许 Responses 时，按选中的提供商进入除 Jev 外的十个平台各自的适配；Kimi 和 Zhipu 不要求提供商有上游原生的 Responses，DeepSeek 可以手动使用它的 `/responses`；Qoder 不支持 Responses 子路径和 WebSocket | 各平台文档；WebSocket 和 Realtime 见 [OpenAI 上游](openai_upstream.md) |
 | OpenAI Chat Completions：`/v1/chat/completions`、`/chat/completions` | 最终分组允许 Chat 后，按组内候选的原生能力和允许的转换路线选择提供商 | 各平台文档 |
 | 模型和用量：`/v1/models`、`/models`、`/v1/usage` | 按 Key、分组和提供商解析可以请求的模型和本地额度；返回的是 TokenRouter 的结果，不是上游模型列表或账单的原样转发 | [模型目录与市场](model_catalog_and_marketplace.md) 和各平台文档 |
 | Embeddings：`/v1/embeddings`、`/embeddings` | 分组允许 Embeddings，并且候选提供商具备 OpenAI Embeddings 能力 | [OpenAI 上游](openai_upstream.md) |

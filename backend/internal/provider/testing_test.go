@@ -92,14 +92,14 @@ func TestNormalizeProviderTestMode(t *testing.T) {
 // protocols include SystemOne receive their family, kind and original payload,
 // while OpenAI rejects the request before execution.
 func TestDecisionTestingRequiresSystemOne(t *testing.T) {
-	for platform, route := range map[string]TestRoute{PlatformJev: TestRouteJev, PlatformOpenCode: TestRouteOpenCode, PlatformOpenAI: TestRouteOpenAI} {
+	for _, platform := range []string{PlatformJev, PlatformOpenCode, PlatformOpenAI} {
 		t.Run(platform, func(t *testing.T) {
 			called := false
 			kind := ProviderTestTypeDecision
 			request := TestRequest{Type: &kind, SystemOne: []byte(`{"state":["ready"],"questions":{"x":{"type":"noul","instructions":"Ready?"}}}`)}
 			loader := &testLoaderStub{target: testTargetStub{info: TestTargetInfo{ProviderSnapshot: ProviderSnapshot{Platform: platform, Type: ProviderTypeAPIKey}}, run: func(_ context.Context, got PreparedTestRequest, _ TestEventSink) error {
 				called = true
-				require.Equal(t, route, got.Route)
+				require.Equal(t, TestRouteDefault, got.Route)
 				require.Equal(t, kind, got.TestType)
 				require.Equal(t, request.SystemOne, got.SystemOne)
 				return nil
@@ -208,7 +208,7 @@ func TestTestingDispatchesExplicitImageWithoutDuplicateLoad(t *testing.T) {
 	kind := ProviderTestTypeImage
 	require.NoError(t, svc.Test(context.Background(), TestRequest{ProviderID: 9, Model: "explicit", Mode: ProviderTestModeCompact, Type: &kind}, &testSinkStub{}))
 	require.Equal(t, 1, loader.loads)
-	require.Equal(t, TestRouteGemini, got.Route)
+	require.Equal(t, TestRouteDefault, got.Route)
 	require.Equal(t, ProviderTestModeDefault, got.Mode)
 	require.True(t, got.ExplicitType)
 }

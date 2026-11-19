@@ -110,12 +110,13 @@ type DiagnosticProvider struct {
 	// global sort priority and observed-load percentage denominator
 	Priority, LoadFactor int
 	// Schedulable rejects manually disabled providers; AutoPauseOnExpired
-	// activates the ExpiresAt gate. PrivacySet is checked when the group requires
-	// it, and SubscriptionPriority identifies candidates considered for the
-	// preferred subscription pool.
-	// manual scheduling admission, automatic expiry enforcement, provider privacy
-	// qualification, and preferred subscription membership
-	Schedulable, AutoPauseOnExpired, PrivacySet, SubscriptionPriority bool
+	// activates the ExpiresAt gate. IsOAuth and PrivacySet are checked when the
+	// group requires them, and SubscriptionPriority identifies candidates
+	// considered for the preferred subscription pool.
+	// manual scheduling admission, automatic expiry enforcement, OAuth
+	// authentication qualification, provider privacy qualification, and preferred
+	// subscription membership
+	Schedulable, AutoPauseOnExpired, IsOAuth, PrivacySet, SubscriptionPriority bool
 	// ExpiresAt, OverloadUntil, RateLimitResetAt, TempUnschedulableUntil, and
 	// SessionWindowEnd are optional observations. The production adapter retains
 	// source time pointers, so diagnostics treats all pointed-to values as
@@ -155,11 +156,11 @@ type (
 		// ProjectionID recovers this group's source policy through the current
 		// adapter lookup; passing metadata from another invocation can associate the
 		// wrong group.
-		ProjectionID                uint64 // per-invocation policy association
-		ID                          int64  // persisted scheduling group identity
-		Name                        string // group display name
-		SortOrder                   int    // group tab sort order
-		Advanced, RequirePrivacySet bool   // advanced scheduler mode and required privacy qualification
+		ProjectionID                                  uint64 // per-invocation policy association
+		ID                                            int64  // persisted scheduling group identity
+		Name                                          string // group display name
+		SortOrder                                     int    // group tab sort order
+		Advanced, RequireOAuthOnly, RequirePrivacySet bool   // advanced scheduler mode, OAuth-only admission, and required privacy qualification
 		// AdvancedSchedulerOverrides carries per-field optional overrides; Effective
 		// resolves their values, while diagnosticEffectiveSettings infers display
 		// source labels from pointer presence.
@@ -797,8 +798,8 @@ func diagnosticContext(request AdvancedSchedulerScoreDiagnosticRequest) Advanced
 // diagnosticBaseHardFilterReason returns the first metadata rejection in the
 // diagnostic order. Provider presence and group membership precede active
 // status and the manual scheduling flag; automatic expiry, overload, rate
-// reset, temporary blocking, and required privacy follow. Empty output means
-// these base observations accept the candidate.
+// reset, temporary blocking, OAuth-only admission, and required privacy follow.
+// Empty output means these base observations accept the candidate.
 //
 // Expiry is enforced only when AutoPauseOnExpired is enabled and its deadline
 // has arrived. Temporary recovery timestamps reject while they remain in the
@@ -829,6 +830,9 @@ func diagnosticBaseHardFilterReason(provider *DiagnosticProvider, group *Diagnos
 	}
 	if provider.TempUnschedulableUntil != nil && now.Before(*provider.TempUnschedulableUntil) {
 		return "provider_temporarily_unschedulable"
+	}
+	if group != nil && group.RequireOAuthOnly && !provider.IsOAuth {
+		return "oauth_required"
 	}
 	if group != nil && group.RequirePrivacySet && !provider.PrivacySet {
 		return "privacy_not_set"

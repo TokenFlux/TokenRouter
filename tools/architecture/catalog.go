@@ -229,10 +229,7 @@ internal/settings`, Tests: ""},
 internal/billing/provider internal/idempotency internal/idempotency/httpapi
 internal/infra/postgres/... internal/infra/telemetry/... internal/pkg/ internal/protocol
 internal/protocol/openai internal/routing/... internal/scheduler/policy internal/server/httpx
-internal/settings internal/upstream/anthropic internal/upstream/antigravity
-internal/upstream/deepseek internal/upstream/kimi internal/upstream/zhipu
-internal/upstream/gemini/codeassist internal/upstream/grok internal/upstream/openai
-internal/upstream/qoder`, Tests: `internal/modelcatalog/testkit internal/provider/provider internal/apikey internal/billing/testkit internal/gateway/media
+internal/settings`, Tests: `internal/modelcatalog/testkit internal/provider/provider internal/apikey internal/billing/testkit internal/gateway/media
 internal/gateway/provider internal/gateway/provider/modelidentity internal/idempotency/testkit
 internal/identity/httpapi/authctx internal/scheduler internal/testutil/postgrescontainer migrations internal/modelcatalog/provider`},
 		"internal/scheduler": {Production: `internal/server/adminapi internal/provider internal/egress internal/infra/postgres/... internal/infra/telemetry/...
@@ -492,6 +489,7 @@ internal/upstream/zhipu/...`, Tests: ""},
 		{Scope: "internal/routing", Imports: "internal/gateway/provider/modelidentity", Files: "marketplace_external_test.go"},
 		{Scope: "internal/scheduler/rediscache", Imports: "internal/provider/provider", Files: "snapshot_integration_test.go snapshot_encoding_scenario_test.go"},
 		{Scope: "internal/search", Imports: "internal/search/provider", Files: "config_test.go"},
+		{Scope: "internal/settings", Imports: "internal/upstream/anthropic internal/upstream/antigravity internal/upstream/grok", Files: "testkit/composite.go"},
 		{Scope: "internal/setup", Imports: "internal/app/bootstrap", Files: "setup.go"},
 		{Scope: "internal/team/postgres", Imports: "internal/apikey/postgres internal/billing/postgres", Files: "team_test.go"},
 		{Scope: "internal/team/postgres", Imports: "internal/usage/postgres/query", Files: "team.go"},

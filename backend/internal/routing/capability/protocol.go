@@ -218,7 +218,7 @@ func ProtocolFallbackTargets(platform string, source ProtocolID) []ProtocolID {
 	case ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions:
 		switch platform {
 		case PlatformAnthropic:
-			targets = []ProtocolID{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}
+			targets = []ProtocolID{ProtocolAnthropicMessages}
 		case PlatformOpenAI, PlatformGrok:
 			targets = []ProtocolID{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
 		case PlatformOpenCode:
@@ -299,13 +299,20 @@ func platformSupportsClientProtocol(platform string, source ProtocolID) bool {
 	return false
 }
 
-// AutomaticProtocolFallbackTargets returns unique conversion targets in the
-// fixed platform traversal order. First appearance determines target order,
-// giving automatic mixed-group resolution a stable sequence across repeated
-// catalogue queries.
+// AutomaticProtocolFallbackTargets returns unique conversion targets in a
+// deterministic traversal derived from ProviderPlatforms with OpenAI ordered
+// first. First appearance determines target order, giving automatic mixed-group
+// resolution a stable sequence across repeated catalogue queries.
 func AutomaticProtocolFallbackTargets(source ProtocolID) []ProtocolID {
+	platforms := make([]string, 0, len(ProviderPlatforms()))
+	platforms = append(platforms, PlatformOpenAI)
+	for _, platform := range ProviderPlatforms() {
+		if platform != PlatformOpenAI {
+			platforms = append(platforms, platform)
+		}
+	}
 	targets := []ProtocolID{}
-	for _, platform := range []string{PlatformOpenAI, PlatformAnthropic, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformQoder, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformOpenCode} {
+	for _, platform := range platforms {
 		for _, target := range ProtocolFallbackTargets(platform, source) {
 			if !slices.Contains(targets, target) {
 				targets = append(targets, target)

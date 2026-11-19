@@ -2,15 +2,19 @@
 // queries, and scheduling health.
 //
 // Start with:
-//   - record.go: provider records and configuration accessors.
+//   - record.go: provider records, identity, and availability accessors.
+//   - field_policy.go: per-key redaction, configuration merge, duplication,
+//     and scheduler metadata rules.
 //   - admin_contracts.go: storage, group, and platform operations used by
 //     administration.
 //   - refresh.go: request-time credential refresh, lock coordination, and
 //     conditional persistence.
 //
 // Files by responsibility:
-//   - platform_rules.go, kimi_rules.go, zhipu_rules.go, and deepseek_rules.go:
-//     platform-owned endpoint, usage, health, and billing policies.
+//   - record*.go: provider records, endpoint/passthrough policies, model
+//     mappings, pool retry, temporary suspension rules, and quota windows.
+//   - platform_rules.go, kimi_rules.go, zhipu_rules.go, deepseek_rules.go, and
+//     opencode.go: platform-owned endpoint, usage, health, and billing policies.
 //   - admin*.go, create*.go, management*.go: provider creation, editing,
 //     queries, and administration.
 //   - archive*.go, codex_import*.go, crs_*.go: import/export, credential

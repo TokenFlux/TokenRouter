@@ -171,10 +171,22 @@ func TestApplyOAuthCredentialsDiscardsDeprecatedLongContextBillingExtra(t *testi
 
 // TestProviderHandlerApplyOAuthCredentials_MergesExtraAndInvalidatesToken
 // reauthorizes a fixture through strict HTTP input and an invalidation
-// recorder. Credentials update separately from the selected Extra patch, and
-// error clearing plus token invalidation target the provider.
+// recorder. Credentials patch into existing non-secret routing settings
+// separately from the selected Extra patch, and error clearing plus token
+// invalidation target the provider.
 func TestProviderHandlerApplyOAuthCredentials_MergesExtraAndInvalidatesToken(t *testing.T) {
 	adminSvc := newManagementMutationFixture()
+	adminSvc.providers = []providercore.Record{{
+		ID:       3,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.ProviderTypeOAuth,
+		Status:   billing.StatusActive,
+		Credentials: map[string]any{
+			"access_token":  "old-access-token",
+			"model_mapping": map[string]any{"claude-alias": "claude-sonnet-4-5"},
+			"base_url":      "https://relay.example.invalid",
+		},
+	}}
 	invalidator := &applyOAuthTokenInvalidator{}
 	handler := newMutationHandler(adminSvc, invalidator)
 	router := gin.New()
@@ -202,7 +214,10 @@ func TestProviderHandlerApplyOAuthCredentials_MergesExtraAndInvalidatesToken(t *
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, adminSvc.updateProviderInput)
 	require.Equal(t, capability.ProviderTypeOAuth, adminSvc.updateProviderInput.Type)
-	require.Equal(t, "new-access-token", adminSvc.updateProviderInput.Credentials["access_token"])
+	require.True(t, adminSvc.updateProviderInput.PatchCredentials, "重授权应补丁合并凭据以保留模型映射等配置")
+	require.Equal(t, "new-access-token", adminSvc.providers[0].Credentials["access_token"])
+	require.Equal(t, "https://relay.example.invalid", adminSvc.providers[0].Credentials["base_url"])
+	require.Equal(t, map[string]any{"claude-alias": "claude-sonnet-4-5"}, adminSvc.providers[0].Credentials["model_mapping"])
 	require.Nil(t, adminSvc.updateProviderInput.Extra, "凭据更新不应全量覆盖 Extra")
 	require.Len(t, adminSvc.updateExtraCalls, 1)
 	require.Equal(t, "new-provider-uuid", adminSvc.updateExtraCalls[0]["account_uuid"])

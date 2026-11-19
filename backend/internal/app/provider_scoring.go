@@ -14,41 +14,39 @@ import (
 
 // provider_scoring.go resolves administrator scoring inputs from deployment
 // defaults, runtime settings, and eligible group overrides. Administrator score
-// snapshots use the same feedback and runtime settings as provider selection.
-// Process configuration supplies initial weights and escape policy, but group
-// overrides are read only for advanced groups, keeping basic group display
-// independent of stale advanced settings.
+// snapshots share the same feedback, runtime settings, and parameter defaults
+// as provider selection. Group overrides are read only for advanced groups,
+// keeping basic group display independent of retained advanced settings.
 //
-// Missing process configuration keeps built-in inputs, and a nonpositive
-// configured Top-K retains seven candidates. The callback loads runtime
-// settings with those defaults before resolving eligible group overrides. A
-// nil callback context becomes Background so the shared settings reader has a
-// usable context for that lookup.
+// Shared Parameters are reused when already constructed; otherwise a Parameters
+// instance is built from schedulerParameterDefaults and the supplied settings
+// store. A nil callback context becomes Background so runtime settings reads
+// always receive a usable context.
 
-// providerScoreOptions binds diagnostic scoring to shared feedback and
-// effective scheduler settings. Nil cfg supplies built-in inputs; a positive
-// configured Top-K overrides seven, and the callback uses group overrides only
-// for advanced groups while replacing nil context with Background.
+// providerScoreOptions binds administrative scoring to shared feedback and
+// effective scheduler parameters. Shared Parameters are reused when present and
+// otherwise constructed from schedulerParameterDefaults; group overrides apply
+// only to advanced groups, and nil callback contexts become Background.
 func providerScoreOptions(concurrency *scheduler.ConcurrencyService, shared *schedulerSharedState, store *settings.Store, cfg *config.Config) provider.SchedulerScoreOptions {
-	// Diagnostic candidate scoring starts with seven Top-K choices before settings overrides.
-	topK := 7
-	weights := policy.ScoreWeights{Priority: 1, Load: 1, Queue: 0.7, ErrorRate: 0.8, TTFT: 0.5, Previous: 5, SessionSticky: 3}
-	defaults := policy.RuntimeSettings{EwmaErrorRateAlpha: scheduler.DefaultErrorRateAlpha, EwmaTTFTAlpha: scheduler.DefaultTTFTAlpha, StickyEscape: policy.StickyEscapeConfig{Enabled: true, TtftMs: 15000, ErrorRate: 0.5}}
-	if cfg != nil {
-		v := cfg.Scheduling.Advanced
-		if v.LBTopK > 0 {
-			topK = v.LBTopK
+	var parameters *scheduler.Parameters
+	if shared != nil && shared.Parameters != nil {
+		parameters = shared.Parameters
+	} else {
+		var settingsRuntime *scheduler.SettingsRuntime
+		if shared != nil {
+			settingsRuntime = shared.Settings
 		}
-		weights = policy.ScoreWeights{Priority: v.ScoreWeights.Priority, Load: v.ScoreWeights.Load, Queue: v.ScoreWeights.Queue, ErrorRate: v.ScoreWeights.ErrorRate, TTFT: v.ScoreWeights.TTFT, Reset: v.ScoreWeights.Reset, QuotaHeadroom: v.ScoreWeights.QuotaHeadroom, Previous: v.ScoreWeights.PreviousResponse, SessionSticky: v.ScoreWeights.SessionSticky}
-		defaults.EwmaErrorRateAlpha = v.EWMAErrorRateAlpha
-		defaults.EwmaTTFTAlpha = v.EWMATTFTAlpha
-		defaults.StickyEscape = policy.NormalizeStickyEscape(policy.StickyEscapeConfig{Enabled: v.StickyEscapeEnabled, TtftMs: float64(v.StickyEscapeTTFTMs), ErrorRate: v.StickyEscapeErrorRate})
+		var source scheduler.RuntimeSettingSource
+		if store != nil {
+			source = store
+		}
+		parameters = scheduler.NewParameters(settingsRuntime, source, schedulerParameterDefaults(cfg))
 	}
-	var source scheduler.RuntimeSettingSource
-	if store != nil {
-		source = store
+	var feedback *scheduler.RuntimeStats
+	if shared != nil {
+		feedback = shared.Feedback
 	}
-	return provideradapter.SchedulerScoreOptions(concurrency, shared.Feedback, func(ctx context.Context, group *accessview.GroupConfig) policy.EffectiveSettings {
+	return provideradapter.SchedulerScoreOptions(concurrency, feedback, func(ctx context.Context, group *accessview.GroupConfig) policy.EffectiveSettings {
 		if ctx == nil {
 			ctx = context.Background()
 		}
@@ -58,6 +56,6 @@ func providerScoreOptions(concurrency *scheduler.ConcurrencyService, shared *sch
 		if group != nil && group.SchedulerType == "advanced" {
 			overrides = group.AdvancedSchedulerOverrides
 		}
-		return policy.ResolveEffective(topK, weights, shared.Settings.Load(ctx, source, defaults), overrides)
+		return parameters.Effective(ctx, overrides)
 	})
 }

@@ -2,40 +2,30 @@ package provider
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"maps"
 	"net/url"
-	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
 )
 
-// record.go represents provider configuration and runtime observations and
-// evaluates their routing and scheduling rules.
+// record.go defines the core provider Record, platform and authentication type
+// aliases, and identity and availability accessors.
 // A provider record carries both administrator configuration and runtime
-// observations consumed by scheduling, forwarding, and management display. Its
-// accessors interpret stored JSON representations while retaining distinctions
-// that affect routing decisions, such as omitted retry overrides, explicitly
-// empty selections, and legacy identity mappings.
+// observations consumed by scheduling, forwarding, and management display.
+// Scalar and map accessors interpret stored JSON representations while keeping
+// private scheduler hints out of public JSON encoding.
 //
 // Scheduling combines active state, its manual switch, expiration policy,
 // temporary windows, and applicable quota dimensions. Shadow credential health
 // deliberately reads the shared parent's credential conditions separately from
-// that parent's global scheduling state. Fixed quotas use local calendar resets
-// and an injected clock, while rolling quotas use real elapsed time.
-// Configuration maps and hydrated relationships belong to the caller's
-// snapshot; CloneRecord supplies supported mutable copies when ownership
-// crosses a cache or request. The helpers read these values and leave
-// persistence with the dedicated configuration, health, and billing writers.
+// that parent's global scheduling state. Injected clock and timezone loaders
+// default to standard-library functions when absent, and CloneRecord supplies
+// supported mutable copies when ownership crosses a cache or request.
 
 const (
 	// Legacy workload input records enabled endpoint families before conversion
@@ -58,30 +48,6 @@ const (
 	OpenAIAuthModePersonalAccessToken = "personalAccessToken"
 	OpenAIAuthModeCredentialKey       = "auth_mode"
 	OpenAIAuthModeLegacyCredentialKey = "openai_auth_mode"
-
-	// Compaction mode values keep legacy and native V2 administrator switches
-	// independent, with each accessor treating force_off as its disabling value.
-	// OpenAICompactModeForceOn enables the corresponding compaction capability.
-	OpenAICompactModeForceOn = "force_on"
-	// OpenAICompactModeForceOff disables the corresponding compaction capability.
-	OpenAICompactModeForceOff            = "force_off"
-	OpenAINativeCompactionV2ModeExtraKey = "openai_native_compaction_v2_mode"
-
-	// Pool-mode counts supply the ordinary budget for additional attempts against
-	// one provider. Gateway failover evaluates error-specific caps and independent
-	// deadline rules before deciding whether another attempt is allowed.
-	DefaultPoolModeRetryCount = 3  // missing same-provider retry count
-	MaxPoolModeRetryCount     = 10 // maximum same-provider retry count
-
-	// OpenAI OAuth policy values select unrestricted clients, Codex identities,
-	// or a TLS-router match after administrator and legacy settings are resolved.
-	// OpenAIOAuthClientPolicyAny allows any client to use the OpenAI OAuth provider.
-	OpenAIOAuthClientPolicyAny = "any"
-	// OpenAIOAuthClientPolicyCodexOnly restricts access to official Codex clients.
-	OpenAIOAuthClientPolicyCodexOnly = "codex_only"
-	// OpenAIOAuthClientPolicyTLSRouterMatchedOnly requires a UA matched by the TLS
-	// router.
-	OpenAIOAuthClientPolicyTLSRouterMatchedOnly = "tls_router_matched_only"
 
 	// Stored status labels control provider availability independently of the
 	// scheduling switch and transient rate-limit, overload, or suspension windows.
@@ -118,10 +84,6 @@ const (
 	APIProtocolAdaptive        = "adaptive"                           // automatic legacy protocol selection
 	APIProtocolSystemOne       = string(capability.ProtocolSystemOne) // synchronous SystemOne decision protocol
 
-	// DefaultJevBaseURL supplies the SystemOne service root when a provider has
-	// no configured endpoint override; operation builders append their request path.
-	DefaultJevBaseURL = "https://api.typesafe.ai"
-
 	// Provider type aliases select the credential lifecycle and authentication
 	// implementation used by platform-specific token, signature, and request
 	// consumers.
@@ -157,36 +119,21 @@ const (
 	// types.
 	OpenAIImagesCapabilityBasic  OpenAIImagesCapability = "images-basic"  // basic image capability label
 	OpenAIImagesCapabilityNative OpenAIImagesCapability = "images-native" // native image capability label
-
-	// Notification labels construct dimension-specific Extra keys and supply the
-	// missing threshold interpretation used by daily, weekly, monthly, and total quota
-	// readers.
-	thresholdTypeFixed = "fixed"   // fixed quota notification threshold
-	quotaDimDaily      = "daily"   // daily quota notification dimension
-	quotaDimWeekly     = "weekly"  // weekly quota notification dimension
-	quotaDimMonthly    = "monthly" // monthly quota notification dimension
-	quotaDimTotal      = "total"   // total quota notification dimension
 )
-
-// DefaultPoolModeRetryableStatusCodes supplies the shared membership list for
-// pool-mode retry-status decisions. A nil GetPoolModeRetryStatusCodes result
-// delegates membership to this list; every configured []any value uses its own
-// normalized result.
-// Runtime readers share the exported slice, so callers synchronize any changes
-// to these defaults with request handling.
-var DefaultPoolModeRetryableStatusCodes = []int{401, 403, 429}
 
 // Record holds administrator provider configuration and observed runtime state.
 // Callers own mutable maps and relationships and keep them stable while accessors
 // read them. Scalar accessors require a nonnil record unless documented
-// otherwise. Fixed-window readers require LoadLocation when their stored start
-// is nonzero. CloneRecord copies supported mutable fields before this snapshot
-// is passed to another owner.
+// otherwise. Missing clock or timezone hooks default to time.Now and
+// time.LoadLocation. CloneRecord copies supported mutable fields before this
+// snapshot is passed to another owner.
 type Record struct {
-	// QoderCatalogIdentityHint is derived by the scheduler codec before dropping
-	// credentials. It is private transport metadata, never administrator input;
-	// full database records leave it empty and derive identity from credentials.
-	QoderCatalogIdentityHint string `json:"-"`
+	// QoderCatalogIdentityHint and UsageMonitorIdentityHint are derived by the
+	// scheduler codec before dropping private credential and proxy details. Both
+	// are internal transport metadata, never administrator input; full database
+	// records leave them empty and derive identity from stored configuration.
+	QoderCatalogIdentityHint string `json:"-"` // precomputed Qoder catalog identity
+	UsageMonitorIdentityHint string `json:"-"` // precomputed usage-monitor identity
 	// Proxy is the hydrated outbound proxy selected by ProxyID. Consumers that
 	// need connection details require hydration before reading its URL or identity.
 	Proxy *egress.Proxy `json:"-"`
@@ -270,28 +217,12 @@ type Record struct {
 	// dimension.
 	QuotaDimension string
 	GroupIDs       []int64 // persisted provider group associations
-	// Now supplies provider-clock reads when injected. The now
-	// helper selects time.Now when absent; rolling periods use time.Since
-	// separately.
+	// Now supplies provider-clock reads when injected; the now helper selects
+	// time.Now when absent.
 	Now func() time.Time `json:"-"`
-	// LoadLocation resolves fixed quota timezone names when a stored start is
-	// nonzero. A zero start expires before lookup; provider storage installs the
-	// configured loader for hydrated records.
+	// LoadLocation resolves fixed quota timezone names when injected; the
+	// loadLocation helper selects time.LoadLocation when absent.
 	LoadLocation func(string) (*time.Location, error) `json:"-"`
-}
-
-// TempUnschedulableRule selects an upstream failure that triggers a temporary
-// scheduling pause.
-type TempUnschedulableRule struct {
-	// ErrorCode and Keywords select a failure together. The health matcher
-	// requires the exact status and a usable keyword in the response body;
-	// GetTempUnschedulableRules discards rules missing either required component.
-	ErrorCode int      `json:"error_code"` // upstream HTTP status code
-	Keywords  []string `json:"keywords"`   // response text match keywords
-	// DurationMinutes sets the pause length. GetTempUnschedulableRules skips a
-	// stored rule when this converted duration is nonpositive, before health handling.
-	DurationMinutes int    `json:"duration_minutes"` // minutes
-	Description     string `json:"description"`      // administrator rule display description
 }
 
 // OpenAIImagesCapability names a legacy image requirement used by provider
@@ -320,6 +251,15 @@ func (r *Record) now() time.Time {
 	return time.Now()
 }
 
+// loadLocation resolves name through the injected timezone loader or defaults
+// to time.LoadLocation when r or r.LoadLocation is nil.
+func (r *Record) loadLocation(name string) (*time.Location, error) {
+	if r != nil && r.LoadLocation != nil {
+		return r.LoadLocation(name)
+	}
+	return time.LoadLocation(name)
+}
+
 // String formats the provider identity for logs and fmt consumers. Nil
 // receivers produce the nil-provider label, and populated records expose their
 // ID while credential and proxy contents stay outside the formatted value.
@@ -334,6 +274,20 @@ func (r *Record) String() string {
 // method. Nil records use String's nil-provider label, and formatted values keep
 // private credential and proxy contents out of diagnostic output.
 func (r *Record) GoString() string { return r.String() }
+
+// NormalizeProviderNotes returns a separately allocated trimmed note when text
+// remains. Nil input and whitespace-only notes return nil, allowing management
+// writes to clear notes instead of persisting an empty label.
+func NormalizeProviderNotes(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
 
 // IsOpenAIPersonalAccessTokenAuthMode recognizes the supported Codex PAT mode
 // spellings. Comparison trims whitespace and ignores case, accepting
@@ -502,6 +456,13 @@ func (r *Record) IsOpenAICompatible() bool {
 	return r != nil && IsOpenAICompatible(r.Platform)
 }
 
+// IsOpenAICompatible classifies OpenAI, Grok, Kimi, Zhipu, and DeepSeek, and
+// OpenCode as the platforms whose text requests use the OpenAI-compatible
+// gateway family.
+func IsOpenAICompatible(platform string) bool {
+	return platform == PlatformOpenAI || platform == PlatformGrok || platform == PlatformOpenCode || platformRuleRegistry[platform].text != nil
+}
+
 // GeminiOAuthType returns the trimmed channel label for Gemini OAuth records.
 // An absent label with a nonblank project_id infers code_assist; other
 // platform/type combinations return an empty string before reading that
@@ -520,8 +481,7 @@ func (r *Record) GeminiOAuthType() string {
 // GeminiTierID returns the provider's trimmed tier_id credential for quota
 // selection.
 func (r *Record) GeminiTierID() string {
-	tierID := strings.TrimSpace(r.GetCredential("tier_id"))
-	return tierID
+	return strings.TrimSpace(r.GetCredential("tier_id"))
 }
 
 // IsGeminiThirdPartyProvider identifies Gemini API Keys whose provider_type
@@ -632,7 +592,7 @@ func (r *Record) GetCredentialAsTime(key string) *time.Time {
 	}
 	// A decimal credential is interpreted in Unix seconds. Failed numeric
 	// parsing leaves no usable timestamp, matching the caller's missing-expiry
-	// path instead of inventing a time from malformed metadata.
+	// path instead of inventing a time from metadata.
 	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
 		t := time.Unix(ts, 0)
 		return &t
@@ -674,357 +634,6 @@ func (r *Record) GetCredentialAsInt64(key string) int64 {
 	return 0
 }
 
-// IsTempUnschedulableEnabled reads the temporary scheduling-rule switch from
-// Credentials. Missing maps, absent values, nil values, and nonboolean
-// representations return false, so a string such as true does not enable these
-// rules.
-func (r *Record) IsTempUnschedulableEnabled() bool {
-	if r.Credentials == nil {
-		return false
-	}
-	raw, ok := r.Credentials["temp_unschedulable_enabled"]
-	if !ok || raw == nil {
-		return false
-	}
-	enabled, ok := raw.(bool)
-	return ok && enabled
-}
-
-// GetTempUnschedulableRules parses the JSON-shaped temporary suspension rules
-// stored in Credentials. The top-level value must be []any; missing or other
-// container types return nil.
-//
-// Each object supplies status, keywords, duration, and description through
-// their dedicated parsers. Entries with a nonpositive status or duration, or no
-// usable keywords, are skipped. Valid entries retain input order for the
-// health-rule matcher, while an accepted empty or wholly rejected array returns
-// an empty allocated rule slice.
-func (r *Record) GetTempUnschedulableRules() []TempUnschedulableRule {
-	if r.Credentials == nil {
-		return nil
-	}
-	raw, ok := r.Credentials["temp_unschedulable_rules"]
-	if !ok || raw == nil {
-		return nil
-	}
-
-	arr, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-
-	rules := make([]TempUnschedulableRule, 0, len(arr))
-	for _, item := range arr {
-		entry, ok := item.(map[string]any)
-		if !ok || entry == nil {
-			continue
-		}
-
-		rule := TempUnschedulableRule{
-			ErrorCode:       ParseExtraInt(entry["error_code"]),
-			Keywords:        ParseTempUnschedStrings(entry["keywords"]),
-			DurationMinutes: ParseExtraInt(entry["duration_minutes"]),
-			Description:     ParseTempUnschedString(entry["description"]),
-		}
-
-		// The matcher needs a status, usable keyword, and positive pause duration.
-		// Skip incomplete stored objects so they cannot create an unusable
-		// suspension result in later health handling.
-		if rule.ErrorCode <= 0 || rule.DurationMinutes <= 0 || len(rule.Keywords) == 0 {
-			continue
-		}
-
-		rules = append(rules, rule)
-	}
-
-	return rules
-}
-
-// ParseTempUnschedString returns trimmed string input for suspension-rule
-// fields. Unsupported dynamic values return an empty string, allowing keyword
-// and description parsing to ignore unusable JSON values without manufacturing
-// text.
-func ParseTempUnschedString(value any) string {
-	s, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(s)
-}
-
-// ParseTempUnschedStrings returns nonblank trimmed strings from []string or
-// []any input. Mixed arrays skip nonstrings, and missing or unsupported
-// containers return nil; supplied supported arrays can produce an empty result.
-func ParseTempUnschedStrings(value any) []string {
-	if value == nil {
-		return nil
-	}
-
-	var raw []string
-	switch v := value.(type) {
-	case []string:
-		raw = v
-	case []any:
-		raw = make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok {
-				raw = append(raw, s)
-			}
-		}
-	default:
-		return nil
-	}
-
-	out := make([]string, 0, len(raw))
-	for _, item := range raw {
-		s := strings.TrimSpace(item)
-		if s != "" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-
-// NormalizeProviderNotes returns a separately allocated trimmed note when text
-// remains. Nil input and whitespace-only notes return nil, allowing management
-// writes to clear notes instead of persisting an empty label.
-func NormalizeProviderNotes(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// StringMappingFromRaw returns a copied string-to-string model mapping from
-// either supported map representation. Mixed map[string]any entries retain just
-// string values, and empty or unusable input returns nil for the mapping
-// consumer.
-func StringMappingFromRaw(raw any) map[string]string {
-	switch mapping := raw.(type) {
-	case map[string]any:
-		if len(mapping) == 0 {
-			return nil
-		}
-		result := make(map[string]string, len(mapping))
-		for key, value := range mapping {
-			if str, ok := value.(string); ok {
-				result[key] = str
-			}
-		}
-		if len(result) == 0 {
-			return nil
-		}
-		return result
-	case map[string]string:
-		if len(mapping) == 0 {
-			return nil
-		}
-		result := make(map[string]string, len(mapping))
-		maps.Copy(result, mapping)
-		return result
-	default:
-		return nil
-	}
-}
-
-// ResolveRequestedModelInMapping delegates exact and trailing-wildcard lookup
-// to modelmap.Resolve. Exact keys win, wildcard matches use the longest pattern
-// with lexical ties, and an unmatched request returns its model with matched
-// false.
-func ResolveRequestedModelInMapping(mapping map[string]string, requestedModel string) (mappedModel string, matched bool) {
-	return modelmap.Resolve(mapping, requestedModel)
-}
-
-// ExtractFinalModelWhitelist derives the legacy whitelist from exact identity
-// mapping entries. Source keys containing any wildcard are ignored; both names
-// are trimmed and must be nonblank and equal, otherwise no whitelist entry is
-// produced.
-func ExtractFinalModelWhitelist(mapping map[string]string) map[string]struct{} {
-	if len(mapping) == 0 {
-		return nil
-	}
-	whitelist := make(map[string]struct{})
-	for rawFrom, rawTo := range mapping {
-		if strings.Contains(rawFrom, "*") {
-			continue
-		}
-		from := strings.TrimSpace(rawFrom)
-		to := strings.TrimSpace(rawTo)
-		if from == "" || to == "" || from != to {
-			continue
-		}
-		whitelist[to] = struct{}{}
-	}
-	if len(whitelist) == 0 {
-		return nil
-	}
-	return whitelist
-}
-
-// ExtractExplicitFinalModelWhitelist normalizes a separate model_whitelist
-// array into a set. It accepts []string or []any; nil mixed entries are
-// skipped, and other mixed values use their printed text before trimming.
-//
-// Blank names and patterns containing an asterisk before the optional final
-// asterisk are ignored. Exact names and one trailing wildcard remain, including
-// the bare wildcard. Empty or wholly unusable input returns nil, leaving the
-// caller to retain the separate configured-field presence decision.
-func ExtractExplicitFinalModelWhitelist(rawWhitelist any) map[string]struct{} {
-	if rawWhitelist == nil {
-		return nil
-	}
-	values := make([]string, 0)
-	switch typed := rawWhitelist.(type) {
-	case []string:
-		values = append(values, typed...)
-	case []any:
-		for _, raw := range typed {
-			if raw == nil {
-				continue
-			}
-			if model, ok := raw.(string); ok {
-				values = append(values, strings.TrimSpace(model))
-			} else {
-				values = append(values, strings.TrimSpace(fmt.Sprint(raw)))
-			}
-		}
-	default:
-		return nil
-	}
-	whitelist := make(map[string]struct{})
-	for _, rawModel := range values {
-		model := strings.TrimSpace(rawModel)
-		if model == "" || strings.Contains(strings.TrimSuffix(model, "*"), "*") {
-			continue
-		}
-		whitelist[model] = struct{}{}
-	}
-	if len(whitelist) == 0 {
-		return nil
-	}
-	return whitelist
-}
-
-// ResolveFinalModelWhitelist selects explicit whitelist input before legacy
-// identity mappings. The second result records that model_whitelist exists even
-// when its contents produce no usable set, keeping presence separate from the
-// parsed result.
-//
-// With no explicit field, Qoder returns nil and false because its identity
-// mappings do not define this whitelist. Other platforms derive the legacy set
-// and return false. Callers use the presence flag to distinguish a submitted
-// explicit selection from the older mapping representation.
-func ResolveFinalModelWhitelist(platform string, credentials map[string]any, mapping map[string]string) (map[string]struct{}, bool) {
-	if credentials != nil {
-		if rawWhitelist, exists := credentials["model_whitelist"]; exists {
-			return ExtractExplicitFinalModelWhitelist(rawWhitelist), true
-		}
-	}
-	if platform == PlatformQoder {
-		return nil, false
-	}
-	return ExtractFinalModelWhitelist(mapping), false
-}
-
-// GetOpenAICompactMode returns the legacy compaction switch for an OpenAI
-// record. Trimmed case-insensitive force_off disables it; every other saved
-// value enables it, while nil or other platforms return force_off.
-func (r *Record) GetOpenAICompactMode() string {
-	if r == nil || !r.IsOpenAI() {
-		return OpenAICompactModeForceOff
-	}
-	mode, _ := r.Extra["openai_compact_mode"].(string)
-	if strings.EqualFold(strings.TrimSpace(mode), OpenAICompactModeForceOff) {
-		return OpenAICompactModeForceOff
-	}
-	return OpenAICompactModeForceOn
-}
-
-// AllowsOpenAICompact reports whether an OpenAI record enables legacy
-// compaction. Nil records and other platforms return false; this setting check
-// leaves provider-type and protocol eligibility to the caller.
-func (r *Record) AllowsOpenAICompact() bool {
-	return r != nil && r.IsOpenAI() && r.GetOpenAICompactMode() == OpenAICompactModeForceOn
-}
-
-// GetOpenAINativeCompactionV2Mode reads the separate native V2 compaction
-// switch. OpenAI records disable it only for trimmed case-insensitive
-// force_off; nil or other platforms return force_off, independently of the
-// legacy compaction switch.
-func (r *Record) GetOpenAINativeCompactionV2Mode() string {
-	if r == nil || !r.IsOpenAI() {
-		return OpenAICompactModeForceOff
-	}
-	mode, _ := r.Extra[OpenAINativeCompactionV2ModeExtraKey].(string)
-	if strings.EqualFold(strings.TrimSpace(mode), OpenAICompactModeForceOff) {
-		return OpenAICompactModeForceOff
-	}
-	return OpenAICompactModeForceOn
-}
-
-// AllowsOpenAINativeCompactionV2 reports whether an OpenAI record enables
-// native V2 compaction. Nil records and other platforms return false, and the
-// separate legacy compaction switch has no effect on this result.
-func (r *Record) AllowsOpenAINativeCompactionV2() bool {
-	return r != nil && r.IsOpenAI() && r.GetOpenAINativeCompactionV2Mode() == OpenAICompactModeForceOn
-}
-
-// GetCompactModelMapping returns copied compact-only model mapping entries from
-// Credentials. Nil records, missing credentials, and unusable mappings return
-// nil; consumers apply this mapping to Compact requests independently of
-// ordinary text mappings.
-func (r *Record) GetCompactModelMapping() map[string]string {
-	if r == nil || r.Credentials == nil {
-		return nil
-	}
-	return StringMappingFromRaw(r.Credentials["compact_model_mapping"])
-}
-
-// ResolveCompactMappedModel applies compact-specific exact or trailing-wildcard
-// remapping. Missing or unmatched configuration returns the requested model and
-// false; an identity rule still returns true so callers know a configured rule
-// matched.
-func (r *Record) ResolveCompactMappedModel(requestedModel string) (mappedModel string, matched bool) {
-	mapping := r.GetCompactModelMapping()
-	if len(mapping) == 0 {
-		return requestedModel, false
-	}
-	if mappedModel, matched := ResolveRequestedModelInMapping(mapping, requestedModel); matched {
-		return mappedModel, true
-	}
-	return requestedModel, false
-}
-
-// GetBaseURL returns the saved base_url for an API Key record. An empty value
-// selects the Anthropic default endpoint, and other provider types return
-// empty; the accessor does not validate or trim a supplied URL.
-func (r *Record) GetBaseURL() string {
-	if r.Type != ProviderTypeAPIKey {
-		return ""
-	}
-	baseURL := r.GetCredential("base_url")
-	if baseURL == "" {
-		return "https://api.anthropic.com"
-	}
-	return baseURL
-}
-
-// GetGeminiBaseURL returns the trimmed saved endpoint or the supplied default
-// URL. The supplied default is used when the stored base is missing or
-// whitespace only; protocol-specific service endpoints are selected by
-// ProtocolTarget.BaseURL before constructing a request.
-func (r *Record) GetGeminiBaseURL(defaultBaseURL string) string {
-	baseURL := strings.TrimSpace(r.GetCredential("base_url"))
-	if baseURL == "" {
-		return defaultBaseURL
-	}
-	return baseURL
-}
-
 // GetExtraString reads a string value from the provider's Extra object. Missing
 // maps, absent keys, and nonstrings return empty; valid strings retain their
 // bytes so consumers decide whether trimming is appropriate.
@@ -1040,270 +649,71 @@ func (r *Record) GetExtraString(key string) string {
 	return ""
 }
 
-// GetClaudeUserID selects the first nonblank trimmed Claude identity hint.
-// Extra claude_user_id and anthropic_user_id take priority, followed by the
-// corresponding credential keys; all missing or blank candidates produce an
-// empty string.
-func (r *Record) GetClaudeUserID() string {
-	if v := strings.TrimSpace(r.GetExtraString("claude_user_id")); v != "" {
+// GetExtraStringDefault returns the saved nonempty string or the supplied
+// default. Whitespace-only strings remain nonempty here, so callers requiring
+// trimmed input normalize it before assigning meaning to the value.
+func (r *Record) GetExtraStringDefault(key, defaultVal string) string {
+	if v := r.GetExtraString(key); v != "" {
 		return v
 	}
-	if v := strings.TrimSpace(r.GetExtraString("anthropic_user_id")); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(r.GetCredential("claude_user_id")); v != "" {
-		return v
-	}
-	if v := strings.TrimSpace(r.GetCredential("anthropic_user_id")); v != "" {
-		return v
-	}
-	return ""
+	return defaultVal
 }
 
-// MatchWildcard delegates exact-name or trailing-asterisk matching to the model
-// mapping helper.
-func MatchWildcard(pattern, str string) bool { return modelmap.Matches(pattern, str) }
-
-// IsCustomErrorCodesEnabled reads the API Key custom-error handling switch.
-// Other types, absent credentials, missing keys, and nonboolean values return
-// false, leaving ShouldHandleErrorCode on its unrestricted handling path.
-func (r *Record) IsCustomErrorCodesEnabled() bool {
-	if r.Type != ProviderTypeAPIKey || r.Credentials == nil {
-		return false
-	}
-	if v, ok := r.Credentials["custom_error_codes_enabled"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// IsPoolMode reads the saved boolean pool_mode switch for API Key or Bedrock
-// types. Missing credentials or nonboolean values return false; request
-// handlers separately apply pool retry and error-policy decisions.
-func (r *Record) IsPoolMode() bool {
-	if !r.IsAPIKeyOrBedrock() || r.Credentials == nil {
-		return false
-	}
-	if v, ok := r.Credentials["pool_mode"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// GetPoolModeRetryCount returns the ordinary same-provider retry budget when
-// pool mode applies. Missing, disabled, or unparseable settings select
-// DefaultPoolModeRetryCount; parsed values below zero or above
-// MaxPoolModeRetryCount are clamped to those limits.
-//
-// Gateway failover can narrow this count with an error-specific maximum. An
-// uncapped retry deadline is evaluated independently and can admit retries after
-// the ordinary count is spent, so this accessor alone does not impose a limit
-// on every retry path.
-func (r *Record) GetPoolModeRetryCount() int {
-	if r == nil || !r.IsPoolMode() || r.Credentials == nil {
-		return DefaultPoolModeRetryCount
-	}
-	raw, ok := r.Credentials["pool_mode_retry_count"]
-	if !ok || raw == nil {
-		return DefaultPoolModeRetryCount
-	}
-	count := ParsePoolModeRetryCount(raw)
-	// A negative saved count selects the ordinary zero retry budget. Failover
-	// separately evaluates deadline rules before deciding whether to keep this
-	// provider or proceed with another selection.
-	if count < 0 {
+// GetExtraFloat64 parses a provider Extra number through ParseExtraFloat64.
+// Missing entries return zero, and supported dynamic representations follow
+// that parser's conversion rules for quotas and other numeric settings.
+func (r *Record) GetExtraFloat64(key string) float64 {
+	if r.Extra == nil {
 		return 0
 	}
-	// Share the configured ceiling across entry points so each handler receives
-	// the same bounded ordinary count before applying its failure-specific rules.
-	if count > MaxPoolModeRetryCount {
-		return MaxPoolModeRetryCount
+	if v, ok := r.Extra[key]; ok {
+		return ParseExtraFloat64(v)
 	}
-	return count
+	return 0
 }
 
-// ParsePoolModeRetryCount reads supported integer, float64, json.Number, or
-// trimmed string representations. Failed parsing or unsupported input returns
-// DefaultPoolModeRetryCount, while range clamping belongs to
-// GetPoolModeRetryCount after this conversion.
-func ParsePoolModeRetryCount(value any) int {
-	switch v := value.(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		// A retry count uses whole attempts after fractional JSON input is truncated.
-		return int(v)
-	case json.Number:
-		if i, err := v.Int64(); err == nil {
-			return int(i)
-		}
-	case string:
-		if i, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
-			return i
-		}
+// GetExtraTime reads an RFC3339 timestamp through ParseExtraTime from provider
+// Extra. Missing entries return the zero time, letting quota consumers treat an
+// absent stored window start as expired.
+func (r *Record) GetExtraTime(key string) time.Time {
+	if r.Extra == nil {
+		return time.Time{}
 	}
-	// A failed number or string parse has no usable configured count. Return
-	// the shared default before the accessor applies its bounds to successful values.
-	return DefaultPoolModeRetryCount
+	if v, ok := r.Extra[key]; ok {
+		return ParseExtraTime(v)
+	}
+	return time.Time{}
 }
 
-// IsPoolModeRetryableStatus reports membership in the shared default pool retry
-// status list.
-func IsPoolModeRetryableStatus(statusCode int) bool {
-	return slices.Contains(DefaultPoolModeRetryableStatusCodes, statusCode)
-}
-
-// GetPoolModeRetryStatusCodes normalizes a provider's optional retry-status
-// override. Nil records, absent values, and values outside the []any
-// representation return nil, instructing the caller to inherit the shared
-// defaults.
-//
-// A supplied []any remains configured even if empty or every element is
-// rejected; its empty nonnil result yields no IsPoolModeRetryableStatus matches.
-// Accepted numeric and string elements are deduplicated, restricted to HTTP
-// statuses 100 through 599, and sorted. Keeping container presence separate from
-// valid entries prevents an empty configured selection from restoring default
-// status matches.
-func (r *Record) GetPoolModeRetryStatusCodes() []int {
-	if r == nil || r.Credentials == nil {
-		return nil
-	}
-	raw, ok := r.Credentials["pool_mode_retry_status_codes"]
-	if !ok || raw == nil {
-		return nil
-	}
-	arr, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	seen := make(map[int]struct{}, len(arr))
-	codes := make([]int, 0, len(arr))
-	for _, v := range arr {
-		var code int
-		switch n := v.(type) {
-		case float64:
-			// Convert decoded JSON numbers to whole HTTP status values before filtering.
-			code = int(n)
-		case int:
-			code = n
-		case int64:
-			code = int(n)
-		case json.Number:
-			// Exact-number text must encode an integer HTTP status. Reject a failed
-			// parse locally so one unusable element cannot discard the other
-			// configured statuses or select an invented integral value.
-			i, err := n.Int64()
-			if err != nil {
-				continue
-			}
-			code = int(i)
-		case string:
-			// Legacy text entries accept surrounding whitespace. Skip unreadable
-			// status text while keeping the supplied array configured, so the
-			// surviving entries still define this provider's override.
-			i, err := strconv.Atoi(strings.TrimSpace(n))
-			if err != nil {
-				continue
-			}
-			code = i
-		default:
-			continue
-		}
-		// Keep the supplied array configured while discarding unusable HTTP codes.
-		// If none survive, the allocated empty result still reaches membership
-		// testing and matches no status. An unavailable override instead returns
-		// nil, which selects the shared default list.
-		if code < 100 || code > 599 {
-			continue
-		}
-		if _, exists := seen[code]; exists {
-			continue
-		}
-		seen[code] = struct{}{}
-		codes = append(codes, code)
-	}
-	sort.Ints(codes)
-	return codes
-}
-
-// IsPoolModeRetryableStatus checks the provider override when one is
-// configured. A nil normalized override uses the shared defaults, while an
-// empty configured slice disables all status matches independently of whether
-// pool mode is enabled.
-func (r *Record) IsPoolModeRetryableStatus(statusCode int) bool {
-	codes := r.GetPoolModeRetryStatusCodes()
-	// Both absent overrides and configured empty results have zero length.
-	// Test nil here so an empty []any cannot silently restore default status
-	// matches when its normalized result contains no codes.
-	if codes == nil {
-		return IsPoolModeRetryableStatus(statusCode)
-	}
-	return slices.Contains(codes, statusCode)
-}
-
-// GetCustomErrorCodes reads the custom handling statuses from a JSON []any
-// array. It accepts float64 elements and converts them to integers; other
-// elements are skipped, and missing or differently typed containers return nil.
-func (r *Record) GetCustomErrorCodes() []int {
-	if r.Credentials == nil {
-		return nil
-	}
-	raw, ok := r.Credentials["custom_error_codes"]
-	if !ok || raw == nil {
-		return nil
-	}
-	if arr, ok := raw.([]any); ok {
-		result := make([]int, 0, len(arr))
-		// This stored compatibility list accepts ordinary JSON numeric elements.
-		// Convert those values to integer statuses and leave other representations
-		// out of the resulting custom handling selection.
-		for _, v := range arr {
-			if f, ok := v.(float64); ok {
-				result = append(result, int(f))
-			}
-		}
-		return result
-	}
-	return nil
-}
-
-// ShouldHandleErrorCode applies the API Key custom status selection to an
-// upstream error. Disabled configuration or an empty parsed list handles every
-// status; a nonempty list handles only its members.
-func (r *Record) ShouldHandleErrorCode(statusCode int) bool {
-	if !r.IsCustomErrorCodesEnabled() {
-		return true
-	}
-	codes := r.GetCustomErrorCodes()
-	// This compatibility policy treats an empty parsed selection as unrestricted.
-	// Keep health handling available for enabled-but-empty forms, whose lack of
-	// status entries differs from a configured empty pool retry override.
-	if len(codes) == 0 {
-		return true
-	}
-	return slices.Contains(codes, statusCode)
-}
-
-// IsInterceptWarmupEnabled reads the saved warmup-interception boolean from
-// Credentials. Missing maps, absent values, and nonboolean representations
-// return false; this accessor leaves provider eligibility and warmup
-// classification with its consumers.
-func (r *Record) IsInterceptWarmupEnabled() bool {
-	if r.Credentials == nil {
+// GetExtraBool reads a boolean value from provider Extra. Missing maps, absent
+// keys, and nonboolean values return false, so decoded strings or numbers do
+// not enable a boolean setting.
+func (r *Record) GetExtraBool(key string) bool {
+	if r.Extra == nil {
 		return false
 	}
-	if v, ok := r.Credentials["intercept_warmup_requests"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
+	if v, ok := r.Extra[key]; ok {
+		if b, ok := v.(bool); ok {
+			return b
 		}
 	}
 	return false
+}
+
+// GetExtraInt converts ParseExtraFloat64's Extra result to an integer. Missing
+// entries return zero, and fractional values truncate through Go's conversion
+// rules; callers validate the acceptable range for their setting.
+func (r *Record) GetExtraInt(key string) int {
+	if r.Extra == nil {
+		return 0
+	}
+	if v, ok := r.Extra[key]; ok {
+		// Calendar readers consume integer clock values. Fractional Extra input
+		// loses its subunit portion before those callers apply their reset-date
+		// validation or calculation rules.
+		return int(ParseExtraFloat64(v))
+	}
+	return 0
 }
 
 // IsBedrock identifies Anthropic records using the AWS Bedrock provider type.
@@ -1415,39 +825,6 @@ func (r *Record) GetProviderMode() string {
 // mode reads retain historical compatibility independently of save validation.
 func (r *Record) IsCodingPlan() bool {
 	return r.GetProviderMode() == ProviderModeCoding
-}
-
-// StripAnthropicPathSuffix trims a relay address and removes a final decoded
-// anthropic path segment when present. Parse errors return the trimmed input;
-// callers still apply the request path's transport validation to the result.
-//
-// Removing the suffix also clears RawPath, and URL.String escapes the resulting
-// decoded path while carrying the parsed query and fragment. Trailing slashes
-// are trimmed from the entire input and output strings, including one at the
-// end of query or fragment text. A caller needing byte-for-byte retention of
-// those suffixes therefore keeps its original URL instead of using this
-// compatibility rewrite.
-func StripAnthropicPathSuffix(baseURL string) string {
-	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	parsed, err := url.Parse(trimmed)
-	// Malformed compatibility input retains its trimmed text for the egress
-	// validator. A parse failure here cannot establish a safe scheme or host for
-	// the caller's eventual request.
-	if err != nil {
-		return trimmed
-	}
-	// Edit the decoded path and discard its encoded hint together. URL.String
-	// then derives an escaped path from that modified value; the final whole-URL
-	// trim still applies to any trailing query or fragment slash.
-	path := strings.TrimRight(parsed.Path, "/")
-	if path == "/anthropic" {
-		parsed.Path = ""
-		parsed.RawPath = ""
-	} else if before, ok := strings.CutSuffix(path, "/anthropic"); ok {
-		parsed.Path = before
-		parsed.RawPath = ""
-	}
-	return strings.TrimRight(parsed.String(), "/")
 }
 
 // GetCodingPlanProvider returns the supplier identity declared for coding quota
@@ -1716,864 +1093,6 @@ func (r *Record) IsOveragesEnabled() bool {
 	return false
 }
 
-// IsOpenAIPassthroughEnabled reads the OpenAI passthrough selection used by
-// forwarding. A typed openai_passthrough value takes priority, including false;
-// otherwise the legacy openai_oauth_passthrough boolean is used, with absent or
-// unusable input selecting false.
-func (r *Record) IsOpenAIPassthroughEnabled() bool {
-	if r == nil || !r.IsOpenAI() || r.Extra == nil {
-		return false
-	}
-	if enabled, ok := r.Extra["openai_passthrough"].(bool); ok {
-		return enabled
-	}
-	if enabled, ok := r.Extra["openai_oauth_passthrough"].(bool); ok {
-		return enabled
-	}
-	return false
-}
-
-// IsOpenAIResponsesFlattenNamespacesEnabled reads the namespace-flattening
-// opt-in for OpenAI OAuth. Nil records, other types, missing configuration, and
-// nonboolean values return false, leaving namespace encoding with the standard
-// forwarding path.
-func (r *Record) IsOpenAIResponsesFlattenNamespacesEnabled() bool {
-	if r == nil || !r.IsOpenAIOAuth() || r.Extra == nil {
-		return false
-	}
-	enabled, ok := r.Extra["openai_responses_flatten_namespaces"].(bool)
-	return ok && enabled
-}
-
-// IsOpenAIWSAllowStoreRecoveryEnabled reads the OpenAI WebSocket store-recovery
-// opt-in from Extra. Nil records, other platforms, missing configuration, and
-// nonboolean values return false before the consumer applies its recovery
-// handling.
-func (r *Record) IsOpenAIWSAllowStoreRecoveryEnabled() bool {
-	if r == nil || !r.IsOpenAI() || r.Extra == nil {
-		return false
-	}
-	enabled, ok := r.Extra["openai_ws_allow_store_recovery"].(bool)
-	return ok && enabled
-}
-
-// IsOpenAIOAuthPassthroughEnabled restricts the shared passthrough setting to
-// OpenAI OAuth records. Nil records and other provider kinds return false;
-// eligible records use the current setting before its legacy alias.
-func (r *Record) IsOpenAIOAuthPassthroughEnabled() bool {
-	return r != nil && r.IsOpenAIOAuth() && r.IsOpenAIPassthroughEnabled()
-}
-
-// IsAnthropicAPIKeyPassthroughEnabled reads passthrough for Anthropic API Key
-// forwarding. Nil records, other platform/type combinations, missing
-// configuration, and nonboolean values return false, so the option needs both
-// eligibility and a true boolean.
-func (r *Record) IsAnthropicAPIKeyPassthroughEnabled() bool {
-	if r == nil || r.Platform != PlatformAnthropic || r.Type != ProviderTypeAPIKey || r.Extra == nil {
-		return false
-	}
-	enabled, ok := r.Extra["anthropic_passthrough"].(bool)
-	return ok && enabled
-}
-
-// IsCodexCLIOnlyEnabled reports whether the resolved OpenAI OAuth client policy
-// selects Codex.
-func (r *Record) IsCodexCLIOnlyEnabled() bool {
-	return r.GetOpenAIOAuthClientPolicy() == OpenAIOAuthClientPolicyCodexOnly
-}
-
-// GetOpenAIOAuthClientPolicy selects the recognized OpenAI OAuth client access
-// policy. A trimmed supported string takes priority over the legacy
-// codex_cli_only flag, including the unrestricted any value.
-//
-// If the string is absent, invalid, or differently cased, a true legacy boolean
-// selects codex_only. Other cases use any, including nil records and providers
-// outside OpenAI OAuth. Callers separately enforce preset client identities or
-// a TLS-router match according to this returned policy.
-func (r *Record) GetOpenAIOAuthClientPolicy() string {
-	if r == nil || !r.IsOpenAIOAuth() || r.Extra == nil {
-		return OpenAIOAuthClientPolicyAny
-	}
-	if policy, ok := r.Extra["openai_oauth_client_policy"].(string); ok {
-		switch strings.TrimSpace(policy) {
-		case OpenAIOAuthClientPolicyCodexOnly:
-			return OpenAIOAuthClientPolicyCodexOnly
-		case OpenAIOAuthClientPolicyTLSRouterMatchedOnly:
-			return OpenAIOAuthClientPolicyTLSRouterMatchedOnly
-		case OpenAIOAuthClientPolicyAny:
-			return OpenAIOAuthClientPolicyAny
-		}
-	}
-	enabled, ok := r.Extra["codex_cli_only"].(bool)
-	if ok && enabled {
-		return OpenAIOAuthClientPolicyCodexOnly
-	}
-	return OpenAIOAuthClientPolicyAny
-}
-
-// IsOpenAIOAuthTLSRouterMatchedOnly reports whether the resolved policy
-// requires a TLS-router match.
-func (r *Record) IsOpenAIOAuthTLSRouterMatchedOnly() bool {
-	return r.GetOpenAIOAuthClientPolicy() == OpenAIOAuthClientPolicyTLSRouterMatchedOnly
-}
-
-// GetCodexCLIOnlyAllowedClients returns a new slice of preset client IDs for
-// OpenAI OAuth. Supported arrays skip nonstrings and whitespace-only values
-// while retaining each accepted string's original bytes; unsupported providers
-// or containers return nil.
-func (r *Record) GetCodexCLIOnlyAllowedClients() []string {
-	if r == nil || !r.IsOpenAIOAuth() || r.Extra == nil {
-		return nil
-	}
-	raw, ok := r.Extra["codex_cli_only_allowed_clients"]
-	if !ok || raw == nil {
-		return nil
-	}
-	switch v := raw.(type) {
-	case []string:
-		result := make([]string, 0, len(v))
-		for _, s := range v {
-			if strings.TrimSpace(s) != "" {
-				result = append(result, s)
-			}
-		}
-		return result
-	case []any:
-		result := make([]string, 0, len(v))
-		for _, item := range v {
-			if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
-				result = append(result, s)
-			}
-		}
-		return result
-	}
-	return nil
-}
-
-// IsAnthropicOAuthOrSetupToken identifies Anthropic OAuth and Setup Token
-// records used by forwarding. Nil records return false; the type classification
-// leaves credential availability and refresh eligibility to the consuming path.
-func (r *Record) IsAnthropicOAuthOrSetupToken() bool {
-	if r == nil {
-		return false
-	}
-	return r.Platform == PlatformAnthropic && (r.Type == ProviderTypeOAuth || r.Type == ProviderTypeSetupToken)
-}
-
-// SupportsTLSFingerprint classifies provider types whose outbound transport can
-// emulate a TLS profile. Anthropic OAuth/Setup Token, OpenAI OAuth, Kimi,
-// Zhipu, and DeepSeek API Key, and Qoder COSY records qualify; nil and other
-// combinations return false.
-func (r *Record) SupportsTLSFingerprint() bool {
-	if r == nil {
-		return false
-	}
-	if r.IsAnthropicOAuthOrSetupToken() {
-		return true
-	}
-	return (r.Platform == PlatformOpenAI && r.Type == ProviderTypeOAuth) ||
-		(r.rules().apiKeyTLSFingerprint && r.Type == ProviderTypeAPIKey) ||
-		r.IsQoderCosy()
-}
-
-// IsTLSFingerprintEnabled requires both a supported provider type and a true
-// Extra boolean. Missing maps, missing keys, or nonboolean values leave
-// emulation disabled even when the provider type supports it.
-func (r *Record) IsTLSFingerprintEnabled() bool {
-	if !r.SupportsTLSFingerprint() {
-		return false
-	}
-	if r.Extra == nil {
-		return false
-	}
-	if v, ok := r.Extra["enable_tls_fingerprint"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// GetTLSFingerprintProfileID reads a supported numeric profile ID from Extra.
-// Missing or unsupported values and unparseable json.Number text return zero;
-// the transport consumer treats zero as its built-in default profile.
-func (r *Record) GetTLSFingerprintProfileID() int64 {
-	if r.Extra == nil {
-		return 0
-	}
-	v, ok := r.Extra["tls_fingerprint_profile_id"]
-	if !ok {
-		return 0
-	}
-	switch id := v.(type) {
-	case float64:
-		// JSON numeric identifiers lose fractions when converted to integer record IDs.
-		return int64(id)
-	case int64:
-		return id
-	case int:
-		return int64(id)
-	case json.Number:
-		if i, err := id.Int64(); err == nil {
-			return i
-		}
-	}
-	// Unsupported or unreadable profile metadata uses the zero selection that
-	// the transport consumer already interprets for an absent configuration value.
-	return 0
-}
-
-// GetTLSFingerprintRouterID reads a supported numeric TLS-router ID from Extra.
-// Missing or unsupported values and unparseable json.Number text return zero,
-// indicating that no router was selected by this setting.
-func (r *Record) GetTLSFingerprintRouterID() int64 {
-	if r.Extra == nil {
-		return 0
-	}
-	v, ok := r.Extra["tls_fingerprint_router_id"]
-	if !ok {
-		return 0
-	}
-	switch id := v.(type) {
-	case float64:
-		// JSON numeric identifiers lose fractions when converted to integer record IDs.
-		return int64(id)
-	case int64:
-		return id
-	case int:
-		return int64(id)
-	case json.Number:
-		if i, err := id.Int64(); err == nil {
-			return i
-		}
-	}
-	// Unsupported or unreadable profile metadata uses the zero selection that
-	// the transport consumer already interprets for an absent configuration value.
-	return 0
-}
-
-// IsSessionIDMaskingEnabled reads the saved masking opt-in for Anthropic OAuth
-// or Setup Token. Other provider kinds, missing Extra, and nonboolean values
-// return false; session lifetime and renewal belong to the masking consumer.
-func (r *Record) IsSessionIDMaskingEnabled() bool {
-	if !r.IsAnthropicOAuthOrSetupToken() {
-		return false
-	}
-	if r.Extra == nil {
-		return false
-	}
-	if v, ok := r.Extra["session_id_masking_enabled"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// IsCustomBaseURLEnabled reads the relay endpoint opt-in for Anthropic OAuth or
-// Setup Token. Other provider kinds, absent Extra, and nonboolean values return
-// false before the caller considers GetCustomBaseURL.
-func (r *Record) IsCustomBaseURLEnabled() bool {
-	if !r.IsAnthropicOAuthOrSetupToken() {
-		return false
-	}
-	if r.Extra == nil {
-		return false
-	}
-	if v, ok := r.Extra["custom_base_url_enabled"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// GetCustomBaseURL reads the configured relay address string from provider
-// Extra.
-func (r *Record) GetCustomBaseURL() string {
-	return r.GetExtraString("custom_base_url")
-}
-
-// IsCacheTTLOverrideEnabled reads the cache-creation TTL opt-in for Anthropic
-// OAuth or Setup Token. Other provider kinds, missing configuration, and
-// nonboolean values return false; the selected category comes from
-// GetCacheTTLOverrideTarget.
-func (r *Record) IsCacheTTLOverrideEnabled() bool {
-	if !r.IsAnthropicOAuthOrSetupToken() {
-		return false
-	}
-	if r.Extra == nil {
-		return false
-	}
-	if v, ok := r.Extra["cache_ttl_override_enabled"]; ok {
-		if enabled, ok := v.(bool); ok {
-			return enabled
-		}
-	}
-	return false
-}
-
-// GetCacheTTLOverrideTarget returns the configured cache TTL category when it
-// is exactly 5m or 1h. Missing or unsupported values return 5m; enablement is
-// checked separately by the caller using the category.
-func (r *Record) GetCacheTTLOverrideTarget() string {
-	if r.Extra == nil {
-		return "5m"
-	}
-	if v, ok := r.Extra["cache_ttl_override_target"]; ok {
-		if target, ok := v.(string); ok && (target == "5m" || target == "1h") {
-			return target
-		}
-	}
-	return "5m"
-}
-
-// GetQuotaLimit reads the total provider quota limit in USD. Nonpositive limits
-// leave the total dimension inactive in IsQuotaExceeded, while periodic limits
-// are evaluated independently against their own usage.
-func (r *Record) GetQuotaLimit() float64 {
-	return r.GetExtraFloat64("quota_limit")
-}
-
-// GetQuotaUsed reads the stored total provider consumption in USD.
-func (r *Record) GetQuotaUsed() float64 {
-	return r.GetExtraFloat64("quota_used")
-}
-
-// GetQuotaDailyLimit reads the provider's daily quota limit in USD. Nonpositive
-// limits leave that dimension inactive; a positive limit is compared with usage
-// only while the daily period remains current.
-func (r *Record) GetQuotaDailyLimit() float64 {
-	return r.GetExtraFloat64("quota_daily_limit")
-}
-
-// GetQuotaDailyUsed reads stored daily provider consumption in USD before
-// expiration handling.
-func (r *Record) GetQuotaDailyUsed() float64 {
-	return r.GetExtraFloat64("quota_daily_used")
-}
-
-// GetQuotaWeeklyLimit reads the provider's weekly quota limit in USD.
-// Nonpositive limits leave that dimension inactive; a positive limit applies to
-// the stored consumption only while its weekly period remains current.
-func (r *Record) GetQuotaWeeklyLimit() float64 {
-	return r.GetExtraFloat64("quota_weekly_limit")
-}
-
-// GetQuotaMonthlyLimit reads the provider's monthly quota limit in USD.
-// Nonpositive limits leave that dimension inactive; a positive limit applies to
-// the stored consumption only while its monthly period remains current.
-func (r *Record) GetQuotaMonthlyLimit() float64 {
-	return r.GetExtraFloat64("quota_monthly_limit")
-}
-
-// GetQuotaWeeklyUsed reads stored weekly provider consumption in USD before
-// expiration handling.
-func (r *Record) GetQuotaWeeklyUsed() float64 {
-	return r.GetExtraFloat64("quota_weekly_used")
-}
-
-// GetQuotaMonthlyUsed reads stored monthly provider consumption in USD before
-// expiration handling.
-func (r *Record) GetQuotaMonthlyUsed() float64 {
-	return r.GetExtraFloat64("quota_monthly_used")
-}
-
-// GetExtraFloat64 parses a provider Extra number through ParseExtraFloat64.
-// Missing entries return zero, and supported dynamic representations follow
-// that parser's conversion rules for quotas and other numeric settings.
-func (r *Record) GetExtraFloat64(key string) float64 {
-	if r.Extra == nil {
-		return 0
-	}
-	if v, ok := r.Extra[key]; ok {
-		return ParseExtraFloat64(v)
-	}
-	return 0
-}
-
-// GetExtraTime reads an RFC3339 timestamp through ParseExtraTime from provider
-// Extra. Missing entries return the zero time, letting quota consumers treat an
-// absent stored window start as expired.
-func (r *Record) GetExtraTime(key string) time.Time {
-	if r.Extra == nil {
-		return time.Time{}
-	}
-	if v, ok := r.Extra[key]; ok {
-		return ParseExtraTime(v)
-	}
-	return time.Time{}
-}
-
-// GetExtraBool reads a boolean value from provider Extra. Missing maps, absent
-// keys, and nonboolean values return false, so decoded strings or numbers do
-// not enable a boolean setting.
-func (r *Record) GetExtraBool(key string) bool {
-	if r.Extra == nil {
-		return false
-	}
-	if v, ok := r.Extra[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return false
-}
-
-// GetExtraStringDefault returns the saved nonempty string or the supplied
-// default. Whitespace-only strings remain nonempty here, so callers requiring
-// trimmed input normalize it before assigning meaning to the value.
-func (r *Record) GetExtraStringDefault(key, defaultVal string) string {
-	if v := r.GetExtraString(key); v != "" {
-		return v
-	}
-	return defaultVal
-}
-
-// GetExtraInt converts ParseExtraFloat64's Extra result to an integer. Missing
-// entries return zero, and fractional values truncate through Go's conversion
-// rules; callers validate the acceptable range for their setting.
-func (r *Record) GetExtraInt(key string) int {
-	if r.Extra == nil {
-		return 0
-	}
-	if v, ok := r.Extra[key]; ok {
-		// Calendar readers consume integer clock values. Fractional Extra input
-		// loses its subunit portion before those callers apply their reset-date
-		// validation or calculation rules.
-		return int(ParseExtraFloat64(v))
-	}
-	return 0
-}
-
-// GetQuotaDailyResetMode returns fixed for the exact saved reset-mode label.
-// Every other value selects rolling, including missing configuration, allowing
-// stored records to retain the default duration-based daily window.
-func (r *Record) GetQuotaDailyResetMode() string {
-	if m := r.GetExtraString("quota_daily_reset_mode"); m == "fixed" {
-		return "fixed"
-	}
-	return "rolling"
-}
-
-// GetQuotaDailyResetHour reads the configured local daily reset hour as an
-// integer. Missing values return zero; this accessor leaves range checking to
-// validation and normalization to the billing wrapper where applicable.
-func (r *Record) GetQuotaDailyResetHour() int {
-	return r.GetExtraInt("quota_daily_reset_hour")
-}
-
-// GetQuotaWeeklyResetMode returns fixed for the exact saved reset-mode label.
-// Missing, invalid, or differently cased values select rolling, allowing weekly
-// consumers to use their duration-based default calculation.
-func (r *Record) GetQuotaWeeklyResetMode() string {
-	if m := r.GetExtraString("quota_weekly_reset_mode"); m == "fixed" {
-		return "fixed"
-	}
-	return "rolling"
-}
-
-// GetQuotaMonthlyResetMode returns fixed for the exact saved reset-mode label.
-// Missing, invalid, or differently cased values select rolling, allowing monthly
-// consumers to use their duration-based default calculation.
-func (r *Record) GetQuotaMonthlyResetMode() string {
-	if m := r.GetExtraString("quota_monthly_reset_mode"); m == "fixed" {
-		return "fixed"
-	}
-	return "rolling"
-}
-
-// GetQuotaWeeklyResetDay reads the configured Sunday-zero weekday for fixed
-// weekly resets. A missing key selects Monday, while a present unusable value
-// can parse to zero and is left to validation.
-func (r *Record) GetQuotaWeeklyResetDay() int {
-	if r.Extra == nil {
-		return 1
-	}
-	if _, ok := r.Extra["quota_weekly_reset_day"]; !ok {
-		return 1
-	}
-	return r.GetExtraInt("quota_weekly_reset_day")
-}
-
-// GetQuotaMonthlyResetDay reads the configured day of month for fixed
-// monthly resets. A missing key selects the first day, while a present unusable
-// value
-// can parse to zero and is left to validation.
-func (r *Record) GetQuotaMonthlyResetDay() int {
-	if r.Extra == nil {
-		return 1
-	}
-	if _, ok := r.Extra["quota_monthly_reset_day"]; !ok {
-		return 1
-	}
-	return r.GetExtraInt("quota_monthly_reset_day")
-}
-
-// GetQuotaWeeklyResetHour reads the configured local weekly reset hour as an
-// integer. Missing values return zero; range checks belong to configuration
-// validation or the billing wrapper before calendar calculations.
-func (r *Record) GetQuotaWeeklyResetHour() int {
-	return r.GetExtraInt("quota_weekly_reset_hour")
-}
-
-// GetQuotaMonthlyResetHour reads the configured local monthly reset hour as an
-// integer. Missing values return zero; range checks belong to configuration
-// validation or the billing wrapper before calendar calculations.
-func (r *Record) GetQuotaMonthlyResetHour() int {
-	return r.GetExtraInt("quota_monthly_reset_hour")
-}
-
-// GetQuotaResetTimezone returns the saved nonempty timezone text, defaulting to
-// UTC. It does not validate or trim that string; the supplied location loader
-// and each reset consumer decide how invalid names are handled.
-func (r *Record) GetQuotaResetTimezone() string {
-	if tz := r.GetExtraString("quota_reset_timezone"); tz != "" {
-		return tz
-	}
-	return "UTC"
-}
-
-// QuotaNotifyConfig reads the enabled flag, threshold, and threshold type for a
-// daily, weekly, monthly, or total dimension. Missing values select false, zero, and
-// fixed; supplied nonempty threshold-type text is returned for the notification
-// consumer to interpret.
-func (r *Record) QuotaNotifyConfig(dim string) (enabled bool, threshold float64, thresholdType string) {
-	enabled = r.GetExtraBool("quota_notify_" + dim + "_enabled")
-	threshold = r.GetExtraFloat64("quota_notify_" + dim + "_threshold")
-	thresholdType = r.GetExtraStringDefault("quota_notify_"+dim+"_threshold_type", thresholdTypeFixed)
-	return
-}
-
-// GetQuotaNotifyDailyEnabled reads the daily quota notification switch from
-// Extra.
-func (r *Record) GetQuotaNotifyDailyEnabled() bool {
-	e, _, _ := r.QuotaNotifyConfig(quotaDimDaily)
-	return e
-}
-
-// GetQuotaNotifyDailyThreshold reads the configured daily quota notification
-// threshold value.
-func (r *Record) GetQuotaNotifyDailyThreshold() float64 {
-	_, t, _ := r.QuotaNotifyConfig(quotaDimDaily)
-	return t
-}
-
-// GetQuotaNotifyDailyThresholdType returns the daily threshold interpretation
-// from QuotaNotifyConfig. Missing or empty text selects fixed, while supplied
-// nonempty values remain for the notification consumer to validate or
-// interpret.
-func (r *Record) GetQuotaNotifyDailyThresholdType() string {
-	_, _, tt := r.QuotaNotifyConfig(quotaDimDaily)
-	return tt
-}
-
-// GetQuotaNotifyWeeklyEnabled reads the weekly quota notification switch from
-// Extra.
-func (r *Record) GetQuotaNotifyWeeklyEnabled() bool {
-	e, _, _ := r.QuotaNotifyConfig(quotaDimWeekly)
-	return e
-}
-
-// GetQuotaNotifyMonthlyEnabled reads the monthly quota notification switch from
-// Extra.
-func (r *Record) GetQuotaNotifyMonthlyEnabled() bool {
-	e, _, _ := r.QuotaNotifyConfig(quotaDimMonthly)
-	return e
-}
-
-// GetQuotaNotifyWeeklyThreshold reads the configured weekly quota notification
-// threshold value.
-func (r *Record) GetQuotaNotifyWeeklyThreshold() float64 {
-	_, t, _ := r.QuotaNotifyConfig(quotaDimWeekly)
-	return t
-}
-
-// GetQuotaNotifyMonthlyThreshold reads the configured monthly quota notification
-// threshold value.
-func (r *Record) GetQuotaNotifyMonthlyThreshold() float64 {
-	_, t, _ := r.QuotaNotifyConfig(quotaDimMonthly)
-	return t
-}
-
-// GetQuotaNotifyWeeklyThresholdType returns the weekly threshold interpretation
-// from QuotaNotifyConfig. Missing or empty text selects fixed; other nonempty
-// saved strings are returned for the notification consumer's own threshold
-// handling.
-func (r *Record) GetQuotaNotifyWeeklyThresholdType() string {
-	_, _, tt := r.QuotaNotifyConfig(quotaDimWeekly)
-	return tt
-}
-
-// GetQuotaNotifyMonthlyThresholdType returns the monthly threshold interpretation
-// from QuotaNotifyConfig. Missing or empty text selects fixed; other nonempty
-// saved strings are returned for the notification consumer's own threshold
-// handling.
-func (r *Record) GetQuotaNotifyMonthlyThresholdType() string {
-	_, _, tt := r.QuotaNotifyConfig(quotaDimMonthly)
-	return tt
-}
-
-// GetQuotaNotifyTotalEnabled reads the total quota notification switch from
-// Extra.
-func (r *Record) GetQuotaNotifyTotalEnabled() bool {
-	e, _, _ := r.QuotaNotifyConfig(quotaDimTotal)
-	return e
-}
-
-// GetQuotaNotifyTotalThreshold reads the configured total quota notification
-// threshold value.
-func (r *Record) GetQuotaNotifyTotalThreshold() float64 {
-	_, t, _ := r.QuotaNotifyConfig(quotaDimTotal)
-	return t
-}
-
-// GetQuotaNotifyTotalThresholdType returns the total threshold interpretation
-// from QuotaNotifyConfig. Missing or empty text selects fixed; the notification
-// consumer interprets other supplied nonempty strings when applying the
-// threshold.
-func (r *Record) GetQuotaNotifyTotalThresholdType() string {
-	_, _, tt := r.QuotaNotifyConfig(quotaDimTotal)
-	return tt
-}
-
-// LastFixedDailyReset delegates the preceding local daily reset date to
-// billing. Supply a nonnil timezone and the intended clock hour; equality with
-// today's reset selects today and earlier times select the preceding calendar
-// day.
-func LastFixedDailyReset(hour int, tz *time.Location, now time.Time) time.Time {
-	return billing.LastFixedDailyReset(hour, tz, now)
-}
-
-// LastFixedWeeklyReset delegates the preceding local weekly reset date to
-// billing. Supply a nonnil timezone, Sunday-zero weekday, and intended clock
-// hour; the selected boundary moves back a week before its matching-day reset.
-func LastFixedWeeklyReset(day, hour int, tz *time.Location, now time.Time) time.Time {
-	return billing.LastFixedWeeklyReset(day, hour, tz, now)
-}
-
-// IsFixedDailyPeriodExpired compares a stored start with the most recent
-// configured local daily reset. A zero start is expired, an invalid timezone
-// uses UTC, and equality with the reset remains current. LoadLocation is
-// required once a nonzero start reaches the timezone lookup.
-func (r *Record) IsFixedDailyPeriodExpired(periodStart time.Time) bool {
-	if periodStart.IsZero() {
-		return true
-	}
-	tz, err := r.LoadLocation(r.GetQuotaResetTimezone())
-	if err != nil {
-		// A failed saved location lookup cannot define the calendar reset. Use
-		// UTC to compare the stored start with a usable reset date for admission.
-		tz = time.UTC
-	}
-	lastReset := LastFixedDailyReset(r.GetQuotaDailyResetHour(), tz, r.now())
-	return periodStart.Before(lastReset)
-}
-
-// IsFixedWeeklyPeriodExpired compares a stored start with the most recent
-// configured local weekly reset. A zero start is expired, invalid timezone text
-// uses UTC, and an equal or later start remains current. LoadLocation is
-// required once a nonzero start reaches the timezone lookup.
-func (r *Record) IsFixedWeeklyPeriodExpired(periodStart time.Time) bool {
-	if periodStart.IsZero() {
-		return true
-	}
-	tz, err := r.LoadLocation(r.GetQuotaResetTimezone())
-	if err != nil {
-		// A failed saved location lookup cannot define the calendar reset. Use
-		// UTC to compare the stored start with a usable reset date for admission.
-		tz = time.UTC
-	}
-	lastReset := LastFixedWeeklyReset(r.GetQuotaWeeklyResetDay(), r.GetQuotaWeeklyResetHour(), tz, r.now())
-	return periodStart.Before(lastReset)
-}
-
-// ValidateQuotaResetConfig checks supplied reset modes, numeric ranges, and
-// nonempty string timezone names. Nil and empty Extra succeed; a loader is
-// needed when timezone validation is active.
-//
-// Mode checks apply to strings. Daily and weekly numeric fields use
-// ParseExtraFloat64 and integer conversion before their bounds are tested.
-// Monthly dates and hours reject fractional values before persistence. Storage
-// helpers apply their documented defaults when reading saved configuration for
-// reset calculations.
-func ValidateQuotaResetConfig(extra map[string]any, loadLocation func(string) (*time.Location, error)) error {
-	if extra == nil {
-		return nil
-	}
-	if tz, ok := extra["quota_reset_timezone"].(string); ok && tz != "" {
-		if _, err := loadLocation(tz); err != nil {
-			return errors.New("invalid quota_reset_timezone: must be a valid IANA timezone name")
-		}
-	}
-	if mode, ok := extra["quota_daily_reset_mode"].(string); ok {
-		if mode != "rolling" && mode != "fixed" {
-			return errors.New("quota_daily_reset_mode must be 'rolling' or 'fixed'")
-		}
-	}
-	// Bounds apply after the shared numeric conversion. Fractional JSON values
-	// are truncated before range checking, and unsupported representations can
-	// become zero, matching the readers that consume these saved clock fields.
-	if v, ok := extra["quota_daily_reset_hour"]; ok {
-		hour := int(ParseExtraFloat64(v))
-		if hour < 0 || hour > 23 {
-			return errors.New("quota_daily_reset_hour must be between 0 and 23")
-		}
-	}
-	if mode, ok := extra["quota_weekly_reset_mode"].(string); ok {
-		if mode != "rolling" && mode != "fixed" {
-			return errors.New("quota_weekly_reset_mode must be 'rolling' or 'fixed'")
-		}
-	}
-	// Sunday is zero and Saturday is six in the weekly calendar helpers.
-	if v, ok := extra["quota_weekly_reset_day"]; ok {
-		day := int(ParseExtraFloat64(v))
-		if day < 0 || day > 6 {
-			return errors.New("quota_weekly_reset_day must be between 0 (Sunday) and 6 (Saturday)")
-		}
-	}
-	if v, ok := extra["quota_weekly_reset_hour"]; ok {
-		hour := int(ParseExtraFloat64(v))
-		if hour < 0 || hour > 23 {
-			return errors.New("quota_weekly_reset_hour must be between 0 and 23")
-		}
-	}
-	if mode, ok := extra["quota_monthly_reset_mode"].(string); ok && mode != "rolling" && mode != "fixed" {
-		return errors.New("quota_monthly_reset_mode must be 'rolling' or 'fixed'")
-	}
-	if v, ok := extra["quota_monthly_reset_hour"]; ok {
-		hour := ParseExtraFloat64(v)
-		if hour < 0 || hour > 23 || hour != float64(int(hour)) {
-			return errors.New("quota_monthly_reset_hour must be an integer between 0 and 23")
-		}
-	}
-	if v, ok := extra["quota_monthly_reset_day"]; ok {
-		day := ParseExtraFloat64(v)
-		if day < 1 || day > 31 || day != float64(int(day)) {
-			return errors.New("quota_monthly_reset_day must be an integer between 1 and 31")
-		}
-	}
-	return nil
-}
-
-// HasAnyQuotaLimit reports whether total, daily, weekly, or monthly provider
-// quota is
-// positive.
-func (r *Record) HasAnyQuotaLimit() bool {
-	return r.GetQuotaLimit() > 0 ||
-		r.GetQuotaDailyLimit() > 0 ||
-		r.GetQuotaWeeklyLimit() > 0 ||
-		r.GetQuotaMonthlyLimit() > 0
-}
-
-// IsPeriodExpired compares real elapsed time since periodStart with dur. A zero
-// start is expired so the next usage increment can initialize it; this helper
-// uses time.Since independently of Record.Now.
-func IsPeriodExpired(periodStart time.Time, dur time.Duration) bool {
-	if periodStart.IsZero() {
-		return true // The next usage increment initializes an unused period.
-	}
-	return time.Since(periodStart) >= dur
-}
-
-// IsDailyQuotaPeriodExpired reports whether the stored daily usage window has
-// elapsed. Fixed mode uses the configured provider clock and timezone; rolling
-// mode uses a twenty-four-hour real elapsed duration and a zero start expires.
-func (r *Record) IsDailyQuotaPeriodExpired() bool {
-	start := r.GetExtraTime("quota_daily_start")
-	if r.GetQuotaDailyResetMode() == "fixed" {
-		return r.IsFixedDailyPeriodExpired(start)
-	}
-	// Rolling admission measures twenty-four elapsed hours across local clock
-	// changes; fixed mode above instead follows the configured calendar reset.
-	return IsPeriodExpired(start, 24*time.Hour)
-}
-
-// IsWeeklyQuotaPeriodExpired reports whether the stored weekly usage window has
-// elapsed. Fixed mode uses the provider clock and local weekday schedule;
-// rolling mode uses seven real elapsed days and treats a zero start as expired.
-func (r *Record) IsWeeklyQuotaPeriodExpired() bool {
-	start := r.GetExtraTime("quota_weekly_start")
-	if r.GetQuotaWeeklyResetMode() == "fixed" {
-		return r.IsFixedWeeklyPeriodExpired(start)
-	}
-	// Seven elapsed days keep the rolling window duration independent of local
-	// timezone transitions; calendar-week rules apply only in the fixed branch.
-	return IsPeriodExpired(start, 7*24*time.Hour)
-}
-
-// IsMonthlyQuotaPeriodExpired reports whether monthly consumption has expired.
-// Fixed mode follows the configured local date, clamping short months to their
-// final date. Rolling mode expires thirty elapsed days after its recorded start;
-// missing starts expire immediately so the next increment initializes usage.
-// Fixed mode requires LoadLocation for a nonzero start, uses UTC after a loader
-// failure, and uses the record clock when selecting the current calendar date.
-func (r *Record) IsMonthlyQuotaPeriodExpired() bool {
-	start := r.GetExtraTime("quota_monthly_start")
-	if r.GetQuotaMonthlyResetMode() == "fixed" {
-		if start.IsZero() {
-			return true
-		}
-		tz, err := r.LoadLocation(r.GetQuotaResetTimezone())
-		if err != nil {
-			// Invalid saved timezone names use UTC so admission can still evaluate
-			// the configured calendar window consistently with provider configuration
-			// reconciliation.
-			tz = time.UTC
-		}
-		last := billing.LastFixedMonthlyReset(r.GetQuotaMonthlyResetDay(), r.GetQuotaMonthlyResetHour(), tz, r.now())
-		return start.Before(last)
-	}
-	// Thirty elapsed days match the monthly duration used by billing SQL,
-	// including when local clock transitions shorten or lengthen calendar days.
-	return IsPeriodExpired(start, 30*24*time.Hour)
-}
-
-// IsQuotaExceeded combines the provider's total, daily, weekly, and monthly
-// consumption
-// limits. A positive limit is exhausted at equality or above; total consumption
-// has no expiration window.
-//
-// Daily, weekly, and monthly consumption count only while their stored periods
-// remain
-// current. Fixed periods compare against local calendar resets, while rolling
-// periods use real elapsed durations. An expired or missing start makes the
-// periodic amount irrelevant to admission until the usage writer initializes
-// its next period. The first exhausted active dimension rejects the provider,
-// so one current limit can still block it when another dimension's stored usage
-// has expired.
-func (r *Record) IsQuotaExceeded() bool {
-	// Total consumption remains applicable across periodic rollovers. Its limit
-	// can therefore reject a provider even when the daily and weekly windows
-	// have already expired and their usage is ignored below.
-	if limit := r.GetQuotaLimit(); limit > 0 && r.GetQuotaUsed() >= limit {
-		return true
-	}
-	// Daily expiration affects the admission comparison without rewriting Extra.
-	// A later billing increment owns resetting the counter and start together,
-	// so this reader leaves the persisted amount available for that writer.
-	if limit := r.GetQuotaDailyLimit(); limit > 0 {
-		if !r.IsDailyQuotaPeriodExpired() && r.GetQuotaDailyUsed() >= limit {
-			return true
-		}
-	}
-	// Weekly usage has its own start and reset policy. Evaluate that period
-	// separately so expiration of the daily window cannot release a still
-	// exhausted weekly allowance.
-	if limit := r.GetQuotaWeeklyLimit(); limit > 0 {
-		if !r.IsWeeklyQuotaPeriodExpired() && r.GetQuotaWeeklyUsed() >= limit {
-			return true
-		}
-	}
-	// Monthly consumption remains an independent restriction when shorter quota
-	// periods expire; this read leaves counter rollover to the next billing increment.
-	if limit := r.GetQuotaMonthlyLimit(); limit > 0 &&
-		!r.IsMonthlyQuotaPeriodExpired() && r.GetQuotaMonthlyUsed() >= limit {
-		return true
-	}
-	return false
-}
-
 // IsShadow reports whether a provider record names a credential parent. Nil
 // records return false, and a nonnil parent pointer counts before the linked
 // parent's identity or health has been validated.
@@ -2592,11 +1111,4 @@ func (r *Record) QuotaDimensionOrDefault() string {
 		return QuotaDimensionGlobal
 	}
 	return r.QuotaDimension
-}
-
-// IsOpenAICompatible classifies OpenAI, Grok, Kimi, Zhipu, and DeepSeek, and
-// OpenCode as the platforms whose text requests use the OpenAI-compatible
-// gateway family.
-func IsOpenAICompatible(platform string) bool {
-	return platform == PlatformOpenAI || platform == PlatformGrok || platform == PlatformOpenCode || platformRuleRegistry[platform].text != nil
 }

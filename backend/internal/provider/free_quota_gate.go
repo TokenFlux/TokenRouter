@@ -197,6 +197,33 @@ func IsExplicitGrokFreeOAuthProvider(provider *Record) bool {
 	return false
 }
 
+// ObserveBlocked reports whether a fresh cached usage entry currently blocks a
+// positive provider ID under the active Grok Free OAuth soft-gate settings.
+// Missing, stale, or failed entries return false without starting background
+// refreshes or incrementing metrics, keeping diagnostic reads side-effect-free.
+func (g *FreeQuotaGate) ObserveBlocked(id int64) bool {
+	if g == nil || id <= 0 {
+		return false
+	}
+	settings, enabled := resolveGrokFreeQuotaGateSettings(g.options())
+	if !enabled || g.load == nil {
+		return false
+	}
+	cached, ok := g.cache.Load(id)
+	if !ok {
+		return false
+	}
+	entry, valid := cached.(grokFreeQuotaGateCacheEntry)
+	if !valid || !entry.known {
+		return false
+	}
+	age := g.now().UTC().Sub(entry.checkedAt)
+	// Reuse the same clock-rollback and TTL freshness rule as Blocked while
+	// leaving expired entries untouched for live selection to refresh later.
+	fresh := settings.cacheTTL <= 0 || (age >= 0 && age < settings.cacheTTL)
+	return fresh && entry.tokens >= settings.gateTokens
+}
+
 // Blocked returns an ID map for eligible positive provider IDs whose fresh
 // known usage reaches the current token threshold. Nil gates, disabled
 // settings, missing loaders, and empty inputs return nil; valid checks return

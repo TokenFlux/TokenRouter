@@ -48,18 +48,6 @@ const (
 	ConfigQuotaDimension                                     // provider usage dimension
 )
 
-// managedConfigurationExtraKeys names values owned by billing and maintenance
-// writers. Configuration replacement inherits each present value from the locked
-// current record and removes a desired value when the current record lacks it.
-var managedConfigurationExtraKeys = []string{
-	"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start",
-	"quota_monthly_used", "quota_monthly_start",
-	"grok_billing_snapshot", "grok_usage_snapshot", "grok_observed_models",
-	"qoder_quota_snapshot", "qoder_quota_updated_at", QoderCatalogExtraKey,
-	"ollama_cloud_usage_session", "ollama_cloud_usage_auto_refresh", "ollama_cloud_usage_snapshot",
-	"cn_usage_monitor_snapshot", "model_rate_limits", "antigravity_quota_scopes", "antigravity_credits_overages",
-}
-
 // ConfigurationFields selects administrator-owned values during a locked
 // provider configuration merge.
 type ConfigurationFields uint32
@@ -228,12 +216,7 @@ func ApplyConfigurationChange(current, desired *Record, change ConfigurationChan
 		// Consumption and maintenance observations may have advanced since desired
 		// was read. Restore their current values, including absence, before quota
 		// calculations interpret those retained counters and window starts.
-		for _, key := range managedConfigurationExtraKeys {
-			delete(out.Extra, key)
-			if v, ok := current.Extra[key]; ok {
-				out.Extra[key] = CloneValues(map[string]any{key: v})[key]
-			}
-		}
+		RestoreManagedConfigurationExtra(out.Extra, current.Extra)
 		for _, key := range change.PreserveExtraKeys {
 			delete(out.Extra, key)
 			if v, ok := current.Extra[key]; ok {

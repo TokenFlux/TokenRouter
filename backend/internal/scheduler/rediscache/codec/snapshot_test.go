@@ -204,3 +204,84 @@ func TestGIFPolicySurvivesSnapshotRoundTrip(t *testing.T) {
 		require.False(t, decoded.SupportsImageGIF("openai_images_generations"))
 	}
 }
+
+// TestProviderCodecUsageMonitorAndSchedulingMetadataSurviveFiltering encodes a
+// Coding Plan provider and an OAuth provider through metadata filtering. It
+// verifies threshold, privacy, RPM, and usage-monitor evaluations match the
+// full record while OAuth secrets stay absent from slim metadata.
+func TestProviderCodecUsageMonitorAndSchedulingMetadataSurviveFiltering(t *testing.T) {
+	now := time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)
+	resetAt := now.Add(2 * time.Hour)
+	usedAmount := 92.0
+	limitAmount := 100.0
+	remainingAmount := 8.0
+	proxyID := int64(44)
+	kimi := &provider.Record{
+		ID:          81,
+		Platform:    provider.PlatformKimi,
+		Type:        provider.ProviderTypeAPIKey,
+		Status:      provider.StatusActive,
+		ProxyID:     &proxyID,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"api_key":                       "sk-kimi-test",
+			"provider_mode":                 provider.ProviderModeCoding,
+			"provider_scheduling_threshold": 85,
+		},
+		Extra: map[string]any{
+			"enable_tls_fingerprint": true,
+		},
+	}
+	kimi.Extra[provider.UsageMonitorSnapshotExtraKey] = provider.UsageMonitorSnapshot{
+		Version:      provider.UsageMonitorSnapshotVersion,
+		Adapter:      provider.UpstreamUsageAdapterKimiCoding,
+		IdentityHash: provider.UsageMonitorIdentityFingerprint(kimi),
+		Mode:         "limits",
+		ObservedAt:   &now,
+		Limits: []provider.UpstreamUsageLimit{
+			{Name: "5h", Used: &usedAmount, Limit: &limitAmount, Remaining: &remainingAmount, ResetAt: &resetAt},
+		},
+	}
+
+	_, kimiMeta, err := (ProviderCodec{}).Encode(WrapRecord(kimi))
+	require.NoError(t, err)
+	decodedKimi, err := UnmarshalProviderRecord(kimiMeta)
+	require.NoError(t, err)
+	require.NotNil(t, decodedKimi.ProxyID)
+	require.Equal(t, proxyID, *decodedKimi.ProxyID)
+	require.NotNil(t, provider.ValidUsageMonitorSnapshot(decodedKimi))
+	decision := provider.EvaluateProviderSchedulingThreshold(decodedKimi, map[string]int{}, now)
+	require.True(t, decision.ShouldPause)
+	require.Equal(t, 85, decision.ThresholdPercent)
+
+	publicJSON, err := json.Marshal(decodedKimi)
+	require.NoError(t, err)
+	require.NotContains(t, string(publicJSON), "UsageMonitorIdentityHint")
+
+	oauth := &provider.Record{
+		ID:          82,
+		Platform:    provider.PlatformOpenAI,
+		Type:        provider.ProviderTypeOAuth,
+		Status:      provider.StatusActive,
+		Schedulable: true,
+		Credentials: map[string]any{
+			"access_token":  "secret-oauth-access",
+			"refresh_token": "secret-oauth-refresh",
+			"id_token":      "secret-id-token",
+			"plan_type":     "plus",
+		},
+		Extra: map[string]any{
+			"privacy_mode": provider.PrivacyModeTrainingOff,
+			"base_rpm":     120,
+		},
+	}
+	_, oauthMeta, err := (ProviderCodec{}).Encode(WrapRecord(oauth))
+	require.NoError(t, err)
+	require.NotContains(t, string(oauthMeta), "secret-oauth-access")
+	require.NotContains(t, string(oauthMeta), "secret-oauth-refresh")
+	require.NotContains(t, string(oauthMeta), "secret-id-token")
+	decodedOAuth, err := UnmarshalProviderRecord(oauthMeta)
+	require.NoError(t, err)
+	require.True(t, decodedOAuth.IsPrivacySet())
+	require.Equal(t, 120, decodedOAuth.GetExtraInt("base_rpm"))
+}

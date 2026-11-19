@@ -113,7 +113,7 @@ func (s *diagnosticScope) group(v *routing.Group) *schedulercore.DiagnosticGroup
 	s.next++
 	id := s.next
 	s.groupValues[id] = v
-	return &schedulercore.DiagnosticGroup{ProjectionID: id, ID: v.ID, Name: v.Name, SortOrder: v.SortOrder, Advanced: v.UsesAdvancedScheduler(), RequirePrivacySet: v.RequirePrivacySet, AdvancedSchedulerOverrides: accessview.CloneGroupAdvancedSchedulerOverrides(v.AdvancedSchedulerOverrides)}
+	return &schedulercore.DiagnosticGroup{ProjectionID: id, ID: v.ID, Name: v.Name, SortOrder: v.SortOrder, Advanced: v.UsesAdvancedScheduler(), RequireOAuthOnly: v.RequireOAuthOnly, RequirePrivacySet: v.RequirePrivacySet, AdvancedSchedulerOverrides: accessview.CloneGroupAdvancedSchedulerOverrides(v.AdvancedSchedulerOverrides)}
 }
 
 // provider registers an execution target and returns credential-free diagnostic
@@ -134,7 +134,7 @@ func (s *diagnosticScope) provider(v *gatewayprovider.ExecutionProvider) *schedu
 	s.next++
 	id := s.next
 	s.providerValues[id] = v
-	a := &schedulercore.DiagnosticProvider{ProjectionID: id, ID: v.Record.ID, Name: v.Record.Name, Platform: v.Record.Platform, Type: v.Record.Type, Status: v.Record.Status, Priority: v.Record.Priority, LoadFactor: v.View().EffectiveLoadFactor(), Schedulable: v.Record.Schedulable, AutoPauseOnExpired: v.Record.AutoPauseOnExpired, PrivacySet: v.View().IsPrivacySet(), SubscriptionPriority: v.View().IsOpenAIChatGPTSubscription(), ExpiresAt: v.Record.ExpiresAt, OverloadUntil: v.Record.OverloadUntil, RateLimitResetAt: v.Record.RateLimitResetAt, TempUnschedulableUntil: v.Record.TempUnschedulableUntil, SessionWindowEnd: v.Record.SessionWindowEnd, GroupIDs: slices.Clone(v.Record.GroupIDs)}
+	a := &schedulercore.DiagnosticProvider{ProjectionID: id, ID: v.Record.ID, Name: v.Record.Name, Platform: v.Record.Platform, Type: v.Record.Type, Status: v.Record.Status, Priority: v.Record.Priority, LoadFactor: v.View().EffectiveLoadFactor(), Schedulable: v.Record.Schedulable, AutoPauseOnExpired: v.Record.AutoPauseOnExpired, IsOAuth: v.View().IsOAuth(), PrivacySet: v.View().IsPrivacySet(), SubscriptionPriority: v.View().IsOpenAIChatGPTSubscription(), ExpiresAt: v.Record.ExpiresAt, OverloadUntil: v.Record.OverloadUntil, RateLimitResetAt: v.Record.RateLimitResetAt, TempUnschedulableUntil: v.Record.TempUnschedulableUntil, SessionWindowEnd: v.Record.SessionWindowEnd, GroupIDs: slices.Clone(v.Record.GroupIDs)}
 	if v.Record.ProviderGroups != nil {
 		a.ProviderGroups = make([]schedulercore.DiagnosticProviderGroup, len(v.Record.ProviderGroups))
 		for i, g := range v.Record.ProviderGroups {

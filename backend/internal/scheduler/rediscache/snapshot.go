@@ -35,17 +35,17 @@ import (
 // state and the poller watermark; chunk limits bound the payload or member
 // work submitted per command phase.
 const (
-	schedulerBucketSetKey           = "sched:v5:buckets"             // registered scheduler bucket identities
-	schedulerOutboxWatermarkKey     = "sched:v5:outbox:watermark"    // shared event polling cursor
-	schedulerProviderPrefix         = "sched:v5:provider:"           // full provider JSON namespace
-	schedulerProviderMetaPrefix     = "sched:v5:meta:"               // selection metadata JSON namespace
-	schedulerProviderLastUsedPrefix = "sched:v5:provider:last_used:" // monotonic scheduling millisecond namespace
-	schedulerActivePrefix           = "sched:v5:active:"             // active bucket version namespace
-	schedulerReadyPrefix            = "sched:v5:ready:"              // bucket read readiness namespace
-	schedulerVersionPrefix          = "sched:v5:ver:"                // bucket version allocation namespace
-	schedulerEpochPrefix            = "sched:v5:epoch:"              // bucket writer generation namespace
-	schedulerRetiredPrefix          = "sched:v5:retired:"            // persistent bucket retirement namespace
-	schedulerSnapshotPrefix         = "sched:v5:"                    // versioned bucket membership namespace
+	schedulerBucketSetKey           = "sched:v6:buckets"             // registered scheduler bucket identities
+	schedulerOutboxWatermarkKey     = "sched:v6:outbox:watermark"    // shared event polling cursor
+	schedulerProviderPrefix         = "sched:v6:provider:"           // full provider JSON namespace
+	schedulerProviderMetaPrefix     = "sched:v6:meta:"               // selection metadata JSON namespace
+	schedulerProviderLastUsedPrefix = "sched:v6:provider:last_used:" // monotonic scheduling millisecond namespace
+	schedulerActivePrefix           = "sched:v6:active:"             // active bucket version namespace
+	schedulerReadyPrefix            = "sched:v6:ready:"              // bucket read readiness namespace
+	schedulerVersionPrefix          = "sched:v6:ver:"                // bucket version allocation namespace
+	schedulerEpochPrefix            = "sched:v6:epoch:"              // bucket writer generation namespace
+	schedulerRetiredPrefix          = "sched:v6:retired:"            // persistent bucket retirement namespace
+	schedulerSnapshotPrefix         = "sched:v6:"                    // versioned bucket membership namespace
 
 	defaultSchedulerSnapshotMGetChunkSize  = 128 // default keys per batch read
 	defaultSchedulerSnapshotWriteChunkSize = 256 // default provider or member chunk
@@ -56,7 +56,7 @@ const (
 	// prior version a bounded read window.
 	snapshotGraceTTLSeconds = 60
 
-	schedulerGroupLifecycleLockPrefix      = "sched:v5:group:lifecycle-lock:" // group lifecycle owner lock namespace
+	schedulerGroupLifecycleLockPrefix      = "sched:v6:group:lifecycle-lock:" // group lifecycle owner lock namespace
 	schedulerGroupLifecycleOwnerTokenBytes = 16                               // random lifecycle owner byte count
 )
 

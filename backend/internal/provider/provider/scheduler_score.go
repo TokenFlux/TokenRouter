@@ -36,12 +36,28 @@ import (
 // synchronous score calculation.
 func SchedulerScoreOptions(concurrency *scheduler.ConcurrencyService, stats *scheduler.RuntimeStats, effective func(context.Context, *accessview.GroupConfig) policy.EffectiveSettings) provider.SchedulerScoreOptions {
 	out := provider.SchedulerScoreOptions{Warn: slog.Warn, Score: func(ctx context.Context, group *accessview.GroupConfig, values []*provider.Record, load map[int64]*provider.SchedulerLoad) map[int64]provider.ProviderSchedulerScore {
+		settings := effective(ctx, group)
+		// Group pools narrow to ChatGPT subscription candidates when subscription
+		// preference is enabled and at least one subscription candidate is present,
+		// matching diagnosticSubscriptionPriorityPool.
+		pool := values
+		if group != nil && settings.SubscriptionPriorityEnabled {
+			var subscribed []*provider.Record
+			for _, value := range values {
+				if value != nil && value.IsOpenAIChatGPTSubscription() {
+					subscribed = append(subscribed, value)
+				}
+			}
+			if len(subscribed) > 0 {
+				pool = subscribed
+			}
+		}
 		// Retain the source by score-input pointer because the headroom callback
 		// receives that converted object and needs its matching provider's quota
 		// snapshot.
-		projected := make([]*scheduler.ScoreProvider, len(values))
-		sources := make(map[*scheduler.ScoreProvider]*provider.Record, len(values))
-		for i, value := range values {
+		projected := make([]*scheduler.ScoreProvider, len(pool))
+		sources := make(map[*scheduler.ScoreProvider]*provider.Record, len(pool))
+		for i, value := range pool {
 			if value != nil {
 				v := &scheduler.ScoreProvider{ID: value.ID, Platform: value.Platform, Priority: value.Priority, SessionWindowEnd: value.SessionWindowEnd}
 				projected[i] = v
@@ -58,7 +74,6 @@ func SchedulerScoreOptions(concurrency *scheduler.ConcurrencyService, stats *sch
 		if group != nil {
 			g = &scheduler.ScoreGroup{}
 		}
-		settings := effective(ctx, group)
 		scores := scheduler.BuildScoreSnapshot(projected, loads, stats, g, settings.Weights, settings.StickyWeightedEnabled, func(v *scheduler.ScoreProvider, now time.Time) float64 {
 			return provider.OpenAIQuotaHeadroomFactor(sources[v], now)
 		}, time.Now())

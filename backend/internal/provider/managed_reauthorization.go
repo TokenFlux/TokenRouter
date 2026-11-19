@@ -6,10 +6,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
-// managed_reauthorization.go applies administrator-selected OAuth credentials
+// managed_reauthorization.go merges administrator-selected OAuth credentials
 // and performs subsequent provider cleanup.
-// Administrative reauthorization replaces credentials before optional Extra and
-// health cleanup. Once an existing record is supplied, legacy switch
+// Administrative reauthorization patches the submitted OAuth credentials into
+// existing credential settings before optional Extra and health cleanup, so
+// configured model mappings, whitelists, base URLs, and error rules survive
+// token rotation. Once an existing record is supplied, legacy switch
 // normalization and deprecated-key removal mutate Extra before the OAuth-kind
 // check, so rejection there can leave that caller-owned map changed. Request-ID
 // validation follows; credential saving starts after those checks succeed.
@@ -19,9 +21,9 @@ import (
 // error cleanup and optional token invalidation each have separate outcomes.
 // Failures in these later steps are logged and retain the saved credentials. A
 // successful error cleanup can replace the response record; otherwise the
-// earlier updated record is returned. This administrator-selected replacement
-// does not pass an ExpectedCredentials snapshot, while coordinated refresh uses
-// its own conditional publication path.
+// earlier updated record is returned. This administrator-selected update does
+// not pass an ExpectedCredentials snapshot, while coordinated refresh uses its
+// own conditional publication path.
 
 // ManagedReauthorizationInput holds submitted type, credentials and Extra for
 // administrative OAuth reauthorization.
@@ -38,19 +40,20 @@ type ManagedReauthorizationInput struct {
 	Credentials, Extra map[string]any
 }
 
-// Reauthorize saves administrator-selected credentials and then attempts
+// Reauthorize merges administrator-selected credentials and then attempts
 // auxiliary maintenance. Nil existing records return ErrProviderNotFound;
 // non-OAuth targets are rejected after legacy Extra cleanup. The caller
 // supplies stable writable maps, a usable store and configured diagnostics.
 //
 // Request-ID validation can fail after earlier Extra cleanup changed the input.
 // Once validation passes, credential sanitization changes its map in place
-// before the configuration update. A successful update is followed
-// by optional Extra merge, Grok marker reset, primary error cleanup and
-// optional OAuth token invalidation. Later failures are logged and retain saved
-// credentials. A successful nonnil error-clear record replaces the response;
-// otherwise the earlier saved record remains. No ExpectedCredentials snapshot
-// is passed on this replacement path.
+// before the configuration patch update, preserving unselected credential
+// settings such as model mappings and base URLs. A successful update is
+// followed by optional Extra merge, Grok marker reset, primary error cleanup
+// and optional OAuth token invalidation. Later failures are logged and retain
+// saved credentials. A successful nonnil error-clear record replaces the
+// response; otherwise the earlier saved record remains. No ExpectedCredentials
+// snapshot is passed on this reauthorization path.
 func (s *ManagedRefreshService) Reauthorize(ctx context.Context, existing *Record, req ManagedReauthorizationInput) (*Record, error) {
 	if existing == nil {
 		return nil, ErrProviderNotFound
@@ -64,14 +67,14 @@ func (s *ManagedRefreshService) Reauthorize(ctx context.Context, existing *Recor
 		return nil, err
 	}
 
-	// Remove temporary authentication inputs before credential replacement so
-	// passwords, SSO and cookie material cannot become saved credentials. This
-	// administrator-selected update supplies no refresh observation to
-	// UpdateProvider.
+	// Remove temporary authentication inputs before patching credentials so
+	// passwords, SSO and cookie material cannot become saved credentials while
+	// unselected routing and error-rule settings remain intact.
 	req.Credentials = SanitizeStoredCredentials(existing.Platform, req.Credentials)
 	updatedProvider, err := s.options.Store.UpdateProvider(ctx, providerID, &UpdateProviderInput{
-		Type:        req.Type,
-		Credentials: req.Credentials,
+		Type:             req.Type,
+		Credentials:      req.Credentials,
+		PatchCredentials: true,
 	})
 	if err != nil {
 		return nil, err

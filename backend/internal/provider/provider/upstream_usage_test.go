@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/deepseek"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/kimi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/usagecontract"
@@ -103,3 +104,19 @@ func TestNativeUsageAdaptersLocalTLS(t *testing.T) {
 // body. The counter is shared with test assertions, and a delegated close error
 // leaves that attempt counted.
 func (b *usageTrackedBody) Close() error { b.closed.Add(1); return b.ReadCloser.Close() }
+
+// TestUpstreamUsageCatalogMatchesExecutionRegistry constructs the default
+// execution registry and checks every catalogued adapter name. Every catalog
+// entry must resolve a registered adapter, and dedicated management-host
+// adapters must expose their catalogued default base URLs.
+func TestUpstreamUsageCatalogMatchesExecutionRegistry(t *testing.T) {
+	exec := NewUpstreamUsageExecution(UpstreamUsageExecutionOptions{})
+	catalog := providercore.UpstreamUsageAdapterCatalog()
+	require.NotEmpty(t, catalog)
+	for _, spec := range catalog {
+		require.True(t, exec.Supports(spec.Name), "catalogued adapter %s must be registered", spec.Name)
+		require.Equal(t, spec.DefaultBaseURL, providercore.DefaultUsageAdapterBaseURL(spec.Name))
+	}
+	require.Equal(t, providercore.DerouterUsageDefaultBaseURL, providercore.DefaultUsageAdapterBaseURL(providercore.UpstreamUsageAdapterDerouter))
+	require.Equal(t, providercore.OpenCodeGoUsageDefaultBaseURL, providercore.DefaultUsageAdapterBaseURL(providercore.UpstreamUsageAdapterOpenCodeGo))
+}

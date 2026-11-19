@@ -97,12 +97,16 @@ func UpstreamUsageContextFingerprint(provider *Record, config UpstreamUsageQuery
 }
 
 // UsageMonitorIdentityFingerprint hashes the query identity for a
-// monitoring-enabled API-key record. Invalid query configuration or an
-// unavailable adapter returns empty, leaving snapshot consumers without a
-// trusted identity for that configuration.
+// monitoring-enabled API-key record. Lightweight scheduler metadata records
+// return their precomputed UsageMonitorIdentityHint; invalid query
+// configuration or an unavailable adapter returns empty, leaving snapshot
+// consumers without a trusted identity for that configuration.
 func UsageMonitorIdentityFingerprint(provider *Record) string {
 	if provider == nil || !provider.SupportsUsageMonitoring() || provider.Type != ProviderTypeAPIKey {
 		return ""
+	}
+	if provider.UsageMonitorIdentityHint != "" {
+		return provider.UsageMonitorIdentityHint
 	}
 	queryConfig, err := EffectiveUpstreamUsageConfig(provider)
 	// Configuration merging compares this identity to decide whether a Kimi,

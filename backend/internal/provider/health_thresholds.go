@@ -19,6 +19,16 @@ import (
 // any currently live Fable window in place. Both paths require a mutable record
 // whose changes are synchronized by its caller.
 
+// SchedulingThresholds returns the configured platform threshold map for
+// read-only callers such as score diagnostics. Disabled or incomplete services
+// return nil and false without modifying provider records, caches, or stores.
+func (s *HealthService) SchedulingThresholds(ctx context.Context) (map[string]int, bool) {
+	if s == nil || s.options.HasThresholdSettings == nil || !s.options.HasThresholdSettings() || s.options.Thresholds == nil {
+		return nil, false
+	}
+	return s.options.Thresholds(ctx), true
+}
+
 // ApplyProviderSchedulingThreshold reports whether a provider-wide threshold
 // pause is selected or already matches the supplied record. Disabled or missing
 // dependencies, inactive records, and a false manual scheduling switch return
