@@ -478,3 +478,42 @@ func buildModerationHistoryFixture(targetBytes int) []byte {
 	out = append(out, `,{"role":"user","content":"final turn prompt to audit"}]}`...)
 	return out
 }
+
+// TestContentModerationNormalizePreservesFullOriginalText normalizes text with
+// surrounding spaces and an embedded newline. It checks that aggregate text and
+// the synthesized review item both retain the full supplied spelling.
+func TestContentModerationNormalizePreservesFullOriginalText(t *testing.T) {
+	input := ContentModerationInput{Text: "  first line\nsecond line  "}
+
+	input.Normalize()
+
+	require.Equal(t, "  first line\nsecond line  ", input.Text)
+	require.Equal(t, input.Text, input.Items[0].Text)
+}
+
+// TestContentModerationInput_NormalizeKeepsAndBuildsAllImages normalizes
+// aggregate text with two inline image references and no review items. It
+// checks retained image order and the text-plus-two-image parts produced for
+// API input.
+func TestContentModerationInput_NormalizeKeepsAndBuildsAllImages(t *testing.T) {
+	images := []string{
+		"data:image/png;base64,Zmlyc3Q=",
+		"data:image/png;base64,c2Vjb25k",
+	}
+	input := ContentModerationInput{
+		Text:   "check image",
+		Images: append([]string(nil), images...),
+	}
+	input.Normalize()
+
+	require.Equal(t, images, input.Images)
+
+	parts, ok := input.ModerationInput().([]moderationAPIInputPart)
+	require.True(t, ok)
+	require.Len(t, parts, 3)
+	require.Equal(t, "text", parts[0].Type)
+	require.Equal(t, "image_url", parts[1].Type)
+	require.NotNil(t, parts[1].ImageURL)
+	require.Equal(t, images[0], parts[1].ImageURL.URL)
+	require.Equal(t, images[1], parts[2].ImageURL.URL)
+}

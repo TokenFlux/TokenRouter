@@ -22,7 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	routingpg "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -79,7 +78,7 @@ func provideRiskDelivery(mail *notification.Mailer, _ *notification.Notification
 // are recognized through errors.Is, and the shared proxy adapter is installed
 // before the service is returned.
 func provideModerationCore(store *settings.Store, repo moderation.ContentModerationRepository, hash moderation.ContentModerationHashCache, groups *routingpg.GroupStore, users *identity.RiskStatusCommands, proxies *egresspg.ProxyStore, keys *apikey.APIKeyService, mail *notification.RiskDelivery, tasks *lifecycle.Tasks) *moderation.ContentModerationService {
-	runtime := moderation.Runtime{Audit: moderationadapter.NewAuditClient(), SnapshotMedia: moderationadapter.SnapshotMedia, Background: func(name string, fn func()) { tasks.Go(name, fn) }, CyberText: openai.IsOpenAICyberWarningText, CyberPolicy: openai.DetectOpenAICyberPolicy, ErrorMessage: upstream.ExtractErrorMessage, MissingRow: func(e error) bool { return errors.Is(e, sql.ErrNoRows) }, MissingUser: func(e error) bool { return errors.Is(e, identity.ErrUserNotFound) }}
+	runtime := moderation.Runtime{Audit: moderationadapter.NewAuditClient(), SnapshotMedia: moderationadapter.SnapshotMedia, Background: tasks.Go, CyberText: openai.IsOpenAICyberWarningText, CyberPolicy: openai.DetectOpenAICyberPolicy, MissingRow: func(e error) bool { return errors.Is(e, sql.ErrNoRows) }, MissingUser: func(e error) bool { return errors.Is(e, identity.ErrUserNotFound) }}
 	core := moderation.NewContentModerationService(store, repo, hash, moderationGroups{groups}, moderationUsers{users}, keys, mail, runtime)
 	core.SetProxyRepository(moderationProxies{proxies})
 	return core

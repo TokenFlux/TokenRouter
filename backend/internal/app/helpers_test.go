@@ -100,7 +100,6 @@ import (
 	routesite "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 	teamhttpapi "github.com/TokenFlux/TokenRouter/internal/team/httpapi"
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	openaiws "github.com/TokenFlux/TokenRouter/internal/upstream/openai/ws"
@@ -1611,10 +1610,9 @@ func newHTTPModeration(t *testing.T, settings moderation.SettingRepository, repo
 	core := moderation.NewContentModerationService(settings, repo, nil, nil, nil, nil, nil, moderation.Runtime{
 		Audit:         moderationadapter.NewAuditClient(),
 		SnapshotMedia: moderationadapter.SnapshotMedia,
-		Background:    func(_ string, fn func()) { background.Go(fn) },
+		Background:    func(_ string, fn func()) bool { background.Go(fn); return true },
 		CyberText:     openai.IsOpenAICyberWarningText,
 		CyberPolicy:   openai.DetectOpenAICyberPolicy,
-		ErrorMessage:  upstream.ExtractErrorMessage,
 		MissingRow:    func(err error) bool { return errors.Is(err, sql.ErrNoRows) },
 		MissingUser:   func(err error) bool { return errors.Is(err, identity.ErrUserNotFound) },
 	})

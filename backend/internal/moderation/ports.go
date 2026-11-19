@@ -144,18 +144,13 @@ type Runtime struct {
 	Audit AuditTransport // external moderation request executor
 	// retained image snapshot operation
 	SnapshotMedia func(context.Context, []ContentModerationMedia) []ContentModerationMedia
-	// Background accepts snapshot refresh work while its caller holds
-	// runtimeRefreshMu. The launcher must arrange execution so the callback
-	// releases that lock. App uses lifecycle.Tasks and discards its admission
-	// result, so callers avoid triggering refresh after that tracker seals.
-	Background func(string, func()) // runtime snapshot refresh launcher
-	CyberText  func(string) bool    // upstream warning text classifier
+	// Background launches snapshot refresh work while its caller holds
+	// runtimeRefreshMu and reports whether the task was accepted. When it returns
+	// false, the caller releases runtimeRefreshMu immediately.
+	Background func(string, func()) bool // runtime snapshot refresh launcher
+	CyberText  func(string) bool         // upstream warning text classifier
 	// upstream Cyber code classifier
 	CyberPolicy func([]byte) (bool, string, string)
-	// ErrorMessage is retained in the assembled Runtime value.
-	// ExtractCyberWarningText currently calls upstream.ExtractErrorMessage
-	// directly, so this callback is not the extractor used by that helper.
-	ErrorMessage func([]byte) string // assembled upstream error extractor
 }
 
 // RiskSender processes notices for the risk observations and account changes

@@ -1,7 +1,10 @@
 package moderation
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 	"unsafe"
@@ -9,21 +12,98 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// input.go extracts current-turn moderation content and selects audit units
-// while retaining source positions.
+// input.go extracts current-turn moderation content, normalizes and hashes
+// structured inputs, and selects bounded audit units while retaining source
+// positions.
 // Current-turn auditing starts after the latest assistant or model
 // contribution, so prior conversation turns are excluded while later user and
 // tool units remain. Responses tool calls also act as model separators.
-// Protocol extractors retain text and supported image references with source
-// labels and original review positions; structured tool values keep their JSON
-// keys and recursively discover images.
 //
 // Image deduplication keeps the first literal reference and source position.
-// Audit selection then applies separate user and tool rune budgets and image
-// toggles using new selected collections, leaving retained review text
-// available. Original item indexes survive filtering, allowing a flagged image
-// audit unit to point back to the submitted content. Unknown protocol input
-// probes several supported shapes through the same builder.
+// Audit selection then spends user and tool rune budgets independently across
+// text items while preserving original item indexes so flagged units map back
+// to submitted review content.
+
+// ContentModerationCheckInput carries request content, actor identity, and
+// payment ownership into ordinary audit admission.
+type ContentModerationCheckInput struct {
+	RequestID string // platform request correlation identifier
+	// UserID, UserEmail, BillingUserID, and TeamID separate the acting account
+	// from payment ownership. Ordinary and Cyber risk actions target UserID;
+	// billing and team values provide retained accounting context.
+	UserID        int64  // risk actor account identifier
+	UserEmail     string // risk actor recipient address
+	BillingUserID int64  // paying owner account identifier
+	// Queued observe work retains TeamID until buildStructuredLog copies its
+	// integer value. Producers keep the supplied pointer stable until that
+	// deferred build completes.
+	TeamID     *int64 // optional accounting team identifier
+	APIKeyID   int64  // triggering gateway key identifier
+	APIKeyName string // triggering gateway key display name
+	// GroupID remains shared with queued observe tasks and is reread for worker
+	// scope checks. Producers keep that identifier stable until accepted deferred
+	// work finishes.
+	GroupID   *int64 // optional selected group identifier
+	GroupName string // selected group display name
+	Endpoint  string // observed gateway endpoint path
+	Provider  string // gateway provider platform label
+	Model     string // requested model scope name
+	Protocol  string // input extraction protocol label
+	// Body is read synchronously during Check extraction and dropped from queued
+	// metadata after units are built. Callers keep the bytes stable while
+	// extraction reads them.
+	Body []byte // submitted request JSON bytes
+	// PreExtracted supplies current-turn units already extracted from the identical
+	// Body and Protocol earlier in the same request, skipping duplicate JSON parsing.
+	PreExtracted *ContentModerationInput // optional pre-extracted current-turn content
+	// NoMediaRetention omits ordinary log excerpts, input items, and image
+	// snapshots while retaining decisions, categories, scores, and completeness
+	// metadata. Flagged-input hash recording remains a separate cache operation
+	// when available.
+	NoMediaRetention bool // sensitive review retention switch
+}
+
+// ContentModerationInputItem is a positioned text or image unit retained for
+// administrator input review.
+type ContentModerationInputItem struct {
+	Index  int    `json:"index"`  // original review item position
+	Source string `json:"source"` // user or tool origin
+	Type   string `json:"type"`   // text or image unit kind
+	// Text and ImageRef identify the item representation selected by Type.
+	// Extractors keep full text and reference spelling for review; external audit
+	// limits are applied to a selected input later.
+	Text string `json:"text,omitempty"` // full selected text bytes
+	// literal selected image reference
+	ImageRef string `json:"image_ref,omitempty"`
+}
+
+// ContentModerationImage links an audit image reference to its original review
+// item position and source.
+type ContentModerationImage struct {
+	// SourceIndex remains the original item position after audit filtering. Audit
+	// image indexes identify the filtered list separately, and
+	// contentModerationHitMedia maps them back through this field.
+	SourceIndex int    `json:"source_index"` // original review item position
+	Source      string `json:"source"`       // user or tool origin
+	Reference   string `json:"reference"`    // literal selected image reference
+}
+
+// ContentModerationInput keeps aggregate audit values alongside source-labeled
+// positioned units used by review and image selection.
+type ContentModerationInput struct {
+	// Text, Images, Items, and ImageItems represent the same extracted input in
+	// aggregate and positioned forms. Normalize builds missing items only when
+	// Items is empty; callers supplying items keep aggregate values and image
+	// associations consistent.
+	Text       string                       // aggregate full text value
+	Images     []string                     // ordered unique image references
+	Items      []ContentModerationInputItem // positioned review input units
+	ImageItems []ContentModerationImage     // image to review-position associations
+	// Source is derived from normalized item sources when initially empty. A
+	// supplied nonempty aggregate label survives Normalize, so callers keep it
+	// consistent with their item representation.
+	Source string // aggregate user, tool, or mixed
+}
 
 // contentModerationInputBuilder accumulates selected current-turn units while
 // preserving their source and item positions.
@@ -36,6 +116,207 @@ type contentModerationInputBuilder struct {
 	images     []string                     // ordered unique image references
 	imageItems []ContentModerationImage     // image reference and position records
 	seenImages map[string]struct{}          // literal image deduplication set
+}
+
+// Normalize fills missing review items and source labels while retaining full
+// text bytes. A nil receiver is a no-op. Images are filtered and deduplicated
+// first; when Items is already nonempty, its existing item and ImageItems
+// association remains the caller-supplied representation.
+//
+// When Items is empty, text receives the first position and normalized images
+// receive subsequent item indexes with user source. An empty Source is derived
+// from resulting items, while an existing Source is kept. Callers provide
+// consistent supplied Items and ImageItems before downstream audit filtering.
+func (in *ContentModerationInput) Normalize() {
+	if in == nil {
+		return
+	}
+	// Filter and deduplicate aggregate images before synthesizing positions, so newly
+	// built ImageItems point to the same retained references as their review items.
+	in.Images = normalizeModerationImages(in.Images)
+	if len(in.Items) == 0 {
+		if strings.TrimSpace(in.Text) != "" {
+			in.Items = append(in.Items, ContentModerationInputItem{Index: len(in.Items), Source: ContentModerationSourceUser, Type: ContentModerationItemTypeText, Text: in.Text})
+		}
+		for _, image := range in.Images {
+			item := ContentModerationInputItem{Index: len(in.Items), Source: ContentModerationSourceUser, Type: ContentModerationItemTypeImage, ImageRef: image}
+			in.Items = append(in.Items, item)
+			in.ImageItems = append(in.ImageItems, ContentModerationImage{SourceIndex: item.Index, Source: item.Source, Reference: image})
+		}
+	}
+	if in.Source == "" {
+		in.Source = contentModerationInputSource(in.Items)
+	}
+}
+
+// Clone copies Images, Items, and ImageItems slice storage so callers can
+// mutate or normalize the returned moderation input without aliasing retained snapshots.
+func (in ContentModerationInput) Clone() ContentModerationInput {
+	in.Images = slices.Clone(in.Images)
+	in.Items = slices.Clone(in.Items)
+	in.ImageItems = slices.Clone(in.ImageItems)
+	return in
+}
+
+// IsEmpty reports whether aggregate text is blank and the image list is empty.
+// Item collections alone do not make this predicate nonempty, so callers
+// normalize or construct their aggregate representation before using it for
+// admission.
+func (in ContentModerationInput) IsEmpty() bool {
+	return strings.TrimSpace(in.Text) == "" && len(in.Images) == 0
+}
+
+// ModerationInput returns aggregate text alone or text/image parts when Images
+// is nonempty. Blank aggregate text is omitted from parts; it retains supplied
+// reference strings and relies on earlier normalization for image filtering.
+func (in ContentModerationInput) ModerationInput() any {
+	if len(in.Images) == 0 {
+		return in.Text
+	}
+	parts := make([]moderationAPIInputPart, 0, len(in.Images)+1)
+	if strings.TrimSpace(in.Text) != "" {
+		parts = append(parts, moderationAPIInputPart{Type: "text", Text: in.Text})
+	}
+	for _, image := range in.Images {
+		parts = append(parts, moderationAPIInputPart{
+			Type:     "image_url",
+			ImageURL: &moderationAPIImageURLRef{URL: image},
+		})
+	}
+	return parts
+}
+
+// normalizeContentModerationSource returns tool for its trimmed
+// case-insensitive spelling and user for every other value. Mixed is an
+// aggregate label, so individual unrecognized source values follow the user
+// path.
+func normalizeContentModerationSource(source string) string {
+	if strings.EqualFold(strings.TrimSpace(source), ContentModerationSourceTool) {
+		return ContentModerationSourceTool
+	}
+	return ContentModerationSourceUser
+}
+
+// contentModerationInputSource derives user, tool, or mixed from normalized
+// item sources. Empty items yield user, and unrecognized per-item source labels
+// also normalize to user. The decision uses retained item labels rather than
+// whether a unit is text or an image.
+//
+// A single source kind keeps its label, while at least one retained item of
+// each kind produces mixed regardless of encounter order. Filtered audit input
+// recomputes this label from selected items; Normalize uses it when the caller
+// has left aggregate Source blank.
+func contentModerationInputSource(items []ContentModerationInputItem) string {
+	hasUser := false
+	hasTool := false
+	for _, item := range items {
+		switch normalizeContentModerationSource(item.Source) {
+		case ContentModerationSourceTool:
+			hasTool = true
+		default:
+			hasUser = true
+		}
+	}
+	if hasUser && hasTool {
+		return ContentModerationSourceMixed
+	}
+	if hasTool {
+		return ContentModerationSourceTool
+	}
+	return ContentModerationSourceUser
+}
+
+// Hash returns a hexadecimal SHA-256 digest of aggregate text and ordered
+// image-reference text. Check computes it before audit toggles and text limits,
+// so recorded-hash lookup and deterministic sampling use the full extracted
+// input. Source labels and review positions do not contribute.
+//
+// The digest input starts with text: and appends each reference digest after a
+// newline and image: marker. References identify submitted spelling, not
+// downloaded bytes. With d equal to the hexadecimal SHA-256 of reference r,
+// text "abc\nimage:"+d with no images and text "abc" with image r both feed
+// "text:abc\nimage:"+d. Text is unescaped and unframed, so the ambiguity exists
+// before hashing and the digest cannot distinguish every text/image combination.
+func (in ContentModerationInput) Hash() string {
+	h := sha256.New()
+	// Hash.Write accepts every supplied byte and never returns an error; the
+	// discarded results cover the prefix, text, and reference-marker writes below.
+	_, _ = h.Write([]byte("text:"))
+	_, _ = h.Write([]byte(in.Text))
+	for _, image := range in.Images {
+		imageHash := sha256.Sum256([]byte(image))
+		_, _ = h.Write([]byte("\nimage:"))
+		_, _ = h.Write([]byte(hex.EncodeToString(imageHash[:])))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// compactContentModerationInputForQueue clears aggregate Text when text items
+// can reconstruct it or it is already blank. Other collections remain shared; a
+// standalone nonblank Text without any text item is retained in this returned
+// value.
+func compactContentModerationInputForQueue(content ContentModerationInput) ContentModerationInput {
+	hasTextItem := false
+	for _, item := range content.Items {
+		if item.Type == ContentModerationItemTypeText {
+			hasTextItem = true
+			break
+		}
+	}
+	if hasTextItem || strings.TrimSpace(content.Text) == "" {
+		content.Text = ""
+	}
+	return content
+}
+
+// contentModerationTextFromItems joins nonblank text-type item values using
+// newline separators. It preserves each retained value spelling and order,
+// ignores image or blank units, and returns empty when no text item
+// contributes.
+func contentModerationTextFromItems(items []ContentModerationInputItem) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Type == ContentModerationItemTypeText && strings.TrimSpace(item.Text) != "" {
+			parts = append(parts, item.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// sanitizeContentModerationExcerpt redacts recognized secret patterns before
+// limiting rune length for administrator summaries. Redaction can change
+// excerpt spelling and length; full retained input items follow separate review
+// and retention rules.
+func sanitizeContentModerationExcerpt(text string, max int) string {
+	// Redaction precedes truncation so a recognized credential value crossing the
+	// excerpt cutoff is replaced from the complete input before summary
+	// length is selected.
+	return trimRunes(redactContentModerationSecrets(text), max)
+}
+
+// trimRawContentModerationText trims surrounding whitespace and applies a rune
+// limit to raw review text. It leaves recognized secret text intact before the
+// cap, so Cyber callers keep this result within authorized administrator
+// review.
+func trimRawContentModerationText(text string, max int) string {
+	return trimRunes(strings.TrimSpace(text), max)
+}
+
+// trimRunes returns text unchanged when its rune count fits and otherwise
+// reconstructs its first max runes. Nonpositive limits return empty;
+// reconstruction can replace invalid UTF-8 bytes with replacement runes on the
+// shortened path.
+func trimRunes(text string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= max {
+		return text
+	}
+	// Reconstructing this shortened rune slice can replace malformed UTF-8 with
+	// replacement characters.
+	return string(runes[:max])
 }
 
 // contentModerationAuditInput selects the configured audit content while

@@ -25,7 +25,6 @@ import (
 	moderationadapter "github.com/TokenFlux/TokenRouter/internal/moderation/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
@@ -69,10 +68,9 @@ func newLiveModerationRuntime(t *testing.T, settings moderation.SettingRepositor
 	core := moderation.NewContentModerationService(settings, repo, nil, nil, nil, nil, nil, moderation.Runtime{
 		Audit:         moderationadapter.NewAuditClient(),
 		SnapshotMedia: moderationadapter.SnapshotMedia,
-		Background:    func(_ string, fn func()) { background.Go(fn) },
+		Background:    func(_ string, fn func()) bool { background.Go(fn); return true },
 		CyberText:     openai.IsOpenAICyberWarningText,
 		CyberPolicy:   openai.DetectOpenAICyberPolicy,
-		ErrorMessage:  upstream.ExtractErrorMessage,
 		MissingRow:    func(err error) bool { return errors.Is(err, sql.ErrNoRows) },
 		MissingUser:   func(err error) bool { return errors.Is(err, identity.ErrUserNotFound) },
 	})
