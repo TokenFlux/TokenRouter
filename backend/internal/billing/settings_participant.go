@@ -17,22 +17,27 @@ import (
 //
 // The participant keeps parallel field and key lists and removes every
 // prepared value whose HTTP field was absent. A supplied zero, false or empty
-// value remains eligible for persistence. Plan-reference validation is
-// provided by the settings coordinator before prepared values are stored.
+// value remains eligible for persistence. Optional plan-reference validation
+// runs only when default_subscriptions is present in the submitted fields.
 
 // SettingsParticipant returns billing field ownership and a preparation
 // callback for the settings coordinator. Empty input yields no update; invalid
-// typed input or preparation failure returns an error. The caller performs
-// plan-reference validation and owns persistence.
+// typed input, plan validation failure, or preparation failure returns an
+// error, while persistence remains owned by the coordinator.
 //
-// Preparation decodes supplied fields into AdminSettings and then removes
-// encoded keys for omitted fields. That final presence filter keeps partial
-// updates from writing the zero values introduced during decoding. The field
-// and key lists must retain their matching order.
-func SettingsParticipant() settings.Participant {
+// Preparation decodes supplied fields into AdminSettings, validates default
+// subscription plans when default_subscriptions was submitted and a validator
+// is supplied, and removes encoded keys for omitted fields. That presence
+// filter keeps partial updates from writing zero values introduced during
+// decoding, so the field and key lists must retain their matching order.
+func SettingsParticipant(validatePlans ...func(context.Context, []DefaultSubscriptionSetting) error) settings.Participant {
+	var planValidator func(context.Context, []DefaultSubscriptionSetting) error
+	if len(validatePlans) > 0 {
+		planValidator = validatePlans[0]
+	}
 	fields := []string{"balance_icon_svg", "balance_low_notify_enabled", "balance_low_notify_recharge_url", "balance_low_notify_threshold", "balance_unit_name", "balance_unit_symbol", "default_balance", "default_subscriptions", "reasoning_point_rmb_unit_price", "subscription_expiry_notify_enabled", "usd_exchange_rate"}
 	keys := []string{SettingKeyBalanceIconSVG, SettingKeyBalanceLowNotifyEnabled, SettingKeyBalanceLowNotifyRechargeURL, SettingKeyBalanceLowNotifyThreshold, SettingKeyBalanceUnitName, SettingKeyBalanceUnitSymbol, SettingKeyDefaultBalance, SettingKeyDefaultSubscriptions, SettingKeyReasoningPointRMBUnitPrice, SettingKeySubscriptionExpiryNotifyEnabled, SettingKeyUSDExchangeRate}
-	return settings.Participant{Module: "billing", Fields: fields, Keys: keys, Prepare: func(_ context.Context, input settings.Fields, _ map[string]string) (settings.PreparedChange, error) {
+	return settings.Participant{Module: "billing", Fields: fields, Keys: keys, Prepare: func(ctx context.Context, input settings.Fields, _ map[string]string) (settings.PreparedChange, error) {
 		if len(input) == 0 {
 			return settings.PreparedChange{}, nil
 		}
@@ -43,6 +48,13 @@ func SettingsParticipant() settings.Participant {
 		var value AdminSettings
 		if err = json.Unmarshal(raw, &value); err != nil {
 			return settings.PreparedChange{}, err
+		}
+		// Validate default subscription plans only when the caller submitted
+		// default_subscriptions so unrelated partial billing saves avoid plan lookups.
+		if _, ok := input["default_subscriptions"]; ok && planValidator != nil {
+			if err = planValidator(ctx, value.DefaultSubscriptions); err != nil {
+				return settings.PreparedChange{}, err
+			}
 		}
 		values, err := PrepareAdminSettings(&value)
 		if err != nil {

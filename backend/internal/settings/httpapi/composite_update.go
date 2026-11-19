@@ -51,13 +51,13 @@ import (
 // controls, and validating user-visible content or changed challenge credentials.
 // Those phases can fail before any settings batch is persisted.
 //
-// Broad prepared values are replaced by each registered owner's result before
-// the single Commit. Successful persistence precedes runtime callbacks, audit
-// logging, and response readback; a callback or later read failure therefore
-// reports a saved update with an incomplete later phase. Pointer merging and
-// raw-presence filtering have field-specific exceptions, including security
-// normalization and always-written merged switches, so they are kept visible
-// where the corresponding participant fields are assembled.
+// Snapshot normalization runs across modules before each registered owner
+// prepares its persisted values for the single Commit. Successful persistence
+// precedes runtime callbacks, audit logging, and response readback; a callback
+// or later read failure therefore reports a saved update with an incomplete
+// later phase. Pointer merging and raw-presence filtering have field-specific
+// exceptions, including security normalization and always-written merged
+// switches, so they are kept visible where participant fields are assembled.
 
 var (
 	// semverPattern limits supported CLI version overrides to three dot-separated
@@ -72,14 +72,8 @@ var (
 	// navigation targets before the handler accepts them as a page destination.
 	markdownMenuSlugPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
-	// settingKeyJSONAliases maps request JSON names that differ from their stored setting keys.
-	// Other UpdateSettingsRequest fields use their setting keys as JSON names.
-	settingKeyJSONAliases = map[string]string{
-		"smtp_from_email": notification.SettingKeySMTPFrom,
-	}
-
-	// settingKeyByJSONName maps non-pointer top-level request fields to stored setting keys.
-	// It is built once from struct tags so added fields participate automatically.
+	// settingKeyByJSONName records non-pointer top-level request JSON names built
+	// once from struct tags so added fields participate automatically.
 	//
 	// UpdateSettings merges pointer fields with stored values, so they are excluded here.
 	// Some pointer fields are rewritten on every save to normalize invalid security settings;
@@ -157,19 +151,13 @@ func (h *Handler) ensureActorTotpForStepUp(c *gin.Context) bool {
 	return true
 }
 
-// buildSettingKeyByJSONName maps tagged non-pointer request fields to storage
-// keys used by omission filtering. It skips pointers because UpdateSettings handles
-// those fields through separate prior-value merging, and ignores fields with no
-// usable JSON name before retaining their mapping.
-//
-// Most request names already match storage keys. smtp_from_email instead uses
-// its declared alias so dropping an omitted sender field removes the actual
-// SMTP storage key. The returned map is constructed at initialization from the
-// request type, keeping later non-pointer additions included in omission detection
-// without treating the struct's zero values as submitted input.
-func buildSettingKeyByJSONName() map[string]string {
+// buildSettingKeyByJSONName collects tagged non-pointer request JSON names used
+// by participant omission filtering. It skips pointers because UpdateSettings
+// handles those fields through separate prior-value merging, and ignores fields
+// with no usable JSON name.
+func buildSettingKeyByJSONName() map[string]struct{} {
 	t := reflect.TypeFor[UpdateSettingsRequest]()
-	out := make(map[string]string, t.NumField())
+	out := make(map[string]struct{}, t.NumField())
 	for field := range t.Fields() {
 		if field.Type.Kind() == reflect.Pointer {
 			continue
@@ -178,33 +166,9 @@ func buildSettingKeyByJSONName() map[string]string {
 		if name == "" || name == "-" {
 			continue
 		}
-		if alias, ok := settingKeyJSONAliases[name]; ok {
-			out[name] = alias
-			continue
-		}
-		out[name] = name
+		out[name] = struct{}{}
 	}
 	return out
-}
-
-// omittedSettingKeys records storage keys whose tagged non-pointer names are
-// absent from the raw request. JSON null is present and therefore does not add
-// an omission entry; the decoded field and owning preparer determine its supplied
-// value handling later in the update.
-//
-// This list is passed to broad preparation after normalization so missing typed
-// fields cannot reset unrelated stored settings to zero. The precomputed mapping
-// applies aliases such as smtp_from_email, while pointer fields follow their
-// separate merging path. The returned set is newly allocated for this request
-// and DropFrom mutates the eventual prepared value map.
-func omittedSettingKeys(sentFields map[string]json.RawMessage) runtimesettings.OmittedKeys {
-	omitted := make(runtimesettings.OmittedKeys, len(settingKeyByJSONName))
-	for jsonName, settingKey := range settingKeyByJSONName {
-		if _, sent := sentFields[jsonName]; !sent {
-			omitted[settingKey] = struct{}{}
-		}
-	}
-	return omitted
 }
 
 // SettingsAuditRequest returns a shallow request copy with Tencent credential
@@ -225,9 +189,10 @@ func SettingsAuditRequest(req UpdateSettingsRequest) UpdateSettingsRequest {
 // from current-value reads through response construction.
 //
 // Pointer fields use specific prior-value/default selection, while omitted
-// non-pointer keys are removed after normalization. The handler prepares every
-// registered owner before Commit and replaces broad-map keys with those results.
-// Changed credential probes and step-up transitions occur before persistence.
+// non-pointer fields are removed before participant preparation. Normalization
+// updates the combined Snapshot in place before registered owners prepare their
+// persisted keys, and changed credential probes and step-up transitions occur
+// before persistence.
 //
 // Commit success precedes audit and final reads. Runtime application errors carry
 // persisted=true from the session; response read failures can also follow saved
@@ -287,7 +252,6 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		}
 	}
 	auditReq := SettingsAuditRequest(req)
-	omitted := omittedSettingKeys(sentFields)
 
 	previousSettings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {
@@ -1820,12 +1784,11 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		},
 		ForceEmailOnThirdPartySignup: boolValueOrDefault(req.ForceEmailOnThirdPartySignup, previousAuthSourceDefaults.ForceEmailOnThirdPartySignup),
 	}
-	values, err := h.settingService.PrepareSettingsWithAuthSourceDefaults(c.Request.Context(), settings, nil, omitted)
-	if err != nil {
+	if err := h.settingService.NormalizeSettingsSnapshot(settings); err != nil {
 		httpx.ErrorFrom(c, err)
 		return
 	}
-	changes := []runtimesettings.PreparedChange{{Module: "system-values", Values: values}}
+	var changes []runtimesettings.PreparedChange
 	// Use native readback callbacks when offered; the compatibility callback
 	// otherwise stops its own application chain on the first failure before
 	// publishing the monitoring switch.
@@ -1960,7 +1923,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		httpx.ErrorFrom(c, err)
 		return
 	}
-	prepared, err := h.preparedParticipants(update.Context(), fields, values, previousSettings.StoredValues)
+	prepared, err := h.preparedParticipants(update.Context(), fields, previousSettings.StoredValues)
 	if err != nil {
 		httpx.ErrorFrom(c, err)
 		return
@@ -1982,7 +1945,6 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		httpx.ErrorFrom(c, err)
 		return
 	}
-	h.ensureDingTalkSyncAttributes(c.Request.Context(), updatedSettings)
 	updatedAuthSourceDefaults, err := h.settingService.GetAuthSourceDefaultSettings(c.Request.Context())
 	if err != nil {
 		httpx.ErrorFrom(c, err)
@@ -2324,71 +2286,6 @@ func mapDingTalkValidateError(err error) string {
 	default:
 		return "dingtalk_corp_config_invalid"
 	}
-}
-
-// ensureDingTalkSyncAttributes prepares enabled profile-sync attribute definitions
-// after settings readback under internal_only policy. Missing service or Snapshot
-// skips work. Lookup failure selects creation; update and create failures are
-// logged by each helper, while later enabled attributes can still be attempted.
-func (h *Handler) ensureDingTalkSyncAttributes(ctx context.Context, settings *composite.Snapshot) {
-	if h.userAttributeService == nil || settings == nil {
-		return
-	}
-	if settings.DingTalkConnectCorpRestrictionPolicy != "internal_only" {
-		return
-	}
-	if settings.DingTalkConnectSyncDisplayName {
-		h.ensureUserAttributeDefinition(ctx, settings.DingTalkConnectSyncDisplayNameAttrKey, settings.DingTalkConnectSyncDisplayNameAttrName, "钉钉 internal_only 登录时同步的钉钉姓名", identity.AttributeTypeText)
-	}
-	if settings.DingTalkConnectSyncCorpEmail {
-		h.ensureUserAttributeDefinition(ctx, settings.DingTalkConnectSyncCorpEmailAttrKey, settings.DingTalkConnectSyncCorpEmailAttrName, "钉钉 internal_only 登录时同步的企业邮箱", identity.AttributeTypeEmail)
-	}
-	if settings.DingTalkConnectSyncDept {
-		h.ensureUserAttributeDefinition(ctx, settings.DingTalkConnectSyncDeptAttrKey, settings.DingTalkConnectSyncDeptAttrName, "钉钉 internal_only 登录时同步的完整部门路径（如：公司/研发部）", identity.AttributeTypeText)
-	}
-}
-
-// ensureUserAttributeDefinition resolves a trimmed nonempty attribute key after
-// the settings commit. A found definition can receive a nonempty changed display
-// name; its existing type, options, and required flags remain as stored.
-//
-// An absent definition or lookup error selects creation using the supplied
-// name, description, type, and enabled flag. Update and creation failures are
-// logged and stop this helper while the saved settings batch remains committed.
-// The caller decides eligibility for profile-sync setup before invoking these
-// separate attribute writes.
-func (h *Handler) ensureUserAttributeDefinition(ctx context.Context, key, name, description string, attrType identity.UserAttributeType) {
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return
-	}
-	// Lookup failure selects creation, and failed updates or creates are logged
-	// after the settings batch is committed. The caller can continue setting up
-	// the other enabled attributes after this helper returns.
-	existing, err := h.userAttributeService.GetDefinitionByKey(ctx, key)
-	if err == nil && existing != nil {
-		if strings.TrimSpace(name) != "" && existing.Name != name {
-			if _, err := h.userAttributeService.UpdateDefinition(ctx, existing.ID, identity.UpdateAttributeDefinitionInput{
-				Name: &name,
-			}); err != nil {
-				slog.Warn("dingtalk: update user attribute definition name failed", "key", key, "err", err.Error())
-				return
-			}
-			slog.Info("dingtalk: updated user attribute definition name", "key", key, "name", name)
-		}
-		return
-	}
-	if _, err := h.userAttributeService.CreateDefinition(ctx, identity.CreateAttributeDefinitionInput{
-		Key:         key,
-		Name:        name,
-		Description: description,
-		Type:        attrType,
-		Enabled:     true,
-	}); err != nil {
-		slog.Warn("dingtalk: ensure user attribute definition failed", "key", key, "err", err.Error())
-		return
-	}
-	slog.Info("dingtalk: created user attribute definition", "key", key, "name", name, "type", attrType)
 }
 
 // rejectRemovedPlatformQuotaFields rejects the default or provider-specific

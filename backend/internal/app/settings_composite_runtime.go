@@ -33,14 +33,15 @@ import (
 
 // settings_composite_runtime.go assembles combined settings preparation and the
 // ordered application callbacks used after saving. One runtime receives
-// module-owned preparers and callbacks that publish WS parameters before
-// gateway settings and notify site readers before dynamic worker changes. The
-// participant registry supplies payment provider refresh.
+// module-owned normalizers and callbacks that publish WS parameters before
+// gateway settings, notify site readers before dynamic worker changes, and
+// reconcile DingTalk profile-sync attribute definitions. The participant
+// registry owns module persistence keys, plan validation, and payment refresh.
 
 // provideCompositeSettingsHTTP joins combined settings and module-specific
 // administration capabilities.
-func provideCompositeSettingsHTTP(source *composite.Runtime, registry *settings.Registry, monitor *ops.OpsService, pay *payment.ConfigService, turnstile *identity.TurnstileService, aliyun *identity.AliyunCaptchaService, attributes *identity.UserAttributeService, totp *identity.TotpService, users *identity.UserService, creative *creative.Public) *settingshttp.Handler {
-	return settingshttp.NewHandler(settingshttp.HandlerOptions{Settings: source, Participants: registry, Monitoring: monitor, Payment: pay, Turnstile: turnstile, Aliyun: aliyun, Attributes: attributes, Totp: totp, User: users, Creative: creative})
+func provideCompositeSettingsHTTP(source *composite.Runtime, registry *settings.Registry, monitor *ops.OpsService, pay *payment.ConfigService, turnstile *identity.TurnstileService, aliyun *identity.AliyunCaptchaService, totp *identity.TotpService, users *identity.UserService, creative *creative.Public) *settingshttp.Handler {
+	return settingshttp.NewHandler(settingshttp.HandlerOptions{Settings: source, Participants: registry, Monitoring: monitor, Payment: pay, Turnstile: turnstile, Aliyun: aliyun, Totp: totp, User: users, Creative: creative})
 }
 
 // provideCompositeReadOptions binds settings interpretation and current process
@@ -56,16 +57,15 @@ func provideCompositeReadOptions(cfg *config.Config, oauth *identity.OAuthSettin
 	}}
 }
 
-// provideCompositeRuntime binds preparation and ordered post-save application
-// callbacks. Metrics reconcile first so a saved opt-out reaches the worker
-// before other runtime updates. The WS step can return its publication error;
-// subsequent steps publish gateway, scheduler, provider, forwarded-IP, and client settings, then
-// notify site and adjust creative workers plus Ops monitoring. Persistence and
-// application-error handling remain owned by composite.Runtime.
-func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *composite.ReadOptions, grants *identity.GrantSettings, gatewayRuntime *gateway.RuntimeSettings, gatewayRules *gateway.AdminSettingsRules, defaults *scheduler.AdminDefaults, plans *billing.Plans, backendMode *admission.BackendMode, providerRuntime *provider.RuntimeSettings, quota *provider.QuotaSettingsCache, forwarded *runtimeconfig.ForwardedSettings, shared *schedulerSharedState, worker *creative.CreativeWorkerRuntime, monitor *ops.OpsService, metrics *bstats.Service) *composite.Runtime {
-	prepare := composite.PrepareOptions{ReadValues: store.GetConfigurationValues, Gateway: *gatewayRules, Scheduler: *defaults, ValidatePlans: func(ctx context.Context, value []billing.DefaultSubscriptionSetting) error {
-		return billing.ValidateDefaultSubscriptionPlans(ctx, value, plans.GetPlan)
-	}}
+// provideCompositeRuntime binds snapshot normalization and ordered post-save
+// application callbacks. Metrics reconcile first so a saved opt-out reaches the
+// worker before other runtime updates. The WS step can return its publication
+// error; subsequent steps publish gateway, scheduler, provider, forwarded-IP,
+// and client settings, then notify site, adjust creative workers plus Ops
+// monitoring, and reconcile DingTalk sync attribute definitions. Persistence
+// and application-error handling remain owned by composite.Runtime.
+func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *composite.ReadOptions, grants *identity.GrantSettings, attributes *identity.UserAttributeService, gatewayRuntime *gateway.RuntimeSettings, gatewayRules *gateway.AdminSettingsRules, defaults *scheduler.AdminDefaults, backendMode *admission.BackendMode, providerRuntime *provider.RuntimeSettings, quota *provider.QuotaSettingsCache, forwarded *runtimeconfig.ForwardedSettings, shared *schedulerSharedState, worker *creative.CreativeWorkerRuntime, monitor *ops.OpsService, metrics *bstats.Service) *composite.Runtime {
+	prepare := composite.PrepareOptions{Gateway: *gatewayRules, Scheduler: *defaults}
 	steps := []composite.Application{
 		{Module: "bstats", Apply: func(ctx context.Context, s *composite.Snapshot) error {
 			return metrics.Apply(ctx, s.BStatsConfig())
@@ -104,11 +104,19 @@ func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *co
 		}},
 		{Module: "site", Apply: func(_ context.Context, _ *composite.Snapshot) error { store.NotifyUpdated(); return nil }},
 		{Module: "creative", Apply: func(_ context.Context, s *composite.Snapshot) error {
-			worker.SetWorkerCount(s.CreativeWorkerCount)
+			if worker != nil {
+				worker.SetWorkerCount(s.CreativeWorkerCount)
+			}
 			return nil
 		}},
 		{Module: "ops", Apply: func(_ context.Context, s *composite.Snapshot) error {
-			monitor.SetMonitoringEnabled(s.OpsMonitoringEnabled)
+			if monitor != nil {
+				monitor.SetMonitoringEnabled(s.OpsMonitoringEnabled)
+			}
+			return nil
+		}},
+		{Module: "dingtalk-sync-attributes", Apply: func(ctx context.Context, s *composite.Snapshot) error {
+			identity.EnsureDingTalkSyncAttributes(ctx, attributes, s.IdentityAdminSettings())
 			return nil
 		}},
 	}
@@ -116,21 +124,31 @@ func provideCompositeRuntime(store *settings.Store, cfg *config.Config, read *co
 }
 
 // provideSettingsParticipants constructs the module registry from static field
-// and key ownership. Registry errors propagate to application construction, and
-// WS participant defaults come from the supplied runtime rather than a separate
-// settings snapshot.
-func provideSettingsParticipants(runtime *payment.Runtime, grants *identity.GrantSettings, schedulerDefaults *scheduler.AdminDefaults, gatewayRules *gateway.AdminSettingsRules, sockets *ws.Runtime) (*settings.Registry, error) {
-	return settings.NewRegistry(staticSettingsParticipants(runtime, grants, schedulerDefaults, gatewayRules, sockets.Defaults())...)
+// and key ownership. Registry errors propagate to application construction,
+// billing plan validation binds to plans, and WS participant defaults come from
+// the supplied runtime rather than a separate settings snapshot.
+func provideSettingsParticipants(runtime *payment.Runtime, grants *identity.GrantSettings, plans *billing.Plans, schedulerDefaults *scheduler.AdminDefaults, gatewayRules *gateway.AdminSettingsRules, sockets *ws.Runtime) (*settings.Registry, error) {
+	return settings.NewRegistry(staticSettingsParticipants(runtime, grants, plans, schedulerDefaults, gatewayRules, sockets.Defaults())...)
 }
 
 // staticSettingsParticipants returns preparers for the combined settings
-// registry in their listed order. No socket argument uses built-in WS defaults;
-// the first supplied argument replaces them, and additional socket arguments
-// are ignored.
-func staticSettingsParticipants(runtime *payment.Runtime, grants *identity.GrantSettings, schedulerDefaults *scheduler.AdminDefaults, gatewayRules *gateway.AdminSettingsRules, socketDefaults ...ws.Parameters) []settings.Participant {
+// registry in their listed order. Nonnil plans attaches default subscription
+// plan validation to the billing participant, and the first supplied socket
+// argument replaces built-in WS defaults.
+func staticSettingsParticipants(runtime *payment.Runtime, grants *identity.GrantSettings, plans *billing.Plans, schedulerDefaults *scheduler.AdminDefaults, gatewayRules *gateway.AdminSettingsRules, socketDefaults ...ws.Parameters) []settings.Participant {
 	defaults := ws.DefaultParameters()
 	if len(socketDefaults) > 0 {
 		defaults = socketDefaults[0]
 	}
-	return []settings.Participant{bstats.SettingsParticipant(), ws.SettingsParticipant(defaults), settings.LocalizationParticipant(), identity.SettingsParticipant(grants), team.SettingsParticipant(), moderation.SettingsParticipant(), creative.SettingsParticipant(), runtimeconfig.SettingsParticipant(), billing.SettingsParticipant(), scheduler.SettingsParticipant(*schedulerDefaults), routing.SettingsParticipant(), site.SettingsParticipant(), provider.SettingsParticipant(), ops.SettingsParticipant(), payment.VisibleSettingsParticipant(), notification.SMTPSettingsParticipant(), promotion.SettingsParticipant(), usage.SettingsParticipant(), audit.SettingsParticipant(), gateway.FastSettingsParticipant(), gateway.AdminSettingsParticipant(*gatewayRules), payment.SettingsParticipant(runtime.RefreshProvidersChecked)}
+	var billingParticipant settings.Participant
+	if plans != nil {
+		billingParticipant = billing.SettingsParticipant(func(ctx context.Context, value []billing.DefaultSubscriptionSetting) error {
+			return billing.ValidateDefaultSubscriptionPlans(ctx, value, plans.GetPlan)
+		})
+	} else {
+		billingParticipant = billing.SettingsParticipant(func(ctx context.Context, value []billing.DefaultSubscriptionSetting) error {
+			return billing.ValidateDefaultSubscriptionPlans(ctx, value, nil)
+		})
+	}
+	return []settings.Participant{bstats.SettingsParticipant(), ws.SettingsParticipant(defaults), settings.LocalizationParticipant(), identity.SettingsParticipant(grants), team.SettingsParticipant(), moderation.SettingsParticipant(), creative.SettingsParticipant(), runtimeconfig.SettingsParticipant(), billingParticipant, scheduler.SettingsParticipant(*schedulerDefaults), routing.SettingsParticipant(), site.SettingsParticipant(), provider.SettingsParticipant(), ops.SettingsParticipant(), payment.VisibleSettingsParticipant(), notification.SMTPSettingsParticipant(), promotion.SettingsParticipant(), usage.SettingsParticipant(), audit.SettingsParticipant(), gateway.FastSettingsParticipant(), gateway.AdminSettingsParticipant(*gatewayRules), payment.SettingsParticipant(runtime.RefreshProvidersChecked)}
 }

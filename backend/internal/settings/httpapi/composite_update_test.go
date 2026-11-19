@@ -411,10 +411,10 @@ func (s *navigationSettingsSource) OIDCSecurityWriteDefaults(context.Context) (b
 	return false, false, nil
 }
 
-// PrepareSettingsWithAuthSourceDefaults captures values after HTTP input preparation.
+// NormalizeSettingsSnapshot captures values after HTTP input preparation.
 // Returning an error stops the handler before registry preparation, persistence,
 // runtime callbacks, or audit logging can require additional fixture dependencies.
-func (s *navigationSettingsSource) PrepareSettingsWithAuthSourceDefaults(_ context.Context, snapshot *composite.Snapshot, _ *identity.AuthSourceDefaultSettings, _ settings.OmittedKeys) (map[string]string, error) {
+func (s *navigationSettingsSource) NormalizeSettingsSnapshot(snapshot *composite.Snapshot) error {
 	s.prepared = snapshot
-	return nil, errors.New("navigation preparation captured")
+	return errors.New("navigation preparation captured")
 }

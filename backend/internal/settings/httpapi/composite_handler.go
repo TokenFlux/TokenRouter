@@ -12,21 +12,17 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
 )
 
-// composite_handler.go assembles settings handler dependencies and reconciles
-// registered participants with broad writes.
-// Combined administrator updates can contain a setting key in both the broad
-// Snapshot write map and a module's registered prepared change. Commit rejects
-// duplicate written keys, while registered participants also decide whether an
-// omitted field contributes a write. The handler prepares their changes before
-// removing all registered keys from the broad map, so each owned key follows
-// that participant's output.
+// composite_handler.go assembles settings handler dependencies and prepares
+// registered participant changes for combined administrator updates.
+// Combined administrator updates normalize Snapshot values, validate credentials
+// and step-up preconditions, and delegate persistence encoding to each module's
+// registered Participant in the shared settings Registry so every stored key has
+// one authoritative owner.
 //
-// Registered preparation failure leaves the broad map intact and stops the
-// update before storage. Absent participant writes leave their corresponding
-// broad candidates outside the value batch. System reads, authentication grants,
-// credential probes, and HTTP presence handling precede this reconciliation;
-// the session commits the remaining broad values and module changes together
-// before runtime callbacks or response readback.
+// Registered preparation failure stops the update before storage. System reads,
+// authentication grants, credential probes, and HTTP presence handling precede
+// participant preparation; the session commits module changes and runs ordered
+// post-commit runtime callbacks before response readback.
 
 // CompositeSettings supplies module readback and update coordination for administrator HTTP requests.
 type CompositeSettings interface {
@@ -52,10 +48,10 @@ type CompositeSettings interface {
 	// values. The returned session context follows cancellation and shutdown, and
 	// the caller Close releases admission after all update phases finish.
 	BeginSettingsUpdate(context.Context) (*settings.UpdateSession, error)
-	// PrepareSettingsWithAuthSourceDefaults normalizes the supplied Snapshot and
-	// encodes prepared strings with omission filtering. Preparation can mutate that
-	// Snapshot before failure; it performs no persistence, leaving Commit to the session.
-	PrepareSettingsWithAuthSourceDefaults(context.Context, *composite.Snapshot, *identity.AuthSourceDefaultSettings, settings.OmittedKeys) (map[string]string, error)
+	// NormalizeSettingsSnapshot normalizes and validates the supplied Snapshot in
+	// place before participant preparation. Normalization can mutate that Snapshot
+	// before failure and performs no persistence, leaving Commit to the session.
+	NormalizeSettingsSnapshot(*composite.Snapshot) error
 	// ApplyPersistedSettings loads committed settings and applies modules in the
 	// implementation's declared order. The HTTP compatibility path calls it after
 	// persistence and treats returned errors as application failures for that saved batch.
@@ -126,7 +122,6 @@ type Handler struct {
 	// aliyunCaptchaService is required when effective enabled Aliyun settings
 	// change access credentials, scene, or region before the handler prepares its batch.
 	aliyunCaptchaService CaptchaCredentialsValidator     // changed Aliyun credential verifier
-	userAttributeService *identity.UserAttributeService  // optional DingTalk attribute management service
 	totpService          identityhttp.StepUpGrantChecker // sensitive-operation step-up grant checker
 	userService          identityhttp.UserReader         // current actor account state reader
 	creativeModelReader  CreativeModelSettings           // optional Creative model selection reader
@@ -144,7 +139,6 @@ type HandlerOptions struct {
 	Payment          PaymentSettings                 // optional payment configuration reader
 	Turnstile        CaptchaSecretValidator          // changed Turnstile secret verifier
 	Aliyun           CaptchaCredentialsValidator     // changed Aliyun credential verifier
-	Attributes       *identity.UserAttributeService  // optional DingTalk attribute management service
 	Totp             identityhttp.StepUpGrantChecker // sensitive-operation step-up grant checker
 	User             identityhttp.UserReader         // current actor account state reader
 	Creative         CreativeModelSettings           // optional Creative model selection reader
@@ -155,31 +149,15 @@ type HandlerOptions struct {
 // registry before route use, and installs optional verifiers when their credential
 // validation or security branches can be reached.
 func NewHandler(o HandlerOptions) *Handler {
-	return &Handler{settingService: o.Settings, settingsParticipants: o.Participants, participantError: o.ParticipantError, opsService: o.Monitoring, paymentConfigService: o.Payment, turnstileService: o.Turnstile, aliyunCaptchaService: o.Aliyun, userAttributeService: o.Attributes, totpService: o.Totp, userService: o.User, creativeModelReader: o.Creative}
+	return &Handler{settingService: o.Settings, settingsParticipants: o.Participants, participantError: o.ParticipantError, opsService: o.Monitoring, paymentConfigService: o.Payment, turnstileService: o.Turnstile, aliyunCaptchaService: o.Aliyun, totpService: o.Totp, userService: o.User, creativeModelReader: o.Creative}
 }
 
 // preparedParticipants prepares registered owner changes against current raw
-// values and removes their owned keys from the supplied broad write map. It
-// requires the registry installed at assembly; a retained assembly error or a
-// preparation error returns before the broad map is changed.
-//
-// The broad normalizer and a registered participant can both produce the same
-// key. Delete every registered key after successful preparation so Commit sees
-// that participant's write once, or leaves its broad candidate out of the value
-// batch when the participant produced no write. Callers append the returned
-// changes to the remaining broad values before committing them together.
-func (h *Handler) preparedParticipants(ctx context.Context, input settings.Fields, values, current map[string]string) ([]settings.PreparedChange, error) {
+// values. It requires the registry installed at assembly; a retained assembly
+// error or preparation failure returns before Commit runs.
+func (h *Handler) preparedParticipants(ctx context.Context, input settings.Fields, current map[string]string) ([]settings.PreparedChange, error) {
 	if h.participantError != nil {
 		return nil, h.participantError
 	}
-	prepared, err := h.settingsParticipants.Prepare(ctx, input, current)
-	if err != nil {
-		return nil, err
-	}
-	// Remove broad-map copies of every declared key before appending registered
-	// results so Commit sees each stored setting once, from its declared module owner.
-	for _, key := range h.settingsParticipants.OwnedKeys() {
-		delete(values, key)
-	}
-	return prepared, nil
+	return h.settingsParticipants.Prepare(ctx, input, current)
 }

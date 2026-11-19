@@ -435,7 +435,7 @@ func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.C
 		{Module: "site", Apply: func(context.Context, *composite.Snapshot) error { store.NotifyUpdated(); return nil }},
 	}
 	source := composite.NewRuntime(store, read, prepare, grants, gatewayRuntime, cfg.Security.SecretEncryptionKeyConfigured, applications)
-	participants := staticSettingsParticipants(&paymentcore.Runtime{}, grants, defaults, rules)
+	participants := staticSettingsParticipants(&paymentcore.Runtime{}, grants, nil, defaults, rules)
 	// Retain payment field preparation while disabling provider refresh for the
 	// fixture, so combined persistence and response tests do not need configured payment-channel instances.
 	participants[len(participants)-1] = paymentcore.SettingsParticipant(nil)
@@ -448,7 +448,7 @@ func newCompositeSettingsHTTPFixture(repo settingscore.Repository, cfg *config.C
 // represented, and no participant declares an extra field outside that request.
 func TestSettingsFieldOwnership(t *testing.T) {
 	defaults := scheduler.DefaultAdminSettingsDefaults()
-	participants := staticSettingsParticipants(&paymentcore.Runtime{}, nil, &defaults, provideGatewayAdminRules())
+	participants := staticSettingsParticipants(&paymentcore.Runtime{}, nil, nil, &defaults, provideGatewayAdminRules())
 	_, err := settingscore.NewRegistry(participants...)
 	require.NoError(t, err)
 	owners := map[string]string{}

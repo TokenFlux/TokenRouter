@@ -417,12 +417,12 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	executor := provideCreativeExecutor(cfg, groupStore, creativeTargets, generic, compatible, modelAttributeService)
 	creativeWorkerRuntime := provideCreativeWorkerRuntime(public, executor, userStore, concurrencyService, store, readOptions, cfg)
 	bstatsService := provideBStats(store, info)
-	compositeRuntime := provideCompositeRuntime(store, cfg, readOptions, grantSettings, gatewayRuntimeSettings, adminSettingsRules, adminDefaults, plans, backendMode, providerRuntimeSettings, quotaSettingsCache, forwardedSettings, appSchedulerSharedState, creativeWorkerRuntime, opsService, bstatsService)
-	settingsRegistry, err := provideSettingsParticipants(runtime, grantSettings, adminDefaults, adminSettingsRules, wsRuntime)
+	compositeRuntime := provideCompositeRuntime(store, cfg, readOptions, grantSettings, userAttributeService, gatewayRuntimeSettings, adminSettingsRules, adminDefaults, backendMode, providerRuntimeSettings, quotaSettingsCache, forwardedSettings, appSchedulerSharedState, creativeWorkerRuntime, opsService, bstatsService)
+	settingsRegistry, err := provideSettingsParticipants(runtime, grantSettings, plans, adminDefaults, adminSettingsRules, wsRuntime)
 	if err != nil {
 		return nil, err
 	}
-	httpapiHandler := provideCompositeSettingsHTTP(compositeRuntime, settingsRegistry, opsService, configService, turnstileService, aliyunCaptchaService, userAttributeService, totpService, userService, public)
+	httpapiHandler := provideCompositeSettingsHTTP(compositeRuntime, settingsRegistry, opsService, configService, turnstileService, aliyunCaptchaService, totpService, userService, public)
 	dashboardAggregationService := provideUsageAggregation(dashboardAggregationRepository, wheel, leaderLock, db, usageOptions, preAggregationSettingsService)
 	opsAggregationService := provideOpsAggregation(opsRepository, store, db, redisClient, opsOptions, preAggregationSettingsService)
 	preAggregationHandler := providePreAggregationHTTP(preAggregationSettingsService, dashboardAggregationService, opsAggregationService)

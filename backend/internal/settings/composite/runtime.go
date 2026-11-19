@@ -3,7 +3,6 @@ package composite
 import (
 	"context"
 	"fmt"
-	"maps"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
@@ -11,13 +10,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 )
 
-// runtime.go coordinates combined settings preparation, reads, and ordered
-// runtime application.
-// Combined administrator updates prepare module values before one Store session
-// persists them, then read committed data for runtime application. Runtime holds
-// the readers, defaults, and ordered application steps used by that flow, while
-// the HTTP handler decides submitted-field presence and registers domain-specific
-// preparation through its settings Registry.
+// runtime.go coordinates combined settings snapshot normalization, reads, and
+// ordered runtime application.
+// Combined administrator updates normalize Snapshot values before registered
+// participants prepare their owned keys for one Store session to persist, then
+// read committed data for runtime application. Runtime holds the readers,
+// defaults, and ordered application steps used by that flow, while the HTTP
+// handler decides submitted-field presence and invokes participant preparation
+// through its settings Registry.
 //
 // ApplicationChanges creates the update-local readback callbacks for Commit
 // to execute after persistence, collecting application failures while attempting
@@ -91,28 +91,11 @@ func (s *Runtime) BeginSettingsUpdate(ctx context.Context) (*settings.UpdateSess
 	return s.store.Updates().Begin(ctx)
 }
 
-// PrepareSettingsWithAuthSourceDefaults normalizes the nonnil Snapshot, prepares
-// authentication-source grant values, and drops non-pointer omission keys from
-// the combined write map. Errors return before persistence but can follow partial
-// normalization of the supplied Snapshot.
-//
-// The caller supplies presence information from the raw request. Pointer fields
-// have already been merged with prior values, while the omitted-key set prevents
-// prepared zero values from becoming unintended writes. Authentication-source
-// preparation is delegated to grants and its nil-input rule; the HTTP registry
-// flow later supplies its merged identity participant fields separately.
-func (s *Runtime) PrepareSettingsWithAuthSourceDefaults(ctx context.Context, value *Snapshot, auth *identity.AuthSourceDefaultSettings, omitted settings.OmittedKeys) (map[string]string, error) {
-	values, err := Prepare(ctx, value, s.prepare)
-	if err != nil {
-		return nil, err
-	}
-	authValues, err := s.grants.PrepareAuthSourceDefaults(ctx, auth)
-	if err != nil {
-		return nil, err
-	}
-	maps.Copy(values, authValues)
-	omitted.DropFrom(values)
-	return values, nil
+// NormalizeSettingsSnapshot normalizes and validates the nonnil Snapshot in
+// place using the runtime's gateway rules and scheduler defaults. Errors return
+// before persistence after any earlier module normalizations on value.
+func (s *Runtime) NormalizeSettingsSnapshot(value *Snapshot) error {
+	return NormalizeSnapshot(value, s.prepare.Gateway, s.prepare.Scheduler)
 }
 
 // ApplicationChanges returns callbacks that share one committed readback value

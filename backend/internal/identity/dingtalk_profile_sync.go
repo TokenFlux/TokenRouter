@@ -2,17 +2,20 @@ package identity
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 )
 
 // dingtalk_profile_sync.go synchronizes selected DingTalk staff fields into
-// local profiles and attributes.
+// local profiles and attributes and ensures sync attribute definitions exist.
 // DingTalk profile synchronization writes selected staff values after an
-// eligible internal-organization login. The supplied switches choose email,
-// display name and department attributes, while the caller separately permits
-// username changes for account creation. An unavailable attribute service stops
-// the entire update, and later lookup or write errors allow other selected
-// attributes to continue after diagnostics.
+// eligible internal-organization login, while administrator settings
+// application reconciles enabled sync attribute definitions under internal_only
+// policy. The supplied switches choose email, display name and department
+// attributes, while the caller separately permits username changes for account
+// creation. An unavailable attribute service stops the entire update, and later
+// lookup or write errors allow other selected attributes to continue after
+// diagnostics.
 //
 // Direct staff snapshots can carry several department IDs, but pending upstream
 // claims retain one primary ID. Synchronization chooses the first non-root ID
@@ -294,4 +297,62 @@ func DingTalkProfileFromClaims(claims map[string]any) *DingTalkProfileSnapshot {
 		}
 	}
 	return staff
+}
+
+// EnsureDingTalkSyncAttributes creates or updates enabled DingTalk profile-sync
+// user attribute definitions when settings use the internal_only corporate
+// policy. A nil attribute service or non-internal_only policy returns without
+// querying storage, and individual lookup, update, or creation failures log a
+// warning while allowing remaining enabled attributes to proceed.
+func EnsureDingTalkSyncAttributes(ctx context.Context, attributes *UserAttributeService, settings AdminSettings) {
+	if attributes == nil || settings.DingTalkConnectCorpRestrictionPolicy != "internal_only" {
+		return
+	}
+	if settings.DingTalkConnectSyncDisplayName {
+		ensureDingTalkAttributeDefinition(ctx, attributes, settings.DingTalkConnectSyncDisplayNameAttrKey, settings.DingTalkConnectSyncDisplayNameAttrName, "钉钉 internal_only 登录时同步的钉钉姓名", AttributeTypeText)
+	}
+	if settings.DingTalkConnectSyncCorpEmail {
+		ensureDingTalkAttributeDefinition(ctx, attributes, settings.DingTalkConnectSyncCorpEmailAttrKey, settings.DingTalkConnectSyncCorpEmailAttrName, "钉钉 internal_only 登录时同步的企业邮箱", AttributeTypeEmail)
+	}
+	if settings.DingTalkConnectSyncDept {
+		ensureDingTalkAttributeDefinition(ctx, attributes, settings.DingTalkConnectSyncDeptAttrKey, settings.DingTalkConnectSyncDeptAttrName, "钉钉 internal_only 登录时同步的完整部门路径（如：公司/研发部）", AttributeTypeText)
+	}
+}
+
+// ensureDingTalkAttributeDefinition reconciles one trimmed attribute definition
+// key after settings persistence. Found definitions receive nonempty display
+// name updates while keeping stored type and validation rules; missing
+// definitions or lookup errors fall through to creation and log warnings on
+// failure without aborting settings application.
+func ensureDingTalkAttributeDefinition(ctx context.Context, attributes *UserAttributeService, key, name, description string, attrType UserAttributeType) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return
+	}
+	// Fall through to CreateDefinition when lookup fails or returns nil, and log
+	// write failures as warnings so post-commit settings application never fails.
+	existing, err := attributes.GetDefinitionByKey(ctx, key)
+	if err == nil && existing != nil {
+		if strings.TrimSpace(name) != "" && existing.Name != name {
+			if _, err := attributes.UpdateDefinition(ctx, existing.ID, UpdateAttributeDefinitionInput{
+				Name: &name,
+			}); err != nil {
+				slog.Warn("dingtalk: update user attribute definition name failed", "key", key, "err", err.Error())
+				return
+			}
+			slog.Info("dingtalk: updated user attribute definition name", "key", key, "name", name)
+		}
+		return
+	}
+	if _, err := attributes.CreateDefinition(ctx, CreateAttributeDefinitionInput{
+		Key:         key,
+		Name:        name,
+		Description: description,
+		Type:        attrType,
+		Enabled:     true,
+	}); err != nil {
+		slog.Warn("dingtalk: ensure user attribute definition failed", "key", key, "err", err.Error())
+		return
+	}
+	slog.Info("dingtalk: created user attribute definition", "key", key, "name", name, "type", attrType)
 }
