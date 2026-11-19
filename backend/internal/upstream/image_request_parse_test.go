@@ -1,6 +1,8 @@
 package upstream
 
 import (
+	"bytes"
+	"mime/multipart"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,5 +66,53 @@ func TestParseImageRequestNullableAnimationControls(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+// TestParseImageRequestRejectsDuplicateAndCaseVariantControls verifies that
+// JSON and multipart image requests reject duplicate or case-ambiguous scalar
+// controls while still accepting multi-file image edit uploads.
+func TestParseImageRequestRejectsDuplicateAndCaseVariantControls(t *testing.T) {
+	for _, body := range []string{
+		`{"model":"gpt-image-1-mini","prompt":"cat","model":"gpt-image-2"}`,
+		`{"model":"gpt-image-1-mini","Model":"gpt-image-2","prompt":"cat"}`,
+		`{"model":"gpt-image-2","Prompt":"cat"}`,
+	} {
+		_, err := ParseImageRequest(OpenAIImagesGenerationsEndpoint, "application/json", []byte(body))
+		require.Error(t, err, body)
+	}
+
+	buildEditMultipart := func(fields [][2]string, files [][2]string) ([]byte, string) {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		for _, field := range fields {
+			require.NoError(t, writer.WriteField(field[0], field[1]))
+		}
+		for _, file := range files {
+			part, err := writer.CreateFormFile(file[0], file[1])
+			require.NoError(t, err)
+			_, err = part.Write([]byte("PNGDATA"))
+			require.NoError(t, err)
+		}
+		require.NoError(t, writer.Close())
+		return buf.Bytes(), writer.FormDataContentType()
+	}
+
+	validBody, validType := buildEditMultipart(
+		[][2]string{{"model", "gpt-image-2"}, {"prompt", "combine"}},
+		[][2]string{{"image", "a.png"}, {"image", "b.png"}},
+	)
+	parsed, err := ParseImageRequest(OpenAIImagesEditsEndpoint, validType, validBody)
+	require.NoError(t, err)
+	require.Len(t, parsed.Uploads, 2)
+
+	for _, fields := range [][][2]string{
+		{{"model", "gpt-image-1-mini"}, {"model", "gpt-image-2"}, {"prompt", "edit"}},
+		{{"model", "gpt-image-1-mini"}, {"Model", "gpt-image-2"}, {"prompt", "edit"}},
+		{{"model", "gpt-image-2"}, {"prompt", "safe"}, {"prompt", "blocked"}},
+	} {
+		badBody, badType := buildEditMultipart(fields, [][2]string{{"image", "a.png"}})
+		_, err := ParseImageRequest(OpenAIImagesEditsEndpoint, badType, badBody)
+		require.Error(t, err)
 	}
 }

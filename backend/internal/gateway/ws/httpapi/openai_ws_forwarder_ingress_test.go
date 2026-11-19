@@ -4950,9 +4950,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 }
 
 // TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoveryRemovesDuplicatePrevID
-// sends duplicate continuation keys before a missing-response error. Recovery
-// dials once more and submits one request with no previous_response_id, while
-// the first connection captures the original anchored attempt.
+// sends duplicate continuation keys on a second WebSocket turn. Ingress
+// validation must close the session with policy violation 1008 before
+// forwarding the ambiguous frame or dialing a recovery connection.
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoveryRemovesDuplicatePrevID(t *testing.T) {
 	options := &wsFixtureOptions{}
 	options.Request.URLPolicy.Enabled = false
@@ -5070,32 +5070,30 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 	firstTurn := readMessage()
 	require.Equal(t, "resp_turn_prev_once_1", gjson.GetBytes(firstTurn, "response.id").String())
 
-	// Remove every duplicate previous_response_id during recovery so the stale ID cannot fail again.
+	// Reject duplicate previous_response_id keys at WebSocket ingress before forwarding or recovery.
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_turn_prev_once_1","input":[],"previous_response_id":"resp_turn_prev_duplicate"}`)
-	secondTurn := readMessage()
-	require.Equal(t, "resp_turn_prev_once_2", gjson.GetBytes(secondTurn, "response.id").String())
 
-	require.NoError(t, clientConn.Close(websocket.StatusNormalClosure, "done"))
 	select {
 	case serverErr := <-serverErrCh:
-		require.NoError(t, serverErr)
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
+		require.ErrorAs(t, serverErr, &closeErr)
+		require.Equal(t, websocket.StatusPolicyViolation, closeErr.StatusCode())
+		require.Equal(t, "invalid websocket request payload", closeErr.Reason())
 	case <-time.After(5 * time.Second):
 		t.Fatal("等待 ingress websocket 结束超时")
 	}
 
-	require.Equal(t, 2, dialer.DialCount(), "previous_response_not_found 恢复应只重试一次")
+	require.Equal(t, 1, dialer.DialCount(), "重复键帧在入口被拒绝，不应触发恢复重连")
 
 	firstConn.mu.Lock()
 	firstWrites := append([]map[string]any(nil), firstConn.writes...)
 	firstConn.mu.Unlock()
-	require.Len(t, firstWrites, 2)
-	require.True(t, gjson.Get(requestToJSONString(firstWrites[1]), "previous_response_id").Exists())
+	require.Len(t, firstWrites, 1)
 
 	secondConn.mu.Lock()
 	secondWrites := append([]map[string]any(nil), secondConn.writes...)
 	secondConn.mu.Unlock()
-	require.Len(t, secondWrites, 1)
-	require.False(t, gjson.Get(requestToJSONString(secondWrites[0]), "previous_response_id").Exists(), "重复键场景恢复重试后不应保留 previous_response_id")
+	require.Empty(t, secondWrites)
 }
 
 // TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageIDAsPreviousResponseID

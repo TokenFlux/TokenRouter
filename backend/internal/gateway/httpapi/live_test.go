@@ -293,6 +293,39 @@ func TestLiveAttestationErrorIsExplicit(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "TokenRouter runs on macOS")
 }
 
+// TestParseLiveCallRequestRejectsDuplicateAndCaseVariantFields submits
+// duplicate outer JSON keys, duplicate session.model keys, and duplicate
+// multipart session fields. Parsing must reject every ambiguous Live offer
+// before group model redirection or upstream call creation begins.
+func TestParseLiveCallRequestRejectsDuplicateAndCaseVariantFields(t *testing.T) {
+	for _, body := range []string{
+		`{"sdp":"v=0\r\n","session":{"model":"cheap","model":"expensive"}}`,
+		`{"sdp":"v=0\r\n","session":{"model":"cheap","Model":"expensive"}}`,
+		`{"sdp":"v=0\r\n","Session":{"model":"gpt-live-test"}}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/live", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = req
+		_, err := ParseLiveCallRequest(ctx)
+		require.Error(t, err, body)
+	}
+
+	var multipartBuf bytes.Buffer
+	writer := multipart.NewWriter(&multipartBuf)
+	require.NoError(t, writer.WriteField("sdp", "v=0\r\n"))
+	require.NoError(t, writer.WriteField("session", `{"model":"cheap"}`))
+	require.NoError(t, writer.WriteField("session", `{"model":"expensive"}`))
+	require.NoError(t, writer.Close())
+
+	mpReq := httptest.NewRequest(http.MethodPost, "/v1/live", &multipartBuf)
+	mpReq.Header.Set("Content-Type", writer.FormDataContentType())
+	mpCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	mpCtx.Request = mpReq
+	_, err := ParseLiveCallRequest(mpCtx)
+	require.Error(t, err)
+}
+
 // jsonPathString extracts a string by traversing JSON object keys in fixture
 // session bytes. Every intermediate value must be an object and the final
 // value a string; failed shape checks stop the test.

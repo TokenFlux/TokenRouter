@@ -12,6 +12,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
 )
@@ -83,11 +84,15 @@ func RegisterStage(ctx context.Context, model string) {
 }
 
 // RewriteAPIKeyAdditionalModels applies one-hop API Key mappings to model
-// names in Responses tools. Empty input, empty rules, or invalid JSON passes
-// through; a field mutation error returns the supplied body and that error.
+// names in Responses tools. Empty input, empty rules, or syntactically invalid
+// JSON passes through; duplicate keys, case-variant protocol fields, or a field
+// mutation error return the supplied body and that error.
 func RewriteAPIKeyAdditionalModels(body []byte, mapping map[string]string) ([]byte, error) {
 	if len(body) == 0 || len(mapping) == 0 || !gjson.ValidBytes(body) {
 		return body, nil
+	}
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		return body, err
 	}
 	rewritten := body
 	// Match each tool's declared model against the same API Key rules used for

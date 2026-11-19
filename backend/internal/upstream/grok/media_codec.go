@@ -16,6 +16,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
@@ -238,6 +239,86 @@ func (e GrokMediaEndpoint) HTTPMethod() string {
 // collected before parsing stops.
 func (m MediaCodec) ExtractGrokMediaModel(contentType string, body []byte) string {
 	return m.ParseGrokMediaRequest(contentType, body).Model
+}
+
+// ValidateGrokMediaRequest checks JSON or multipart Grok media payloads for
+// malformed framing, duplicate object or scalar control fields, and case-variant
+// protocol field names. Multipart requests require a nonblank boundary and
+// continue to allow multiple image upload parts.
+func ValidateGrokMediaRequest(contentType string, body []byte) error {
+	mediaType, params, err := mime.ParseMediaType(strings.TrimSpace(contentType))
+	if err == nil && strings.EqualFold(mediaType, "multipart/form-data") {
+		boundary := strings.TrimSpace(params["boundary"])
+		if boundary == "" {
+			return fmt.Errorf("multipart boundary is required")
+		}
+		return validateGrokMediaMultipart(body, boundary)
+	}
+	return wirejson.ValidateRequestObject(body)
+}
+
+// validateGrokMediaMultipart inspects multipart Grok media parts and rejects
+// malformed parts, duplicate mask uploads, and duplicate or case-variant scalar
+// control fields. Each part is drained and closed while repeated image and
+// reference_images uploads remain permitted.
+func validateGrokMediaMultipart(body []byte, boundary string) error {
+	reader := multipart.NewReader(bytes.NewReader(body), boundary)
+	seenScalars := make(map[string]struct{})
+	maskSeen := false
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("invalid multipart body: %w", err)
+		}
+		name := strings.TrimSpace(part.FormName())
+		fileName := strings.TrimSpace(part.FileName())
+		_, copyErr := io.Copy(io.Discard, part)
+		_ = part.Close()
+		if copyErr != nil {
+			return fmt.Errorf("invalid multipart part %q: %w", name, copyErr)
+		}
+		if name == "" {
+			continue
+		}
+		folded := strings.ToLower(name)
+		if fileName != "" {
+			switch {
+			case folded == "mask":
+				if name != "mask" {
+					return fmt.Errorf("ambiguous case variant %q for multipart field \"mask\"", name)
+				}
+				if maskSeen {
+					return fmt.Errorf("duplicate multipart field: mask")
+				}
+				maskSeen = true
+			case folded == "image" || strings.HasPrefix(folded, "image["):
+				if !strings.HasPrefix(name, "image") {
+					return fmt.Errorf("ambiguous case variant %q for multipart field \"image\"", name)
+				}
+			case folded == "reference_images" || strings.HasPrefix(folded, "reference_images["):
+				if !strings.HasPrefix(name, "reference_images") {
+					return fmt.Errorf("ambiguous case variant %q for multipart field \"reference_images\"", name)
+				}
+			}
+			continue
+		}
+		switch folded {
+		case "model", "prompt", "size", "aspect_ratio", "resolution",
+			"duration", "n", "response_format", "quality", "frame_count",
+			"frame_duration_ms", "moderation", "style", "output_format",
+			"background", "mask", "image":
+			if name != folded {
+				return fmt.Errorf("ambiguous case variant %q for multipart field %q", name, folded)
+			}
+			if _, exists := seenScalars[name]; exists {
+				return fmt.Errorf("duplicate multipart field: %s", name)
+			}
+			seenScalars[name] = struct{}{}
+		}
+	}
 }
 
 // ParseGrokMediaRequest collects JSON or multipart values and applies configured

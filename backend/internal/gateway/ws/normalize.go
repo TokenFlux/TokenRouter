@@ -3,13 +3,13 @@ package ws
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // normalize.go normalizes response.create frames while retaining client model
@@ -46,8 +46,8 @@ func (s *RequestNormalizer) Normalize(ctx context.Context, raw []byte, applyUser
 	if len(trimmed) == 0 {
 		return ClientPayload{}, p.CloseError(1008, "empty websocket request payload", nil)
 	}
-	if !gjson.ValidBytes(trimmed) {
-		return ClientPayload{}, p.CloseError(1008, "invalid websocket request payload", errors.New("invalid json"))
+	if err := wirejson.ValidateRequestObject(trimmed); err != nil {
+		return ClientPayload{}, p.CloseError(1008, "invalid websocket request payload", err)
 	}
 	if applyUserPromptReplacement {
 		// Later client frames need the same user prompt rules applied at entry for

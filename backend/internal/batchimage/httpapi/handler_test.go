@@ -152,3 +152,31 @@ func TestAppendBatchImageAPIKeyModelAliasesPreservesProvider(t *testing.T) {
 		{ID: "image-review", Object: "image.batch.model", Platform: "antigravity"},
 	}, models)
 }
+
+// TestBatchHTTPSubmitRejectsDuplicateAndCaseVariantFieldsBeforeAuth sends
+// batch submissions with duplicate model keys and uppercase Model variants.
+// Submit must return HTTP 400 before consulting API key authentication.
+func TestBatchHTTPSubmitRejectsDuplicateAndCaseVariantFieldsBeforeAuth(t *testing.T) {
+	usecases := &contractBatchUseCases{}
+	var authCalls atomic.Int64
+	access := AccessPorts{Key: func(*gin.Context) (*apikey.APIKey, bool) {
+		authCalls.Add(1)
+		return &apikey.APIKey{ID: 17, UserID: 21, BillingMode: apikey.APIKeyBillingModeBalance}, true
+	}, SessionID: func(*gin.Context) string { return "session-1" }}
+	h := NewBatchImageHandler(usecases, nil, nil, access)
+	router := gin.New()
+	router.POST("/batches", h.Submit)
+
+	for _, body := range []string{
+		`{"model":"cheap-image","items":[{"prompt":"hello"}],"model":"expensive-image"}`,
+		`{"model":"cheap-image","Model":"expensive-image","items":[{"prompt":"hello"}]}`,
+		`{"model":"cheap-image","items":[{"prompt":"hello","Model":"expensive-image"}]}`,
+	} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/batches", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadRequest, rec.Code, body)
+		require.Zero(t, authCalls.Load(), body)
+	}
+}

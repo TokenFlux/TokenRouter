@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 )
 
@@ -239,12 +241,13 @@ func (h *LiveHandler) Live(c *gin.Context) {
 
 // ParseLiveCallRequest reads multipart sdp/session fields or one JSON
 // creation object and validates the shared Live shape. Callers supply a
-// usable request and any body restriction. SDP must be nonblank, and session
-// must be a valid nonnull JSON object; an empty object is accepted.
+// usable request and any body restriction. SDP must be nonblank, session must
+// be a valid nonnull JSON object, and neither outer fields nor nested objects
+// may contain duplicate or case-ambiguous protocol keys.
 //
 // Multipart retains the supplied field strings, while JSON decoding retains
 // the session RawMessage until later rewriting. A second JSON value is
-// rejected by requiring EOF after the first object. Validation checks the
+// rejected by requiring one complete JSON object. Validation checks the
 // values without trimming stored SDP or assigning model defaults, so
 // unsupported model-specific settings remain available to the execution
 // stage.
@@ -253,26 +256,64 @@ func ParseLiveCallRequest(c *gin.Context) (*session.LiveCallRequest, error) {
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		sdp := c.PostForm("sdp")
 		sessionBody := json.RawMessage(c.PostForm("session"))
+		if err := validateLiveMultipartForm(c.Request.MultipartForm); err != nil {
+			return nil, err
+		}
 		request := &session.LiveCallRequest{SDP: sdp, Session: sessionBody}
 		if err := wire.ValidateLiveCallRequest(request); err != nil {
 			return nil, err
 		}
 		return request, nil
 	}
-	var request session.LiveCallRequest
-	decoder := json.NewDecoder(c.Request.Body)
-	if err := decoder.Decode(&request); err != nil {
+	if c.Request == nil || c.Request.Body == nil {
 		return nil, errors.New("request body must be valid JSON")
 	}
-	// Creation accepts one JSON value; reject another value or trailing malformed
-	// input before validation can treat only the first decoded object as the request.
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, errors.New("request body must contain one JSON object")
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, errors.New("request body must be valid JSON")
+	}
+	if err := wirejson.ValidateRequestObject(rawBody); err != nil {
+		if fieldErr, ok := errors.AsType[*wirejson.RequestFieldError](err); ok {
+			return nil, fieldErr
+		}
+		return nil, errors.New("request body must be a valid JSON object without duplicate fields")
+	}
+	var request session.LiveCallRequest
+	if err := json.Unmarshal(rawBody, &request); err != nil {
+		return nil, errors.New("request body must be valid JSON")
 	}
 	if err := wire.ValidateLiveCallRequest(&request); err != nil {
 		return nil, err
 	}
 	return &request, nil
+}
+
+// validateLiveMultipartForm rejects duplicate or case-variant sdp and session
+// multipart fields so Live creation cannot select one part while dropping another.
+// Nil forms return nil, and file uploads using either reserved field name are rejected.
+func validateLiveMultipartForm(form *multipart.Form) error {
+	if form == nil {
+		return nil
+	}
+	for key, values := range form.Value {
+		folded := strings.ToLower(strings.TrimSpace(key))
+		if folded != "sdp" && folded != "session" {
+			continue
+		}
+		if key != folded {
+			return errors.New("ambiguous multipart field name")
+		}
+		if len(values) > 1 {
+			return errors.New("duplicate multipart field")
+		}
+	}
+	for key, files := range form.File {
+		folded := strings.ToLower(strings.TrimSpace(key))
+		if (folded == "sdp" || folded == "session") && len(files) > 0 {
+			return errors.New("sdp and session must be text fields")
+		}
+	}
+	return nil
 }
 
 // LiveSidebandLocation builds an escaped call route matching the creation

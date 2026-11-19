@@ -23,6 +23,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -268,7 +269,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 			h.errorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", BodyTooLargeMessage(maxErr.Limit))
 			return
 		}
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		return
 	}
 
@@ -281,6 +282,12 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	ingressValidateStart := time.Now()
 	recordIngressValidate := func() {
 		timing.ObserveSubstage(c.Request.Context(), "ingress_validate_ms", time.Since(ingressValidateStart))
+	}
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		recordIngressValidate()
+		LogRequestBodyParseFailure(reqLog, body, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
+		return
 	}
 
 	// Apply prompt replacement before constructing parsed state so moderation and

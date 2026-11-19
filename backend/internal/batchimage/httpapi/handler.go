@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -17,6 +18,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 )
 
@@ -150,6 +152,16 @@ func (h *BatchImageHandler) Submit(c *gin.Context) {
 		defer done()
 	}
 
+	if c.Request == nil || c.Request.Body == nil {
+		BatchImageError(c, batchimage.ErrBatchImageInvalidItems)
+		return
+	}
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil || wirejson.ValidateRequestObject(rawBody) != nil {
+		BatchImageError(c, batchimage.ErrBatchImageInvalidItems)
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(rawBody))
 	var req batchimage.BatchImageSubmitRequest
 	if err := infraerrors.BindJSONStrict(c, &req); err != nil {
 		BatchImageError(c, batchimage.ErrBatchImageInvalidItems)

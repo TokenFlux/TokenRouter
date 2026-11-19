@@ -845,3 +845,20 @@ func buildLargeGeminiContentsBody(targetBytes int) []byte {
 	_, _ = builder.WriteString(`]}`)
 	return []byte(builder.String())
 }
+
+// TestParseGatewayRequest_RejectsDuplicateAndCaseVariantFields submits
+// duplicate model keys, Unicode-escaped duplicates, and uppercase protocol
+// field variants across Anthropic, Responses, and Gemini inputs. Parsing must
+// reject each payload while ReplaceBody keeps fast internal updates working.
+func TestParseGatewayRequest_RejectsDuplicateAndCaseVariantFields(t *testing.T) {
+	for _, body := range []string{
+		`{"model":"claude-3-5-haiku-20241022","messages":[{"role":"user","content":"hi"}],"model":"claude-opus-4-8"}`,
+		`{"model":"claude-haiku-4-5","mo\u0064el":"claude-opus-4-6","messages":[{"role":"user","content":"hi"}]}`,
+		`{"model":"claude-haiku-4-5","Model":"claude-opus-4-6","messages":[{"role":"user","content":"hi"}]}`,
+		`{"model":"gpt-5.4","Messages":[{"role":"user","content":"blocked"}]}`,
+		`[]`,
+	} {
+		_, err := ParseGatewayRequest(NewRequestBodyRef([]byte(body)), capability.PlatformAnthropic)
+		require.Error(t, err, body)
+	}
+}

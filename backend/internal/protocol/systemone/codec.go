@@ -10,6 +10,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // codec.go validates SystemOne decisions, extracts response usage, and builds
@@ -85,11 +86,16 @@ func ParseRequest(body []byte) (Request, error) {
 }
 
 // parseRequest validates the JSON decision envelope before checking its assets.
-// Instructions may be omitted or null; noul then needs a nonnull criterion.
-// Choice requires 1-255 alternatives and score requires 2-10 ordered levels.
-// Raw descriptions and unknown fields remain available in the caller's body.
+// Duplicate object keys and case-variant protocol fields are rejected before
+// struct decoding. Instructions may be omitted or null; noul then needs a
+// nonnull criterion. Choice requires 1-255 alternatives and score requires
+// 2-10 ordered levels. Raw descriptions and unknown fields remain available in
+// the caller's body.
 func parseRequest(body []byte) (Request, error) {
 	var request Request
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		return request, errors.New("invalid SystemOne JSON request")
+	}
 	if err := json.Unmarshal(body, &request); err != nil {
 		return request, errors.New("invalid SystemOne JSON request")
 	}

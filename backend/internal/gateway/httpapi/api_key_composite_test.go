@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,4 +51,49 @@ func TestSystemOneModelExtractionDefersQuestionValidation(t *testing.T) {
 	request = httptest.NewRequest(http.MethodPost, EndpointSystemOne, strings.NewReader(`{"state":"test"}`))
 	_, err = CompositeModelFromRequest(request)
 	require.ErrorIs(t, err, apikey.ErrCompositeKeyPrefixRequired)
+}
+
+// TestCompositeModelFromRequestRejectsAmbiguousJSONAndMultipartWithBadRequest
+// sends duplicate JSON model keys and duplicate or uppercase multipart model
+// parts. Composite model extraction must return bad-request errors that
+// AbortCompositeKeyError maps to HTTP 400 instead of 500.
+func TestCompositeModelFromRequestRejectsAmbiguousJSONAndMultipartWithBadRequest(t *testing.T) {
+	for _, raw := range []string{
+		`{"model":"GroupA/cheap","model":"GroupB/expensive"}`,
+		`{"model":"GroupA/cheap","Model":"GroupB/expensive"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(raw))
+		req.Header.Set("Content-Type", "application/json")
+		_, err := CompositeModelFromRequest(req)
+		require.Error(t, err, raw)
+
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = req
+		AbortCompositeKeyError(c, err)
+		require.Equal(t, http.StatusBadRequest, rec.Code, raw)
+	}
+
+	for _, fields := range [][][2]string{
+		{{"model", "GroupA/cheap"}, {"model", "GroupB/expensive"}},
+		{{"Model", "GroupA/cheap"}},
+	} {
+		var buf bytes.Buffer
+		writer := multipart.NewWriter(&buf)
+		for _, field := range fields {
+			require.NoError(t, writer.WriteField(field[0], field[1]))
+		}
+		require.NoError(t, writer.Close())
+
+		req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", &buf)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		_, err := CompositeModelFromRequest(req)
+		require.Error(t, err)
+
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = req
+		AbortCompositeKeyError(c, err)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
 }

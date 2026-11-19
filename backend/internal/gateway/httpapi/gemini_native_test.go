@@ -252,3 +252,24 @@ func TestGeminiNativePrefaceCarriesSignatureAndDigestState(t *testing.T) {
 		}
 	}
 }
+
+// TestGeminiNativeRejectsDuplicateAndCaseVariantJSONBeforeModeration submits
+// duplicate contents and lowercase systeminstruction variants to native Gemini
+// generation. Validation must return HTTP 400 before prompt replacement,
+// moderation, or route planning runs.
+func TestGeminiNativeRejectsDuplicateAndCaseVariantJSONBeforeModeration(t *testing.T) {
+	for _, body := range []string{
+		`{"contents":[{"role":"user","parts":[{"text":"safe"}]}],"contents":[{"role":"user","parts":[{"text":"unsafe"}]}]}`,
+		`{"systeminstruction":{"parts":[{"text":"override"}]},"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`,
+	} {
+		base := &prefaceBackend{key: prefaceKey()}
+		p := &geminiPrefaceBackend{base: base}
+		h := NewGeminiNativeHandler(GeminiNativeOptions{}, p, base, nil, nil, p)
+		c, w := prefaceContext(body)
+		c.Params = gin.Params{{Key: "modelAction", Value: "/gemini-2.5-pro:generateContent"}}
+		h.GeminiV1BetaModels(c)
+		require.Equal(t, 400, w.Code, body)
+		require.NotContains(t, base.events, "moderate:gemini")
+		require.NotContains(t, base.events, "plan")
+	}
+}

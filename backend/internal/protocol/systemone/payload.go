@@ -11,6 +11,8 @@ import (
 	"mime/multipart"
 	"net/textproto"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // payload.go reads SystemOne image requests and rewrites their routing model
@@ -80,11 +82,15 @@ func ParsePayload(body []byte, contentType string) (Request, error) {
 // RequestModel reads routing identity without validating decision questions or images.
 // Admission uses it before the protocol handler performs full validation. Missing
 // model returns an empty string so the caller can retain its endpoint-specific
-// missing-model error; malformed envelopes and multipart framing return errors.
+// missing-model error; malformed, duplicate-key, or non-object envelopes and
+// multipart framing return errors.
 func RequestModel(body []byte, contentType string) (string, error) {
 	envelope, _, _, err := splitPayload(body, contentType)
 	if err != nil {
 		return "", err
+	}
+	if err := wirejson.ValidateRequestObject(envelope); err != nil {
+		return "", errors.New("invalid SystemOne JSON request")
 	}
 	var request struct {
 		Model string `json:"model"` // routing model identifier

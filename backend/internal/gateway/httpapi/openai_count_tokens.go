@@ -13,6 +13,7 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -73,7 +74,7 @@ func (h *OpenAITokensHandler) GrokCountTokens(c *gin.Context) {
 			h.anthropicErrorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", BodyTooLargeMessage(maxErr.Limit))
 			return
 		}
-		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		return
 	}
 	if len(body) == 0 {
@@ -85,7 +86,7 @@ func (h *OpenAITokensHandler) GrokCountTokens(c *gin.Context) {
 	parsedReq, err := requeststate.ParseGatewayRequest(bodyRef, capability.PlatformAnthropic)
 	if err != nil {
 		LogRequestBodyParseFailure(RequestLogger(c, "handler.openai_gateway.grok_count_tokens"), body, err)
-		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
 		return
 	}
 	if parsedReq.Model == "" {
@@ -161,7 +162,7 @@ func (h *OpenAITokensHandler) CountTokens(c *gin.Context) {
 			h.anthropicErrorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", BodyTooLargeMessage(maxErr.Limit))
 			return
 		}
-		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		return
 	}
 	if len(body) == 0 {
@@ -170,6 +171,11 @@ func (h *OpenAITokensHandler) CountTokens(c *gin.Context) {
 	}
 
 	h.backend.ObserveRequest(c, "", false)
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		LogRequestBodyParseFailure(reqLog, body, err)
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
+		return
+	}
 
 	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "anthropic_messages")
 	bodyRef := requeststate.NewRequestBodyRef(body)

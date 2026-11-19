@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
@@ -172,8 +174,21 @@ func (h *SearchHandler) WebSearch(c *gin.Context) {
 	defer done()
 
 	isX := c.GetBool("grok_x_search_endpoint")
+	if c.Request == nil || c.Request.Body == nil {
+		searchError(c, 400, "invalid_request_error", "invalid request")
+		return
+	}
+	rawBody, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		searchError(c, 400, "invalid_request_error", err.Error())
+		return
+	}
 	var decoded grokStandaloneSearchRequest
-	if err := c.ShouldBindJSON(&decoded); err != nil {
+	if err := json.Unmarshal(rawBody, &decoded); err != nil {
+		searchError(c, 400, "invalid_request_error", err.Error())
+		return
+	}
+	if err := wirejson.ValidateRequestObject(rawBody); err != nil {
 		searchError(c, 400, "invalid_request_error", err.Error())
 		return
 	}

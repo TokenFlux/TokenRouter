@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -189,9 +190,9 @@ func (h *AuxiliaryHandler) Embeddings(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !gjson.ValidBytes(body) {
+	if err := wirejson.ValidateRequestObject(body); err != nil {
 		h.ports.ParseFailure(log, body)
-		h.ports.Error(c, 400, "invalid_request_error", "Failed to parse request body")
+		h.ports.Error(c, 400, "invalid_request_error", RequestBodyParseErrorMessage(err))
 		return
 	}
 	model, ok := media.RequiredModel(body, false)
@@ -263,9 +264,9 @@ func (h *AuxiliaryHandler) AlphaSearch(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !gjson.ValidBytes(body) {
+	if err := wirejson.ValidateRequestObject(body); err != nil {
 		h.ports.ParseFailure(log, body)
-		h.ports.Error(c, 400, "invalid_request_error", "Failed to parse request body")
+		h.ports.Error(c, 400, "invalid_request_error", RequestBodyParseErrorMessage(err))
 		return
 	}
 	model, ok := media.RequiredModel(body, true)
@@ -331,6 +332,14 @@ func (h *AuxiliaryHandler) GrokVoice(c *gin.Context, endpoint string) {
 		h.ports.Error(c, 400, "invalid_request_error", err.Error())
 		return
 	}
+	contentType := c.GetHeader("Content-Type")
+	trimmedType := strings.ToLower(strings.TrimSpace(contentType))
+	if len(body) > 0 && (endpoint == "tts" || trimmedType == "" || strings.HasPrefix(trimmedType, "application/json")) {
+		if err := wirejson.ValidateRequestObject(body); err != nil {
+			h.ports.Error(c, 400, "invalid_request_error", RequestBodyParseErrorMessage(err))
+			return
+		}
+	}
 	if endpoint == "tts" {
 		subject, _ := h.ports.Subject(c)
 		log := h.ports.Logger(c, "handler.openai_gateway.grok_voice", zap.String("endpoint", endpoint))
@@ -348,7 +357,6 @@ func (h *AuxiliaryHandler) GrokVoice(c *gin.Context, endpoint string) {
 			return
 		}
 	}
-	contentType := c.GetHeader("Content-Type")
 	if strings.TrimSpace(contentType) == "" {
 		contentType = "application/json"
 	}

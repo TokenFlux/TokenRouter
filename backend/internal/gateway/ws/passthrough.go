@@ -16,6 +16,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
@@ -329,6 +330,9 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 		filter: func(msgType int, payload []byte) (out []byte, blocked *PolicyBlocked, filterErr error) {
 			if msgType != TextFrame && msgType != 2 {
 				return payload, nil, nil
+			}
+			if err := wirejson.ValidateRequestObject(payload); err != nil {
+				return payload, nil, p.CloseError(1008, "invalid websocket request payload", err)
 			}
 			// Apply user replacements before later-frame policy checks, so moderation
 			// and provider normalization inspect the content selected for forwarding.

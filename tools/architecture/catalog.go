@@ -150,7 +150,7 @@ internal/settings`, Tests: ""},
 internal/server/httpx`, Tests: "internal/identity internal/infra/postgres/..."},
 		"internal/batchimage": {Production: `internal/provider/modelrules internal/modelcatalog ent/... internal/provider internal/provider/provider internal/apikey internal/batchimage/...
 internal/billing internal/gateway/httpapi internal/infra/postgres/... internal/infra/redis/... internal/infra/telemetry/...
-internal/pkg/ internal/protocol internal/routing internal/routing/capability
+internal/pkg/ internal/protocol internal/protocol/wirejson internal/routing internal/routing/capability
 internal/routing/modelmap internal/server/httpx internal/upstream internal/upstream/gemini
 internal/upstream/vertex internal/usage`, Tests: `internal/modelcatalog/testkit internal/billing/pricing internal/billing/provider internal/billing/testkit internal/config internal/gateway/completion
 internal/gateway/modeltrace internal/gateway/provider/modelidentity internal/testutil/assertion
@@ -328,7 +328,7 @@ internal/gateway/requeststate internal/routing internal/upstream`, Tests: ""},
 		"internal/protocol/anthropic":       {Production: "internal/protocol internal/protocol/anthropic internal/protocol/wirejson", Tests: "internal/testutil/assertion"},
 		"internal/protocol/bridge": {Production: `internal/protocol internal/protocol/anthropic internal/protocol/bridge internal/protocol/gemini
 internal/protocol/openai internal/protocol/wirejson`, Tests: ""},
-		"internal/protocol/systemone": {Production: "internal/protocol internal/protocol/systemone", Tests: ""},
+		"internal/protocol/systemone": {Production: "internal/protocol internal/protocol/systemone internal/protocol/wirejson", Tests: ""},
 		"internal/protocol/gemini":    {Production: "internal/protocol/gemini", Tests: ""},
 		"internal/protocol/google":    {Production: "internal/protocol/google", Tests: ""},
 		"internal/protocol/grok":      {Production: "internal/protocol/grok", Tests: ""},

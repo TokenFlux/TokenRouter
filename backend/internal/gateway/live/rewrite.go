@@ -11,6 +11,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
 )
 
@@ -38,9 +39,10 @@ type ModelResolver interface {
 }
 
 // RewriteClientPayload returns the routed client frame, original client label,
-// and internal names used for restoration. Nil record or resolver and invalid
-// JSON pass through; a missing session.model returns any completed
-// additional-tool rewrite with empty model evidence.
+// and internal names used for restoration. Nil record or resolver passes
+// through; malformed, non-object, duplicate-key, or case-ambiguous JSON returns
+// an error, while a missing session.model returns any completed additional-tool
+// rewrite with empty model evidence.
 //
 // The saved Key mapping applies one hop before current group/provider
 // resolution. A repeated requested name can reuse the stored creation model
@@ -54,8 +56,11 @@ func RewriteClientPayload(
 	resolve ModelResolver,
 	payload []byte,
 ) ([]byte, string, []string, error) {
-	if record == nil || resolve == nil || !gjson.ValidBytes(payload) {
+	if record == nil || resolve == nil {
 		return payload, "", nil, nil
+	}
+	if err := wirejson.ValidateRequestObject(payload); err != nil {
+		return payload, "", nil, err
 	}
 	rewritten := payload
 	// Redirect nested tool model declarations with the same creation-time Key

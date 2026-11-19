@@ -15,6 +15,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // media_handler.go prepares image and Grok video requests, including admission
@@ -247,7 +248,7 @@ func (h *MediaHandler) readBody(c *gin.Context) ([]byte, bool) {
 		if exceeded, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			h.ports.Error(c, 413, "invalid_request_error", BodyTooLargeMessage(exceeded.Limit))
 		} else {
-			h.ports.Error(c, 400, "invalid_request_error", "Failed to read request body")
+			h.ports.Error(c, 400, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		}
 		return nil, false
 	}
@@ -421,13 +422,17 @@ func (h *MediaHandler) GrokMedia(c *gin.Context, endpoint, requestID string) {
 	lookup := endpoint == "video_status" || endpoint == "video_content"
 	generation := media.IsVideoCreate(endpoint) || endpoint == "images_generations" || endpoint == "images_edits"
 	var body []byte
+	contentType := c.GetHeader("Content-Type")
 	if !lookup {
 		body, ok = h.readBody(c)
 		if !ok {
 			return
 		}
+		if err := grok.ValidateGrokMediaRequest(contentType, body); err != nil {
+			h.ports.Error(c, 400, "invalid_request_error", RequestBodyParseErrorMessage(err))
+			return
+		}
 	}
-	contentType := c.GetHeader("Content-Type")
 	parsed := h.ports.ParseGrok(contentType, body)
 	if media.IsVideoCreate(endpoint) {
 		if err := pricing.ValidateVideoBillingResolution(parsed.VideoResolution); err != nil {

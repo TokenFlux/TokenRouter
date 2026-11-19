@@ -13,6 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
@@ -551,12 +552,23 @@ func normalizeSessionUserAgentFallback(raw string) string {
 }
 
 // ParseGatewayRequest returns parsed scalar fields and raw ranges around the
-// supplied shared body reference. The selected protocol controls Gemini,
-// Messages, or Responses field paths; Anthropic also normalizes trailing
-// context selectors in that reference. Errors return no parsed object, while a
+// supplied shared body reference after rejecting non-object, duplicate-key, or
+// case-ambiguous JSON inputs. The selected protocol controls Gemini, Messages,
+// or Responses field paths; Anthropic also normalizes trailing context
+// selectors in that reference. Errors return no parsed object, while a
 // successful caller retains responsibility for stable body storage and later
 // replacement through ParsedRequest.
 func ParseGatewayRequest(body *RequestBodyRef, protocol string) (*ParsedRequest, error) {
+	if body == nil {
+		return nil, fmt.Errorf("empty request body")
+	}
+	raw := body.Bytes()
+	if !gjson.ValidBytes(raw) {
+		return nil, DescribeInvalidJSON(raw)
+	}
+	if err := wirejson.ValidateRequestObject(raw); err != nil {
+		return nil, err
+	}
 	parsed := &ParsedRequest{Body: body}
 	if err := parseGatewayRequestCurrentBody(parsed, protocol); err != nil {
 		return nil, err

@@ -105,7 +105,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 			return
 		}
 		h.backend.ReadFailure(reqLog, c.Request, err)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		return
 	}
 
@@ -120,6 +120,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	recordIngressValidate := func() {
 		timing.ObserveSubstage(c.Request.Context(), "ingress_validate_ms", time.Since(ingressValidateStart)-bootstrapElapsed)
 	}
+	rawClientBody := body
 	body, ok = h.normalizeOpenAIResponsesCompactRequest(c, reqLog, body)
 	if !ok {
 		recordIngressValidate()
@@ -132,11 +133,18 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	stopCompactKeepalive := h.backend.StartCompact(c, h.options.CompactKeepaliveInterval)
 	defer stopCompactKeepalive()
 
-	// Validate request JSON.
-	if !gjson.ValidBytes(body) {
+	// Validate the original client JSON before accepting any compact-rewritten
+	// copy so compact normalization cannot collapse duplicate or ambiguous keys.
+	if err := wirejson.ValidateRequestObject(rawClientBody); err != nil {
 		recordIngressValidate()
-		LogRequestBodyParseFailure(reqLog, body, nil)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
+		LogRequestBodyParseFailure(reqLog, rawClientBody, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
+		return
+	}
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		recordIngressValidate()
+		LogRequestBodyParseFailure(reqLog, body, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
 		return
 	}
 	// Retain prompt-replaced bytes for identity before effort and bootstrap

@@ -459,3 +459,20 @@ func TestEntryImageSelectionSharesTurnAttributes(t *testing.T) {
 	require.NotSame(t, routing.ModelAttributesFromContext(root), entry.selected)
 	require.Zero(t, base.active)
 }
+
+// TestRunEntryRejectsDuplicateAndCaseVariantFirstFrame submits duplicate model
+// keys and uppercase Model variants as initial WebSocket payloads. RunEntry
+// must close with status 1008 before acquiring slots or selecting a provider.
+func TestRunEntryRejectsDuplicateAndCaseVariantFirstFrame(t *testing.T) {
+	for _, firstFrame := range []string{
+		`{"model":"gpt-5-mini","type":"response.create","model":"gpt-5.4"}`,
+		`{"model":"gpt-5-mini","Model":"gpt-5.4","type":"response.create"}`,
+	} {
+		p := &keyLimitEntry{t: t}
+		p.target = &keyLimitTarget{root: p}
+		RunEntry(context.Background(), p, EntryInput{Key: &EntryKey{ID: 1}}, nil, []byte(firstFrame))
+		require.Equal(t, 1008, p.closed, firstFrame)
+		require.Zero(t, p.acquired, firstFrame)
+		require.Zero(t, p.attempts, firstFrame)
+	}
+}

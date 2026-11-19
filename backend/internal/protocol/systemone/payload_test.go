@@ -126,6 +126,28 @@ func TestImagePayloadBounds(t *testing.T) {
 	require.ErrorContains(t, err, "1024")
 }
 
+// TestRequestModelAndParsePayloadRejectAmbiguousEnvelopes submits duplicate
+// model keys and uppercase Model variants in JSON and multipart SystemOne
+// envelopes. Both admission model extraction and full payload validation must
+// reject the ambiguous envelopes before routing or forwarding.
+func TestRequestModelAndParsePayloadRejectAmbiguousEnvelopes(t *testing.T) {
+	for _, envelope := range []string{
+		`{"model":"jev-lite","state":"ok","questions":{"q":{"type":"noul","instructions":"check"}},"model":"jev-pro"}`,
+		`{"model":"jev-lite","Model":"jev-pro","state":"ok","questions":{"q":{"type":"noul","instructions":"check"}}}`,
+	} {
+		_, err := RequestModel([]byte(envelope), "application/json")
+		require.Error(t, err, envelope)
+		_, err = ParseRequest([]byte(envelope))
+		require.Error(t, err, envelope)
+
+		mpBody, mpType := imageMultipart(t, envelope, nil)
+		_, err = RequestModel(mpBody, mpType)
+		require.Error(t, err, envelope)
+		_, err = ParsePayload(mpBody, mpType)
+		require.Error(t, err, envelope)
+	}
+}
+
 // imageMultipart encodes a JSON envelope followed by opaque image test parts.
 // Parts retain their supplied order and names, including intentionally invalid
 // duplicates. The caller receives matching bytes and content type for parsing.

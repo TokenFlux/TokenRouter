@@ -5,10 +5,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // Raw control bytes expand when represented as JSON escapes, so a body that
@@ -159,4 +162,36 @@ func TestNormalizeLenientJSONRequestBodyEnforcesLimit(t *testing.T) {
 		require.True(t, errors.As(err, &maxErr))
 		require.Equal(t, limit, maxErr.Limit)
 	})
+}
+
+// TestSharedBodyReadersRejectAmbiguousJSONAndFormatBoundedMessage verifies that
+// both gateway body readers surface RequestFieldError with bounded member names
+// while letting non-JSON multipart payloads pass through to media parsers.
+func TestSharedBodyReadersRejectAmbiguousJSONAndFormatBoundedMessage(t *testing.T) {
+	for _, body := range []string{
+		`{"model":"cheap","messages":[],"model":"expensive"}`,
+		`{"model":"cheap","messages":[],"Model":"expensive"}`,
+		"{\"model\":\"cheap\",\"input\":\"a\x00b\",\"model\":\"expensive\"}",
+		"\xef\xbb\xbf" + `{"model":"cheap","model":"expensive"}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader([]byte(body)))
+		got, err := ReadLenientJSONRequestBodyWithPrealloc(req, 1024)
+		var fieldErr *wirejson.RequestFieldError
+		require.ErrorAs(t, err, &fieldErr)
+		require.Nil(t, got)
+		require.Contains(t, RequestBodyReadErrorMessage(err), "duplicate JSON key")
+	}
+
+	multipartPayload := []byte("--b\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nhi\r\n--b--\r\n")
+	mpReq := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(multipartPayload))
+	mpReq.Header.Set("Content-Type", "multipart/form-data; boundary=b")
+	gotMP, err := ReadRequestBodyWithPrealloc(mpReq)
+	require.NoError(t, err)
+	require.Equal(t, multipartPayload, gotMP)
+
+	require.Equal(t, "Failed to read request body", RequestBodyReadErrorMessage(errors.New("eof")))
+	require.Equal(t, "Failed to parse request body", RequestBodyParseErrorMessage(errors.New("bad json")))
+	longMsg := RequestBodyReadErrorMessage(&wirejson.RequestFieldError{Key: strings.Repeat("m", 200)})
+	require.Contains(t, longMsg, strings.Repeat("m", 64)+`"`)
+	require.NotContains(t, longMsg, strings.Repeat("m", 65))
 }

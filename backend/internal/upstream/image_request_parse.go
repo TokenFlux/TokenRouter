@@ -17,6 +17,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // image_request_parse.go parses image generation and editing requests into
@@ -52,9 +53,9 @@ type ImageRequest struct {
 	ContentType string // trimmed input content type
 	Multipart   bool   // multipart input encoding indicator
 	// Model carries the selected or defaulted name, while ExplicitModel records
-	// whether the parser-selected input was nonblank. Later multipart model
-	// fields replace earlier values. Gateway capability checks consume that
-	// supplied-value distinction.
+	// whether the parser-selected input was nonblank. Duplicate scalar model
+	// declarations are rejected before defaults apply. Gateway capability checks
+	// consume that supplied-value distinction.
 	Model         string // parsed or supplied model
 	ExplicitModel bool   // nonblank model selection observed
 	Prompt        string // trimmed supplied image prompt
@@ -100,9 +101,9 @@ type ImageRequest struct {
 	// Uploads retains multipart image parts and their separately read byte payloads.
 	// Gateway request conversion shares the slice and each upload's Data storage.
 	Uploads []ImageUpload // retained multipart image uploads
-	// MaskUpload retains the last nonempty multipart mask file. Gateway request
-	// conversion shares this pointer and its Data bytes, so copy before
-	// independent mutation.
+	// MaskUpload retains a single nonempty multipart mask file; duplicate mask
+	// parts are rejected. Gateway request conversion shares this pointer and its
+	// Data bytes, so copy before independent mutation.
 	MaskUpload *ImageUpload // retained multipart mask upload
 	// Body borrows the original input slice supplied to ParseImageRequest.
 	// Keep its bytes stable while forwarding or retained request consumers use it.
@@ -211,19 +212,22 @@ func (r *ImageRequest) StickySessionSeed() string {
 }
 
 // ParseOpenAIImagesJSONRequest fills a nonnil request from JSON paths after
-// the caller has selected its endpoint. It records supplied model and size
-// presence before defaults, appends edit image references, and can leave
-// partial updates when validation fails.
+// the caller has selected its endpoint. Duplicate object keys and case-variant
+// protocol fields are rejected before field extraction. It records supplied
+// model and size presence before defaults, appends edit image references, and
+// can leave partial updates when validation fails.
 //
 // Stream requires a JSON boolean, while n, compression, and preview controls
 // require numbers and then use gjson integer conversion, including fractional
 // truncation. Animation controls accept integers or null; null leaves the
 // setting unspecified for later GIF defaults. Editing requires an image_url
 // reference; file_id-only images and any mask.file_id are rejected. This helper
-// performs path extraction, leaving whole-document validation and defaults to
-// ParseImageRequest.
+// performs object and path validation, leaving defaults to ParseImageRequest.
 func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
 	if err := ValidateGIFJSONControls(body); err != nil {
+		return err
+	}
+	if err := wirejson.ValidateRequestObject(body); err != nil {
 		return err
 	}
 	// Model and size presence is recorded before defaults so gateway capability
@@ -338,8 +342,8 @@ func ParseOpenAIImagesJSONRequest(body []byte, req *ImageRequest) error {
 
 // ParseOpenAIImagesMultipartRequest fills a nonnil request from named
 // multipart parts using the supplied boundary. It leaves partial updates on
-// error, appends image uploads, and lets the last recognized scalar field or
-// nonempty mask upload replace its earlier value.
+// error, appends image uploads, and rejects duplicate or case-ambiguous scalar
+// control fields and duplicate mask uploads.
 //
 // Each named part retains at most twenty MiB; oversized files and scalar
 // fields can therefore be truncated without an oversize error. Unknown fields
@@ -360,6 +364,8 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 	reader := multipart.NewReader(bytes.NewReader(body), boundary)
 	gifSeen := false
 	controls := map[string]int{}
+	seenScalars := map[string]struct{}{}
+	maskPartSeen := false
 	for {
 		part, err := reader.NextPart()
 		if err == io.EOF {
@@ -390,6 +396,9 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 		// decoded bytes with filename and content type metadata. Text parts use
 		// scalar parsing after the file-part path has been handled.
 		if fileName != "" {
+			if err := validateOpenAIImageMultipartFileName(name, &maskPartSeen); err != nil {
+				return err
+			}
 			partContentType := strings.TrimSpace(part.Header.Get("Content-Type"))
 			if name == "mask" && len(data) > 0 {
 				req.HasMask = true
@@ -423,6 +432,9 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 			controls[name]++
 		}
 		gifSeen = gifSeen || name == "output_format" && strings.EqualFold(value, "gif") || name == "frame_count" || name == "frame_duration_ms"
+		if err := validateOpenAIImageMultipartScalarName(name, gifSeen, seenScalars); err != nil {
+			return err
+		}
 		switch name {
 		case "model":
 			req.Model = value
@@ -507,6 +519,54 @@ func ParseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ima
 	}
 	if len(req.Uploads) == 0 && req.IsEdits() {
 		return fmt.Errorf("image file is required")
+	}
+	return nil
+}
+
+// validateOpenAIImageMultipartFileName checks multipart upload field casing and
+// rejects duplicate mask file parts while permitting multiple image uploads.
+// Seeing a canonical mask part sets *maskPartSeen so any second mask upload in
+// the same request fails before overwriting the first mask.
+func validateOpenAIImageMultipartFileName(name string, maskPartSeen *bool) error {
+	folded := strings.ToLower(name)
+	switch {
+	case folded == "mask":
+		if name != "mask" {
+			return fmt.Errorf("ambiguous case variant %q for multipart field \"mask\"", name)
+		}
+		if *maskPartSeen {
+			return fmt.Errorf("duplicate multipart field: mask")
+		}
+		*maskPartSeen = true
+	case folded == "image" || strings.HasPrefix(folded, "image["):
+		if !strings.HasPrefix(name, "image") {
+			return fmt.Errorf("ambiguous case variant %q for multipart field \"image\"", name)
+		}
+	}
+	return nil
+}
+
+// validateOpenAIImageMultipartScalarName rejects duplicate or case-variant
+// scalar control parts in multipart image requests. Recognized fields are
+// recorded in seen, and animated GIF requests retain their dedicated duplicate
+// GIF control error message.
+func validateOpenAIImageMultipartScalarName(name string, gifSeen bool, seen map[string]struct{}) error {
+	folded := strings.ToLower(name)
+	switch folded {
+	case "model", "prompt", "size", "response_format", "stream", "n",
+		"quality", "background", "output_format", "moderation",
+		"input_fidelity", "style", "output_compression",
+		"frame_count", "frame_duration_ms", "partial_images", "mask", "image":
+		if name != folded {
+			return fmt.Errorf("ambiguous case variant %q for multipart field %q", name, folded)
+		}
+		if _, exists := seen[name]; exists {
+			if gifSeen && imageGIFControl(name) {
+				return fmt.Errorf("duplicate GIF control: %s", name)
+			}
+			return fmt.Errorf("duplicate multipart field: %s", name)
+		}
+		seen[name] = struct{}{}
 	}
 	return nil
 }
@@ -682,7 +742,8 @@ func ValidateGIFJSONControls(body []byte) error {
 
 // validateGIFJSONObject checks one image request object and hosted image tools.
 // It reports whether any checked occurrence requests animation, including an
-// overwritten tools member. Non-animation requests retain their existing duplicate-key behavior.
+// overwritten tools member. Non-animation requests leave duplicate-key
+// rejection to whole-object validation.
 func validateGIFJSONObject(value gjson.Result) (bool, error) {
 	animated := false
 	counts := map[string]int{}

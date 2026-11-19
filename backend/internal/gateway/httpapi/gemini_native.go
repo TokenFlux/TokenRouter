@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -24,6 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -246,7 +248,7 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 			WriteGoogleError(c, http.StatusRequestEntityTooLarge, BodyTooLargeMessage(maxErr.Limit))
 			return
 		}
-		WriteGoogleError(c, http.StatusBadRequest, "Failed to read request body")
+		WriteGoogleError(c, http.StatusBadRequest, RequestBodyReadErrorMessage(err))
 		return
 	}
 	if len(body) == 0 {
@@ -261,12 +263,29 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 	h.backend.ObserveRequest(c, modelName, stream)
 	h.backend.ObserveEndpoint(c, stream)
+	// Reject syntactically valid JSON bodies that contain duplicate keys or
+	// non-canonical protocol field casing before prompt replacement or moderation;
+	// non-JSON bytes still pass through moderation first and are rejected below.
+	if len(body) > 0 && gjson.ValidBytes(body) {
+		if err := wirejson.ValidateRequestObject(body); err != nil {
+			LogRequestBodyParseFailure(reqLog, body, err)
+			WriteGoogleError(c, http.StatusBadRequest, RequestBodyParseErrorMessage(err))
+			return
+		}
+	}
 	// Apply prompt replacement before moderation, session hashing, and forwarding so they use the same body.
 	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "gemini")
 
 	if decision := h.backend.Moderate(c, reqLog, apiKey, authSubject, modelName, body); decision != nil && decision.Blocked {
 		WriteGoogleError(c, ModerationHTTPStatus(decision), decision.Message)
 		return
+	}
+	if len(body) > 0 {
+		if err := wirejson.ValidateRequestObject(body); err != nil {
+			LogRequestBodyParseFailure(reqLog, body, err)
+			WriteGoogleError(c, http.StatusBadRequest, RequestBodyParseErrorMessage(err))
+			return
+		}
 	}
 
 	// Retain the URL model beside the group mapping, so execution can use the

@@ -140,8 +140,9 @@ func WriteGrokMediaContentResponse(c *gin.Context, resp *http.Response, committe
 
 // ReadGrokVoiceBody reads the request body and returns its bytes or read
 // error. A missing body is accepted for GET and DELETE; other methods require
-// one. The HTTP caller supplies any size restriction and owns request
-// cleanup.
+// one, and syntactically valid JSON objects with duplicate or case-ambiguous
+// fields fail with wirejson.RequestFieldError. The HTTP caller supplies any
+// size restriction and owns request cleanup.
 func ReadGrokVoiceBody(c *gin.Context) ([]byte, error) {
 	if c == nil || c.Request == nil {
 		return nil, errors.New("request body is required")
@@ -152,7 +153,14 @@ func ReadGrokVoiceBody(c *gin.Context) ([]byte, error) {
 		}
 		return nil, errors.New("request body is required")
 	}
-	return io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectAmbiguousJSONObject(body); err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
 // IsExpectedGrokRealtimeClose reports whether relay completion permits the

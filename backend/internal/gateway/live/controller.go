@@ -1,6 +1,7 @@
 package live
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -136,7 +137,7 @@ func (s *Service) ProxyLiveSideband(
 				errCh <- readErr
 				return
 			}
-			if messageType == TextFrame {
+			if messageType == TextFrame || isLiveJSONObjectFrame(payload) {
 				rewritten, clientModel, internalModels, rewriteErr := provider.Rewrite(proxyCtx, payload)
 				if rewriteErr != nil {
 					errCh <- rewriteErr
@@ -196,6 +197,13 @@ func (s *Service) ProxyLiveSideband(
 	}
 	go s.Observe(record)
 	return runErr
+}
+
+// isLiveJSONObjectFrame reports whether payload begins with a valid JSON object
+// so binary control frames carrying JSON session updates still enter rewriting.
+func isLiveJSONObjectFrame(payload []byte) bool {
+	trimmed := bytes.TrimSpace(payload)
+	return len(trimmed) > 0 && trimmed[0] == '{' && gjson.ValidBytes(trimmed)
 }
 
 // SessionEnded reports whether a terminal call signal, unavailable lease, or

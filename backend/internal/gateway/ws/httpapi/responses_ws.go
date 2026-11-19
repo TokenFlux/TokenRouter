@@ -15,6 +15,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -241,7 +242,7 @@ func (h *ResponsesWSHandler) ResponsesWebSocket(c *gin.Context) {
 		gatewayhttp.CloseResponsesWS(wsConn, coderws.StatusPolicyViolation, "unsupported websocket message type")
 		return
 	}
-	if !gjson.ValidBytes(firstMessage) {
+	if !gjson.ValidBytes(firstMessage) || wirejson.ValidateRequestObject(firstMessage) != nil {
 		gatewayhttp.CloseResponsesWS(wsConn, coderws.StatusPolicyViolation, "invalid JSON payload")
 		return
 	}

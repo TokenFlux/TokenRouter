@@ -19,6 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/requestcontext"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
@@ -62,6 +63,10 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 	apiKey, subject, reqLog := in.Key, in.Subject, p.Logger()
 	clientLifecycleCtx, firstTurnStartedAt := in.ClientLifecycleContext, in.FirstTurnStartedAt
 	var err error
+	if err = wirejson.ValidateRequestObject(firstMessage); err != nil {
+		p.Close(1008, "invalid JSON payload")
+		return
+	}
 	// Apply user replacements before model parsing and moderation, then rewrite
 	// additional tool models with Key rules so session hashing sees the same
 	// accepted first request.
@@ -530,8 +535,8 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 				if turn == 1 {
 					return payload, nil
 				}
-				if !gjson.ValidBytes(payload) {
-					return payload, p.CloseError(1008, "invalid websocket request payload", errors.New("invalid json"))
+				if err := wirejson.ValidateRequestObject(payload); err != nil {
+					return payload, p.CloseError(1008, "invalid websocket request payload", err)
 				}
 				rewrittenPayload, rewriteErr := modeltrace.RewriteAPIKeyAdditionalModels(payload, apiKey.ModelMapping)
 				if rewriteErr != nil {

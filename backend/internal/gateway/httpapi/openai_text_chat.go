@@ -15,6 +15,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 )
 
 // openai_text_chat.go admits Chat Completions requests and prepares their
@@ -89,7 +90,7 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 			return
 		}
 		h.backend.ReadFailure(reqLog, c.Request, err)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyReadErrorMessage(err))
 		return
 	}
 	if len(body) == 0 {
@@ -97,9 +98,9 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	if !gjson.ValidBytes(body) {
-		LogRequestBodyParseFailure(reqLog, body, nil)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
+	if err := wirejson.ValidateRequestObject(body); err != nil {
+		LogRequestBodyParseFailure(reqLog, body, err)
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", RequestBodyParseErrorMessage(err))
 		return
 	}
 	// Replace user prompts before model resolution, moderation, and session hashing so later steps share the
