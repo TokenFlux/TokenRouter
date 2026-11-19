@@ -215,6 +215,7 @@ func checkPricesNotNegative(p ModelPricingEntry) error {
 		{"input_price", p.InputPrice},
 		{"output_price", p.OutputPrice},
 		{"cache_write_price", p.CacheWritePrice},
+		{"cache_write_5m_price", p.CacheWrite5mPrice},
 		{"cache_write_1h_price", p.CacheWrite1hPrice},
 		{"cache_write_30m_price", p.CacheWrite30mPrice},
 		{"cache_write_12h_price", p.CacheWrite12hPrice},
@@ -274,7 +275,7 @@ func (v PricingConfigValidation) ProviderStatsPricing(pricing []ModelPricingEntr
 func checkIntervalsHavePrices(p ModelPricingEntry) error {
 	for _, iv := range p.Intervals {
 		if iv.InputPrice == nil && iv.OutputPrice == nil &&
-			iv.CacheWritePrice == nil && iv.CacheWrite1hPrice == nil && iv.CacheWrite30mPrice == nil && iv.CacheWrite12hPrice == nil && iv.CacheReadPrice == nil &&
+			iv.CacheWritePrice == nil && iv.CacheWrite5mPrice == nil && iv.CacheWrite1hPrice == nil && iv.CacheWrite30mPrice == nil && iv.CacheWrite12hPrice == nil && iv.CacheReadPrice == nil &&
 			iv.PerRequestPrice == nil && iv.InputMultiplier == nil &&
 			iv.OutputMultiplier == nil && iv.CacheWriteMultiplier == nil &&
 			iv.CacheReadMultiplier == nil {

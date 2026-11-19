@@ -247,7 +247,7 @@ func CalculatePerRequestStatsCost(pricing *ModelPricingEntry, requestCount int) 
 func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *float64 {
 	p := pricing
 	if validIntervals := FilterValidTokenIntervals(pricing.Intervals); len(validIntervals) > 0 {
-		totalTokens := tokens.InputTokens + tokens.OutputTokens + tokens.CacheCreationTokens + tokens.CacheReadTokens
+		totalTokens := tokens.InputTokens + tokens.OutputTokens + EffectiveCacheWriteTotal(tokens) + tokens.CacheReadTokens
 		// The selected statistics interval replaces flat buckets; omitted amounts
 		// remain zero instead of inheriting user-card defaults or catalog prices.
 		if iv := FindMatchingInterval(validIntervals, totalTokens); iv != nil {
@@ -255,6 +255,7 @@ func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *fl
 				InputPrice:         iv.InputPrice,
 				OutputPrice:        iv.OutputPrice,
 				CacheWritePrice:    iv.CacheWritePrice,
+				CacheWrite5mPrice:  iv.CacheWrite5mPrice,
 				CacheWrite1hPrice:  iv.CacheWrite1hPrice,
 				CacheWrite30mPrice: iv.CacheWrite30mPrice,
 				CacheWrite12hPrice: iv.CacheWrite12hPrice,
@@ -272,19 +273,7 @@ func CalculateTokenStatsCost(pricing *ModelPricingEntry, tokens UsageTokens) *fl
 		}
 		return *ptr
 	}
-	cacheCreationCost := float64(tokens.CacheCreationTokens) * deref(p.CacheWritePrice)
-	// An hourly amount enables detail pricing, including free hourly usage;
-	// missing positive details retain the aggregate short-rate amount.
-	if short, long, ok := openAIWriteBreakdown(tokens); ok && (p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil) {
-		cacheCreationCost = float64(short)*cacheWriteRate(p.CacheWrite30mPrice, deref(p.CacheWritePrice)) +
-			float64(long)*cacheWriteRate(p.CacheWrite12hPrice, deref(p.CacheWritePrice))
-	} else if p.CacheWrite1hPrice != nil {
-		cache5m, cache1h := NormalizeCacheCreationBreakdown(tokens)
-		if cache5m > 0 || cache1h > 0 {
-			cacheCreationCost = float64(cache5m)*deref(p.CacheWritePrice) +
-				float64(cache1h)*deref(p.CacheWrite1hPrice)
-		}
-	}
+	cacheCreationCost := SettleCacheWrite(statsCacheWriteRates(p), tokens, "", 1).Cost
 	cost := float64(tokens.InputTokens)*deref(p.InputPrice) +
 		float64(tokens.OutputTokens)*deref(p.OutputPrice) +
 		cacheCreationCost +
@@ -304,18 +293,19 @@ func HasAnyTokenStatsPrice(pricing *ModelPricingEntry) bool {
 	return pricing != nil && (pricing.InputPrice != nil ||
 		pricing.OutputPrice != nil ||
 		pricing.CacheWritePrice != nil ||
-		pricing.CacheWrite1hPrice != nil || pricing.CacheWrite30mPrice != nil || pricing.CacheWrite12hPrice != nil ||
+		pricing.CacheWrite5mPrice != nil || pricing.CacheWrite1hPrice != nil || pricing.CacheWrite30mPrice != nil || pricing.CacheWrite12hPrice != nil ||
 		pricing.CacheReadPrice != nil ||
 		pricing.ImageOutputPrice != nil)
 }
 
 // HasAnyStatsTokenUsage reports positive recognized text, cache, or
-// image-output usage. Image-input and TTL detail counts are subsets and do not
-// establish usage alone. The aggregate fields therefore control this check.
+// image-output usage. Image-input is a subset of InputTokens, while
+// EffectiveCacheWriteTotal promotes detail-only cache writes when the outer
+// aggregate is zero.
 func HasAnyStatsTokenUsage(tokens UsageTokens) bool {
 	return tokens.InputTokens > 0 ||
 		tokens.OutputTokens > 0 ||
-		tokens.CacheCreationTokens > 0 ||
+		EffectiveCacheWriteTotal(tokens) > 0 ||
 		tokens.CacheReadTokens > 0 ||
 		tokens.ImageOutputTokens > 0
 }

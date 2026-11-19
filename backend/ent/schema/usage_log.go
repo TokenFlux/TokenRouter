@@ -141,6 +141,10 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int("cache_creation_30m_tokens").Optional().Nillable(),
 		// Reported twelve-hour writes, or NULL when the split is unavailable.
 		field.Int("cache_creation_12h_tokens").Optional().Nillable(),
+		// Administrator diagnostics for inconsistent upstream cache-write details; null on normal rows.
+		field.JSON("cache_write_anomaly", map[string]any{}).
+			Optional().
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 
 		// USD input-token cost.
 		field.Float("input_cost").

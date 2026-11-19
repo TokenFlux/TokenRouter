@@ -58,6 +58,7 @@ type Cost struct {
 	Output        *float64 `json:"output"`      // output USD per million tokens
 	CacheRead     *float64 `json:"cache_read"`  // cache read USD per million tokens
 	CacheWrite    *float64 `json:"cache_write"` // aggregate write USD per million tokens
+	CacheWrite5m  *float64 `json:"-"`           // USD per million five-minute writes
 	CacheWrite1h  *float64 `json:"-"`           // USD per million hourly writes
 	CacheWrite30m *float64 `json:"-"`           // USD per million thirty-minute writes
 	CacheWrite12h *float64 `json:"-"`           // USD per million twelve-hour writes
@@ -561,7 +562,7 @@ func (m sourceModel) entry(id, provider string) (Entry, error) {
 // Nil prices remain unknown and zero prices remain declared free usage, so
 // attribute-only entries and free models are accepted.
 func validateCost(cost Cost) error {
-	for _, value := range []*float64{cost.Input, cost.Output, cost.CacheRead, cost.CacheWrite, cost.CacheWrite1h, cost.CacheWrite30m, cost.CacheWrite12h, cost.ImageInput, cost.ImageRead, cost.ImageOutput, cost.PerImage} {
+	for _, value := range []*float64{cost.Input, cost.Output, cost.CacheRead, cost.CacheWrite, cost.CacheWrite5m, cost.CacheWrite1h, cost.CacheWrite30m, cost.CacheWrite12h, cost.ImageInput, cost.ImageRead, cost.ImageOutput, cost.PerImage} {
 		if value != nil && (*value < 0 || math.IsInf(*value, 0) || math.IsNaN(*value)) {
 			return fmt.Errorf("invalid model price")
 		}

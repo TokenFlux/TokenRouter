@@ -1049,7 +1049,7 @@ func TestAPIContracts(t *testing.T) {
 							"output_tokens": 20,
 							"cache_creation_tokens": 1,
 							"cache_read_tokens": 2,
-							"cache_creation_5m_tokens": 0,
+							"cache_creation_5m_tokens": 1,
 							"cache_creation_1h_tokens": 0,
 							"input_cost": 0,
 							"output_cost": 0,

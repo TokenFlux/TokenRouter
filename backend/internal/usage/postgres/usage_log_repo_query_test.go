@@ -225,7 +225,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"unknown",        // platform snapshot
 			sql.NullString{},
 			sql.NullBool{},
-			"user", []byte(nil),
+			"user", []byte(nil), []byte(nil),
 		}})
 		require.NoError(t, err)
 		require.Equal(t, 2, log.ImageCount)
@@ -315,7 +315,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"unknown",        // platform snapshot
 			sql.NullString{},
 			sql.NullBool{},
-			"user", []byte(nil),
+			"user", []byte(nil), []byte(nil),
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -386,7 +386,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"unknown",        // platform snapshot
 			sql.NullString{},
 			sql.NullBool{},
-			"user", []byte(nil),
+			"user", []byte(nil), []byte(nil),
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -457,7 +457,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			"unknown",        // platform snapshot
 			sql.NullString{},
 			sql.NullBool{},
-			"user", []byte(nil),
+			"user", []byte(nil), []byte(nil),
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)

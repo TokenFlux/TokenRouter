@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 // record.go calculates charges, applies settlement, and writes analysis records
@@ -236,12 +238,7 @@ func (s *Recorder) BuildRecordUsageLog(
 		UpstreamEndpoint:       OptionalTrimmedStringPtr(input.UpstreamEndpoint),
 		InputTokens:            result.Usage.InputTokens,
 		OutputTokens:           result.Usage.OutputTokens,
-		CacheCreationTokens:    result.Usage.CacheCreationInputTokens,
-		CacheCreation30mTokens: result.Usage.CacheCreation30mTokens,
-		CacheCreation12hTokens: result.Usage.CacheCreation12hTokens,
 		CacheReadTokens:        result.Usage.CacheReadInputTokens,
-		CacheCreation5mTokens:  result.Usage.CacheCreation5mTokens,
-		CacheCreation1hTokens:  result.Usage.CacheCreation1hTokens,
 		ImageOutputTokens:      result.Usage.ImageOutputTokens,
 		RateMultiplier:         multiplier,
 		ProviderRateMultiplier: &providerRateMultiplier,
@@ -267,6 +264,13 @@ func (s *Recorder) BuildRecordUsageLog(
 		SubscriptionID:     optionalSubscriptionID(subscription),
 		CreatedAt:          time.Now(),
 	}
+	applyCacheWriteSettlement(usageLog, UsageTokens{
+		CacheCreationTokens:    result.Usage.CacheCreationInputTokens,
+		CacheCreation5mTokens:  result.Usage.CacheCreation5mTokens,
+		CacheCreation1hTokens:  result.Usage.CacheCreation1hTokens,
+		CacheCreation30mTokens: result.Usage.CacheCreation30mTokens,
+		CacheCreation12hTokens: result.Usage.CacheCreation12hTokens,
+	}, cost, defaultCompletionCacheWriteFamily(provider, false))
 	if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = imageMultiplier
 	}
@@ -326,8 +330,16 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 	s.normalizeResult(result, billingProvider, true, provider, input.RequestID)
 
 	// Cache reads and writes overlap inclusive OpenAI input; subtract both once,
-	// then floor excess cache observations at zero to prevent negative ordinary-input charges.
-	actualInputTokens := max(result.Usage.InputTokens-result.Usage.CacheReadInputTokens-result.Usage.CacheCreationInputTokens, 0)
+	// using EffectiveCacheWriteTotal when outer cache_write_tokens was omitted,
+	// then floor excess cache observations at zero to prevent negative charges.
+	effectiveCacheWrites := pricing.EffectiveCacheWriteTotal(UsageTokens{
+		CacheCreationTokens:    result.Usage.CacheCreationInputTokens,
+		CacheCreation5mTokens:  result.Usage.CacheCreation5mTokens,
+		CacheCreation1hTokens:  result.Usage.CacheCreation1hTokens,
+		CacheCreation30mTokens: result.Usage.CacheCreation30mTokens,
+		CacheCreation12hTokens: result.Usage.CacheCreation12hTokens,
+	})
+	actualInputTokens := max(result.Usage.InputTokens-result.Usage.CacheReadInputTokens-effectiveCacheWrites, 0)
 
 	tokens := UsageTokens{
 		InputTokens:            actualInputTokens,
@@ -418,6 +430,9 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 		standardBase := standardCost.TotalCost
 		billingBaseAmountUSD = &standardBase
 		cost.ActualCost = standardCost.ActualCost
+		if standardCost.CacheWrite != nil {
+			cost.CacheWrite = standardCost.CacheWrite
+		}
 	}
 
 	// This preliminary subscription choice supplies row metadata before Apply; an
@@ -465,25 +480,23 @@ func (s *Recorder) RecordOpenAI(ctx context.Context, input *Input) error {
 			result.RequestedReasoningEffort,
 			input.RequestedReasoningEffort,
 		),
-		InboundEndpoint:        OptionalTrimmedStringPtr(input.InboundEndpoint),
-		UpstreamEndpoint:       OptionalTrimmedStringPtr(input.UpstreamEndpoint),
-		InputTokens:            actualInputTokens,
-		OutputTokens:           result.Usage.OutputTokens,
-		CacheCreationTokens:    result.Usage.CacheCreationInputTokens,
-		CacheCreation30mTokens: result.Usage.CacheCreation30mTokens,
-		CacheCreation12hTokens: result.Usage.CacheCreation12hTokens,
-		CacheReadTokens:        result.Usage.CacheReadInputTokens,
-		ImageInputTokens:       result.Usage.ImageInputTokens,
-		ImageCacheReadTokens:   result.Usage.ImageCacheReadTokens,
-		ImageOutputTokens:      result.Usage.ImageOutputTokens,
-		ImageCount:             result.ImageCount,
-		ImageFrameCount:        result.ImageFrameCount,
-		ImageSize:              OptionalTrimmedStringPtr(result.ImageSize),
-		ImageInputSize:         OptionalTrimmedStringPtr(result.ImageInputSize),
-		ImageOutputSize:        OptionalTrimmedStringPtr(result.ImageOutputSize),
-		ImageSizeSource:        OptionalTrimmedStringPtr(result.ImageSizeSource),
-		ImageSizeBreakdown:     result.ImageSizeBreakdown,
+		InboundEndpoint:      OptionalTrimmedStringPtr(input.InboundEndpoint),
+		UpstreamEndpoint:     OptionalTrimmedStringPtr(input.UpstreamEndpoint),
+		InputTokens:          actualInputTokens,
+		OutputTokens:         result.Usage.OutputTokens,
+		CacheReadTokens:      result.Usage.CacheReadInputTokens,
+		ImageInputTokens:     result.Usage.ImageInputTokens,
+		ImageCacheReadTokens: result.Usage.ImageCacheReadTokens,
+		ImageOutputTokens:    result.Usage.ImageOutputTokens,
+		ImageCount:           result.ImageCount,
+		ImageFrameCount:      result.ImageFrameCount,
+		ImageSize:            OptionalTrimmedStringPtr(result.ImageSize),
+		ImageInputSize:       OptionalTrimmedStringPtr(result.ImageInputSize),
+		ImageOutputSize:      OptionalTrimmedStringPtr(result.ImageOutputSize),
+		ImageSizeSource:      OptionalTrimmedStringPtr(result.ImageSizeSource),
+		ImageSizeBreakdown:   result.ImageSizeBreakdown,
 	}
+	applyCacheWriteSettlement(usageLog, tokens, cost, pricing.CacheWriteFamilyOpenAI)
 	isVideoUsage := IsGrokVideoUsageResult(result, billingModels)
 	// Video identity remains in the analysis row even when a configured token card
 	// priced its measured usage; normalized duration and resolution describe the completed output.
@@ -665,4 +678,32 @@ func (s *Recorder) RecordCyber(ctx context.Context, in *Input) {
 	if err := s.Record(ctx, snapshot, true); err != nil {
 		s.printf("service.openai_gateway", "cyber usage record failed: request_id=%s err=%v", snapshot.RequestID, err)
 	}
+}
+
+// applyCacheWriteSettlement populates billed cache-creation buckets and
+// optional administrator anomaly metadata on usageLog. Token pricing supplies
+// its computed CacheWriteSettlement directly; unpriced or non-token paths run
+// SettleCacheWrite with zero rates so stored buckets stay partitioned.
+func applyCacheWriteSettlement(
+	usageLog *UsageLog,
+	rawTokens UsageTokens,
+	cost *CostBreakdown,
+	defaultFamily pricing.CacheWriteFamily,
+) {
+	settled := pricing.SettleCacheWrite(pricing.CacheWriteRates{}, rawTokens, defaultFamily, 0)
+	if cost != nil && cost.CacheWrite != nil {
+		settled = *cost.CacheWrite
+	}
+	usageLog.CacheCreationTokens = settled.BilledTotal
+	usageLog.CacheCreation5mTokens = settled.Billed5m
+	usageLog.CacheCreation1hTokens = settled.Billed1h
+	usageLog.CacheCreation30mTokens = nil
+	usageLog.CacheCreation12hTokens = nil
+	if settled.Billed30m != nil {
+		usageLog.CacheCreation30mTokens = new(*settled.Billed30m)
+	}
+	if settled.Billed12h != nil {
+		usageLog.CacheCreation12hTokens = new(*settled.Billed12h)
+	}
+	usageLog.CacheWriteAnomaly = usage.CloneCacheWriteAnomaly(settled.Anomaly)
 }

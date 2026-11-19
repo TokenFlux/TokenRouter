@@ -63,11 +63,14 @@ type ModelPricing struct {
 	CacheReadPricePerToken         float64 // USD per cache-read token
 	CacheReadPricePerTokenPriority float64 // USD per priority cache-read token
 	CacheCreation5mPrice           float64 // USD per short-TTL cache-write token
-	CacheCreation1hPrice           float64 // USD per hourly cache-write token
-	// SupportsCacheBreakdown permits TTL detail charging when at least one TTL
-	// rate is positive. Otherwise ComputeCacheCreationCost uses the supplied
-	// aggregate rate.
-	SupportsCacheBreakdown bool // TTL detail pricing support
+	// CacheCreation5mPriceExplicit records an explicitly supplied five-minute
+	// write rate, including zero, so calculation and display keep free five-minute
+	// pricing distinct from an omitted slot.
+	CacheCreation5mPriceExplicit bool    // explicit five-minute write rate marker
+	CacheCreation1hPrice         float64 // USD per hourly cache-write token
+	// SupportsCacheBreakdown records an explicitly supplied hourly write rate,
+	// including zero, or legacy positive hourly catalog pricing.
+	SupportsCacheBreakdown bool // hourly cache-write pricing presence
 	// SupportsServiceTier records service-tier support for resolved metadata and
 	// administrator Flex display. Token calculation selects configured factors and
 	// amounts independently of this flag.
@@ -158,22 +161,31 @@ type CostBreakdown struct {
 	// ActualCost over its computed base charge. Merely exceeding a threshold does
 	// not set it.
 	LongContextBillingApplied bool // built-in context charge-increase marker
+	// CacheWrite carries the settled cache-creation partition and optional
+	// upstream anomaly evidence produced alongside CacheCreationCost.
+	CacheWrite *CacheWriteSettlement // settled cache-write partition and anomaly
 }
 
 // ModelDisplayPricing contains rate-scaled USD amounts and optional price
 // controls for a model. InputPricePerToken, ImageInputPricePerToken,
-// OutputPricePerToken, CacheWritePricePerToken, CacheWrite1hPricePerToken,
-// CacheReadPricePerToken, and ImageOutputPricePerToken describe standard token
-// units.
+// OutputPricePerToken, CacheWritePricePerToken, CacheReadPricePerToken, and
+// ImageOutputPricePerToken describe standard scalar token units, while
+// CacheWrite5mPricePerToken, CacheWrite1hPricePerToken,
+// CacheWrite30mPricePerToken, and CacheWrite12hPricePerToken preserve optional
+// TTL rates, including explicit free values.
 //
 // FastInputPricePerToken, FastImageInputPricePerToken, FastOutputPricePerToken,
-// FastCacheWritePricePerToken, FastCacheWrite1hPricePerToken,
-// FastCacheReadPricePerToken, and FastImageOutputPricePerToken describe the
+// FastCacheWritePricePerToken, FastCacheReadPricePerToken,
+// FastImageOutputPricePerToken, and the FastCacheWrite* pointers describe the
 // respective Fast units. Both sets include the caller's rate multiplier;
 // configured effort and time controls are carried separately.
 type ModelDisplayPricing struct {
+	CacheWrite5mPricePerToken      *float64               // USD per five-minute write token
+	CacheWrite1hPricePerToken      *float64               // USD per hourly cache-write token
 	CacheWrite30mPricePerToken     *float64               // USD per thirty-minute write token
 	CacheWrite12hPricePerToken     *float64               // USD per twelve-hour write token
+	FastCacheWrite5mPricePerToken  *float64               // Fast USD per five-minute write token
+	FastCacheWrite1hPricePerToken  *float64               // Fast USD per hourly cache-write token
 	FastCacheWrite30mPricePerToken *float64               // Fast USD per thirty-minute write token
 	FastCacheWrite12hPricePerToken *float64               // Fast USD per twelve-hour write token
 	Flex                           *ServiceTierTokenQuote // effective Flex token prices
@@ -183,15 +195,13 @@ type ModelDisplayPricing struct {
 	InputPricePerToken             float64                // USD per text-input token
 	ImageInputPricePerToken        float64                // USD per image-input token
 	OutputPricePerToken            float64                // USD per text-output token
-	CacheWritePricePerToken        float64                // USD per short-TTL cache-write token
-	CacheWrite1hPricePerToken      float64                // USD per hourly cache-write token
+	CacheWritePricePerToken        float64                // USD per uniform cache-write token
 	CacheReadPricePerToken         float64                // USD per cache-read token
 	ImageOutputPricePerToken       float64                // USD per image-output token
 	FastInputPricePerToken         float64                // Fast USD per text-input token
 	FastImageInputPricePerToken    float64                // Fast USD per image-input token
 	FastOutputPricePerToken        float64                // Fast USD per text-output token
-	FastCacheWritePricePerToken    float64                // Fast USD per short-TTL cache-write token
-	FastCacheWrite1hPricePerToken  float64                // Fast USD per hourly cache-write token
+	FastCacheWritePricePerToken    float64                // Fast USD per uniform cache-write token
 	FastCacheReadPricePerToken     float64                // Fast USD per cache-read token
 	FastImageOutputPricePerToken   float64                // Fast USD per image-output token
 	// ContextIntervals supplies separately displayed priced ranges when one flat
@@ -223,17 +233,16 @@ type ModelDisplayPricing struct {
 }
 
 // ModelDisplayPricingInterval contains one (MinTokens,MaxTokens] displayed
-// token-price range. InputPricePerToken, ImageInputPricePerToken,
-// OutputPricePerToken, CacheWritePricePerToken, CacheWrite1hPricePerToken,
-// CacheReadPricePerToken, and ImageOutputPricePerToken supply standard USD
-// amounts. FastInputPricePerToken, FastImageInputPricePerToken,
-// FastOutputPricePerToken, FastCacheWritePricePerToken,
-// FastCacheWrite1hPricePerToken, FastCacheReadPricePerToken, and
-// FastImageOutputPricePerToken supply their Fast amounts; all include the
-// supplied display rate.
+// token-price range. Scalar fields supply standard and Fast token USD amounts,
+// while CacheWrite* pointers preserve optional TTL rates, including explicit
+// free values; all include the supplied display rate.
 type ModelDisplayPricingInterval struct {
+	CacheWrite5mPricePerToken      *float64               // USD per five-minute write token
+	CacheWrite1hPricePerToken      *float64               // USD per hourly cache-write token
 	CacheWrite30mPricePerToken     *float64               // USD per thirty-minute write token
 	CacheWrite12hPricePerToken     *float64               // USD per twelve-hour write token
+	FastCacheWrite5mPricePerToken  *float64               // Fast USD per five-minute write token
+	FastCacheWrite1hPricePerToken  *float64               // Fast USD per hourly cache-write token
 	FastCacheWrite30mPricePerToken *float64               // Fast USD per thirty-minute write token
 	FastCacheWrite12hPricePerToken *float64               // Fast USD per twelve-hour write token
 	Flex                           *ServiceTierTokenQuote // effective Flex token prices
@@ -241,21 +250,19 @@ type ModelDisplayPricingInterval struct {
 	MinTokens                      int                    // excluded lower context-token endpoint
 	// MaxTokens is the included upper context endpoint; nil leaves the range
 	// unbounded. Display construction may retain the caller's endpoint pointer.
-	MaxTokens                     *int    // included upper context-token endpoint
-	InputPricePerToken            float64 // USD per text-input token
-	ImageInputPricePerToken       float64 // USD per image-input token
-	OutputPricePerToken           float64 // USD per text-output token
-	CacheWritePricePerToken       float64 // USD per short-TTL cache-write token
-	CacheWrite1hPricePerToken     float64 // USD per hourly cache-write token
-	CacheReadPricePerToken        float64 // USD per cache-read token
-	ImageOutputPricePerToken      float64 // USD per image-output token
-	FastInputPricePerToken        float64 // Fast USD per text-input token
-	FastImageInputPricePerToken   float64 // Fast USD per image-input token
-	FastOutputPricePerToken       float64 // Fast USD per text-output token
-	FastCacheWritePricePerToken   float64 // Fast USD per short-TTL cache-write token
-	FastCacheWrite1hPricePerToken float64 // Fast USD per hourly cache-write token
-	FastCacheReadPricePerToken    float64 // Fast USD per cache-read token
-	FastImageOutputPricePerToken  float64 // Fast USD per image-output token
+	MaxTokens                    *int    // included upper context-token endpoint
+	InputPricePerToken           float64 // USD per text-input token
+	ImageInputPricePerToken      float64 // USD per image-input token
+	OutputPricePerToken          float64 // USD per text-output token
+	CacheWritePricePerToken      float64 // USD per uniform cache-write token
+	CacheReadPricePerToken       float64 // USD per cache-read token
+	ImageOutputPricePerToken     float64 // USD per image-output token
+	FastInputPricePerToken       float64 // Fast USD per text-input token
+	FastImageInputPricePerToken  float64 // Fast USD per image-input token
+	FastOutputPricePerToken      float64 // Fast USD per text-output token
+	FastCacheWritePricePerToken  float64 // Fast USD per uniform cache-write token
+	FastCacheReadPricePerToken   float64 // Fast USD per cache-read token
+	FastImageOutputPricePerToken float64 // Fast USD per image-output token
 }
 
 // AudioPriceConfig contains optional USD rates for three audio usage units.
@@ -305,4 +312,8 @@ type CostInput struct {
 	// locations select the unit time factor; the billing facade loads configured
 	// zone names.
 	TimePricingLocation *time.Location // card schedule clock location
+	// DefaultCacheWriteFamily selects the fallback TTL lifetime pair when neither
+	// reported usage nor configured TTL rates identify one; empty defaults to
+	// CacheWriteFamilyClaude.
+	DefaultCacheWriteFamily CacheWriteFamily // protocol fallback cache-write family
 }

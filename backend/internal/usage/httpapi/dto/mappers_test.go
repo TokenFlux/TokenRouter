@@ -7,14 +7,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// Usage response conversion selects client model names and derives legacy
-// transport flags from effective request categories. These fixtures compare
-// user and administrator field visibility, inspect timing values and retain
-// absent historical image metadata, so mapping expectations stay tied to
-// encoded responses.
+// mappers_test.go verifies user and administrator usage DTO conversion, cache
+// lifetime normalization, and export filter scoping. Usage response conversion
+// selects client model names, partitions historical cache-write counts into
+// concrete TTL buckets, and restricts anomaly and outbound diagnostics to
+// administrator responses.
 
 // TestUsageLogFromService_AverageSpeedUsesStoredAttempt restores a buffered stream's
 // persisted observations. User and administrator responses expose the same rounded
@@ -479,3 +480,101 @@ func f64Ptr(value float64) *float64 {
 // helper's supported lowercase normalization for cleanup filter response
 // tests.
 func requestTypeStringPtr(v *int16) *string { return RequestTypeStringPtr(v) }
+
+// TestUsageLogFromService_NormalizesCacheWriteBucketsAndScopesAnomalyToAdmin
+// checks settled and pre-upgrade cache-write rows across Claude and OpenAI
+// models. User DTOs must always expose concrete TTL buckets without leaking
+// cache_write_anomaly, while administrator DTOs expose persisted or synthesized
+// anomaly diagnostics.
+func TestUsageLogFromService_NormalizesCacheWriteBucketsAndScopesAnomalyToAdmin(t *testing.T) {
+	t.Parallel()
+
+	t.Run("persisted anomaly stays admin-only", func(t *testing.T) {
+		row := &usage.UsageLog{
+			RequestID:             "req_settled_partial",
+			Platform:              "anthropic",
+			Model:                 "claude-sonnet-4-5",
+			CacheCreationTokens:   311,
+			CacheCreation5mTokens: 311,
+			CacheCreation1hTokens: 0,
+			CacheWriteAnomaly: &billing.CacheWriteAnomaly{
+				Kind:          "partial_breakdown",
+				ReportedTotal: 311,
+				Reported5m:    211,
+			},
+		}
+		userDTO := FromUsage(row)
+		adminDTO := FromUsageAdmin(row)
+		require.Equal(t, 311, userDTO.CacheCreation5mTokens)
+		require.Zero(t, userDTO.CacheCreation1hTokens)
+		userJSON, err := json.Marshal(userDTO)
+		require.NoError(t, err)
+		require.NotContains(t, string(userJSON), "cache_write_anomaly")
+
+		require.NotNil(t, adminDTO.CacheWriteAnomaly)
+		require.Equal(t, "partial_breakdown", adminDTO.CacheWriteAnomaly.Kind)
+		require.Equal(t, 211, adminDTO.CacheWriteAnomaly.Reported5m)
+	})
+
+	t.Run("historical untagged claude and openai rows gain default short buckets", func(t *testing.T) {
+		claudeRow := &usage.UsageLog{
+			RequestID:           "req_hist_claude",
+			Platform:            "anthropic",
+			Model:               "claude-sonnet-4-5",
+			CacheCreationTokens: 311,
+		}
+		claudeUser := FromUsage(claudeRow)
+		claudeAdmin := FromUsageAdmin(claudeRow)
+		require.Equal(t, 311, claudeUser.CacheCreation5mTokens)
+		require.Zero(t, claudeUser.CacheCreation1hTokens)
+		require.Nil(t, claudeUser.CacheCreation30mTokens)
+		require.Nil(t, claudeAdmin.CacheWriteAnomaly)
+
+		openAIRow := &usage.UsageLog{
+			RequestID:           "req_hist_openai",
+			Platform:            "openai",
+			Model:               "gpt-5.4",
+			CacheCreationTokens: 311,
+		}
+		openAIUser := FromUsage(openAIRow)
+		openAIAdmin := FromUsageAdmin(openAIRow)
+		require.NotNil(t, openAIUser.CacheCreation30mTokens)
+		require.Equal(t, 311, *openAIUser.CacheCreation30mTokens)
+		require.NotNil(t, openAIUser.CacheCreation12hTokens)
+		require.Zero(t, *openAIUser.CacheCreation12hTokens)
+		require.Zero(t, openAIUser.CacheCreation5mTokens)
+		require.Nil(t, openAIAdmin.CacheWriteAnomaly)
+	})
+
+	t.Run("historical partial and duplicate rows normalize and synthesize admin anomaly", func(t *testing.T) {
+		partialRow := &usage.UsageLog{
+			RequestID:             "req_hist_partial",
+			Platform:              "anthropic",
+			Model:                 "claude-sonnet-4-5",
+			CacheCreationTokens:   311,
+			CacheCreation5mTokens: 0,
+			CacheCreation1hTokens: 211,
+		}
+		partialUser := FromUsage(partialRow)
+		partialAdmin := FromUsageAdmin(partialRow)
+		require.Equal(t, 100, partialUser.CacheCreation5mTokens)
+		require.Equal(t, 211, partialUser.CacheCreation1hTokens)
+		require.NotNil(t, partialAdmin.CacheWriteAnomaly)
+		require.Equal(t, "partial_breakdown", partialAdmin.CacheWriteAnomaly.Kind)
+
+		dupRow := &usage.UsageLog{
+			RequestID:             "req_hist_dup",
+			Platform:              "anthropic",
+			Model:                 "claude-sonnet-4-5",
+			CacheCreationTokens:   10,
+			CacheCreation5mTokens: 10,
+			CacheCreation1hTokens: 10,
+		}
+		dupUser := FromUsage(dupRow)
+		dupAdmin := FromUsageAdmin(dupRow)
+		require.Equal(t, 10, dupUser.CacheCreationTokens)
+		require.Equal(t, 10, dupUser.CacheCreation5mTokens+dupUser.CacheCreation1hTokens)
+		require.NotNil(t, dupAdmin.CacheWriteAnomaly)
+		require.Equal(t, "exceeds_total", dupAdmin.CacheWriteAnomaly.Kind)
+	})
+}

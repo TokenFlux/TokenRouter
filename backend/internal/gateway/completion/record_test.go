@@ -505,3 +505,74 @@ func TestRecordPreliminaryFunding(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordCacheWriteSettlementAndAnomalies exercises Anthropic partial and
+// duplicate breakdowns alongside OpenAI untagged and missing-total cache writes.
+// Persisted usage rows must always partition cache_creation_tokens into concrete
+// TTL buckets and record cache_write_anomaly only when upstream counts disagree.
+func TestRecordCacheWriteSettlementAndAnomalies(t *testing.T) {
+	t.Run("anthropic partial breakdown assigns remainder to 5m and logs anomaly", func(t *testing.T) {
+		recorder, _, logs, input, _ := recordFixture()
+		input.Result.Usage = TokenUsage{
+			InputTokens:              100,
+			OutputTokens:             10,
+			CacheCreationInputTokens: 311,
+			CacheCreation5mTokens:    211,
+			CacheCreation1hTokens:    0,
+		}
+		require.NoError(t, recorder.RecordAnthropic(t.Context(), input, nil))
+		require.Len(t, logs.rows, 1)
+		row := logs.rows[0]
+		require.Equal(t, 311, row.CacheCreationTokens)
+		require.Equal(t, 311, row.CacheCreation5mTokens)
+		require.Zero(t, row.CacheCreation1hTokens)
+		require.NotNil(t, row.CacheWriteAnomaly)
+		require.Equal(t, pricing.CacheWriteAnomalyPartialBreakdown, row.CacheWriteAnomaly.Kind)
+		require.Equal(t, 311, row.CacheWriteAnomaly.ReportedTotal)
+		require.Equal(t, 211, row.CacheWriteAnomaly.Reported5m)
+	})
+
+	t.Run("openai untagged and missing-total cache writes settle into 30m/12h", func(t *testing.T) {
+		recorder, _, logs, input, _ := recordFixture()
+		input.Provider.Platform = "openai"
+		input.Provider.OpenAI = true
+		input.Result.Usage = TokenUsage{
+			InputTokens:              1000,
+			OutputTokens:             20,
+			CacheCreationInputTokens: 311,
+		}
+		require.NoError(t, recorder.RecordOpenAI(t.Context(), input))
+		require.Len(t, logs.rows, 1)
+		untagged := logs.rows[0]
+		require.Equal(t, 689, untagged.InputTokens)
+		require.Equal(t, 311, untagged.CacheCreationTokens)
+		require.NotNil(t, untagged.CacheCreation30mTokens)
+		require.Equal(t, 311, *untagged.CacheCreation30mTokens)
+		require.NotNil(t, untagged.CacheCreation12hTokens)
+		require.Zero(t, *untagged.CacheCreation12hTokens)
+		require.Nil(t, untagged.CacheWriteAnomaly)
+
+		recorder2, _, logs2, input2, _ := recordFixture()
+		input2.Provider.Platform = "openai"
+		input2.Provider.OpenAI = true
+		input2.Result.Usage = TokenUsage{
+			InputTokens:              1000,
+			OutputTokens:             20,
+			CacheCreationInputTokens: 0,
+			CacheCreation30mTokens:   new(200),
+			CacheCreation12hTokens:   new(100),
+		}
+		require.NoError(t, recorder2.RecordOpenAI(t.Context(), input2))
+		require.Len(t, logs2.rows, 1)
+		missingTotal := logs2.rows[0]
+		require.Equal(t, 700, missingTotal.InputTokens)
+		require.Equal(t, 300, missingTotal.CacheCreationTokens)
+		require.NotNil(t, missingTotal.CacheCreation30mTokens)
+		require.Equal(t, 200, *missingTotal.CacheCreation30mTokens)
+		require.NotNil(t, missingTotal.CacheCreation12hTokens)
+		require.Equal(t, 100, *missingTotal.CacheCreation12hTokens)
+		require.NotNil(t, missingTotal.CacheWriteAnomaly)
+		require.Equal(t, pricing.CacheWriteAnomalyMissingTotal, missingTotal.CacheWriteAnomaly.Kind)
+		require.Zero(t, missingTotal.CacheWriteAnomaly.ReportedTotal)
+	})
+}

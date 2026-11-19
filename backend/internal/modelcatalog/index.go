@@ -173,6 +173,7 @@ func cloneCost(cost Cost) Cost {
 	cost.Output = clonePointer(cost.Output)
 	cost.CacheRead = clonePointer(cost.CacheRead)
 	cost.CacheWrite = clonePointer(cost.CacheWrite)
+	cost.CacheWrite5m = clonePointer(cost.CacheWrite5m)
 	cost.CacheWrite1h = clonePointer(cost.CacheWrite1h)
 	cost.CacheWrite30m = clonePointer(cost.CacheWrite30m)
 	cost.CacheWrite12h = clonePointer(cost.CacheWrite12h)

@@ -411,6 +411,7 @@ func applyV2Cache(cost *Cost, price catalogPriceV2) error {
 		return nil
 	}
 	cost.CacheWrite = nil
+	cost.CacheWrite5m = nil
 	cost.CacheWrite1h = nil
 	cost.CacheWrite30m = nil
 	cost.CacheWrite12h = nil
@@ -421,10 +422,11 @@ func applyV2Cache(cost *Cost, price catalogPriceV2) error {
 	if err := json.Unmarshal(raw, &writes); err != nil {
 		return err
 	}
-	cost.CacheWrite = writes["5m"]
+	cost.CacheWrite5m = writes["5m"]
 	cost.CacheWrite1h = writes["1h"]
 	cost.CacheWrite30m = writes["30m"]
 	cost.CacheWrite12h = writes["12h"]
+	cost.CacheWrite = writes["5m"]
 	if cost.CacheWrite == nil {
 		cost.CacheWrite = cost.CacheWrite30m
 	}

@@ -1683,12 +1683,12 @@ func parseUsageAndAccumulate(
 	return parsedUsage
 }
 
-// relayUsageHasTokens reports whether any of the five usage counters is
-// positive.
+// relayUsageHasTokens reports whether any of the five usage counters or nested
+// cache-write lifetime details is positive.
 func relayUsageHasTokens(usage Usage) bool {
 	return usage.InputTokens > 0 || usage.OutputTokens > 0 ||
-		usage.CacheCreationInputTokens > 0 || usage.CacheReadInputTokens > 0 ||
-		usage.ImageOutputTokens > 0
+		usage.CacheCreationInputTokens > 0 || usage.CacheWriteDetails.HasTokens() ||
+		usage.CacheReadInputTokens > 0 || usage.ImageOutputTokens > 0
 }
 
 // mergeRelayUsageNonZero merges positive source counters into the destination
@@ -1743,8 +1743,15 @@ func finalizeRelayTurnUsage(state *relayState) Usage {
 	turnUsage := state.turnUsage
 	state.usage.InputTokens += turnUsage.InputTokens
 	state.usage.OutputTokens += turnUsage.OutputTokens
-	state.usage.CacheWriteDetails = openai.AddCacheWriteDetails(state.usage.CacheCreationInputTokens, state.usage.CacheWriteDetails, turnUsage.CacheCreationInputTokens, turnUsage.CacheWriteDetails)
-	state.usage.CacheCreationInputTokens += turnUsage.CacheCreationInputTokens
+	priorTotal := state.usage.CacheCreationInputTokens
+	priorDetails := state.usage.CacheWriteDetails
+	state.usage.CacheWriteDetails = openai.AddCacheWriteDetails(priorTotal, priorDetails, turnUsage.CacheCreationInputTokens, turnUsage.CacheWriteDetails)
+	if (priorTotal != 0 || priorDetails != nil) && (turnUsage.CacheCreationInputTokens != 0 || turnUsage.CacheWriteDetails != nil) {
+		state.usage.CacheCreationInputTokens = openai.EffectiveCacheWriteTokens(priorTotal, priorDetails) +
+			openai.EffectiveCacheWriteTokens(turnUsage.CacheCreationInputTokens, turnUsage.CacheWriteDetails)
+	} else {
+		state.usage.CacheCreationInputTokens += turnUsage.CacheCreationInputTokens
+	}
 	state.usage.CacheReadInputTokens += turnUsage.CacheReadInputTokens
 	state.usage.ImageOutputTokens += turnUsage.ImageOutputTokens
 	state.turnUsage = Usage{}

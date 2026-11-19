@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
@@ -40,6 +42,7 @@ func usageLogFromServiceUser(l *usage.UsageLog, language ...string) UsageLog {
 	if requestedModel == "" {
 		requestedModel = l.Model
 	}
+	cacheTotal, cache5m, cache1h, cache30m, cache12h, _ := resolveDTOCacheWrite(l)
 	return UsageLog{
 		ID:                        l.ID,
 		UserID:                    positiveUsageID(l.UserID),
@@ -57,12 +60,12 @@ func usageLogFromServiceUser(l *usage.UsageLog, language ...string) UsageLog {
 		SubscriptionID:            l.SubscriptionID,
 		InputTokens:               l.InputTokens,
 		OutputTokens:              l.OutputTokens,
-		CacheCreationTokens:       l.CacheCreationTokens,
+		CacheCreationTokens:       cacheTotal,
 		CacheReadTokens:           l.CacheReadTokens,
-		CacheCreation5mTokens:     l.CacheCreation5mTokens,
-		CacheCreation1hTokens:     l.CacheCreation1hTokens,
-		CacheCreation30mTokens:    l.CacheCreation30mTokens,
-		CacheCreation12hTokens:    l.CacheCreation12hTokens,
+		CacheCreation5mTokens:     cache5m,
+		CacheCreation1hTokens:     cache1h,
+		CacheCreation30mTokens:    cache30m,
+		CacheCreation12hTokens:    cache12h,
 		InputCost:                 l.InputCost,
 		OutputCost:                l.OutputCost,
 		CacheCreationCost:         l.CacheCreationCost,
@@ -153,6 +156,7 @@ func FromUsageAdmin(l *usage.UsageLog) *AdminUsageLog {
 	}
 	usageLog := usageLogFromServiceUser(l)
 	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
+	_, _, _, _, _, anomaly := resolveDTOCacheWrite(l)
 	return &AdminUsageLog{
 		RequestSource:          l.EffectiveRequestSource(),
 		SystemUsage:            l.SystemUsage,
@@ -161,6 +165,7 @@ func FromUsageAdmin(l *usage.UsageLog) *AdminUsageLog {
 		UpstreamModel:          l.UpstreamModel,
 		UpstreamResponseModel:  l.UpstreamResponseModel,
 		UpstreamModelMismatch:  l.UpstreamModelMismatch,
+		CacheWriteAnomaly:      anomaly,
 		UpstreamRequestID:      l.UpstreamRequestID,
 		PricingConfigID:        l.PricingConfigID,
 		ModelMappingChain:      l.ModelMappingChain,
@@ -170,6 +175,58 @@ func FromUsageAdmin(l *usage.UsageLog) *AdminUsageLog {
 		IPAddress:              l.IPAddress,
 		Provider:               providerFromView(l.Provider),
 	}
+}
+
+// resolveDTOCacheWrite returns partitioned TTL counts and optional administrator
+// anomaly metadata for a usage record. Pre-upgrade historical rows whose TTL
+// buckets were omitted or disagreed with CacheCreationTokens are normalized on
+// read so user responses never expose untagged cache-write counts.
+func resolveDTOCacheWrite(l *usage.UsageLog) (int, int, int, *int, *int, *billing.CacheWriteAnomaly) {
+	anomaly := usage.CloneCacheWriteAnomaly(l.CacheWriteAnomaly)
+	if l.CacheCreationTokens == 0 && l.CacheCreation5mTokens == 0 && l.CacheCreation1hTokens == 0 &&
+		l.CacheCreation30mTokens == nil && l.CacheCreation12hTokens == nil {
+		return 0, 0, 0, nil, nil, anomaly
+	}
+	if l.CacheCreationTokens > 0 && l.CacheCreation30mTokens == nil && l.CacheCreation12hTokens == nil &&
+		l.CacheCreation5mTokens >= 0 && l.CacheCreation1hTokens >= 0 &&
+		l.CacheCreation5mTokens <= l.CacheCreationTokens && l.CacheCreation1hTokens == l.CacheCreationTokens-l.CacheCreation5mTokens {
+		return l.CacheCreationTokens, l.CacheCreation5mTokens, l.CacheCreation1hTokens, nil, nil, anomaly
+	}
+	if l.CacheCreationTokens > 0 && l.CacheCreation30mTokens != nil && l.CacheCreation12hTokens != nil &&
+		*l.CacheCreation30mTokens >= 0 && *l.CacheCreation12hTokens >= 0 &&
+		*l.CacheCreation30mTokens <= l.CacheCreationTokens && *l.CacheCreation12hTokens == l.CacheCreationTokens-*l.CacheCreation30mTokens &&
+		l.CacheCreation5mTokens == 0 && l.CacheCreation1hTokens == 0 {
+		return l.CacheCreationTokens, 0, 0, new(*l.CacheCreation30mTokens), new(*l.CacheCreation12hTokens), anomaly
+	}
+	settled := billing.SettleCacheWrite(billing.CacheWriteRates{}, billing.UsageTokens{
+		CacheCreationTokens:    l.CacheCreationTokens,
+		CacheCreation5mTokens:  l.CacheCreation5mTokens,
+		CacheCreation1hTokens:  l.CacheCreation1hTokens,
+		CacheCreation30mTokens: l.CacheCreation30mTokens,
+		CacheCreation12hTokens: l.CacheCreation12hTokens,
+	}, defaultDTOCacheWriteFamily(l), 0)
+	if anomaly == nil {
+		anomaly = usage.CloneCacheWriteAnomaly(settled.Anomaly)
+	}
+	return settled.BilledTotal, settled.Billed5m, settled.Billed1h, settled.Billed30m, settled.Billed12h, anomaly
+}
+
+// defaultDTOCacheWriteFamily infers the default TTL family for historical usage
+// rows that recorded only an untagged aggregate cache-creation count.
+func defaultDTOCacheWriteFamily(l *usage.UsageLog) billing.CacheWriteFamily {
+	switch strings.ToLower(strings.TrimSpace(l.Platform)) {
+	case "openai", "grok":
+		return billing.CacheWriteFamilyOpenAI
+	}
+	for _, candidate := range []string{l.Model, l.RequestedModel} {
+		normalized := strings.ToLower(strings.TrimSpace(candidate))
+		for _, prefix := range []string{"gpt-", "chatgpt-", "o1", "o3", "o4", "codex"} {
+			if strings.HasPrefix(normalized, prefix) {
+				return billing.CacheWriteFamilyOpenAI
+			}
+		}
+	}
+	return billing.CacheWriteFamilyClaude
 }
 
 // CleanupFromUsage builds a cleanup-task response, returning nil for a nil

@@ -76,6 +76,8 @@ const (
 	FieldCacheCreation30mTokens = "cache_creation_30m_tokens"
 	// FieldCacheCreation12hTokens holds the string denoting the cache_creation_12h_tokens field in the database.
 	FieldCacheCreation12hTokens = "cache_creation_12h_tokens"
+	// FieldCacheWriteAnomaly holds the string denoting the cache_write_anomaly field in the database.
+	FieldCacheWriteAnomaly = "cache_write_anomaly"
 	// FieldInputCost holds the string denoting the input_cost field in the database.
 	FieldInputCost = "input_cost"
 	// FieldOutputCost holds the string denoting the output_cost field in the database.
@@ -226,6 +228,7 @@ var Columns = []string{
 	FieldCacheCreation1hTokens,
 	FieldCacheCreation30mTokens,
 	FieldCacheCreation12hTokens,
+	FieldCacheWriteAnomaly,
 	FieldInputCost,
 	FieldOutputCost,
 	FieldCacheCreationCost,

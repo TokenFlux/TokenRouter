@@ -1332,89 +1332,162 @@ func TestComputeCacheCreationCost_CapsContradictoryBreakdownAtAggregate(t *testi
 		"billed cache-creation token equivalent must not exceed the positive aggregate")
 }
 
-// TestNormalizeCacheCreationBreakdown_BillingSafetyInvariant checks supplied
-// ratio caps, missing/negative details, host-integer extremes and zero
-// aggregates. Both normalized TTL counts must match their expected values,
-// protecting the specific integer and aggregate cases in this table.
-func TestNormalizeCacheCreationBreakdown_BillingSafetyInvariant(t *testing.T) {
+// TestSettleCacheWrite_BillingSafetyInvariant verifies SettleCacheWrite across
+// exact, untagged, partial, missing-total, negative, integer-boundary, and
+// overreported subdivisions. Every case must conserve the authoritative total,
+// assign every billed token to a concrete TTL bucket, and flag anomalies.
+func TestSettleCacheWrite_BillingSafetyInvariant(t *testing.T) {
+	splitRates := billingpricing.CacheWriteRates{
+		Default: 2.5e-6,
+		TTL5m:   new(2.5e-6),
+		TTL1h:   new(4.0e-6),
+	}
+	equalRates := billingpricing.CacheWriteRates{
+		Default: 2.5e-6,
+		TTL5m:   new(2.5e-6),
+		TTL1h:   new(2.5e-6),
+	}
+
 	tests := []struct {
-		name   string                     // cache normalization case label
-		tokens billingpricing.UsageTokens // supplied aggregate and TTL counts
-		// want5m and want1h check normalized TTL details together against tokens. A
-		// positive aggregate caps their combined output; zero aggregate permits the
-		// existing positive details.
-		want5m int // expected five-minute token count
-		want1h int // expected hourly token count
+		name        string                         // cache settlement scenario label
+		rates       billingpricing.CacheWriteRates // resolved write rates under test
+		tokens      billingpricing.UsageTokens     // supplied aggregate and TTL counts
+		want5m      int                            // expected billed five-minute tokens
+		want1h      int                            // expected billed hourly tokens
+		wantCost    float64                        // expected USD cache-creation cost
+		wantAnomaly string                         // expected anomaly kind or empty
 	}{
 		{
-			name:   "preserves ratio when capping",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
-			want5m: 60,
-			want1h: 40,
+			name:     "untagged writes use default 5m bucket",
+			rates:    splitRates,
+			tokens:   billingpricing.UsageTokens{CacheCreationTokens: 311},
+			want5m:   311,
+			want1h:   0,
+			wantCost: 311 * 2.5e-6,
 		},
 		{
-			name:   "details below aggregate unchanged",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30, CacheCreation1hTokens: 60},
-			want5m: 30,
-			want1h: 60,
+			name:     "exact split billed per bucket",
+			rates:    splitRates,
+			tokens:   billingpricing.UsageTokens{CacheCreationTokens: 311, CacheCreation5mTokens: 211, CacheCreation1hTokens: 100},
+			want5m:   211,
+			want1h:   100,
+			wantCost: 211*2.5e-6 + 100*4.0e-6,
 		},
 		{
-			name:   "absent 5m detail unchanged",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation1hTokens: 60},
-			want5m: 0,
-			want1h: 60,
+			name:        "partial 5m detail bills remainder at default 5m",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 311, CacheCreation5mTokens: 211},
+			want5m:      311,
+			want1h:      0,
+			wantCost:    311 * 2.5e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyPartialBreakdown,
 		},
 		{
-			name:   "absent 1h detail unchanged",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30},
-			want5m: 30,
-			want1h: 0,
+			name:        "partial 1h detail retains 1h and bills remainder at default 5m",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 311, CacheCreation1hTokens: 211},
+			want5m:      100,
+			want1h:      211,
+			wantCost:    100*2.5e-6 + 211*4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyPartialBreakdown,
 		},
 		{
-			name:   "negative detail clamped",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 60},
-			want5m: 0,
-			want1h: 60,
+			name:        "overreported details cap at aggregate and prioritize pricier 1h",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 10, CacheCreation5mTokens: 10, CacheCreation1hTokens: 10},
+			want5m:      0,
+			want1h:      10,
+			wantCost:    10 * 4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
 		},
 		{
-			name:   "negative detail cannot hide oversized positive detail",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 150},
-			want5m: 0,
-			want1h: 100,
+			name:        "overreported details with equal rates prefer default 5m",
+			rates:       equalRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 10, CacheCreation5mTokens: 10, CacheCreation1hTokens: 10},
+			want5m:      10,
+			want1h:      0,
+			wantCost:    10 * 2.5e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
 		},
 		{
-			// Use the host integer maximum as oversized detail input while keeping a
-			// small aggregate. Expected normalized counts therefore expose proportional
-			// capping at that representable limit.
-			name:   "integer boundary details capped without overflow",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: int(^uint(0) >> 1)},
-			want5m: 50,
-			want1h: 50,
+			name:        "negative detail clamped and remainder billed at default 5m",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 60},
+			want5m:      40,
+			want1h:      60,
+			wantCost:    40*2.5e-6 + 60*4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
 		},
 		{
-			// Keep the aggregate at the host integer ceiling with one extra detail
-			// token. The expected pair retains the bounded aggregate while discarding
-			// the tiny proportional remainder.
-			name:   "integer boundary aggregate avoids float conversion overflow",
-			tokens: billingpricing.UsageTokens{CacheCreationTokens: int(^uint(0) >> 1), CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: 1},
-			want5m: int(^uint(0) >> 1),
-			want1h: 0,
+			name:        "negative detail cannot hide oversized positive detail",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 150},
+			want5m:      0,
+			want1h:      100,
+			wantCost:    100 * 4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
 		},
 		{
-			name:   "zero aggregate unchanged",
-			tokens: billingpricing.UsageTokens{CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
-			want5m: 90,
-			want1h: 60,
+			name:        "integer boundary details capped without overflow",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: int(^uint(0) >> 1)},
+			want5m:      0,
+			want1h:      100,
+			wantCost:    100 * 4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
+		},
+		{
+			name:        "integer boundary aggregate avoids overflow",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreationTokens: int(^uint(0) >> 1), CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: 1},
+			want5m:      int(^uint(0)>>1) - 1,
+			want1h:      1,
+			wantCost:    float64(int(^uint(0)>>1)-1)*2.5e-6 + 4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyExceedsTotal,
+		},
+		{
+			name:        "zero aggregate promotes positive details",
+			rates:       splitRates,
+			tokens:      billingpricing.UsageTokens{CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
+			want5m:      90,
+			want1h:      60,
+			wantCost:    90*2.5e-6 + 60*4.0e-6,
+			wantAnomaly: billingpricing.CacheWriteAnomalyMissingTotal,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got5m, got1h := billingpricing.NormalizeCacheCreationBreakdown(tt.tokens)
-			require.Equal(t, tt.want5m, got5m)
-			require.Equal(t, tt.want1h, got1h)
+			got := billingpricing.SettleCacheWrite(tt.rates, tt.tokens, billingpricing.CacheWriteFamilyClaude, 1)
+			require.Equal(t, tt.want5m, got.Billed5m)
+			require.Equal(t, tt.want1h, got.Billed1h)
+			require.Equal(t, tt.want5m+tt.want1h, got.BilledTotal)
+			require.InDelta(t, tt.wantCost, got.Cost, 1e-12)
+			if tt.wantAnomaly == "" {
+				require.Nil(t, got.Anomaly)
+			} else {
+				require.NotNil(t, got.Anomaly)
+				require.Equal(t, tt.wantAnomaly, got.Anomaly.Kind)
+			}
 		})
 	}
+}
+
+// TestGetModelPricingWithConfig_CacheWrite5mPricePreserves1h verifies that an
+// independent five-minute card override updates 5m and fallback rates without
+// overwriting the catalog hourly cache-write price.
+func TestGetModelPricingWithConfig_CacheWrite5mPricePreserves1h(t *testing.T) {
+	svc := newTestCalculator()
+
+	pricing, err := svc.GetModelPricingWithConfig("claude-fable-5-1", &routing.ModelPricingEntry{
+		CacheWrite5mPrice: testPtrFloat64(7e-6),
+	})
+	require.NoError(t, err)
+	require.True(t, pricing.SupportsCacheBreakdown)
+	require.True(t, pricing.CacheCreation5mPriceExplicit)
+	require.InDelta(t, 7e-6, pricing.CacheCreationPricePerToken, 1e-12)
+	require.InDelta(t, 7e-6, pricing.CacheCreation5mPrice, 1e-12)
+	require.InDelta(t, 20e-6, pricing.CacheCreation1hPrice, 1e-12)
 }
 
 // TestComputeCacheCreationCost_PreservesZeroDetailFallback supplies positive

@@ -15,12 +15,13 @@ import (
 // alone do not establish an aggregate billing count.
 
 // HasBillableGrokChatUsage reports whether an input, output, cache-write, or
-// cache-read aggregate is positive. Image token detail fields are excluded, so
+// cache-read counter is positive. Image token detail fields are excluded, so
 // callers can reject nominal success lacking aggregate usage evidence.
 func HasBillableGrokChatUsage(usage openai.ForwardUsage) bool {
 	return usage.InputTokens > 0 ||
 		usage.OutputTokens > 0 ||
 		usage.CacheCreationInputTokens > 0 ||
+		usage.CacheWriteDetails.HasTokens() ||
 		usage.CacheReadInputTokens > 0
 }
 

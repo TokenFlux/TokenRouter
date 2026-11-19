@@ -56,9 +56,17 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 			contextPrices = append(contextPrices, ContextModelPrice{Threshold: threshold, Pricing: price})
 		}
 	}
-	// An explicit 1h cache price enables TTL billing, including an explicit zero.
-	// Legacy entries infer TTL support when the 1h price exceeds the 5m price.
+	// Explicit five-minute or hourly rates enable TTL display and calculation,
+	// including explicit zero; legacy entries infer hourly support when 1h exceeds 5m.
 	price5m := catalogPricing.CacheCreationInputTokenCost
+	explicit5m := catalogPricing.CacheCreation5mPrice != nil
+	if explicit5m {
+		price5m = *catalogPricing.CacheCreation5mPrice
+	}
+	defaultWrite := catalogPricing.CacheCreationInputTokenCost
+	if !catalogPricing.CacheCreationPricePresent && explicit5m {
+		defaultWrite = price5m
+	}
 	price1h := catalogPricing.CacheCreationInputTokenCostAbove1hr
 	enableBreakdown := price1h > 0 && price1h > price5m || catalogPricing.CacheCreation1hPricePresent
 	return &ModelPricing{
@@ -69,7 +77,7 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 		FlexMultiplier:                     rules.FlexMultiplier,
 		TimePricing:                        rules.TimePricing,
 		CatalogSource:                      catalogPricing.Source,
-		CacheCreationPriceExplicit:         catalogPricing.Source != "" && catalogPricing.CacheCreationPricePresent && catalogPricing.CacheCreationInputTokenCost == 0,
+		CacheCreationPriceExplicit:         catalogPricing.Source != "" && (catalogPricing.CacheCreationPricePresent && catalogPricing.CacheCreationInputTokenCost == 0 || explicit5m && price5m == 0),
 		PriorityInputPresent:               catalogPricing.PriorityInputPresent,
 		PriorityOutputPresent:              catalogPricing.PriorityOutputPresent,
 		PriorityCacheReadPresent:           catalogPricing.PriorityCacheReadPresent,
@@ -79,11 +87,12 @@ func ResolveModelPricing(model string, catalogPrice *CatalogModelPricing) (*Mode
 		InputPricePerTokenPriority:         catalogPricing.InputCostPerTokenPriority,
 		OutputPricePerToken:                catalogPricing.OutputCostPerToken,
 		OutputPricePerTokenPriority:        catalogPricing.OutputCostPerTokenPriority,
-		CacheCreationPricePerToken:         catalogPricing.CacheCreationInputTokenCost,
+		CacheCreationPricePerToken:         defaultWrite,
 		CacheCreationPricePerTokenPriority: catalogPricing.CacheCreationInputTokenCostPriority,
 		CacheReadPricePerToken:             catalogPricing.CacheReadInputTokenCost,
 		CacheReadPricePerTokenPriority:     catalogPricing.CacheReadInputTokenCostPriority,
 		CacheCreation5mPrice:               price5m,
+		CacheCreation5mPriceExplicit:       explicit5m || enableBreakdown && (price5m > 0 || catalogPricing.CacheCreationPricePresent),
 		CacheCreation1hPrice:               price1h,
 		SupportsCacheBreakdown:             enableBreakdown,
 		SupportsServiceTier:                catalogPricing.SupportsServiceTier,

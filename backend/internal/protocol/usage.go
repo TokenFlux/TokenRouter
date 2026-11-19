@@ -8,12 +8,14 @@ package protocol
 // used by separate five-minute and one-hour prices.
 //
 // Reclassifying cache TTL moves the category counts while retaining other
-// usage fields, including the aggregate. Detail totals take precedence over
-// the aggregate for that operation, and filling absent five-minute detail alone
-// does not report a reclassification. Independently reported reasoning tokens
-// need another overlap rule: add only the observed gap between the total and
-// existing input/output, capped by the reported reasoning count, so inclusive
-// output totals are not counted again.
+// usage fields, including the aggregate. A positive aggregate takes precedence
+// over partial or contradictory detail counts so forced TTL reclassification
+// neither drops untagged delta writes nor doubles duplicate buckets, while
+// detail-only projections fall back to the detail sum and filling absent
+// five-minute detail alone does not report a reclassification. Independently
+// reported reasoning tokens need another overlap rule: add only the observed
+// gap between the total and existing input/output, capped by the reported
+// reasoning count, so inclusive output totals are not counted again.
 
 // AudioUsage records the processing mode and quantity consumed by audio pricing.
 type AudioUsage struct {
@@ -31,9 +33,9 @@ type TokenUsage struct {
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens"` // aggregate cache-write tokens
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`     // reported cache-read tokens
 	// CacheCreation5mTokens and CacheCreation1hTokens hold TTL details beneath
-	// CacheCreationInputTokens. ApplyCacheTTLOverride redistributes their summed
-	// detail count while leaving the aggregate field unchanged, even when its
-	// observation differs from that detail total.
+	// CacheCreationInputTokens. ApplyCacheTTLOverride assigns a positive aggregate
+	// (or the nonnegative detail sum when the aggregate is omitted) to the chosen
+	// bucket while leaving the aggregate field unchanged.
 	CacheCreation5mTokens int // five-minute cache-write tokens
 	CacheCreation1hTokens int // one-hour cache-write tokens
 	ImageOutputTokens     int `json:"image_output_tokens,omitempty"` // generated image tokens
@@ -47,10 +49,13 @@ type TokenUsage struct {
 // value selects five minutes, including differently cased or padded targets.
 //
 // When both detail buckets are zero, a positive aggregate first fills the
-// five-minute bucket. That initialization alone returns false. Otherwise the
-// detail sum is authoritative, and true reports moving it from another category.
-// The aggregate and unrelated usage fields remain unchanged; callers serialize
-// this in-place reclassification before pricing consumes the TTL categories.
+// five-minute bucket, and that initialization alone returns false. A positive
+// CacheCreationInputTokens value determines the reclassified total so partial
+// stream details and duplicate upstream buckets cannot undercount or double the
+// override; nonpositive aggregates fall back to the nonnegative detail sum for
+// nested JSON rewrites that project only the detail object. The aggregate and
+// unrelated usage fields remain unchanged, and callers serialize this in-place
+// reclassification before pricing consumes the TTL categories.
 func ApplyCacheTTLOverride(usage *TokenUsage, target string) bool {
 	// Older observations can provide only the aggregate cache-write count.
 	// Fill the default five-minute detail so TTL pricing can classify that known quantity.
@@ -58,13 +63,18 @@ func ApplyCacheTTLOverride(usage *TokenUsage, target string) bool {
 		usage.CacheCreation5mTokens = usage.CacheCreationInputTokens
 	}
 
-	total := usage.CacheCreation5mTokens + usage.CacheCreation1hTokens
-	if total == 0 {
+	total := usage.CacheCreationInputTokens
+	if total <= 0 {
+		// Nested SSE cache_creation rewrites inspect only the detail object without
+		// copying the outer aggregate; preserve their nonnegative detail sum here.
+		total = max(usage.CacheCreation5mTokens, 0) + max(usage.CacheCreation1hTokens, 0)
+	}
+	if total <= 0 {
 		return false
 	}
 	switch target {
 	case "1h":
-		if usage.CacheCreation1hTokens == total {
+		if usage.CacheCreation1hTokens == total && usage.CacheCreation5mTokens == 0 {
 			return false // already entirely in the one-hour bucket
 		}
 		usage.CacheCreation1hTokens = total
@@ -72,7 +82,7 @@ func ApplyCacheTTLOverride(usage *TokenUsage, target string) bool {
 	default: // "5m"
 		// Unrecognized targets follow the five-minute category, including "1H".
 		// The caller's selected TTL therefore needs exact matching to request the one-hour price.
-		if usage.CacheCreation5mTokens == total {
+		if usage.CacheCreation5mTokens == total && usage.CacheCreation1hTokens == 0 {
 			return false // already entirely in the five-minute bucket
 		}
 		usage.CacheCreation5mTokens = total

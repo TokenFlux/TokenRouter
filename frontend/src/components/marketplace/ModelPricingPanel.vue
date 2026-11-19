@@ -213,6 +213,11 @@ function hasPositiveValue(value?: number | null): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
+// hasNonNegativeValue recognizes finite numeric prices at or above zero, including explicit free tiers.
+function hasNonNegativeValue(value?: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 // formatPrice appends the selected balance unit to the shared numerical formatter.
 function formatPrice(value: number): string {
   return `${formatPriceNumber(value)} ${balanceUnitName.value}`
@@ -230,8 +235,9 @@ function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
 }
 
-// tokenPricingRowsFromValues emits positive standard token prices in display order.
-// Missing, nonfinite, and zero values produce no row here. The caller supplies
+// tokenPricingRowsFromValues emits positive standard token prices and explicit
+// non-negative TTL cache-write tiers (including free zero-valued tiers) in display order.
+// Remaining zero or absent buckets produce no row here; the caller supplies
 // explicit zero fallback rows when the overall quote is marked priced.
 function tokenPricingRowsFromValues(pricing: MarketplaceServiceTierPricing): PricingRow[] {
   const rows: PricingRow[] = []
@@ -257,14 +263,14 @@ function tokenPricingRowsFromValues(pricing: MarketplaceServiceTierPricing): Pri
       value: formatPerMillion(pricing.output_price_per_token),
     })
   }
-  if (pricing.cache_write_30m_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.cache_write_30m_price_per_token)) {
     rows.push({
       key: 'cache_write_30m',
       label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
       value: formatPerMillion(pricing.cache_write_30m_price_per_token),
     })
   }
-  if (pricing.cache_write_12h_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.cache_write_12h_price_per_token)) {
     rows.push({
       key: 'cache_write_12h',
       label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
@@ -272,22 +278,29 @@ function tokenPricingRowsFromValues(pricing: MarketplaceServiceTierPricing): Pri
     })
   }
   if (
-    pricing.cache_write_30m_price_per_token == null &&
-    pricing.cache_write_12h_price_per_token == null &&
-    hasPositiveValue(pricing.cache_write_price_per_token)
+    !hasNonNegativeValue(pricing.cache_write_30m_price_per_token) &&
+    !hasNonNegativeValue(pricing.cache_write_12h_price_per_token)
   ) {
-    rows.push({
-      key: 'cache_write',
-      label: t('marketplace.cacheWrite'),
-      value: formatPerMillion(pricing.cache_write_price_per_token),
-    })
-  }
-  if (hasPositiveValue(pricing.cache_write_1h_price_per_token)) {
-    rows.push({
-      key: 'cache_write_1h',
-      label: t('marketplace.cacheWrite1h'),
-      value: formatPerMillion(pricing.cache_write_1h_price_per_token),
-    })
+    if (hasNonNegativeValue(pricing.cache_write_5m_price_per_token)) {
+      rows.push({
+        key: 'cache_write_5m',
+        label: t('marketplace.cacheWriteLifetime', { ttl: '5m' }),
+        value: formatPerMillion(pricing.cache_write_5m_price_per_token),
+      })
+    } else if (hasPositiveValue(pricing.cache_write_price_per_token)) {
+      rows.push({
+        key: 'cache_write',
+        label: t('marketplace.cacheWrite'),
+        value: formatPerMillion(pricing.cache_write_price_per_token),
+      })
+    }
+    if (hasNonNegativeValue(pricing.cache_write_1h_price_per_token)) {
+      rows.push({
+        key: 'cache_write_1h',
+        label: t('marketplace.cacheWrite1h'),
+        value: formatPerMillion(pricing.cache_write_1h_price_per_token),
+      })
+    }
   }
   if (hasPositiveValue(pricing.cache_read_price_per_token)) {
     rows.push({
@@ -307,9 +320,9 @@ function tokenPricingRowsFromValues(pricing: MarketplaceServiceTierPricing): Pri
   return rows
 }
 
-// fastTokenPricingRows emits only positive prices from the fast-prefixed fields.
-// It does not borrow standard prices for absent fields, so an empty result leaves
-// the caller using its standard rows and hides the fast selector.
+// fastTokenPricingRows emits positive fast-prefixed prices and explicit non-negative
+// fast TTL cache-write tiers. It does not borrow standard prices for absent fields,
+// so an empty result leaves the caller using its standard rows and hides the fast selector.
 function fastTokenPricingRows(
   pricing: MarketplaceModelPricing | MarketplacePricingInterval,
 ): PricingRow[] {
@@ -336,14 +349,14 @@ function fastTokenPricingRows(
       value: formatPerMillion(pricing.fast_output_price_per_token),
     })
   }
-  if (pricing.fast_cache_write_30m_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.fast_cache_write_30m_price_per_token)) {
     rows.push({
       key: 'fast_cache_write_30m',
       label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
       value: formatPerMillion(pricing.fast_cache_write_30m_price_per_token),
     })
   }
-  if (pricing.fast_cache_write_12h_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.fast_cache_write_12h_price_per_token)) {
     rows.push({
       key: 'fast_cache_write_12h',
       label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
@@ -351,22 +364,29 @@ function fastTokenPricingRows(
     })
   }
   if (
-    pricing.fast_cache_write_30m_price_per_token == null &&
-    pricing.fast_cache_write_12h_price_per_token == null &&
-    hasPositiveValue(pricing.fast_cache_write_price_per_token)
+    !hasNonNegativeValue(pricing.fast_cache_write_30m_price_per_token) &&
+    !hasNonNegativeValue(pricing.fast_cache_write_12h_price_per_token)
   ) {
-    rows.push({
-      key: 'fast_cache_write',
-      label: t('marketplace.fastCacheWrite'),
-      value: formatPerMillion(pricing.fast_cache_write_price_per_token),
-    })
-  }
-  if (hasPositiveValue(pricing.fast_cache_write_1h_price_per_token)) {
-    rows.push({
-      key: 'fast_cache_write_1h',
-      label: t('marketplace.fastCacheWrite1h'),
-      value: formatPerMillion(pricing.fast_cache_write_1h_price_per_token),
-    })
+    if (hasNonNegativeValue(pricing.fast_cache_write_5m_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write_5m',
+        label: t('marketplace.cacheWriteLifetime', { ttl: '5m' }),
+        value: formatPerMillion(pricing.fast_cache_write_5m_price_per_token),
+      })
+    } else if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write',
+        label: t('marketplace.fastCacheWrite'),
+        value: formatPerMillion(pricing.fast_cache_write_price_per_token),
+      })
+    }
+    if (hasNonNegativeValue(pricing.fast_cache_write_1h_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write_1h',
+        label: t('marketplace.fastCacheWrite1h'),
+        value: formatPerMillion(pricing.fast_cache_write_1h_price_per_token),
+      })
+    }
   }
   if (hasPositiveValue(pricing.fast_cache_read_price_per_token)) {
     rows.push({

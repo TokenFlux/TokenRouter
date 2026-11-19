@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // pricing.go selects charge modes and calculates costs from captured token,
@@ -226,6 +228,7 @@ func (s *Recorder) CalculateTokenCost(
 		opts = &PricingOptions{}
 	}
 
+	defaultFamily := defaultCompletionCacheWriteFamily(provider, false)
 	// Use the selected model's configured card before catalogue-only calculation;
 	// another route identity cannot supply its price after this source was selected.
 	if resolved, resolvedModel := s.resolveConfigPricingForUsage(ctx, billingModel, apiKey); resolved != nil {
@@ -235,14 +238,15 @@ func (s *Recorder) CalculateTokenCost(
 			Model:   resolvedModel,
 			GroupID: &gid,
 
-			Tokens:          tokens,
-			RequestCount:    1,
-			RateMultiplier:  multiplier,
-			PricingAt:       opts.PricingAt,
-			ServiceTier:     serviceTier,
-			ReasoningEffort: stringValueOrEmpty(result.ReasoningEffort),
-			Resolver:        s.resolver,
-			Resolved:        resolved,
+			Tokens:                  tokens,
+			RequestCount:            1,
+			RateMultiplier:          multiplier,
+			PricingAt:               opts.PricingAt,
+			ServiceTier:             serviceTier,
+			ReasoningEffort:         stringValueOrEmpty(result.ReasoningEffort),
+			DefaultCacheWriteFamily: defaultFamily,
+			Resolver:                s.resolver,
+			Resolved:                resolved,
 		})
 	} else {
 		switch {
@@ -253,18 +257,20 @@ func (s *Recorder) CalculateTokenCost(
 				Model:   billingModel,
 				GroupID: &gid,
 
-				Tokens:          tokens,
-				RequestCount:    1,
-				RateMultiplier:  multiplier,
-				PricingAt:       opts.PricingAt,
-				ServiceTier:     serviceTier,
-				ReasoningEffort: stringValueOrEmpty(result.ReasoningEffort),
-				Resolver:        s.resolver,
+				Tokens:                  tokens,
+				RequestCount:            1,
+				RateMultiplier:          multiplier,
+				PricingAt:               opts.PricingAt,
+				ServiceTier:             serviceTier,
+				ReasoningEffort:         stringValueOrEmpty(result.ReasoningEffort),
+				DefaultCacheWriteFamily: defaultFamily,
+				Resolver:                s.resolver,
 			})
 		default:
 			cost, err = s.billingService.CalculateCostUnified(CostInput{
 				Ctx: ctx, Model: billingModel, Tokens: tokens, RateMultiplier: multiplier,
 				PricingAt: opts.PricingAt, ServiceTier: serviceTier, ReasoningEffort: stringValueOrEmpty(result.ReasoningEffort),
+				DefaultCacheWriteFamily: defaultFamily,
 			})
 		}
 	}
@@ -456,19 +462,39 @@ func (s *Recorder) CalculateOpenAIRecordUsageTokenCostAt(
 			Model:   billingModel,
 			GroupID: &gid,
 
-			Tokens:          tokens,
-			RequestCount:    1,
-			RateMultiplier:  multiplier,
-			PricingAt:       pricingAt,
-			ServiceTier:     serviceTier,
-			ReasoningEffort: reasoningEffort,
-			Resolver:        s.resolver,
+			Tokens:                  tokens,
+			RequestCount:            1,
+			RateMultiplier:          multiplier,
+			PricingAt:               pricingAt,
+			ServiceTier:             serviceTier,
+			ReasoningEffort:         reasoningEffort,
+			DefaultCacheWriteFamily: pricing.CacheWriteFamilyOpenAI,
+			Resolver:                s.resolver,
 		})
 	}
 	return s.billingService.CalculateCostUnified(CostInput{
 		Ctx: ctx, Model: billingModel, Tokens: tokens, RateMultiplier: multiplier,
 		PricingAt: pricingAt, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort,
+		DefaultCacheWriteFamily: pricing.CacheWriteFamilyOpenAI,
 	})
+}
+
+// defaultCompletionCacheWriteFamily selects the protocol fallback cache-write
+// family when neither reported usage nor configured TTL rates choose one.
+func defaultCompletionCacheWriteFamily(provider *ProviderSnapshot, openAI bool) pricing.CacheWriteFamily {
+	if openAI {
+		return pricing.CacheWriteFamilyOpenAI
+	}
+	if provider != nil {
+		if provider.OpenAI {
+			return pricing.CacheWriteFamilyOpenAI
+		}
+		switch strings.ToLower(strings.TrimSpace(provider.Platform)) {
+		case "openai", "grok":
+			return pricing.CacheWriteFamilyOpenAI
+		}
+	}
+	return pricing.CacheWriteFamilyClaude
 }
 
 // ForwardResultReasoningEffort reads the captured final effort as supplied.
@@ -490,7 +516,14 @@ func ForwardResultReasoningEffort(result *Result) string {
 // only when GetModelPricing succeeds. That successful lookup is enough for this
 // availability check, even when the later token calculation can still fail.
 func (s *Recorder) imageUsesTokenPricing(model, size string, usage TokenUsage) bool {
-	if usage.InputTokens <= 0 && usage.OutputTokens <= 0 && usage.CacheReadInputTokens <= 0 && usage.CacheCreationInputTokens <= 0 && usage.ImageInputTokens <= 0 && usage.ImageOutputTokens <= 0 {
+	effectiveWrites := pricing.EffectiveCacheWriteTotal(UsageTokens{
+		CacheCreationTokens:    usage.CacheCreationInputTokens,
+		CacheCreation5mTokens:  usage.CacheCreation5mTokens,
+		CacheCreation1hTokens:  usage.CacheCreation1hTokens,
+		CacheCreation30mTokens: usage.CacheCreation30mTokens,
+		CacheCreation12hTokens: usage.CacheCreation12hTokens,
+	})
+	if usage.InputTokens <= 0 && usage.OutputTokens <= 0 && usage.CacheReadInputTokens <= 0 && effectiveWrites <= 0 && usage.ImageInputTokens <= 0 && usage.ImageOutputTokens <= 0 {
 		return false
 	}
 	if _, err := s.billingService.DefaultImagePrice(model, NormalizeImageBillingTierOrDefault(size)); err == nil {

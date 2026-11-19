@@ -252,18 +252,6 @@ func ApplyTokenOverrides(chPricing *ModelPricingEntry, resolved *ResolvedPricing
 	// unit-only rows, so switching card modes cannot invent token ranges from
 	// stale unit fields.
 	validIntervals := FilterValidTokenIntervals(chPricing.Intervals)
-	// A supplied hourly amount establishes separate TTL intent even at zero,
-	// allowing downstream calculation to distinguish free hourly usage from an
-	// omitted hourly price.
-	if chPricing.CacheWrite1hPrice != nil {
-		resolved.SupportsCacheBreakdown = true
-	}
-	for _, iv := range validIntervals {
-		if iv.CacheWrite1hPrice != nil {
-			resolved.SupportsCacheBreakdown = true
-			break
-		}
-	}
 
 	// Apply default amounts before interval conversion so missing interval
 	// buckets, interval factors, and unmatched contexts share one available
@@ -282,9 +270,7 @@ func ApplyTokenOverrides(chPricing *ModelPricingEntry, resolved *ResolvedPricing
 	}
 
 	ApplyConfigTokenPriceOverrides(resolved.BasePricing, chPricing)
-	if resolved.SupportsCacheBreakdown {
-		resolved.BasePricing.SupportsCacheBreakdown = true
-	}
+	resolved.SupportsCacheBreakdown = resolved.BasePricing.SupportsCacheBreakdown
 	if chPricing.MaxReasoningEffortMultiplier != nil {
 		resolved.BasePricing.MaxReasoningEffortMultiplier = chPricing.MaxReasoningEffortMultiplier
 	}
@@ -420,6 +406,7 @@ func MultiplyPricingIntervals(intervals []PricingInterval, multiplier float64) [
 		scaled[i].InputPrice = MultiplyPricePointer(intervals[i].InputPrice, multiplier)
 		scaled[i].OutputPrice = MultiplyPricePointer(intervals[i].OutputPrice, multiplier)
 		scaled[i].CacheWritePrice = MultiplyPricePointer(intervals[i].CacheWritePrice, multiplier)
+		scaled[i].CacheWrite5mPrice = MultiplyPricePointer(intervals[i].CacheWrite5mPrice, multiplier)
 		scaled[i].CacheWrite1hPrice = MultiplyPricePointer(intervals[i].CacheWrite1hPrice, multiplier)
 		scaled[i].CacheWrite30mPrice = MultiplyPricePointer(intervals[i].CacheWrite30mPrice, multiplier)
 		scaled[i].CacheWrite12hPrice = MultiplyPricePointer(intervals[i].CacheWrite12hPrice, multiplier)
@@ -440,6 +427,7 @@ func MultiplyPricingFields(pricing *ModelPricingEntry, multiplier float64) {
 	pricing.InputPrice = MultiplyPricePointer(pricing.InputPrice, multiplier)
 	pricing.OutputPrice = MultiplyPricePointer(pricing.OutputPrice, multiplier)
 	pricing.CacheWritePrice = MultiplyPricePointer(pricing.CacheWritePrice, multiplier)
+	pricing.CacheWrite5mPrice = MultiplyPricePointer(pricing.CacheWrite5mPrice, multiplier)
 	pricing.CacheWrite1hPrice = MultiplyPricePointer(pricing.CacheWrite1hPrice, multiplier)
 	pricing.CacheWrite30mPrice = MultiplyPricePointer(pricing.CacheWrite30mPrice, multiplier)
 	pricing.CacheWrite12hPrice = MultiplyPricePointer(pricing.CacheWrite12hPrice, multiplier)
@@ -469,7 +457,7 @@ func FilterValidTokenIntervals(intervals []PricingInterval) []PricingInterval {
 	var valid []PricingInterval
 	for _, iv := range intervals {
 		if iv.InputPrice != nil || iv.OutputPrice != nil ||
-			iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil ||
+			iv.CacheWritePrice != nil || iv.CacheWrite5mPrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil ||
 			iv.InputMultiplier != nil || iv.OutputMultiplier != nil ||
 			iv.CacheWriteMultiplier != nil || iv.CacheReadMultiplier != nil {
 			valid = append(valid, iv)
@@ -545,19 +533,7 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.OutputPricePerToken *= *iv.OutputMultiplier
 		pricing.OutputPricePerTokenPriority *= *iv.OutputMultiplier
 	}
-	if iv.CacheWritePrice != nil {
-		priority := ConfigTierOverridePrice(pricing.CacheCreationPricePerToken, pricing.CacheCreationPricePerTokenPriority, *iv.CacheWritePrice)
-		pricing.CacheCreationPricePerToken = *iv.CacheWritePrice
-		pricing.CacheCreationPricePerTokenPriority = priority
-		pricing.CacheCreationPriceExplicit = true
-		pricing.CacheCreation5mPrice = *iv.CacheWritePrice
-		if iv.CacheWrite1hPrice == nil {
-			// The interval's short cache override also replaces hourly pricing when
-			// hourly is absent, so inherited TTL amounts cannot silently keep a
-			// different default.
-			pricing.CacheCreation1hPrice = *iv.CacheWritePrice
-		}
-	} else if iv.CacheWriteMultiplier != nil {
+	if iv.CacheWritePrice == nil && iv.CacheWriteMultiplier != nil {
 		pricing.CacheCreationPricePerToken *= *iv.CacheWriteMultiplier
 		pricing.CacheCreationPricePerTokenPriority *= *iv.CacheWriteMultiplier
 		pricing.CacheCreation5mPrice *= *iv.CacheWriteMultiplier
@@ -565,11 +541,14 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.CacheCreation30mPrice = MultiplyPricePointer(pricing.CacheCreation30mPrice, *iv.CacheWriteMultiplier)
 		pricing.CacheCreation12hPrice = MultiplyPricePointer(pricing.CacheCreation12hPrice, *iv.CacheWriteMultiplier)
 	}
-	applyCacheWriteTTLPrices(pricing, iv.CacheWritePrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice)
-	if iv.CacheWrite1hPrice != nil {
-		pricing.CacheCreation1hPrice = *iv.CacheWrite1hPrice
-		pricing.SupportsCacheBreakdown = true
-	}
+	applyCacheWriteCardOverrides(
+		pricing,
+		iv.CacheWritePrice,
+		iv.CacheWrite5mPrice,
+		iv.CacheWrite1hPrice,
+		iv.CacheWrite30mPrice,
+		iv.CacheWrite12hPrice,
+	)
 	if iv.CacheReadPrice != nil {
 		priority := ConfigTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *iv.CacheReadPrice)
 		pricing.CacheReadPricePerToken = *iv.CacheReadPrice
@@ -592,7 +571,7 @@ func IntervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 	}
 	retainFixedCalendarRates(pricing, &ModelPricingEntry{
 		InputPrice: iv.InputPrice, OutputPrice: iv.OutputPrice, CacheReadPrice: iv.CacheReadPrice,
-		CacheWritePrice: iv.CacheWritePrice, CacheWrite1hPrice: iv.CacheWrite1hPrice,
+		CacheWritePrice: iv.CacheWritePrice, CacheWrite5mPrice: iv.CacheWrite5mPrice, CacheWrite1hPrice: iv.CacheWrite1hPrice,
 		CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
 	})
 	return pricing
@@ -726,12 +705,12 @@ func HasExplicitPricingPrice(p ModelPricingEntry) bool {
 		}
 		return false
 	}
-	if p.InputPrice != nil || p.OutputPrice != nil || p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil || p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil ||
+	if p.InputPrice != nil || p.OutputPrice != nil || p.CacheWritePrice != nil || p.CacheWrite5mPrice != nil || p.CacheWrite1hPrice != nil || p.CacheWrite30mPrice != nil || p.CacheWrite12hPrice != nil ||
 		p.CacheReadPrice != nil || p.ImageInputPrice != nil || p.ImageOutputPrice != nil {
 		return true
 	}
 	for _, iv := range p.Intervals {
-		if iv.InputPrice != nil || iv.OutputPrice != nil || iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil {
+		if iv.InputPrice != nil || iv.OutputPrice != nil || iv.CacheWritePrice != nil || iv.CacheWrite5mPrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheWrite30mPrice != nil || iv.CacheWrite12hPrice != nil || iv.CacheReadPrice != nil {
 			return true
 		}
 	}

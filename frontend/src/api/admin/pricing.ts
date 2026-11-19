@@ -36,7 +36,8 @@ export interface PricingInterval {
   tier_label: string // Named price tier.
   input_price: number | null // USD per input token.
   output_price: number | null // USD per output token.
-  cache_write_price: number | null // USD per short-TTL cache-write token.
+  cache_write_price: number | null // USD per uniform cache-write token.
+  cache_write_5m_price?: number | null // USD per 5m cache-write token.
   /**
    * In user token pricing, null or omission lets a supplied cache_write_price
    * also price the hourly bucket; an explicit hourly value takes precedence.
@@ -109,7 +110,8 @@ export interface ModelPricingEntry {
   max_reasoning_effort_multiplier?: number | null // Max reasoning effort multiplier.
   input_price: number | null // USD per input token.
   output_price: number | null // USD per output token.
-  cache_write_price: number | null // USD per short-TTL cache-write token.
+  cache_write_price: number | null // USD per uniform cache-write token.
+  cache_write_5m_price?: number | null // USD per 5m cache-write token.
   /**
    * In user token pricing, null or omission lets a supplied cache_write_price
    * also price the hourly bucket; an explicit hourly value takes precedence.
@@ -272,6 +274,7 @@ export interface ModelDefaultPricing {
   input_price?: number // USD per input token.
   output_price?: number // USD per output token.
   cache_write_price?: number // USD per cache-write token.
+  cache_write_5m_price?: number | null // USD per 5m cache-write token.
   cache_write_1h_price?: number | null // USD per hourly cache-write token.
   cache_write_30m_price?: number | null // USD per 30m cache-write token.
   cache_write_12h_price?: number | null // USD per 12h cache-write token.

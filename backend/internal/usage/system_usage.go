@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -101,9 +102,11 @@ func (r *SystemRecorder) price(ctx context.Context, row *UsageLog) {
 		InputTokens: row.InputTokens, OutputTokens: row.OutputTokens,
 		CacheCreationTokens: row.CacheCreationTokens, CacheReadTokens: row.CacheReadTokens,
 		CacheCreation5mTokens: row.CacheCreation5mTokens, CacheCreation1hTokens: row.CacheCreation1hTokens,
+		CacheCreation30mTokens: row.CacheCreation30mTokens, CacheCreation12hTokens: row.CacheCreation12hTokens,
 		ImageInputTokens:     row.ImageInputTokens,
 		ImageCacheReadTokens: row.ImageCacheReadTokens, ImageOutputTokens: row.ImageOutputTokens,
 	}
+	defaultFamily := defaultCacheWriteFamilyForRow(row.Platform, row.Model)
 	model := row.Model
 	if row.UpstreamModel != nil && *row.UpstreamModel != "" {
 		model = *row.UpstreamModel
@@ -116,8 +119,10 @@ func (r *SystemRecorder) price(ctx context.Context, row *UsageLog) {
 		Ctx: ctx, Model: model, GroupID: row.GroupID,
 		Tokens: tokens, RequestCount: count, SizeTier: systemString(row.ImageSize),
 		RateMultiplier: 1, PricingAt: row.CreatedAt,
-		ServiceTier:     systemString(row.ServiceTier),
-		ReasoningEffort: systemString(row.ReasoningEffort), Resolver: r.Resolver,
+		ServiceTier:             systemString(row.ServiceTier),
+		ReasoningEffort:         systemString(row.ReasoningEffort),
+		DefaultCacheWriteFamily: defaultFamily,
+		Resolver:                r.Resolver,
 	}
 	cost, err := r.calculate(ctx, row, input)
 	// Configured prices can name the requested or group-mapped alias rather
@@ -141,6 +146,13 @@ func (r *SystemRecorder) price(ctx context.Context, row *UsageLog) {
 		costMode = cost.BillingMode
 	}
 	measured := row.SystemUsage.UsageState != "missing"
+	if measured {
+		settled := billing.SettleCacheWrite(billing.CacheWriteRates{}, tokens, defaultFamily, 0)
+		if err == nil && cost != nil && cost.CacheWrite != nil {
+			settled = *cost.CacheWrite
+		}
+		applySystemCacheWriteSettlement(row, settled)
+	}
 	if err == nil && cost != nil && ((cost.BillingMode == "token" && measured) || (cost.BillingMode != "token" && row.SystemUsage.Outcome == "success" && (cost.BillingMode != "image" || row.ImageCount > 0))) {
 		row.TotalCost = cost.TotalCost
 		row.InputCost, row.OutputCost = cost.InputCost, cost.OutputCost
@@ -200,6 +212,55 @@ func systemString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// defaultCacheWriteFamilyForRow selects the fallback cache-write TTL family
+// from recorded platform or model prefixes when usage and price cards are flat.
+func defaultCacheWriteFamilyForRow(platform, model string) billing.CacheWriteFamily {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case "openai", "grok":
+		return billing.CacheWriteFamilyOpenAI
+	}
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	for _, prefix := range []string{"gpt-", "chatgpt-", "o1", "o3", "o4", "codex"} {
+		if strings.HasPrefix(normalized, prefix) {
+			return billing.CacheWriteFamilyOpenAI
+		}
+	}
+	return billing.CacheWriteFamilyClaude
+}
+
+// applySystemCacheWriteSettlement stores settled cache-write buckets and
+// optional anomaly diagnostics onto a system usage row.
+func applySystemCacheWriteSettlement(row *UsageLog, settled billing.CacheWriteSettlement) {
+	row.CacheCreationTokens = settled.BilledTotal
+	row.CacheCreation5mTokens = settled.Billed5m
+	row.CacheCreation1hTokens = settled.Billed1h
+	row.CacheCreation30mTokens = nil
+	row.CacheCreation12hTokens = nil
+	if settled.Billed30m != nil {
+		row.CacheCreation30mTokens = new(*settled.Billed30m)
+	}
+	if settled.Billed12h != nil {
+		row.CacheCreation12hTokens = new(*settled.Billed12h)
+	}
+	row.CacheWriteAnomaly = CloneCacheWriteAnomaly(settled.Anomaly)
+}
+
+// CloneCacheWriteAnomaly returns an independent copy of a cache-write anomaly
+// record, including its optional 30m and 12h pointer fields.
+func CloneCacheWriteAnomaly(src *billing.CacheWriteAnomaly) *billing.CacheWriteAnomaly {
+	if src == nil {
+		return nil
+	}
+	out := *src
+	if src.Reported30m != nil {
+		out.Reported30m = new(*src.Reported30m)
+	}
+	if src.Reported12h != nil {
+		out.Reported12h = new(*src.Reported12h)
+	}
+	return &out
 }
 
 // calculate rejects unconfigured cross-vendor aliases before shared arithmetic.

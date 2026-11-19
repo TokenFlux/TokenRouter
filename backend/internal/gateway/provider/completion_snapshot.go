@@ -238,7 +238,10 @@ func ProjectOpenAICompletionResult(v *forwardcore.OpenAIResult, a *provider.Reco
 	if v.AudioUsage != nil {
 		out.AudioUsage = &completion.AudioUsage{Mode: v.AudioUsage.Mode, DurationOrUnits: v.AudioUsage.DurationOrUnits}
 	}
-	if details := v.Usage.CacheWriteDetails; details.Matches(out.Usage.CacheCreationInputTokens) {
+	// Forward raw 30m and 12h counters whenever upstream supplied a lifetime
+	// detail object so SettleCacheWrite can reconcile partial, missing-total,
+	// or overreported splits and record administrator anomaly diagnostics.
+	if details := v.Usage.CacheWriteDetails; details != nil {
 		out.Usage.CacheCreation30mTokens = new(details.Tokens30m)
 		out.Usage.CacheCreation12hTokens = new(details.Tokens12h)
 	}

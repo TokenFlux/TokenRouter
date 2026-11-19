@@ -50,6 +50,12 @@ type UsageAccumulator struct {
 	usage ResponsesUsage // accumulated inclusive token counters
 	seen  bool           // object-shaped usage observed
 
+	// rawCacheWriteTotal and rawCacheWriteDetails retain the upstream outer
+	// write count and nested TTL split for ForwardUsage accounting even when
+	// Snapshot suppresses nonmatching wire details or backfills missing totals.
+	rawCacheWriteTotal   int                      // raw outer cache-write token observation
+	rawCacheWriteDetails *CacheWriteTokensDetails // raw nested TTL write observation
+
 	// imageInputTokens, imageOutputTokens, and imageCacheReadTokens retain categories absent
 	// from the typed client model. Sparse observations preserve each bucket until
 	// an explicit replacement or complete zero snapshot arrives.
@@ -171,13 +177,16 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 	hasTotal := value.Get("total_tokens").Exists()
 	hasRead := usageHasAny(value, cacheReadDetailPaths...) || usageHasAny(value, cacheReadAliasPaths...)
 	hasWrite := usageHasAny(value, cacheWriteDetailPaths...) || usageHasAny(value, cacheWriteAliasPaths...)
+	hasWriteDetails := value.Get(cacheWriteDetailsPath).Exists()
 	if hasInput && hasOutput && current.InputTokens == 0 && current.OutputTokens == 0 &&
-		current.TotalTokens == 0 && current.CacheCreationInputTokens == 0 &&
+		current.TotalTokens == 0 && current.CacheCreationInputTokens == 0 && !counters.CacheWriteDetails.HasTokens() &&
 		counters.ImageInputTokens == 0 && counters.ImageOutputTokens == 0 &&
 		(current.InputTokensDetails == nil || current.InputTokensDetails.CachedTokens == 0) {
 		// A complete explicit zero snapshot represents a reset rather than a sparse
 		// tail; retaining earlier cache buckets would contradict its zero prompt total.
 		a.usage = current
+		a.rawCacheWriteTotal = 0
+		a.rawCacheWriteDetails = nil
 		a.imageInputTokens = 0
 		a.imageCacheReadTokens = 0
 		a.imageOutputTokens = 0
@@ -198,23 +207,30 @@ func (a *UsageAccumulator) observe(raw []byte, imageGen gjson.Result) *Responses
 	if hasOutput {
 		a.usage.OutputTokens = current.OutputTokens
 	}
-	if hasRead || hasWrite || current.InputTokensDetails != nil {
+	if hasRead || hasWrite || hasWriteDetails || current.InputTokensDetails != nil {
 		if a.usage.InputTokensDetails == nil {
 			a.usage.InputTokensDetails = &ResponsesInputTokensDetails{}
 		}
 		if hasRead {
 			a.usage.InputTokensDetails.CachedTokens = OpenAICacheReadTokensFromUsage(value)
 		}
-		if hasWrite {
-			a.usage.CacheCreationInputTokens = current.CacheCreationInputTokens
-			a.usage.InputTokensDetails.CacheCreationTokens = current.CacheCreationInputTokens
+		if hasWrite || hasWriteDetails || a.rawCacheWriteDetails != nil {
+			a.rawCacheWriteTotal, a.rawCacheWriteDetails = ObserveCacheWriteDetails(value, a.rawCacheWriteTotal, a.rawCacheWriteDetails)
+		}
+		effectiveWrite := EffectiveCacheWriteTokens(a.rawCacheWriteTotal, a.rawCacheWriteDetails)
+		if hasWrite || (a.rawCacheWriteTotal == 0 && effectiveWrite > 0) {
+			a.usage.CacheCreationInputTokens = effectiveWrite
+			a.usage.InputTokensDetails.CacheCreationTokens = effectiveWrite
 			a.usage.InputTokensDetails.CacheWriteTokens = 0
-			if current.InputTokensDetails != nil && current.InputTokensDetails.CacheWriteTokens != 0 {
-				a.usage.InputTokensDetails.CacheWriteTokens = current.CacheCreationInputTokens
+			if (current.InputTokensDetails != nil && current.InputTokensDetails.CacheWriteTokens != 0) ||
+				(a.rawCacheWriteTotal == 0 && effectiveWrite > 0) {
+				a.usage.InputTokensDetails.CacheWriteTokens = effectiveWrite
 			}
 		}
-		if a.usage.InputTokensDetails.CacheWriteDetails != nil || value.Get(cacheWriteDetailsPath).Exists() {
-			_, a.usage.InputTokensDetails.CacheWriteDetails = ObserveCacheWriteDetails(value, a.usage.CacheCreationInputTokens, a.usage.InputTokensDetails.CacheWriteDetails)
+		if a.rawCacheWriteDetails.Matches(a.usage.CacheCreationInputTokens) {
+			a.usage.InputTokensDetails.CacheWriteDetails = new(*a.rawCacheWriteDetails)
+		} else {
+			a.usage.InputTokensDetails.CacheWriteDetails = nil
 		}
 		if typedDetailsValid && usageHasAny(value, "input_tokens_details.audio_tokens", "prompt_tokens_details.audio_tokens") {
 			a.usage.InputTokensDetails.AudioTokens = current.InputTokensDetails.AudioTokens
@@ -278,11 +294,18 @@ func (a *UsageAccumulator) ObserveResponsesEvent(raw []byte, event *ResponsesStr
 	return snapshot
 }
 
-// ForwardUsage returns accumulated accounting, including the image buckets
-// omitted from typed client snapshots. Before any observation it returns zero
-// counters; the returned value owns its fields and cannot mutate this accumulator.
+// ForwardUsage returns accumulated accounting, including raw cache-write
+// observations and image buckets omitted from typed client snapshots. Before
+// any observation it returns zero counters; the returned value owns its fields
+// and cannot mutate this accumulator.
 func (a *UsageAccumulator) ForwardUsage() ForwardUsage {
 	usage := CopyForwardUsage(&a.usage)
+	usage.CacheCreationInputTokens = a.rawCacheWriteTotal
+	if a.rawCacheWriteDetails != nil {
+		usage.CacheWriteDetails = new(*a.rawCacheWriteDetails)
+	} else {
+		usage.CacheWriteDetails = nil
+	}
 	usage.ImageInputTokens = a.imageInputTokens
 	usage.ImageCacheReadTokens = a.imageCacheReadTokens
 	usage.ImageOutputTokens = a.imageOutputTokens
@@ -393,13 +416,19 @@ func normalizeResponsesCacheUsage(value gjson.Result, usage *ResponsesUsage) {
 		if hasRead {
 			usage.InputTokensDetails.CachedTokens = OpenAICacheReadTokensFromUsage(value)
 		}
-		_, usage.InputTokensDetails.CacheWriteDetails = ObserveCacheWriteDetails(value, 0, nil)
-		if hasWrite {
-			usage.CacheCreationInputTokens = OpenAICacheCreationTokensFromUsage(value)
-			usage.InputTokensDetails.CacheCreationTokens = usage.CacheCreationInputTokens
-			if usage.InputTokensDetails.CacheWriteTokens != 0 {
-				usage.InputTokensDetails.CacheWriteTokens = usage.CacheCreationInputTokens
+		rawTotal, rawDetails := ObserveCacheWriteDetails(value, 0, nil)
+		effectiveWrite := EffectiveCacheWriteTokens(rawTotal, rawDetails)
+		if hasWrite || effectiveWrite > 0 {
+			usage.CacheCreationInputTokens = effectiveWrite
+			usage.InputTokensDetails.CacheCreationTokens = effectiveWrite
+			if usage.InputTokensDetails.CacheWriteTokens != 0 || (!hasWrite && effectiveWrite > 0) {
+				usage.InputTokensDetails.CacheWriteTokens = effectiveWrite
 			}
+		}
+		if rawDetails.Matches(usage.CacheCreationInputTokens) {
+			usage.InputTokensDetails.CacheWriteDetails = rawDetails
+		} else {
+			usage.InputTokensDetails.CacheWriteDetails = nil
 		}
 	}
 	if !usageHasAny(value, "input_tokens", "prompt_tokens") && value.Get("prompt_cache_miss_tokens").Exists() {

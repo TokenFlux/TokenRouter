@@ -24,7 +24,7 @@ import (
 
 // ForwardUsage holds token, cache, and image observations for downstream accounting.
 type ForwardUsage struct {
-	CacheWriteDetails        *CacheWriteTokensDetails `json:"-"`                                     // validated TTL write counters
+	CacheWriteDetails        *CacheWriteTokensDetails `json:"-"`                                     // observed TTL write counters
 	ImageFrameCount          int                      `json:"-"`                                     // independently observed animation frame units
 	InputTokens              int                      `json:"input_tokens"`                          // reported input tokens
 	ImageInputTokens         int                      `json:"image_input_tokens,omitempty"`          // reported image-input tokens
@@ -68,8 +68,10 @@ func AddForwardUsage(dst *ForwardUsage, usage ForwardUsage) {
 	dst.ImageInputTokens += usage.ImageInputTokens
 	dst.ImageCacheReadTokens += usage.ImageCacheReadTokens
 	dst.OutputTokens += usage.OutputTokens
-	dst.CacheWriteDetails = AddCacheWriteDetails(dst.CacheCreationInputTokens, dst.CacheWriteDetails, usage.CacheCreationInputTokens, usage.CacheWriteDetails)
-	dst.CacheCreationInputTokens += usage.CacheCreationInputTokens
+	dst.CacheCreationInputTokens, dst.CacheWriteDetails = combineCacheWriteObservations(
+		dst.CacheCreationInputTokens, dst.CacheWriteDetails,
+		usage.CacheCreationInputTokens, usage.CacheWriteDetails,
+	)
 	dst.CacheReadInputTokens += usage.CacheReadInputTokens
 	dst.ImageOutputTokens += usage.ImageOutputTokens
 }

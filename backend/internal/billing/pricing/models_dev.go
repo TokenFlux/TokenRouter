@@ -56,9 +56,10 @@ func ModelsDevPrices(catalog *modelcatalog.Catalog) map[string]json.RawMessage {
 			if tier.CacheWrite != nil {
 				cost.CacheWrite = tier.CacheWrite
 			}
-			if tier.CacheWrite30m != nil || tier.CacheWrite12h != nil || tier.CacheWrite1h != nil {
-				cost.CacheWrite30m, cost.CacheWrite12h = tier.CacheWrite30m, tier.CacheWrite12h
+			if tier.CacheWrite5m != nil || tier.CacheWrite1h != nil || tier.CacheWrite30m != nil || tier.CacheWrite12h != nil {
+				cost.CacheWrite5m = tier.CacheWrite5m
 				cost.CacheWrite1h = tier.CacheWrite1h
+				cost.CacheWrite30m, cost.CacheWrite12h = tier.CacheWrite30m, tier.CacheWrite12h
 			}
 			tiers = append(tiers, map[string]any{"threshold": tier.Tier.Size, "exclusive": tier.Exclusive, "pricing": modelsDevPriceFields(entry, cost)})
 		}
@@ -133,6 +134,7 @@ func modelsDevPriceFields(entry modelcatalog.Entry, cost modelcatalog.Cost) map[
 	}
 	put("cache_read_input_token_cost", cost.CacheRead)
 	put("cache_creation_input_token_cost", cost.CacheWrite)
+	put("cache_creation_input_token_cost_5m", cost.CacheWrite5m)
 	put("cache_creation_input_token_cost_above_1hr", cost.CacheWrite1h)
 	put("cache_creation_input_token_cost_30m", cost.CacheWrite30m)
 	put("cache_creation_input_token_cost_12h", cost.CacheWrite12h)

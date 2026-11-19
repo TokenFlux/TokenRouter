@@ -36,8 +36,9 @@ type ServiceTierTokenQuote struct {
 	Input         float64  `json:"input_price_per_token,omitempty"`           // USD per ordinary input token
 	Output        float64  `json:"output_price_per_token,omitempty"`          // USD per output token
 	CacheRead     float64  `json:"cache_read_price_per_token,omitempty"`      // USD per cache read
-	CacheWrite    float64  `json:"cache_write_price_per_token,omitempty"`     // USD per aggregate cache write
-	CacheWrite1h  float64  `json:"cache_write_1h_price_per_token,omitempty"`  // USD per hourly cache write
+	CacheWrite    float64  `json:"cache_write_price_per_token,omitempty"`     // USD per uniform cache write
+	CacheWrite5m  *float64 `json:"cache_write_5m_price_per_token,omitempty"`  // USD per five-minute cache write
+	CacheWrite1h  *float64 `json:"cache_write_1h_price_per_token,omitempty"`  // USD per hourly cache write
 	CacheWrite30m *float64 `json:"cache_write_30m_price_per_token,omitempty"` // USD per thirty-minute cache write
 	CacheWrite12h *float64 `json:"cache_write_12h_price_per_token,omitempty"` // USD per twelve-hour cache write
 	ImageInput    float64  `json:"image_input_price_per_token,omitempty"`     // USD per image input token
@@ -85,7 +86,7 @@ func catalogServiceBuckets(cost modelcatalog.Cost) map[string]*float64 {
 	return map[string]*float64{
 		"input": cost.Input, "output": cost.Output,
 		"cache_read": cost.CacheRead, "cache_write": cost.CacheWrite,
-		"cache_write_1h": cost.CacheWrite1h, "cache_write_30m": cost.CacheWrite30m, "cache_write_12h": cost.CacheWrite12h,
+		"cache_write_5m": cost.CacheWrite5m, "cache_write_1h": cost.CacheWrite1h, "cache_write_30m": cost.CacheWrite30m, "cache_write_12h": cost.CacheWrite12h,
 		"image_input": cost.ImageInput, "image_read": cost.ImageRead, "image_output": cost.ImageOutput,
 	}
 }
@@ -147,6 +148,7 @@ func retainFixedCalendarRates(pricing *ModelPricing, card *ModelPricingEntry) {
 		"output":          card.OutputPrice != nil,
 		"cache_read":      card.CacheReadPrice != nil,
 		"cache_write":     card.CacheWritePrice != nil,
+		"cache_write_5m":  card.CacheWritePrice != nil || card.CacheWrite5mPrice != nil,
 		"cache_write_1h":  card.CacheWritePrice != nil || card.CacheWrite1hPrice != nil,
 		"cache_write_30m": card.CacheWritePrice != nil || card.CacheWrite30mPrice != nil,
 		"cache_write_12h": card.CacheWritePrice != nil || card.CacheWrite12hPrice != nil,
@@ -180,7 +182,7 @@ func (r CatalogServicePrice) applyToTokenRates(pricing *ModelPricing) *ModelPric
 	out.OutputPricePerToken = r.adjust("output", out.OutputPricePerToken)
 	out.CacheReadPricePerToken = r.adjust("cache_read", out.CacheReadPricePerToken)
 	out.CacheCreationPricePerToken = r.adjust("cache_write", out.CacheCreationPricePerToken)
-	out.CacheCreation5mPrice = r.adjust("cache_write", out.CacheCreation5mPrice)
+	out.CacheCreation5mPrice = r.adjust("cache_write_5m", out.CacheCreation5mPrice)
 	out.CacheCreation1hPrice = r.adjust("cache_write_1h", out.CacheCreation1hPrice)
 	out.CacheCreation30mPrice = r.adjustOptional("cache_write_30m", out.CacheCreation30mPrice)
 	out.CacheCreation12hPrice = r.adjustOptional("cache_write_12h", out.CacheCreation12hPrice)
@@ -217,7 +219,10 @@ func (r CatalogServicePrice) adjust(key string, base float64) float64 {
 		return base * value
 	}
 	switch key {
-	case "cache_write_1h", "cache_write_30m", "cache_write_12h":
+	case "cache_write_5m", "cache_write_1h", "cache_write_30m", "cache_write_12h":
+		if value, ok := r.Amounts["cache_write"]; ok {
+			return value
+		}
 		if value, ok := r.Factors["cache_write"]; ok {
 			return base * value
 		}
@@ -269,16 +274,18 @@ func displayServiceTierQuote(pricing *ModelPricing, tier string, multiplier floa
 		selected = MultiplyModelPricing(pricing, *pricing.FlexMultiplier)
 	}
 	selected = applyCatalogCalendarPricing(selected, at)
-	short, long := displayOpenAIWriteRates(selected, multiplier)
-	cacheWrite, cacheWrite1h := CacheCreationDisplayPrices(selected)
+	short5m, long1h := displayClaudeWriteRates(selected, multiplier)
+	short30m, long12h := displayOpenAIWriteRates(selected, multiplier)
+	cacheWrite, _ := CacheCreationDisplayPrices(selected)
 	return &ServiceTierTokenQuote{
 		Input:         selected.InputPricePerToken * multiplier,
 		Output:        selected.OutputPricePerToken * multiplier,
 		CacheRead:     selected.CacheReadPricePerToken * multiplier,
 		CacheWrite:    cacheWrite * multiplier,
-		CacheWrite1h:  cacheWrite1h * multiplier,
-		CacheWrite30m: short,
-		CacheWrite12h: long,
+		CacheWrite5m:  short5m,
+		CacheWrite1h:  long1h,
+		CacheWrite30m: short30m,
+		CacheWrite12h: long12h,
 		ImageInput:    selected.ImageInputPricePerToken * multiplier,
 		ImageOutput:   selected.ImageOutputPricePerToken * multiplier,
 	}

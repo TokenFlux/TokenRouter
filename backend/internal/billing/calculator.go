@@ -24,6 +24,13 @@ import (
 // per-request tiers remain intact, and display reports which image sizes have
 // available prices.
 
+const (
+	// CacheWriteFamilyClaude and CacheWriteFamilyOpenAI identify the two-tier
+	// cache-write lifetime families used when settling cache-creation tokens.
+	CacheWriteFamilyClaude = purepricing.CacheWriteFamilyClaude // five-minute and one-hour lifetimes
+	CacheWriteFamilyOpenAI = purepricing.CacheWriteFamilyOpenAI // thirty-minute and twelve-hour lifetimes
+)
+
 // ModelPricing aliases normalized model rates consumed by pure billing
 // calculations.
 type ModelPricing = purepricing.ModelPricing
@@ -33,6 +40,18 @@ type UsageTokens = purepricing.UsageTokens
 
 // CostBreakdown aliases component costs, base amount and user charge results.
 type CostBreakdown = purepricing.CostBreakdown
+
+// CacheWriteFamily aliases the two-tier cache-write lifetime scheme.
+type CacheWriteFamily = purepricing.CacheWriteFamily
+
+// CacheWriteRates aliases resolved USD-per-token cache-write rates.
+type CacheWriteRates = purepricing.CacheWriteRates
+
+// CacheWriteAnomaly aliases raw upstream cache-write diagnostic counters.
+type CacheWriteAnomaly = purepricing.CacheWriteAnomaly
+
+// CacheWriteSettlement aliases settled cache-write charges and bucket counts.
+type CacheWriteSettlement = purepricing.CacheWriteSettlement
 
 // CostInput combines reported usage with model, funding-rate and schedule
 // inputs.
@@ -59,9 +78,10 @@ type CostInput struct {
 	// PricingAt supplies configured schedule time; zero leaves configured time
 	// pricing inactive. ProjectCostInput separately supplies an injected
 	// observation for catalog schedules in that case.
-	PricingAt       time.Time // configured schedule observation time
-	ServiceTier     string    // forwarded billing service tier
-	ReasoningEffort string    // forwarded billing reasoning effort
+	PricingAt               time.Time        // configured schedule observation time
+	ServiceTier             string           // forwarded billing service tier
+	ReasoningEffort         string           // forwarded billing reasoning effort
+	DefaultCacheWriteFamily CacheWriteFamily // protocol fallback cache-write TTL family
 	// Resolver and Resolved govern reuse together: unified calculation consults
 	// Resolved only when Resolver is present. Reused pricing belongs to this
 	// request's full model and group.
@@ -192,7 +212,7 @@ func (s *Calculator) GetModelPricingWithConfig(model string, configPricing *Mode
 // resolved tier slice available for later uses.
 func (s *Calculator) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
 	if input.Resolver == nil {
-		breakdown, err := s.calculateCostInternalAt(input.Model, input.Tokens, input.RateMultiplier, input.ServiceTier, nil, input.PricingAt)
+		breakdown, err := s.calculateCostInternalAtWithFamily(input.Model, input.Tokens, input.RateMultiplier, input.ServiceTier, nil, input.PricingAt, input.DefaultCacheWriteFamily)
 		if err == nil {
 			// The token charge is already available; a failed second lookup leaves
 			// effort selection with the unit factor rather than discarding that
@@ -270,6 +290,12 @@ func (s *Calculator) CalculateCostInternal(model string, tokens UsageTokens, rat
 // A missing instant uses the calculator clock. Calendar tier conditions and
 // catalog time multipliers both see the same instant for a single charge.
 func (s *Calculator) calculateCostInternalAt(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, configPricing *ModelPricingEntry, at time.Time) (*CostBreakdown, error) {
+	return s.calculateCostInternalAtWithFamily(model, tokens, rateMultiplier, serviceTier, configPricing, at, "")
+}
+
+// calculateCostInternalAtWithFamily resolves catalog token rates for the
+// supplied instant and forwards defaultFamily into cache-write settlement.
+func (s *Calculator) calculateCostInternalAtWithFamily(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, configPricing *ModelPricingEntry, at time.Time, defaultFamily CacheWriteFamily) (*CostBreakdown, error) {
 	var pricing *ModelPricing
 	var err error
 	if configPricing != nil {
@@ -287,7 +313,13 @@ func (s *Calculator) calculateCostInternalAt(model string, tokens UsageTokens, r
 		pricing = s.applyCatalogTimePricing(pricing, at)
 	}
 
-	return purepricing.ComputeTokenBreakdownAt(pricing, tokens, rateMultiplier, serviceTier, true, at), nil
+	return purepricing.ComputeTokenBreakdownAtWithFamily(pricing, tokens, rateMultiplier, serviceTier, true, at, defaultFamily), nil
+}
+
+// SettleCacheWrite partitions cache-creation tokens into billed TTL buckets and
+// computes optional anomaly diagnostics through the shared pricing engine.
+func SettleCacheWrite(rates CacheWriteRates, tokens UsageTokens, defaultFamily CacheWriteFamily, multiplier float64) CacheWriteSettlement {
+	return purepricing.SettleCacheWrite(rates, tokens, defaultFamily, multiplier)
 }
 
 // ForceUpdatePricing asks the bound catalog to refresh its pricing data. A
@@ -594,7 +626,7 @@ func (s *Calculator) ProjectCostInput(input CostInput, resolved *ResolvedPricing
 		// matching independently of the configured schedule's location.
 		modelLocation, _ = s.options.LoadLocation(resolved.BasePricing.TimePricing.Timezone)
 	}
-	return purepricing.CostInput{ModelTimeLocation: modelLocation, Model: input.Model, Tokens: input.Tokens, RequestCount: input.RequestCount, UsageUnits: input.UsageUnits, SizeTier: input.SizeTier, RateMultiplier: input.RateMultiplier, PricingAt: input.PricingAt, ModelPricingAt: modelAt, ServiceTier: input.ServiceTier, ReasoningEffort: input.ReasoningEffort, TimePricingLocation: location}
+	return purepricing.CostInput{ModelTimeLocation: modelLocation, Model: input.Model, Tokens: input.Tokens, RequestCount: input.RequestCount, UsageUnits: input.UsageUnits, SizeTier: input.SizeTier, RateMultiplier: input.RateMultiplier, PricingAt: input.PricingAt, ModelPricingAt: modelAt, ServiceTier: input.ServiceTier, ReasoningEffort: input.ReasoningEffort, TimePricingLocation: location, DefaultCacheWriteFamily: input.DefaultCacheWriteFamily}
 }
 
 // GetModelModalities queries exact identity metadata when the catalog

@@ -82,7 +82,7 @@ func (r *PricingConfigStore) batchLoadProviderStatsModelPricing(ctx context.Cont
 
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, rule_id, models, billing_mode, price_multiplier, input_price, output_price,
-		        cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_output_price, per_request_price, created_at, updated_at
+		        cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_output_price, per_request_price, created_at, updated_at
 		 FROM pricing_config_provider_stats_model_pricing WHERE rule_id = ANY($1) ORDER BY rule_id, id`,
 		pq.Array(ruleIDs),
 	)
@@ -98,7 +98,7 @@ func (r *PricingConfigStore) batchLoadProviderStatsModelPricing(ctx context.Cont
 		var modelsJSON []byte
 		if err := rows.Scan(
 			&p.ID, &ruleID, &modelsJSON, &p.BillingMode, &p.PriceMultiplier,
-			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheWrite1hPrice, &p.CacheWrite30mPrice, &p.CacheWrite12hPrice, &p.CacheReadPrice,
+			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheWrite5mPrice, &p.CacheWrite1hPrice, &p.CacheWrite30mPrice, &p.CacheWrite12hPrice, &p.CacheReadPrice,
 			&p.ImageOutputPrice, &p.PerRequestPrice, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan provider stats model pricing: %w", err)
@@ -230,10 +230,10 @@ func createProviderStatsModelPricingTx(ctx context.Context, tx *sql.Tx, ruleID i
 		billingMode = routing.BillingModeToken
 	}
 	err = tx.QueryRowContext(ctx,
-		`INSERT INTO pricing_config_provider_stats_model_pricing (rule_id, models, billing_mode, price_multiplier, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_output_price, per_request_price)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at`,
+		`INSERT INTO pricing_config_provider_stats_model_pricing (rule_id, models, billing_mode, price_multiplier, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_output_price, per_request_price)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at`,
 		ruleID, modelsJSON, billingMode,
-		pricing.PriceMultiplier, pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite1hPrice, pricing.CacheWrite30mPrice, pricing.CacheWrite12hPrice, pricing.CacheReadPrice,
+		pricing.PriceMultiplier, pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite5mPrice, pricing.CacheWrite1hPrice, pricing.CacheWrite30mPrice, pricing.CacheWrite12hPrice, pricing.CacheReadPrice,
 		pricing.ImageOutputPrice, pricing.PerRequestPrice,
 	).Scan(&pricing.ID, &pricing.CreatedAt, &pricing.UpdatedAt)
 	if err != nil {
@@ -259,10 +259,10 @@ func createProviderStatsModelPricingTx(ctx context.Context, tx *sql.Tx, ruleID i
 func createProviderStatsIntervalTx(ctx context.Context, tx *sql.Tx, iv *routing.PricingInterval) error {
 	return tx.QueryRowContext(ctx,
 		`INSERT INTO pricing_config_provider_stats_pricing_intervals
-		 (pricing_id, min_tokens, max_tokens, tier_label, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, per_request_price, sort_order)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id, created_at, updated_at`,
+		 (pricing_id, min_tokens, max_tokens, tier_label, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, per_request_price, sort_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id, created_at, updated_at`,
 		iv.PricingID, iv.MinTokens, iv.MaxTokens, iv.TierLabel,
-		iv.InputPrice, iv.OutputPrice, iv.CacheWritePrice, iv.CacheWrite1hPrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice, iv.CacheReadPrice,
+		iv.InputPrice, iv.OutputPrice, iv.CacheWritePrice, iv.CacheWrite5mPrice, iv.CacheWrite1hPrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice, iv.CacheReadPrice,
 		iv.PerRequestPrice, iv.SortOrder,
 	).Scan(&iv.ID, &iv.CreatedAt, &iv.UpdatedAt)
 }
@@ -276,7 +276,7 @@ func (r *PricingConfigStore) batchLoadProviderStatsIntervals(ctx context.Context
 	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, pricing_id, min_tokens, max_tokens, tier_label,
-		        input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price,
+		        input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price,
 		        per_request_price, sort_order, created_at, updated_at
 		 FROM pricing_config_provider_stats_pricing_intervals
 		 WHERE pricing_id = ANY($1) ORDER BY pricing_id, sort_order, id`,
@@ -292,7 +292,7 @@ func (r *PricingConfigStore) batchLoadProviderStatsIntervals(ctx context.Context
 		var iv routing.PricingInterval
 		if err := rows.Scan(
 			&iv.ID, &iv.PricingID, &iv.MinTokens, &iv.MaxTokens, &iv.TierLabel,
-			&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite1hPrice, &iv.CacheWrite30mPrice, &iv.CacheWrite12hPrice, &iv.CacheReadPrice,
+			&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite5mPrice, &iv.CacheWrite1hPrice, &iv.CacheWrite30mPrice, &iv.CacheWrite12hPrice, &iv.CacheReadPrice,
 			&iv.PerRequestPrice, &iv.SortOrder, &iv.CreatedAt, &iv.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan provider stats pricing interval: %w", err)

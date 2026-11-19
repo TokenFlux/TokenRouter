@@ -94,13 +94,18 @@ type UsageLog struct {
 	CacheCreationTokens int // cache creation token count
 	CacheReadTokens     int // cache read token count
 
-	// CacheCreation5mTokens and CacheCreation1hTokens describe TTL-specific
-	// creation buckets. TotalTokens uses CacheCreationTokens once, keeping these
-	// detail counters outside its four-counter sum.
+	// CacheCreation5mTokens and CacheCreation1hTokens describe Claude TTL
+	// creation buckets, while CacheCreation30mTokens and CacheCreation12hTokens
+	// describe OpenAI TTL buckets. TotalTokens uses CacheCreationTokens once,
+	// keeping these detail counters outside its four-counter sum.
 	CacheCreation5mTokens  int  `gorm:"column:cache_creation_5m_tokens"` // five minute cache creation tokens
 	CacheCreation1hTokens  int  `gorm:"column:cache_creation_1h_tokens"` // one hour cache creation tokens
-	CacheCreation30mTokens *int // reported thirty-minute writes
-	CacheCreation12hTokens *int // reported twelve-hour writes
+	CacheCreation30mTokens *int // billed thirty-minute writes
+	CacheCreation12hTokens *int // billed twelve-hour writes
+	// CacheWriteAnomaly retains raw upstream cache-write counters for
+	// administrator diagnostics when upstream details differ from the aggregate.
+	// Nil indicates a normal or unrecorded row and is omitted from user responses.
+	CacheWriteAnomaly *billing.CacheWriteAnomaly // administrator cache-write anomaly diagnostics
 
 	ImageInputTokens     int     // image input token count
 	ImageCacheReadTokens int     // explicit cached image token subset

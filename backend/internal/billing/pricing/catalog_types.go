@@ -27,6 +27,7 @@ import (
 // label and a supplied amount in ParsePricingEntries; positive legacy amounts
 // can still select priority prices without these markers.
 type CatalogModelPricing struct {
+	CacheCreation5mPrice  *float64 `json:"cache_creation_input_token_cost_5m,omitempty"`  // USD per five-minute write token
 	CacheCreation30mPrice *float64 `json:"cache_creation_input_token_cost_30m,omitempty"` // USD per thirty-minute write token
 	CacheCreation12hPrice *float64 `json:"cache_creation_input_token_cost_12h,omitempty"` // USD per twelve-hour write token
 	CatalogRules                   // supplemental media and modifier rules
@@ -159,6 +160,7 @@ type CatalogRawEntry struct {
 	CacheCreationInputTokenCostPriority *float64 `json:"cache_creation_input_token_cost_priority"`
 	// USD per hourly cache-write token
 	CacheCreationInputTokenCostAbove1hr *float64 `json:"cache_creation_input_token_cost_above_1hr"`
+	CacheCreation5mPrice                *float64 `json:"cache_creation_input_token_cost_5m"`  // USD per five-minute write token
 	CacheCreation30mPrice               *float64 `json:"cache_creation_input_token_cost_30m"` // USD per thirty-minute write token
 	CacheCreation12hPrice               *float64 `json:"cache_creation_input_token_cost_12h"` // USD per twelve-hour write token
 	// USD per standard cache-read token
@@ -228,6 +230,7 @@ func CloneCatalogPrice(value *CatalogModelPricing) *CatalogModelPricing {
 	}
 	result := *value
 	result.CatalogRules = value.Clone()
+	result.CacheCreation5mPrice = copyOptional(value.CacheCreation5mPrice)
 	result.CacheCreation30mPrice = copyOptional(value.CacheCreation30mPrice)
 	result.CacheCreation12hPrice = copyOptional(value.CacheCreation12hPrice)
 	result.SupportedModalities = slices.Clone(value.SupportedModalities)

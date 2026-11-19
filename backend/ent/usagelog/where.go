@@ -1840,6 +1840,16 @@ func CacheCreation12hTokensNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldCacheCreation12hTokens))
 }
 
+// CacheWriteAnomalyIsNil applies the IsNil predicate on the "cache_write_anomaly" field.
+func CacheWriteAnomalyIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldCacheWriteAnomaly))
+}
+
+// CacheWriteAnomalyNotNil applies the NotNil predicate on the "cache_write_anomaly" field.
+func CacheWriteAnomalyNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldCacheWriteAnomaly))
+}
+
 // InputCostEQ applies the EQ predicate on the "input_cost" field.
 func InputCostEQ(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldInputCost, v))

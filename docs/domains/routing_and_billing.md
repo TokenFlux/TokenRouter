@@ -211,12 +211,22 @@ token 计费支持 `max_reasoning_effort_multiplier`（有限正数，`1` 不加
 
 被策略降档的 `max` 请求按最终档位结算；提供商统计回退默认价时按最终档位算，自定义统计价不叠加用户倍率，提供商统计规则拒绝该字段。
 
+<a id="cache_write_pricing"></a>
 ### 缓存写入分档
 
-| 平台/类型 | 分档字段 | 继承与回退规则 |
-| --- | --- | --- |
-| GPT | `cache_write_30m_price`、`cache_write_12h_price` | 可空独立覆盖本层统一写入价；未填先用本层统一写入价，再走价卡与目录继承，明确 0 为免费；用户结算与提供商统计仅用与聚合数一致的上报分档，写入总数只计入输入上下文一次，历史行保留 NULL |
-| Claude 及通用 | `cache_write_price`（5m）、`cache_write_1h_price`（1h） | 适用于默认价、token 区间和提供商统计价，明确 0 为免费；1h 为 NULL 或用量缺分档数据时两档均按 5m 聚合价计算 |
+共享价格配置、token 区间与提供商统计规则支持五个可空缓存写入单价字段（明确填 `0` 表示免费）：
+
+| 字段 | 适用范围与继承规则 |
+| --- | --- |
+| `cache_write_price` | 跨平台统一写入价。同层仅配该字段时覆盖默认价与所有已继承 TTL 分档。同层若同时显式配置某个 TTL 字段，该 TTL 字段优先生效，兼容同时填写 `cache_write_price` 与 `cache_write_1h_price` 的存量价卡 |
+| `cache_write_5m_price`、`cache_write_1h_price` | `5m / 1h` 体系独立分档价。单独修改 `5m` 只更新 `5m` 与默认短档价，保留上层或目录的 `1h` 单价。未填分档依次继承上层与目录，仍无值时回退默认写入价 |
+| `cache_write_30m_price`、`cache_write_12h_price` | `30m / 12h` 体系独立分档价。单独修改 `30m` 只更新 `30m` 与默认短档价，保留上层或目录的 `12h` 单价。未填分档依次继承上层与目录，仍无值时回退默认写入价 |
+
+用户结算、提供商统计与系统探针成本统一经 `SettleCacheWrite` 归类计费：
+
+1. 选定单一双档体系（`5m / 1h` 或 `30m / 12h`）：优先按上游已上报的 TTL 字段，其次按生效价卡配置的分档单价，最后按执行协议与平台兜底（OpenAI、Grok、Responses、Chat 取 `30m / 12h`，Anthropic、Messages 及其他协议取 `5m / 1h`）。
+2. 对齐原始分档之和 `S` 与外层总数 `total`：未报明细（`S = 0`）全部归入短档（`5m` 或 `30m`），完整匹配（`S = total`）按各档计费。部分缺失（`0 < S < total`）将差额 `total - S` 合并入短档并记 `partial_breakdown`。漏报外层总数（`total = 0` 且 `S > 0`）回填总数为 `S` 并记 `missing_total`。超报或含负数（`S > total`）封顶为 `total`，单价更高的一档优先分配（同价优先短档），记 `exceeds_total`。
+3. 落库与展示：`usage_logs` 标准分档列保存结算后的计费数量（恒满足 `短档 + 长档 = cache_creation_tokens`，写入总数只计入输入上下文一次），对普通用户只展示带具体 TTL 标签的数量。升级前未归档历史行在 DTO 读取时按同规则归一化。异常请求的原始上报计数写入可空 `cache_write_anomaly` JSONB，仅通过 `AdminUsageLog` 向管理端展示。
 
 ### Grok 媒体、搜索和语音
 

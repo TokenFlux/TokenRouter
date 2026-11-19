@@ -21,6 +21,7 @@ export interface MarketplaceServiceTierPricing {
   output_price_per_token?: number // USD per output token.
   cache_read_price_per_token?: number // USD per cache-read token.
   cache_write_price_per_token?: number // USD per aggregate cache write.
+  cache_write_5m_price_per_token?: number // USD per five-minute cache write.
   cache_write_1h_price_per_token?: number // USD per hourly cache write.
   cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
   cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
@@ -35,9 +36,11 @@ export interface MarketplacePricingInterval {
   image_input_price_per_token?: number // Image input price per token.
   output_price_per_token?: number // Output price per token.
   cache_write_price_per_token?: number // Cache write price per token.
+  cache_write_5m_price_per_token?: number // USD per five-minute cache write.
   cache_write_1h_price_per_token?: number // Cache write 1h price per token.
   cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
   cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
+  fast_cache_write_5m_price_per_token?: number // Fast USD per five-minute cache write.
   fast_cache_write_30m_price_per_token?: number // Fast USD per thirty-minute cache write.
   fast_cache_write_12h_price_per_token?: number // Fast USD per twelve-hour cache write.
   flex?: MarketplaceServiceTierPricing // Effective Flex token rates.
@@ -80,9 +83,11 @@ export interface MarketplaceModelPricing {
   image_input_price_per_token?: number // Image input price per token.
   output_price_per_token?: number // Output price per token.
   cache_write_price_per_token?: number // Cache write price per token.
+  cache_write_5m_price_per_token?: number // USD per five-minute cache write.
   cache_write_1h_price_per_token?: number // Cache write 1h price per token.
   cache_write_30m_price_per_token?: number // USD per thirty-minute cache write.
   cache_write_12h_price_per_token?: number // USD per twelve-hour cache write.
+  fast_cache_write_5m_price_per_token?: number // Fast USD per five-minute cache write.
   fast_cache_write_30m_price_per_token?: number // Fast USD per thirty-minute cache write.
   fast_cache_write_12h_price_per_token?: number // Fast USD per twelve-hour cache write.
   flex?: MarketplaceServiceTierPricing // Effective Flex token rates.

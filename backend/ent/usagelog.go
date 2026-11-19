@@ -87,6 +87,8 @@ type UsageLog struct {
 	CacheCreation30mTokens *int `json:"cache_creation_30m_tokens,omitempty"`
 	// CacheCreation12hTokens holds the value of the "cache_creation_12h_tokens" field.
 	CacheCreation12hTokens *int `json:"cache_creation_12h_tokens,omitempty"`
+	// CacheWriteAnomaly holds the value of the "cache_write_anomaly" field.
+	CacheWriteAnomaly map[string]interface{} `json:"cache_write_anomaly,omitempty"`
 	// InputCost holds the value of the "input_cost" field.
 	InputCost float64 `json:"input_cost,omitempty"`
 	// OutputCost holds the value of the "output_cost" field.
@@ -241,7 +243,7 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case usagelog.FieldSystemUsage, usagelog.FieldBillingAllocations, usagelog.FieldTimings, usagelog.FieldImageSizeBreakdown:
+		case usagelog.FieldSystemUsage, usagelog.FieldCacheWriteAnomaly, usagelog.FieldBillingAllocations, usagelog.FieldTimings, usagelog.FieldImageSizeBreakdown:
 			values[i] = new([]byte)
 		case usagelog.FieldUpstreamModelMismatch, usagelog.FieldLongContextBillingApplied, usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
 			values[i] = new(sql.NullBool)
@@ -478,6 +480,14 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CacheCreation12hTokens = new(int)
 				*_m.CacheCreation12hTokens = int(value.Int64)
+			}
+		case usagelog.FieldCacheWriteAnomaly:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field cache_write_anomaly", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.CacheWriteAnomaly); err != nil {
+					return fmt.Errorf("unmarshal field cache_write_anomaly: %w", err)
+				}
 			}
 		case usagelog.FieldInputCost:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -861,6 +871,9 @@ func (_m *UsageLog) String() string {
 		builder.WriteString("cache_creation_12h_tokens=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("cache_write_anomaly=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CacheWriteAnomaly))
 	builder.WriteString(", ")
 	builder.WriteString("input_cost=")
 	builder.WriteString(fmt.Sprintf("%v", _m.InputCost))

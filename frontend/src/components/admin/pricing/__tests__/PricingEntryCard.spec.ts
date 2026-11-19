@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import PricingEntryCard from '../PricingEntryCard.vue'
+import pricingAPI from '@/api/admin/pricing'
 import { createDefaultTimePricingForm, type PricingFormEntry } from '../types'
 
 // PricingEntryCard.spec.ts checks legacy and current service-tier multipliers and mode-specific
@@ -179,4 +180,98 @@ it('switches between reference and custom fields without clearing prices', async
   await wrapper.setProps({ entry: updated })
   expect(wrapper.findComponent({ name: 'ModelReferenceInput' }).exists()).toBe(false)
   expect(wrapper.find('input[type="number"]').exists()).toBe(true)
+})
+
+// A token price card switches between uniform, 5m/1h, and 30m/12h cache-write modes and edits a
+// 5m amount. Mode changes clear inactive cache-write fields while editing 5m clears any legacy
+// uniform cache_write_price.
+it('switches cache-write modes and decouples 5m edits from uniform cache_write_price', async () => {
+  let current = makeEntry({
+    cache_write_price: 3,
+    cache_write_1h_price: 6,
+  })
+  const wrapper = mount(PricingEntryCard, {
+    props: {
+      entry: current,
+      platform: 'anthropic',
+      onUpdate: (updated) => {
+        current = updated
+        void wrapper.setProps({ entry: updated })
+      },
+    },
+    global: { stubs: { Icon: true, IntervalRow: true, ModelTagInput: true, Select: true } },
+  })
+
+  expect(wrapper.find('[data-testid="cache-write-5m-input"]').exists()).toBe(true)
+  expect(
+    (wrapper.get('[data-testid="cache-write-5m-input"]').element as HTMLInputElement).value,
+  ).toBe('3')
+
+  await wrapper.get('[data-testid="cache-write-5m-input"]').setValue('3.75')
+  await flushPromises()
+  expect(current.cache_write_5m_price).toBe('3.75')
+  expect(current.cache_write_price).toBeNull()
+  expect(current.cache_write_1h_price).toBe(6)
+
+  await wrapper.get('[data-cache-write-mode="30m_12h"]').trigger('click')
+  await flushPromises()
+  expect(current.cache_write_5m_price).toBeNull()
+  expect(current.cache_write_1h_price).toBeNull()
+  expect(wrapper.find('[data-testid="cache-write-30m-input"]').exists()).toBe(true)
+  expect(wrapper.find('[data-testid="cache-write-12h-input"]').exists()).toBe(true)
+
+  await wrapper.get('[data-testid="cache-write-30m-input"]').setValue('2.5')
+  await flushPromises()
+  await wrapper.get('[data-cache-write-mode="uniform"]').trigger('click')
+  await flushPromises()
+  expect(current.cache_write_30m_price).toBeNull()
+  expect(wrapper.find('[data-testid="cache-write-uniform-input"]').exists()).toBe(true)
+})
+
+// An empty token card receives a model tag whose catalog default pricing specifies 5m and 1h
+// cache-write rates. Auto-filling populates cache_write_5m_price and cache_write_1h_price and
+// selects the 5m/1h mode switch.
+it('auto-fills 5m/1h cache-write rates from model catalog defaults', async () => {
+  const spy = vi.spyOn(pricingAPI, 'getModelDefaultPricing').mockResolvedValue({
+    model: 'claude-sonnet-4-6',
+    found: true,
+    input_price: 0.000003,
+    output_price: 0.000015,
+    cache_write_5m_price: 0.00000375,
+    cache_write_1h_price: 0.000006,
+    cache_read_price: 0.0000003,
+  })
+  try {
+    let current = makeEntry({ input_price: null, output_price: null })
+    const wrapper = mount(PricingEntryCard, {
+      props: {
+        entry: current,
+        onUpdate: (updated) => {
+          current = updated
+          void wrapper.setProps({ entry: updated })
+        },
+      },
+      global: {
+        stubs: {
+          Icon: true,
+          IntervalRow: true,
+          Select: true,
+          ModelTagInput: {
+            name: 'ModelTagInput',
+            template:
+              '<button data-testid="add-claude-model" @click="$emit(\'update:models\', [\'claude-sonnet-4-6\'])" />',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="add-claude-model"]').trigger('click')
+    await flushPromises()
+    expect(current.cache_write_5m_price).toBe(3.75)
+    expect(current.cache_write_1h_price).toBe(6)
+    expect(current.cache_write_price).toBeNull()
+    expect(wrapper.find('[data-testid="cache-write-5m-input"]').exists()).toBe(true)
+  } finally {
+    spy.mockRestore()
+  }
 })

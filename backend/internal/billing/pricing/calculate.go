@@ -3,7 +3,6 @@ package pricing
 import (
 	"errors"
 	"fmt"
-	"math"
 	"reflect"
 	"slices"
 	"sort"
@@ -183,6 +182,9 @@ func ApplyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
 	cost.OutputCost *= multiplier
 	cost.ImageOutputCost *= multiplier
 	cost.CacheCreationCost *= multiplier
+	if cost.CacheWrite != nil {
+		cost.CacheWrite.Cost *= multiplier
+	}
 	cost.CacheReadCost *= multiplier
 	cost.TotalCost *= multiplier
 	cost.ActualCost *= multiplier
@@ -254,25 +256,14 @@ func ApplyConfigTokenPriceOverrides(pricing *ModelPricing, configPricing *ModelP
 		pricing.OutputPricePerToken = *configPricing.OutputPrice
 		pricing.OutputPricePerTokenPriority = priority
 	}
-	if configPricing.CacheWritePrice != nil {
-		basePriority := pricing.CacheCreationPricePerTokenPriority
-		priority := ConfigTierOverridePrice(pricing.CacheCreationPricePerToken, basePriority, *configPricing.CacheWritePrice)
-		pricing.CacheCreationPricePerToken = *configPricing.CacheWritePrice
-		pricing.CacheCreationPricePerTokenPriority = priority
-		pricing.CacheCreationPriceExplicit = true
-		pricing.CacheCreation5mPrice = *configPricing.CacheWritePrice
-		if configPricing.CacheWrite1hPrice == nil {
-			// A short cache override replaces both TTL amounts when hourly is absent,
-			// keeping old single-price cards from inheriting an unrelated hourly catalog
-			// price.
-			pricing.CacheCreation1hPrice = *configPricing.CacheWritePrice
-		}
-	}
-	applyCacheWriteTTLPrices(pricing, configPricing.CacheWritePrice, configPricing.CacheWrite30mPrice, configPricing.CacheWrite12hPrice)
-	if configPricing.CacheWrite1hPrice != nil {
-		pricing.CacheCreation1hPrice = *configPricing.CacheWrite1hPrice
-		pricing.SupportsCacheBreakdown = true
-	}
+	applyCacheWriteCardOverrides(
+		pricing,
+		configPricing.CacheWritePrice,
+		configPricing.CacheWrite5mPrice,
+		configPricing.CacheWrite1hPrice,
+		configPricing.CacheWrite30mPrice,
+		configPricing.CacheWrite12hPrice,
+	)
 	if configPricing.CacheReadPrice != nil {
 		priority := ConfigTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *configPricing.CacheReadPrice)
 		pricing.CacheReadPricePerToken = *configPricing.CacheReadPrice
@@ -296,7 +287,7 @@ func ApplyConfigTokenPriceOverrides(pricing *ModelPricing, configPricing *ModelP
 // rules use their separate instant and location, and final max effort scales
 // the resulting components and totals.
 func CalculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakdown, error) {
-	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
+	totalContext := input.Tokens.InputTokens + EffectiveCacheWriteTotal(input.Tokens) + input.Tokens.CacheReadTokens
 
 	pricing := GetIntervalPricing(resolved, totalContext)
 	if pricing == nil {
@@ -312,7 +303,7 @@ func CalculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakd
 	if at.IsZero() {
 		at = input.ModelPricingAt
 	}
-	breakdown := ComputeTokenBreakdownAt(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx, at)
+	breakdown := ComputeTokenBreakdownAtWithFamily(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx, at, input.DefaultCacheWriteFamily)
 	if resolved.Source == PricingSourceCatalog && pricing.TimePricing != nil {
 		ApplyCostBreakdownMultiplier(breakdown, pricing.TimePricing.MultiplierAt(input.ModelPricingAt, input.ModelTimeLocation))
 	}
@@ -333,10 +324,10 @@ func CalculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakd
 // service-tier modifiers before recursive calculation.
 //
 // Image input is split from InputTokens and capped there; image output is
-// charged separately while text output is reduced to at least zero. TTL cache
-// details are normalized against their aggregate when supported. Negative user
-// rates become zero, and LongContextBillingApplied records an increase over the
-// corresponding base-rate charge.
+// charged separately while text output is reduced to at least zero. Cache
+// creation is partitioned into billed TTL buckets by SettleCacheWrite. Negative
+// user rates become zero, and LongContextBillingApplied records an increase over
+// the corresponding base-rate charge.
 func ComputeTokenBreakdown(
 	pricing *ModelPricing, tokens UsageTokens,
 	rateMultiplier float64, serviceTier string,
@@ -350,8 +341,22 @@ func ComputeTokenBreakdown(
 // rates once and leaves no legacy tier adjustment to apply again. Both sides
 // of long-context comparisons use the same request time.
 func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMultiplier float64, serviceTier string, applyLongCtx bool, at time.Time) *CostBreakdown {
+	return ComputeTokenBreakdownAtWithFamily(pricing, tokens, rateMultiplier, serviceTier, applyLongCtx, at, "")
+}
+
+// ComputeTokenBreakdownAtWithFamily runs ComputeTokenBreakdownAt while carrying
+// the caller's fallback cache-write family into SettleCacheWrite.
+func ComputeTokenBreakdownAtWithFamily(
+	pricing *ModelPricing,
+	tokens UsageTokens,
+	rateMultiplier float64,
+	serviceTier string,
+	applyLongCtx bool,
+	at time.Time,
+	defaultFamily CacheWriteFamily,
+) *CostBreakdown {
 	if applyLongCtx && len(pricing.ContextPrices) > 0 {
-		input := tokens.InputTokens + tokens.CacheReadTokens + tokens.CacheCreationTokens
+		input := tokens.InputTokens + tokens.CacheReadTokens + EffectiveCacheWriteTotal(tokens)
 		selected := pricing
 		for _, tier := range pricing.ContextPrices {
 			if input > tier.Threshold {
@@ -367,8 +372,8 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 			value.FastMultiplier = pricing.FastMultiplier
 			value.FlexMultiplier = pricing.FlexMultiplier
 			value.MaxReasoningEffortMultiplier = pricing.MaxReasoningEffortMultiplier
-			cost := ComputeTokenBreakdownAt(&value, tokens, rateMultiplier, serviceTier, false, at)
-			cost.LongContextBillingApplied = cost.ActualCost > ComputeTokenBreakdownAt(pricing, tokens, rateMultiplier, serviceTier, false, at).ActualCost
+			cost := ComputeTokenBreakdownAtWithFamily(&value, tokens, rateMultiplier, serviceTier, false, at, defaultFamily)
+			cost.LongContextBillingApplied = cost.ActualCost > ComputeTokenBreakdownAtWithFamily(pricing, tokens, rateMultiplier, serviceTier, false, at, defaultFamily).ActualCost
 			return cost
 		}
 	}
@@ -421,7 +426,7 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 	longContextPricingEligible := applyLongCtx && ShouldApplySessionLongContextPricing(tokens, pricing)
 	var baselineCost *CostBreakdown
 	if longContextPricingEligible {
-		baselineCost = ComputeTokenBreakdownAt(baselinePricing, tokens, rateMultiplier, baselineTier, false, at)
+		baselineCost = ComputeTokenBreakdownAtWithFamily(baselinePricing, tokens, rateMultiplier, baselineTier, false, at, defaultFamily)
 		// A partial long-context rule can supply one side alone; using a unit factor
 		// for the other side retains its selected standard or priority amount.
 		longContextInputMultiplier := LongContextMultiplierOrOne(pricing.LongContextInputMultiplier)
@@ -432,9 +437,9 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 		// amount rule.
 		cacheReadPrice *= longContextInputMultiplier
 		imageCacheMultiplier = longContextInputMultiplier
-		// ComputeCacheCreationCost selects aggregate or TTL rates from pricing
-		// directly; pass the input factor separately so whichever cache rate is
-		// chosen receives the long-context adjustment.
+		// SettleCacheWrite selects default or TTL rates from pricing directly; pass
+		// the input factor separately so whichever cache rate is chosen receives the
+		// long-context adjustment.
 		cacheCreationMultiplier = longContextInputMultiplier
 	}
 
@@ -477,18 +482,17 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 	}
 
 	// When priority cache creation is present and standard pricing is positive,
-	// its ratio scales both TTL amounts so one selected priority rule covers both
-	// durations.
-	if UsePriorityServiceTierPricing(serviceTier, pricing) && (pricing.SupportsCacheBreakdown || pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil) && pricing.CacheCreationPricePerToken > 0 && pricing.PriorityCacheWritePresent {
+	// its ratio scales every TTL and fallback rate once, so reset the base
+	// fallback parameter to standard before calling SettleCacheWrite.
+	if UsePriorityServiceTierPricing(serviceTier, pricing) &&
+		(pricing.SupportsCacheBreakdown || pricing.CacheCreation5mPriceExplicit || pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil) &&
+		pricing.CacheCreationPricePerToken > 0 && (pricing.PriorityCacheWritePresent || pricing.CacheCreationPricePerTokenPriority > 0) {
 		cacheCreationMultiplier *= cacheCreationPrice / pricing.CacheCreationPricePerToken
-		if pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil {
-			cacheCreationPrice = pricing.CacheCreationPricePerToken
-		}
+		cacheCreationPrice = pricing.CacheCreationPricePerToken
 	}
-	// The cache selector now receives the selected aggregate amount and
-	// accumulated context or priority ratio, allowing its TTL choice to apply
-	// those adjustments once.
-	bd.CacheCreationCost = ComputeCacheCreationCost(pricing, tokens, cacheCreationPrice, cacheCreationMultiplier)
+	cacheSettlement := SettleCacheWrite(modelCacheWriteRates(pricing, cacheCreationPrice), tokens, defaultFamily, cacheCreationMultiplier)
+	bd.CacheCreationCost = cacheSettlement.Cost
+	bd.CacheWrite = &cacheSettlement
 
 	imageCached := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0))
 	imageCachePrice := cacheReadPrice
@@ -503,6 +507,7 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 		bd.OutputCost *= tierMultiplier
 		bd.ImageOutputCost *= tierMultiplier
 		bd.CacheCreationCost *= tierMultiplier
+		bd.CacheWrite.Cost *= tierMultiplier
 		bd.CacheReadCost *= tierMultiplier
 	}
 
@@ -514,74 +519,11 @@ func ComputeTokenBreakdownAt(pricing *ModelPricing, tokens UsageTokens, rateMult
 	return bd
 }
 
-// ComputeCacheCreationCost returns aggregate or TTL-specific cache creation
-// costs with multiplier applied to the selected rates. Callers supply non-nil
-// pricing and finite amounts and factors. TTL rates are eligible only when
-// breakdown support is enabled and at least one TTL rate is positive.
-//
-// Eligible TTL pricing uses normalized details, or charges positive aggregate
-// usage at the 5m rate when both details are absent. Otherwise the supplied
-// aggregate price parameter determines the charge. The same multiplier scales
-// either path, carrying the caller's selected context and priority adjustments.
+// ComputeCacheCreationCost returns cache-creation cost from SettleCacheWrite
+// with multiplier applied to the selected rates. Callers supply non-nil pricing
+// and finite amounts and factors.
 func ComputeCacheCreationCost(pricing *ModelPricing, tokens UsageTokens, price, multiplier float64) float64 {
-	if short, long, ok := openAIWriteBreakdown(tokens); ok && (pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil) {
-		return (float64(short)*cacheWriteRate(pricing.CacheCreation30mPrice, price) +
-			float64(long)*cacheWriteRate(pricing.CacheCreation12hPrice, price)) * multiplier
-	}
-	if pricing.SupportsCacheBreakdown && (pricing.CacheCreation5mPrice > 0 || pricing.CacheCreation1hPrice > 0) {
-		cacheCreation5mTokens, cacheCreation1hTokens := NormalizeCacheCreationBreakdown(tokens)
-		if cacheCreation5mTokens == 0 && cacheCreation1hTokens == 0 && tokens.CacheCreationTokens > 0 {
-			// Aggregate usage can arrive without TTL details; the short-TTL amount
-			// retains reported creation charges without inventing a count of hourly
-			// tokens.
-			return float64(tokens.CacheCreationTokens) * pricing.CacheCreation5mPrice * multiplier
-		}
-		return float64(cacheCreation5mTokens)*pricing.CacheCreation5mPrice*multiplier +
-			float64(cacheCreation1hTokens)*pricing.CacheCreation1hPrice*multiplier
-	}
-	// TTL pricing is unavailable under the support or rate condition; retain the
-	// caller's selected aggregate amount, including a free or priority price.
-	return float64(tokens.CacheCreationTokens) * price * multiplier
-}
-
-// NormalizeCacheCreationBreakdown returns nonnegative 5m and 1h token details.
-// Negative detail counts become zero. A positive aggregate caps only an
-// overreported detail sum; a nonpositive aggregate leaves the remaining details
-// available because it supplies no positive cap.
-//
-// For overreported details, the 5m share is proportionally rounded and the 1h
-// count receives the aggregate remainder. Comparing the rounded value with the
-// aggregate before integer conversion keeps the returned counts within that cap
-// despite float64 rounding near large integer values.
-func NormalizeCacheCreationBreakdown(tokens UsageTokens) (int, int) {
-	cacheCreation5mTokens := tokens.CacheCreation5mTokens
-	cacheCreation1hTokens := tokens.CacheCreation1hTokens
-	aggregate := tokens.CacheCreationTokens
-	// Discard negative details before comparing their sum with the aggregate cap.
-	if cacheCreation5mTokens < 0 {
-		cacheCreation5mTokens = 0
-	}
-	if cacheCreation1hTokens < 0 {
-		cacheCreation1hTokens = 0
-	}
-	if aggregate <= 0 || (cacheCreation5mTokens <= aggregate && cacheCreation1hTokens <= aggregate-cacheCreation5mTokens) {
-		return cacheCreation5mTokens, cacheCreation1hTokens
-	}
-
-	// Use floating detail totals to avoid integer addition overflow while
-	// estimating proportional counts that will be returned as integers.
-	detailTotal := float64(cacheCreation5mTokens) + float64(cacheCreation1hTokens)
-	// Round the short-TTL share and give hourly usage the remainder.
-	normalized5mTokens := math.Round(float64(aggregate) * float64(cacheCreation5mTokens) / detailTotal)
-	// Near int limits, a rounded float may reach the aggregate's rounded
-	// representation; return the original integer cap before any potentially
-	// oversized conversion.
-	if normalized5mTokens >= float64(aggregate) {
-		cacheCreation5mTokens = aggregate
-	} else {
-		cacheCreation5mTokens = int(normalized5mTokens)
-	}
-	return cacheCreation5mTokens, aggregate - cacheCreation5mTokens
+	return SettleCacheWrite(modelCacheWriteRates(pricing, price), tokens, "", multiplier).Cost
 }
 
 // CalculatePerRequestCost returns a unit-priced total for requests or media
@@ -605,7 +547,8 @@ func CalculatePerRequestCost(resolved *ResolvedPricing, input CostInput) (*CostB
 		units = float64(count)
 	}
 
-	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
+	cacheTotal := EffectiveCacheWriteTotal(input.Tokens)
+	totalContext := input.Tokens.InputTokens + cacheTotal + input.Tokens.CacheReadTokens
 	unitPrice, found := ResolveRequestUnitPrice(resolved, input.SizeTier, &totalContext)
 	if !found {
 		return nil, fmt.Errorf("%w for request price: %s", ErrModelPricingUnavailable, input.Model)
@@ -614,10 +557,17 @@ func CalculatePerRequestCost(resolved *ResolvedPricing, input CostInput) (*CostB
 	totalCost := unitPrice * units
 	actualCost := totalCost * input.RateMultiplier
 
-	return &CostBreakdown{
+	out := &CostBreakdown{
 		TotalCost:  totalCost,
 		ActualCost: actualCost,
-	}, nil
+	}
+	if cacheTotal > 0 || input.Tokens.CacheCreationTokens < 0 ||
+		input.Tokens.CacheCreation5mTokens != 0 || input.Tokens.CacheCreation1hTokens != 0 ||
+		input.Tokens.CacheCreation30mTokens != nil || input.Tokens.CacheCreation12hTokens != nil {
+		settlement := SettleCacheWrite(CacheWriteRates{}, input.Tokens, input.DefaultCacheWriteFamily, 0)
+		out.CacheWrite = &settlement
+	}
+	return out, nil
 }
 
 // LongContextMultiplierOrOne returns a positive multiplier or the unit factor.
@@ -647,7 +597,7 @@ func ShouldApplySessionLongContextPricing(tokens UsageTokens, pricing *ModelPric
 	if pricing.LongContextInputMultiplier <= 1 && pricing.LongContextOutputMultiplier <= 1 {
 		return false
 	}
-	totalInputTokens := tokens.InputTokens + tokens.CacheCreationTokens + tokens.CacheReadTokens
+	totalInputTokens := tokens.InputTokens + EffectiveCacheWriteTotal(tokens) + tokens.CacheReadTokens
 	if pricing.LongContextThresholdInclusive {
 		return totalInputTokens >= pricing.LongContextInputThreshold
 	}
@@ -845,7 +795,7 @@ func PricingIntervalHasEffectiveTokenPricing(interval PricingInterval) bool {
 	return interval.InputPrice != nil ||
 		interval.OutputPrice != nil ||
 		interval.CacheWritePrice != nil ||
-		interval.CacheWrite1hPrice != nil || interval.CacheWrite30mPrice != nil || interval.CacheWrite12hPrice != nil ||
+		interval.CacheWrite5mPrice != nil || interval.CacheWrite1hPrice != nil || interval.CacheWrite30mPrice != nil || interval.CacheWrite12hPrice != nil ||
 		interval.CacheReadPrice != nil
 }
 
@@ -874,30 +824,30 @@ func BuildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) Mod
 
 	at := time.Now()
 	standard := applyCatalogCalendarPricing(pricing, at)
-	cacheWritePrice, cacheWrite1hPrice := CacheCreationDisplayPrices(standard)
+	cacheWritePrice, _ := CacheCreationDisplayPrices(standard)
 	displayPricing := ModelDisplayPricing{
-		PricingMode:               "token",
-		PriceStatus:               "priced",
-		InputPricePerToken:        standard.InputPricePerToken * rateMultiplier,
-		ImageInputPricePerToken:   standard.ImageInputPricePerToken * rateMultiplier,
-		OutputPricePerToken:       standard.OutputPricePerToken * rateMultiplier,
-		CacheWritePricePerToken:   cacheWritePrice * rateMultiplier,
-		CacheWrite1hPricePerToken: cacheWrite1hPrice * rateMultiplier,
-		CacheReadPricePerToken:    standard.CacheReadPricePerToken * rateMultiplier,
-		ImageOutputPricePerToken:  standard.ImageOutputPricePerToken * rateMultiplier,
+		PricingMode:              "token",
+		PriceStatus:              "priced",
+		InputPricePerToken:       standard.InputPricePerToken * rateMultiplier,
+		ImageInputPricePerToken:  standard.ImageInputPricePerToken * rateMultiplier,
+		OutputPricePerToken:      standard.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:  cacheWritePrice * rateMultiplier,
+		CacheReadPricePerToken:   standard.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken: standard.ImageOutputPricePerToken * rateMultiplier,
 	}
+	displayPricing.CacheWrite5mPricePerToken, displayPricing.CacheWrite1hPricePerToken = displayClaudeWriteRates(standard, rateMultiplier)
 	displayPricing.CacheWrite30mPricePerToken, displayPricing.CacheWrite12hPricePerToken = displayOpenAIWriteRates(standard, rateMultiplier)
 	displayPricing.Flex = displayServiceTierQuote(pricing, "flex", rateMultiplier, at)
 	displayPricing.Ultrafast = displayServiceTierQuote(pricing, "ultrafast", rateMultiplier, at)
 	if fastPricing, ok := selectFastModeDisplayPricing(pricing, at); ok {
 		fastPricing = applyCatalogCalendarPricing(fastPricing, at)
+		displayPricing.FastCacheWrite5mPricePerToken, displayPricing.FastCacheWrite1hPricePerToken = displayClaudeWriteRates(fastPricing, rateMultiplier)
 		displayPricing.FastCacheWrite30mPricePerToken, displayPricing.FastCacheWrite12hPricePerToken = displayOpenAIWriteRates(fastPricing, rateMultiplier)
 		displayPricing.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
 		displayPricing.FastImageInputPricePerToken = fastPricing.ImageInputPricePerToken * rateMultiplier
 		displayPricing.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
-		fastCacheWritePrice, fastCacheWrite1hPrice := CacheCreationDisplayPrices(fastPricing)
+		fastCacheWritePrice, _ := CacheCreationDisplayPrices(fastPricing)
 		displayPricing.FastCacheWritePricePerToken = fastCacheWritePrice * rateMultiplier
-		displayPricing.FastCacheWrite1hPricePerToken = fastCacheWrite1hPrice * rateMultiplier
 		displayPricing.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
 		displayPricing.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
 	}
@@ -919,9 +869,9 @@ func CacheCreationDisplayPrices(pricing *ModelPricing) (float64, float64) {
 		return 0, 0
 	}
 	short := pricing.CacheCreationPricePerToken
-	// Keep aggregate short pricing when TTL support or a positive 5m rate is
-	// absent; the hourly field alone cannot select a different short amount.
-	if pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0 {
+	// Keep aggregate short pricing when neither explicit 5m pricing nor positive
+	// breakdown 5m pricing is present; the hourly field alone does not change it.
+	if pricing.CacheCreation5mPriceExplicit || (pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0) {
 		short = pricing.CacheCreation5mPrice
 	}
 	if !pricing.SupportsCacheBreakdown {
@@ -1017,30 +967,30 @@ func HasLongContextDisplayPricing(pricing *ModelPricing) bool {
 func ModelPricingDisplayInterval(minTokens int, maxTokens *int, pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricingInterval {
 	at := time.Now()
 	standard := applyCatalogCalendarPricing(pricing, at)
-	cacheWritePrice, cacheWrite1hPrice := CacheCreationDisplayPrices(standard)
+	cacheWritePrice, _ := CacheCreationDisplayPrices(standard)
 	interval := ModelDisplayPricingInterval{
-		MinTokens:                 minTokens,
-		MaxTokens:                 maxTokens,
-		InputPricePerToken:        standard.InputPricePerToken * rateMultiplier,
-		ImageInputPricePerToken:   standard.ImageInputPricePerToken * rateMultiplier,
-		OutputPricePerToken:       standard.OutputPricePerToken * rateMultiplier,
-		CacheWritePricePerToken:   cacheWritePrice * rateMultiplier,
-		CacheWrite1hPricePerToken: cacheWrite1hPrice * rateMultiplier,
-		CacheReadPricePerToken:    standard.CacheReadPricePerToken * rateMultiplier,
-		ImageOutputPricePerToken:  standard.ImageOutputPricePerToken * rateMultiplier,
+		MinTokens:                minTokens,
+		MaxTokens:                maxTokens,
+		InputPricePerToken:       standard.InputPricePerToken * rateMultiplier,
+		ImageInputPricePerToken:  standard.ImageInputPricePerToken * rateMultiplier,
+		OutputPricePerToken:      standard.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:  cacheWritePrice * rateMultiplier,
+		CacheReadPricePerToken:   standard.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken: standard.ImageOutputPricePerToken * rateMultiplier,
 	}
+	interval.CacheWrite5mPricePerToken, interval.CacheWrite1hPricePerToken = displayClaudeWriteRates(standard, rateMultiplier)
 	interval.CacheWrite30mPricePerToken, interval.CacheWrite12hPricePerToken = displayOpenAIWriteRates(standard, rateMultiplier)
 	interval.Flex = displayServiceTierQuote(pricing, "flex", rateMultiplier, at)
 	interval.Ultrafast = displayServiceTierQuote(pricing, "ultrafast", rateMultiplier, at)
 	if fastPricing, ok := selectFastModeDisplayPricing(pricing, at); ok {
 		fastPricing = applyCatalogCalendarPricing(fastPricing, at)
+		interval.FastCacheWrite5mPricePerToken, interval.FastCacheWrite1hPricePerToken = displayClaudeWriteRates(fastPricing, rateMultiplier)
 		interval.FastCacheWrite30mPricePerToken, interval.FastCacheWrite12hPricePerToken = displayOpenAIWriteRates(fastPricing, rateMultiplier)
 		interval.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
 		interval.FastImageInputPricePerToken = fastPricing.ImageInputPricePerToken * rateMultiplier
 		interval.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
-		fastCacheWritePrice, fastCacheWrite1hPrice := CacheCreationDisplayPrices(fastPricing)
+		fastCacheWritePrice, _ := CacheCreationDisplayPrices(fastPricing)
 		interval.FastCacheWritePricePerToken = fastCacheWritePrice * rateMultiplier
-		interval.FastCacheWrite1hPricePerToken = fastCacheWrite1hPrice * rateMultiplier
 		interval.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
 		interval.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
 	}
@@ -1093,7 +1043,7 @@ func selectFastModeDisplayPricing(pricing *ModelPricing, at time.Time) (*ModelPr
 		}
 		if pricing.CacheCreationPricePerTokenPriority > 0 || pricing.PriorityCacheWritePresent {
 			fastPricing.CacheCreationPricePerToken = pricing.CacheCreationPricePerTokenPriority
-			if (pricing.SupportsCacheBreakdown || pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil) && pricing.CacheCreationPricePerToken > 0 {
+			if (pricing.SupportsCacheBreakdown || pricing.CacheCreation5mPriceExplicit || pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil) && pricing.CacheCreationPricePerToken > 0 {
 				// Use the priority amount divided by the standard amount to scale both TTL
 				// display rates, retaining explicit free priority cache pricing.
 				ratio := pricing.CacheCreationPricePerTokenPriority / pricing.CacheCreationPricePerToken
@@ -1115,6 +1065,10 @@ func selectFastModeDisplayPricing(pricing *ModelPricing, at time.Time) (*ModelPr
 	fastPricing.ImageCacheReadPricePerToken *= multiplier
 	fastPricing.OutputPricePerToken *= multiplier
 	fastPricing.CacheCreationPricePerToken *= multiplier
+	fastPricing.CacheCreation5mPrice *= multiplier
+	fastPricing.CacheCreation1hPrice *= multiplier
+	fastPricing.CacheCreation30mPrice = MultiplyPricePointer(fastPricing.CacheCreation30mPrice, multiplier)
+	fastPricing.CacheCreation12hPrice = MultiplyPricePointer(fastPricing.CacheCreation12hPrice, multiplier)
 	fastPricing.CacheReadPricePerToken *= multiplier
 	fastPricing.ImageOutputPricePerToken *= multiplier
 	return &fastPricing, true
@@ -1327,7 +1281,9 @@ func HasAnyDisplayTokenPricing(pricing *ModelPricing) bool {
 		pricing.ImageInputPricePerToken > 0 ||
 		pricing.OutputPricePerToken > 0 ||
 		pricing.CacheCreationPricePerToken > 0 ||
-		pricing.CacheCreation1hPrice > 0 || pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil ||
+		pricing.CacheCreation5mPriceExplicit || pricing.CacheCreation5mPrice > 0 ||
+		pricing.SupportsCacheBreakdown || pricing.CacheCreation1hPrice > 0 ||
+		pricing.CacheCreation30mPrice != nil || pricing.CacheCreation12hPrice != nil ||
 		pricing.CacheReadPricePerToken > 0 ||
 		pricing.ImageOutputPricePerToken > 0
 }

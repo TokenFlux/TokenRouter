@@ -197,8 +197,9 @@ func ParsePricingEntries(rawData map[string]json.RawMessage) (map[string]*Catalo
 
 		pricing := &CatalogModelPricing{
 			InputPricePresent:           entry.InputCostPerToken != nil,
-			CacheCreation30mPrice:       entry.CacheCreation30mPrice,
-			CacheCreation12hPrice:       entry.CacheCreation12hPrice,
+			CacheCreation5mPrice:        copyOptional(entry.CacheCreation5mPrice),
+			CacheCreation30mPrice:       copyOptional(entry.CacheCreation30mPrice),
+			CacheCreation12hPrice:       copyOptional(entry.CacheCreation12hPrice),
 			OutputPricePresent:          entry.OutputCostPerToken != nil,
 			CatalogRules:                entry.Clone(),
 			CacheCreation1hPricePresent: entry.CacheCreationInputTokenCostAbove1hr != nil,

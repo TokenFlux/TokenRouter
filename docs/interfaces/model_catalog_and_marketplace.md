@@ -243,7 +243,7 @@ v2 目录按提供商和完整型号解析服务记录，通过 `canonical_id` �
 - 分组关联的价格配置开启 `free_openai_fast` 时，模型广场的 Fast 用户价与 Standard 基础价和上下文档一致（同时检查默认价和有效区间，含仅配区间的自定义模型）；仅调整展示副本，不影响结算 Fast `total_cost` 与提供商统计。
 - token 基础单价对应分时 1x 时段与非 `max` 档位。校验通过的价格配置分时规则（分组条目覆盖优先）随报价下发 `time_pricing`（时区、`weekdays_only`、各时段倍率），正数且非 1 的 `max_reasoning_effort_multiplier` 单独下发。
 - 模型广场将分时与 Max 和 Fast 并列切换，选中后视图内全部 token 单价（含 Fast）乘对应倍率；未覆盖全天或仅工作日生效时增加 1x「其他时段」，默认选中规则时区此刻时段并注明时区与生效日。目录分时规则按报价生成时刻直接乘入单价。
-- 共享价格配置与提供商统计 API 支持可选 `cache_write_1h_price`（`cache_write_price` 代表 5m）。存在时市场与结算分 5m/1h 计价且公开 DTO 下发两项单价，缺失时按单一价格处理。
+- 共享价格配置与提供商统计 API 支持统一写入价 `cache_write_price` 及独立 TTL 分档字段 `cache_write_5m_price`、`cache_write_1h_price`、`cache_write_30m_price`、`cache_write_12h_price`（覆盖与结算规则见[缓存写入分档](../domains/routing_and_billing.md#cache_write_pricing)）。公开报价下发对应单价字段，明确为 `0` 的免费 TTL 分档在模型广场照常显示零价行。
 
 ### 图片、视频与缺价展示
 

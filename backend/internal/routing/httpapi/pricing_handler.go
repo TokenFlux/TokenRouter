@@ -119,12 +119,10 @@ type modelPricingRequest struct {
 	// CacheReadPrice retain optional amount presence through conversion. Nil
 	// leaves a bucket unspecified; a supplied zero remains available for its
 	// billing consumer to interpret.
-	InputPrice      *float64 `json:"input_price" binding:"omitempty,min=0"`       // USD per text-input token
-	OutputPrice     *float64 `json:"output_price" binding:"omitempty,min=0"`      // USD per text-output token
-	CacheWritePrice *float64 `json:"cache_write_price" binding:"omitempty,min=0"` // USD per short-TTL cache-write token
-	// CacheWrite1hPrice can independently supply an hourly amount, including
-	// zero; when absent, a CacheWritePrice override also covers that hourly
-	// bucket.
+	InputPrice         *float64 `json:"input_price" binding:"omitempty,min=0"`           // USD per text-input token
+	OutputPrice        *float64 `json:"output_price" binding:"omitempty,min=0"`          // USD per text-output token
+	CacheWritePrice    *float64 `json:"cache_write_price" binding:"omitempty,min=0"`     // USD per uniform cache-write token
+	CacheWrite5mPrice  *float64 `json:"cache_write_5m_price" binding:"omitempty,min=0"`  // USD per five-minute write token
 	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"`  // USD per hourly cache-write token
 	CacheWrite30mPrice *float64 `json:"cache_write_30m_price" binding:"omitempty,min=0"` // USD per thirty-minute write token
 	CacheWrite12hPrice *float64 `json:"cache_write_12h_price" binding:"omitempty,min=0"` // USD per twelve-hour write token
@@ -185,12 +183,10 @@ type pricingIntervalRequest struct {
 	// CacheReadPrice retain optional interval amounts. User token intervals
 	// inherit missing buckets; provider statistics treats missing buckets under
 	// its independent price calculation.
-	InputPrice      *float64 `json:"input_price"`       // USD per interval input token
-	OutputPrice     *float64 `json:"output_price"`      // USD per interval output token
-	CacheWritePrice *float64 `json:"cache_write_price"` // USD per short-TTL interval cache-write token
-	// CacheWrite1hPrice supplies a separate hourly interval amount, including
-	// zero; absent hourly input lets an interval CacheWritePrice override cover
-	// that bucket.
+	InputPrice         *float64 `json:"input_price"`           // USD per interval input token
+	OutputPrice        *float64 `json:"output_price"`          // USD per interval output token
+	CacheWritePrice    *float64 `json:"cache_write_price"`     // USD per uniform interval cache-write token
+	CacheWrite5mPrice  *float64 `json:"cache_write_5m_price"`  // USD per five-minute write token
 	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly interval cache-write token
 	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
 	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
@@ -280,12 +276,10 @@ type modelPricingResponse struct {
 	// CacheReadPrice retain optional amount presence through conversion. Nil
 	// leaves a bucket unspecified; a supplied zero remains available for its
 	// billing consumer to interpret.
-	InputPrice      *float64 `json:"input_price"`       // USD per text-input token
-	OutputPrice     *float64 `json:"output_price"`      // USD per text-output token
-	CacheWritePrice *float64 `json:"cache_write_price"` // USD per short-TTL cache-write token
-	// CacheWrite1hPrice can independently supply an hourly amount, including
-	// zero; when absent, a CacheWritePrice override also covers that hourly
-	// bucket.
+	InputPrice         *float64 `json:"input_price"`           // USD per text-input token
+	OutputPrice        *float64 `json:"output_price"`          // USD per text-output token
+	CacheWritePrice    *float64 `json:"cache_write_price"`     // USD per uniform cache-write token
+	CacheWrite5mPrice  *float64 `json:"cache_write_5m_price"`  // USD per five-minute write token
 	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly cache-write token
 	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
 	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
@@ -346,12 +340,10 @@ type pricingIntervalResponse struct {
 	// CacheReadPrice retain optional interval amounts. User token intervals
 	// inherit missing buckets; provider statistics treats missing buckets under
 	// its independent price calculation.
-	InputPrice      *float64 `json:"input_price"`       // USD per interval input token
-	OutputPrice     *float64 `json:"output_price"`      // USD per interval output token
-	CacheWritePrice *float64 `json:"cache_write_price"` // USD per short-TTL interval cache-write token
-	// CacheWrite1hPrice supplies a separate hourly interval amount, including
-	// zero; absent hourly input lets an interval CacheWritePrice override cover
-	// that bucket.
+	InputPrice         *float64 `json:"input_price"`           // USD per interval input token
+	OutputPrice        *float64 `json:"output_price"`          // USD per interval output token
+	CacheWritePrice    *float64 `json:"cache_write_price"`     // USD per uniform interval cache-write token
+	CacheWrite5mPrice  *float64 `json:"cache_write_5m_price"`  // USD per five-minute write token
 	CacheWrite1hPrice  *float64 `json:"cache_write_1h_price"`  // USD per hourly interval cache-write token
 	CacheWrite30mPrice *float64 `json:"cache_write_30m_price"` // USD per thirty-minute write token
 	CacheWrite12hPrice *float64 `json:"cache_write_12h_price"` // USD per twelve-hour write token
@@ -496,6 +488,7 @@ func pricingToResponse(p *routing.ModelPricingEntry) modelPricingResponse {
 		InputPrice:                   p.InputPrice,
 		OutputPrice:                  p.OutputPrice,
 		CacheWritePrice:              p.CacheWritePrice,
+		CacheWrite5mPrice:            p.CacheWrite5mPrice,
 		CacheWrite1hPrice:            p.CacheWrite1hPrice, CacheWrite30mPrice: p.CacheWrite30mPrice, CacheWrite12hPrice: p.CacheWrite12hPrice,
 		CacheReadPrice:   p.CacheReadPrice,
 		ImageInputPrice:  p.ImageInputPrice,
@@ -541,6 +534,7 @@ func intervalToResponse(iv routing.PricingInterval) pricingIntervalResponse {
 		InputPrice:        iv.InputPrice,
 		OutputPrice:       iv.OutputPrice,
 		CacheWritePrice:   iv.CacheWritePrice,
+		CacheWrite5mPrice: iv.CacheWrite5mPrice,
 		CacheWrite1hPrice: iv.CacheWrite1hPrice, CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
 		CacheReadPrice:       iv.CacheReadPrice,
 		InputMultiplier:      iv.InputMultiplier,
@@ -577,6 +571,7 @@ func pricingRequestToService(reqs []modelPricingRequest) []routing.ModelPricingE
 				InputPrice:        iv.InputPrice,
 				OutputPrice:       iv.OutputPrice,
 				CacheWritePrice:   iv.CacheWritePrice,
+				CacheWrite5mPrice: iv.CacheWrite5mPrice,
 				CacheWrite1hPrice: iv.CacheWrite1hPrice, CacheWrite30mPrice: iv.CacheWrite30mPrice, CacheWrite12hPrice: iv.CacheWrite12hPrice,
 				CacheReadPrice:       iv.CacheReadPrice,
 				InputMultiplier:      iv.InputMultiplier,
@@ -599,6 +594,7 @@ func pricingRequestToService(reqs []modelPricingRequest) []routing.ModelPricingE
 			InputPrice:                   r.InputPrice,
 			OutputPrice:                  r.OutputPrice,
 			CacheWritePrice:              r.CacheWritePrice,
+			CacheWrite5mPrice:            r.CacheWrite5mPrice,
 			CacheWrite1hPrice:            r.CacheWrite1hPrice, CacheWrite30mPrice: r.CacheWrite30mPrice, CacheWrite12hPrice: r.CacheWrite12hPrice,
 			CacheReadPrice:   r.CacheReadPrice,
 			ImageInputPrice:  r.ImageInputPrice,
@@ -852,13 +848,18 @@ func (h *PricingHandler) GetModelDefaultPricing(c *gin.Context) {
 	}
 
 	cacheWritePrice := pricing.CacheCreationPricePerToken
-	var cacheWrite1hPrice *float64
-	// Keep the aggregate cache-write amount when no positive 5m amount exists;
-	// breakdown metadata still exposes its 1h amount, including zero.
-	if pricing.SupportsCacheBreakdown {
-		if pricing.CacheCreation5mPrice > 0 {
-			cacheWritePrice = pricing.CacheCreation5mPrice
+	var cacheWrite5mPrice, cacheWrite1hPrice *float64
+	// Expose explicit 5m and 1h pointers for split-TTL models while keeping the
+	// legacy aggregate cache_write_price value intact for existing consumers.
+	if pricing.SupportsCacheBreakdown || pricing.CacheCreation5mPriceExplicit {
+		short := cacheWritePrice
+		if pricing.CacheCreation5mPriceExplicit || pricing.CacheCreation5mPrice > 0 {
+			short = pricing.CacheCreation5mPrice
+			cacheWritePrice = short
 		}
+		cacheWrite5mPrice = &short
+	}
+	if pricing.SupportsCacheBreakdown {
 		cacheWrite1hPrice = &pricing.CacheCreation1hPrice
 	}
 	httpx.Success(c, gin.H{
@@ -866,6 +867,7 @@ func (h *PricingHandler) GetModelDefaultPricing(c *gin.Context) {
 		"input_price":                     pricing.InputPricePerToken,
 		"output_price":                    pricing.OutputPricePerToken,
 		"cache_write_price":               cacheWritePrice,
+		"cache_write_5m_price":            cacheWrite5mPrice,
 		"cache_write_1h_price":            cacheWrite1hPrice,
 		"cache_write_30m_price":           pricing.CacheCreation30mPrice,
 		"cache_write_12h_price":           pricing.CacheCreation12hPrice,

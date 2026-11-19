@@ -61,9 +61,9 @@
             class="input mt-1 text-xs"
           />
         </div>
-        <div>
+        <div v-if="effectiveCacheWriteMode === 'uniform'">
           <label class="text-xs text-gray-400"
-            >{{ t('admin.pricing.form.cacheWrite5mPriceShort', '缓存W 5m') }}
+            >{{ t('admin.pricing.form.cacheWritePriceShort', '缓存写') }}
             <span class="text-gray-300">$/M</span></label
           >
           <input
@@ -75,36 +75,54 @@
             class="input mt-1 text-xs"
           />
         </div>
-        <div>
-          <label class="text-xs text-gray-400"
-            >{{ t('admin.pricing.form.cacheWrite1hPriceShort', '缓存W 1h') }}
-            <span class="text-gray-300">$/M</span></label
-          >
-          <input
-            :value="interval.cache_write_1h_price"
-            @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
-            type="number"
-            step="any"
-            min="0"
-            class="input mt-1 text-xs"
-          />
-        </div>
-        <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
-          <label class="text-xs text-gray-400">
-            {{ t('admin.pricing.form.cacheWriteLifetime', { ttl }) }}
-            <span class="text-gray-300">$/M</span>
-          </label>
-          <input
-            :value="interval[`cache_write_${ttl}_price`]"
-            @input="
-              emitField(`cache_write_${ttl}_price`, ($event.target as HTMLInputElement).value)
-            "
-            type="number"
-            step="any"
-            min="0"
-            class="input mt-1 text-xs"
-          />
-        </div>
+        <template v-else-if="effectiveCacheWriteMode === '5m_1h'">
+          <div>
+            <label class="text-xs text-gray-400"
+              >{{ t('admin.pricing.form.cacheWrite5mPriceShort', '缓存写 5m') }}
+              <span class="text-gray-300">$/M</span></label
+            >
+            <input
+              :value="interval.cache_write_5m_price ?? interval.cache_write_price"
+              @input="emitCacheWrite5mPrice(($event.target as HTMLInputElement).value)"
+              type="number"
+              step="any"
+              min="0"
+              class="input mt-1 text-xs"
+            />
+          </div>
+          <div>
+            <label class="text-xs text-gray-400"
+              >{{ t('admin.pricing.form.cacheWrite1hPriceShort', '缓存写 1h') }}
+              <span class="text-gray-300">$/M</span></label
+            >
+            <input
+              :value="interval.cache_write_1h_price"
+              @input="emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)"
+              type="number"
+              step="any"
+              min="0"
+              class="input mt-1 text-xs"
+            />
+          </div>
+        </template>
+        <template v-else>
+          <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
+            <label class="text-xs text-gray-400">
+              {{ t('admin.pricing.form.cacheWriteLifetime', { ttl }) }}
+              <span class="text-gray-300">$/M</span>
+            </label>
+            <input
+              :value="interval[`cache_write_${ttl}_price`]"
+              @input="
+                emitField(`cache_write_${ttl}_price`, ($event.target as HTMLInputElement).value)
+              "
+              type="number"
+              step="any"
+              min="0"
+              class="input mt-1 text-xs"
+            />
+          </div>
+        </template>
         <div>
           <label class="text-xs text-gray-400"
             >{{ t('admin.pricing.form.cacheReadPrice', '缓存R') }}
@@ -197,7 +215,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { IntervalFormEntry } from './types'
+import {
+  resolveCacheWritePricingMode,
+  type CacheWritePricingMode,
+  type IntervalFormEntry,
+} from './types'
 import type { BillingMode } from '@/api/admin/pricing'
 
 // IntervalRow.vue edits one labeled or context-based pricing interval. Video rows expose
@@ -212,6 +234,7 @@ const { t } = useI18n()
 const props = defineProps<{
   interval: IntervalFormEntry // editable price interval
   mode: BillingMode // selected editor mode
+  cacheWriteMode?: CacheWritePricingMode // parent card cache-write input group
 }>()
 
 // emit forwards typed edits and actions to the parent that owns the displayed draft.
@@ -221,6 +244,12 @@ const emit = defineEmits<{
   ] // replacement edited row value
 }>()
 
+// effectiveCacheWriteMode follows the parent card's selected mode or infers it from interval
+// fields when rendered standalone.
+const effectiveCacheWriteMode = computed(
+  () => props.cacheWriteMode ?? resolveCacheWritePricingMode(props.interval),
+)
+
 // isEmpty checks all interval amount and multiplier inputs so the row can display its
 // unconfigured pricing hint.
 const isEmpty = computed(() => {
@@ -229,6 +258,7 @@ const isEmpty = computed(() => {
     (iv.input_price == null || iv.input_price === '') &&
     (iv.output_price == null || iv.output_price === '') &&
     (iv.cache_write_price == null || iv.cache_write_price === '') &&
+    (iv.cache_write_5m_price == null || iv.cache_write_5m_price === '') &&
     (iv.cache_write_1h_price == null || iv.cache_write_1h_price === '') &&
     (iv.cache_write_30m_price == null || iv.cache_write_30m_price === '') &&
     (iv.cache_write_12h_price == null || iv.cache_write_12h_price === '') &&
@@ -246,6 +276,16 @@ const isEmpty = computed(() => {
 // and serialization.
 function emitField(field: keyof IntervalFormEntry, value: string | number | null) {
   emit('update', { ...props.interval, [field]: value === '' ? null : value })
+}
+
+// emitCacheWrite5mPrice updates cache_write_5m_price and clears any legacy uniform
+// cache_write_price on the edited interval row.
+function emitCacheWrite5mPrice(value: string) {
+  emit('update', {
+    ...props.interval,
+    cache_write_price: null,
+    cache_write_5m_price: value === '' ? null : value,
+  })
 }
 
 // toInt parses a decimal integer for a required token bound. Invalid input returns zero, which

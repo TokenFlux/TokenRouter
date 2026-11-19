@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -20,11 +21,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// Diagnostic identity must survive every usage persistence shape, including
-// nullable response-model evidence and session correlation text. PostgreSQL
-// round trips compare supplied fields with stored values, and financial-key
-// replay cases write old and unified request forms in both orders to check
-// duplicate recovery.
+// usage_log_repo_insert_integration_test.go verifies diagnostic identity,
+// nullable response-model and cache-write anomaly JSONB fields, and session
+// correlation across every PostgreSQL usage persistence shape. Round trips
+// compare supplied fields with stored values, and financial-key replay cases
+// write old and unified request forms in both orders to check duplicate recovery.
 //
 // The activity benchmarks alter a shared insert trigger and vary whether
 // sixty-four rows use one actor or distinct actors. Cleanup restores that
@@ -34,8 +35,8 @@ import (
 // production SQL shape for comparison.
 
 // TestResponseModelBatchRoundTrip inserts absent and present model declarations
-// with nullable mismatch flags through batch SQL. It checks diagnostic readback,
-// best-effort/direct paths, and successful repeat execution.
+// with nullable mismatch and cache-write anomaly diagnostics through batch SQL.
+// It checks diagnostic readback, best-effort/direct paths, and successful repeat execution.
 func TestResponseModelBatchRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	// Result-aware batch SQL uses the shared pool, so registered truncation owns
@@ -55,6 +56,13 @@ func TestResponseModelBatchRoundTrip(t *testing.T) {
 			mismatch := kind == "different"
 			log.UpstreamResponseModel = &value
 			log.UpstreamModelMismatch = &mismatch
+			if mismatch {
+				log.CacheWriteAnomaly = &billing.CacheWriteAnomaly{
+					Kind:          "partial_breakdown",
+					ReportedTotal: 311,
+					Reported5m:    211,
+				}
+			}
 		}
 		batchKey := usageLogBatchKey(log.RequestID, log.APIKeyID)
 		keys = append(keys, batchKey)
@@ -67,14 +75,29 @@ func TestResponseModelBatchRoundTrip(t *testing.T) {
 		log, err := scanUsageLog(integrationDB.QueryRowContext(ctx, "SELECT "+usageLogSelectColumns+" FROM usage_logs WHERE id=$1", state.ID))
 		require.NoError(t, err)
 		want := prepared[key].args
-		require.Equal(t, want[len(want)-5], nullString(log.UpstreamResponseModel))
-		require.Equal(t, want[len(want)-4], log.UpstreamModelMismatch)
+		require.Equal(t, want[len(want)-6], nullString(log.UpstreamResponseModel))
+		require.Equal(t, want[len(want)-5], log.UpstreamModelMismatch)
+		if log.UpstreamModelMismatch != nil && *log.UpstreamModelMismatch {
+			require.Equal(t, &billing.CacheWriteAnomaly{
+				Kind:          "partial_breakdown",
+				ReportedTotal: 311,
+				Reported5m:    211,
+			}, log.CacheWriteAnomaly)
+		} else {
+			require.Nil(t, log.CacheWriteAnomaly)
+		}
 	}
 	// Execute the acknowledgement-only and direct shapes with populated response
 	// evidence, then compare their raw readback to the same supplied diagnostics.
 	for _, path := range []string{"best-effort", "fallback"} {
 		model, mismatch := "runtime-version", true
-		log := &usage.UsageLog{UserID: user.ID, APIKeyID: key.ID, ProviderID: upstream.ID, RequestID: suffix + path, Model: "sent", CreatedAt: time.Now(), UpstreamResponseModel: &model, UpstreamModelMismatch: &mismatch}
+		anomaly := &billing.CacheWriteAnomaly{
+			Kind:          "exceeds_total",
+			ReportedTotal: 10,
+			Reported5m:    10,
+			Reported1h:    10,
+		}
+		log := &usage.UsageLog{UserID: user.ID, APIKeyID: key.ID, ProviderID: upstream.ID, RequestID: suffix + path, Model: "sent", CreatedAt: time.Now(), UpstreamResponseModel: &model, UpstreamModelMismatch: &mismatch, CacheWriteAnomaly: anomaly}
 		value := prepareUsageLogInsert(log)
 		if path == "best-effort" {
 			query, args := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{value})
@@ -87,6 +110,7 @@ func TestResponseModelBatchRoundTrip(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, log.UpstreamResponseModel, loaded.UpstreamResponseModel)
 		require.Equal(t, log.UpstreamModelMismatch, loaded.UpstreamModelMismatch)
+		require.Equal(t, anomaly, loaded.CacheWriteAnomaly)
 	}
 	// Reexecute the same prepared identities after readback. Conflict suppression
 	// must let the result-aware batch resolve these stored rows successfully.

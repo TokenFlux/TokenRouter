@@ -21,6 +21,7 @@ export function fullPricing(): ModelPricingEntry {
     input_price: 0,
     output_price: 0.000003,
     cache_write_price: 0.000004,
+    cache_write_5m_price: 0.0000035,
     cache_write_1h_price: 0.000005,
     cache_write_30m_price: 0.0000025,
     cache_write_12h_price: 0,
@@ -36,6 +37,7 @@ export function fullPricing(): ModelPricingEntry {
         input_price: 0,
         output_price: null,
         cache_write_price: null,
+        cache_write_5m_price: null,
         cache_write_1h_price: 0.000008,
         cache_write_30m_price: null,
         cache_write_12h_price: 0.00001,
@@ -66,6 +68,7 @@ describe('共享价格卡', () => {
     const api = fullPricing()
     const form = pricingEntryFromAPI(api)
     expect(form.output_price).toBe(3)
+    expect(form.cache_write_5m_price).toBe(3.5)
     expect(validatePricingForm([form], t)).toBeNull()
     expect(pricingEntryToAPI(form)).toEqual(api)
     form.models.push('another')
@@ -129,6 +132,9 @@ describe('共享价格卡', () => {
   it('拒绝非法价格和时区，接受仅配置 Fast 倍率', () => {
     const form = pricingEntryFromAPI(fullPricing())
     expect(validatePricingForm([{ ...form, output_price: Infinity }], t)).toContain('invalidPrice')
+    expect(validatePricingForm([{ ...form, cache_write_5m_price: -1 }], t)).toContain(
+      'invalidPrice',
+    )
     form.time_pricing.timezone = 'Unknown/Zone'
     expect(validatePricingForm([form], t)).not.toBeNull()
     const onlyFast = pricingEntryFromAPI({
@@ -137,6 +143,7 @@ describe('共享价格卡', () => {
       input_price: null,
       output_price: null,
       cache_write_price: null,
+      cache_write_5m_price: null,
       cache_write_1h_price: null,
       cache_write_30m_price: null,
       cache_write_12h_price: null,

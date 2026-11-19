@@ -4,15 +4,17 @@ import (
 	"testing"
 )
 
-// Cache-write usage can arrive as an aggregate or separate TTL counts, while
-// reasoning observations can overlap reported output. The fixtures compare TTL
-// movement and inclusive output results, with separate assertions protecting
-// unrelated usage fields during cache reclassification.
+// usage_test.go verifies cache-TTL reclassification and independent reasoning
+// overlap rules on protocol usage counters. Cache-write usage can arrive as an
+// aggregate, a detail-only projection, or mismatched aggregate and detail
+// counts, while reasoning observations can overlap reported output; the
+// fixtures protect bucket movement and unrelated usage fields.
 
-// TestApplyCacheTTLOverrideContract reclassifies absent, mixed, and already
-// classified cache-write details with known and unknown TTL targets. The changed
-// flag must distinguish category movement from initial aggregate filling, and
-// unrelated usage fields must retain their values.
+// TestApplyCacheTTLOverrideContract reclassifies absent, partial, duplicate,
+// detail-only, and already classified cache-write details with known and
+// unknown TTL targets. Positive aggregates must govern total reclassified
+// tokens, the changed flag must distinguish category changes from initial
+// aggregate filling, and unrelated usage fields must retain their values.
 func TestApplyCacheTTLOverrideContract(t *testing.T) {
 	tests := []struct {
 		// target supplies the exact TTL selection passed to ApplyCacheTTLOverride.
@@ -22,9 +24,8 @@ func TestApplyCacheTTLOverrideContract(t *testing.T) {
 		// target: requested cache-write TTL category
 		name, target string
 		// aggregate supplies CacheCreationInputTokens while five and hour
-		// initialize the two TTL detail counters. Existing detail totals take
-		// precedence; a positive aggregate fills five only when both detail counts
-		// are zero.
+		// initialize the two TTL detail counters. A positive aggregate governs the
+		// reclassified total; zero aggregates fall back to the detail sum.
 		// aggregate: initial aggregate cache-write tokens
 		// five: initial five-minute cache-write tokens
 		// hour: initial one-hour cache-write tokens
@@ -40,7 +41,11 @@ func TestApplyCacheTTLOverrideContract(t *testing.T) {
 		{name: "empty", target: "1h"},
 		{name: "aggregate fills 5m without reporting override", target: "5m", aggregate: 9, wantFive: 9},
 		{name: "aggregate reclassified to 1h", target: "1h", aggregate: 9, wantHour: 9, changed: true},
-		{name: "details remain authoritative", target: "1h", aggregate: 99, five: 3, hour: 4, wantHour: 7, changed: true},
+		{name: "positive aggregate governs partial details to 1h", target: "1h", aggregate: 311, five: 211, hour: 0, wantHour: 311, changed: true},
+		{name: "positive aggregate governs partial details to 5m", target: "5m", aggregate: 311, five: 211, hour: 0, wantFive: 311, changed: true},
+		{name: "positive aggregate caps duplicate details to 1h", target: "1h", aggregate: 10, five: 10, hour: 10, wantHour: 10, changed: true},
+		{name: "positive aggregate caps duplicate details to 5m", target: "5m", aggregate: 10, five: 10, hour: 10, wantFive: 10, changed: true},
+		{name: "detail-only projection falls back to detail sum", target: "1h", five: 3, hour: 4, wantHour: 7, changed: true},
 		{name: "mixed to 5m", target: "5m", five: 3, hour: 4, wantFive: 7, changed: true},
 		{name: "already 1h", target: "1h", hour: 7, wantHour: 7},
 		{name: "already 5m", target: "5m", five: 7, wantFive: 7},

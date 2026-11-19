@@ -406,9 +406,7 @@ func OpenAIResponsesCompletedEventIsEmpty(data []byte, usage *ForwardUsage) bool
 	if len(data) == 0 || !gjson.ValidBytes(data) {
 		return false
 	}
-	if usage != nil && (usage.InputTokens > 0 || usage.OutputTokens > 0 ||
-		usage.ImageInputTokens > 0 || usage.ImageOutputTokens > 0 ||
-		usage.CacheCreationInputTokens > 0 || usage.CacheReadInputTokens > 0) {
+	if OpenAIUsageHasTokens(usage) {
 		return false
 	}
 	if gjson.GetBytes(data, "usage").Exists() || gjson.GetBytes(data, "response.usage").Exists() {
@@ -1150,10 +1148,11 @@ func ParseSSEUsageBytesWithType(data []byte, eventType string, usage *ForwardUsa
 }
 
 // OpenAIUsageHasTokens reports any positive counter among the six supported
-// token buckets.
+// token buckets or nested cache-write lifetime details.
 func OpenAIUsageHasTokens(usage *ForwardUsage) bool {
 	return usage != nil && (usage.InputTokens > 0 || usage.OutputTokens > 0 || usage.ImageOutputTokens > 0 ||
-		usage.CacheCreationInputTokens > 0 || usage.CacheReadInputTokens > 0 || usage.ImageInputTokens > 0)
+		usage.CacheCreationInputTokens > 0 || usage.CacheWriteDetails.HasTokens() ||
+		usage.CacheReadInputTokens > 0 || usage.ImageInputTokens > 0)
 }
 
 // ReplaceModelInResponseBody patches a matching top-level gjson model string

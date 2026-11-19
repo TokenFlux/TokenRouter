@@ -208,6 +208,28 @@ describe('ModelPricingPanel', () => {
     expect(wrapper.text()).toContain('6.00')
   })
 
+  // A token quote sets both 5m and 1h cache-write prices to zero as explicit free tiers.
+  // Expanding the panel renders both free cache-write rows instead of omitting zero-valued lifetime tiers.
+  it('展示明确免费的 5m 与 1h 缓存写入价格', async () => {
+    const wrapper = mountPanel(
+      marketplaceModel('m1', {
+        ...tokenPricing,
+        cache_write_5m_price_per_token: 0,
+        cache_write_1h_price_per_token: 0,
+      }),
+    )
+
+    await wrapper.get('[data-testid="model-pricing-toggle"]').trigger('click')
+
+    const labels = wrapper
+      .get('[data-testid="pricing-rows"]')
+      .findAll('span:first-child')
+      .map((el) => el.text())
+    expect(labels).toContain('marketplace.cacheWriteLifetime:{"ttl":"5m"}')
+    expect(labels).toContain('marketplace.cacheWrite1h')
+    expect(wrapper.get('[data-testid="pricing-rows"]').text()).toContain('0.0000 点')
+  })
+
   // A quote advertises distinct standard and fast token prices before selection changes.
   // Activating fast mode must replace the row labels with only fast categories.
   it('存在 fast mode 计价时展示切换，切换后只显示 fast 价格行', async () => {

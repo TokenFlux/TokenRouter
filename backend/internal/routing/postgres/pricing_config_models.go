@@ -50,7 +50,7 @@ type dbExec interface {
 // no rows, while interval-loading failures discard the assembled prices.
 func (r *PricingConfigStore) ListModelPricing(ctx context.Context, pricingConfigID int64) ([]routing.ModelPricingEntry, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model, created_at, updated_at
+		`SELECT id, pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model, created_at, updated_at
 		 FROM pricing_config_model_pricing WHERE pricing_config_id = $1 ORDER BY id`, pricingConfigID,
 	)
 	if err != nil {
@@ -102,11 +102,11 @@ func (r *PricingConfigStore) UpdateModelPricing(ctx context.Context, pricing *ro
 	}
 	result, err := r.db.ExecContext(ctx,
 		`UPDATE pricing_config_model_pricing
-			 SET models = $1, billing_mode = $2, price_multiplier = $3, fast_mode_multiplier = $4, fast_multiplier = $5, flex_multiplier = $6, max_reasoning_effort_multiplier = $7, input_price = $8, output_price = $9, cache_write_price = $10, cache_write_1h_price = $11, cache_write_30m_price = $12, cache_write_12h_price = $13, cache_read_price = $14, image_input_price = $15, image_output_price = $16, per_request_price = $17, time_pricing = $18, reference_model = $20, updated_at = NOW()
+			 SET models = $1, billing_mode = $2, price_multiplier = $3, fast_mode_multiplier = $4, fast_multiplier = $5, flex_multiplier = $6, max_reasoning_effort_multiplier = $7, input_price = $8, output_price = $9, cache_write_price = $10, cache_write_5m_price = $21, cache_write_1h_price = $11, cache_write_30m_price = $12, cache_write_12h_price = $13, cache_read_price = $14, image_input_price = $15, image_output_price = $16, per_request_price = $17, time_pricing = $18, reference_model = $20, updated_at = NOW()
 			 WHERE id = $19`,
 		modelsJSON, billingMode, pricing.PriceMultiplier, pricing.FastModeMultiplier, pricing.FastMultiplier, pricing.FlexMultiplier, pricing.MaxReasoningEffortMultiplier,
 		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite1hPrice, pricing.CacheWrite30mPrice, pricing.CacheWrite12hPrice, pricing.CacheReadPrice,
-		pricing.ImageInputPrice, pricing.ImageOutputPrice, pricing.PerRequestPrice, timePricingJSON, pricing.ID, pricing.ReferenceModel,
+		pricing.ImageInputPrice, pricing.ImageOutputPrice, pricing.PerRequestPrice, timePricingJSON, pricing.ID, pricing.ReferenceModel, pricing.CacheWrite5mPrice,
 	)
 	if err != nil {
 		return fmt.Errorf("update model pricing: %w", err)
@@ -148,7 +148,7 @@ func (r *PricingConfigStore) ReplaceModelPricing(ctx context.Context, pricingCon
 // discards the map.
 func (r *PricingConfigStore) batchLoadModelPricing(ctx context.Context, pricingConfigIDs []int64) (map[int64][]routing.ModelPricingEntry, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model, created_at, updated_at
+		`SELECT id, pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model, created_at, updated_at
 		 FROM pricing_config_model_pricing WHERE pricing_config_id = ANY($1) ORDER BY pricing_config_id, id`,
 		pq.Array(pricingConfigIDs),
 	)
@@ -188,7 +188,7 @@ func (r *PricingConfigStore) batchLoadModelPricing(ctx context.Context, pricingC
 func (r *PricingConfigStore) batchLoadIntervals(ctx context.Context, pricingIDs []int64) (map[int64][]routing.PricingInterval, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, pricing_id, min_tokens, max_tokens, tier_label,
-		        input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price,
+		        input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price,
 		        input_multiplier, output_multiplier, cache_write_multiplier, cache_read_multiplier,
 		        per_request_price, sort_order, created_at, updated_at
 		 FROM pricing_config_pricing_intervals
@@ -205,7 +205,7 @@ func (r *PricingConfigStore) batchLoadIntervals(ctx context.Context, pricingIDs 
 		var iv routing.PricingInterval
 		if err := rows.Scan(
 			&iv.ID, &iv.PricingID, &iv.MinTokens, &iv.MaxTokens, &iv.TierLabel,
-			&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite1hPrice, &iv.CacheWrite30mPrice, &iv.CacheWrite12hPrice, &iv.CacheReadPrice,
+			&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite5mPrice, &iv.CacheWrite1hPrice, &iv.CacheWrite30mPrice, &iv.CacheWrite12hPrice, &iv.CacheReadPrice,
 			&iv.InputMultiplier, &iv.OutputMultiplier, &iv.CacheWriteMultiplier, &iv.CacheReadMultiplier,
 			&iv.PerRequestPrice, &iv.SortOrder, &iv.CreatedAt, &iv.UpdatedAt,
 		); err != nil {
@@ -237,7 +237,7 @@ func scanModelPricingRows(rows *sql.Rows) ([]routing.ModelPricingEntry, []int64,
 		var timePricingJSON []byte
 		if err := rows.Scan(
 			&p.ID, &p.PricingConfigID, &modelsJSON, &p.BillingMode, &p.PriceMultiplier, &p.FastModeMultiplier, &p.FastMultiplier, &p.FlexMultiplier, &p.MaxReasoningEffortMultiplier,
-			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheWrite1hPrice, &p.CacheWrite30mPrice, &p.CacheWrite12hPrice, &p.CacheReadPrice,
+			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheWrite5mPrice, &p.CacheWrite1hPrice, &p.CacheWrite30mPrice, &p.CacheWrite12hPrice, &p.CacheReadPrice,
 			&p.ImageInputPrice, &p.ImageOutputPrice, &p.PerRequestPrice, &timePricingJSON, &p.ReferenceModel, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan model pricing: %w", err)
@@ -321,11 +321,11 @@ func createModelPricingExec(ctx context.Context, exec dbExec, pricing *routing.M
 		return err
 	}
 	err = exec.QueryRowContext(ctx,
-		`INSERT INTO pricing_config_model_pricing (pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id, created_at, updated_at`,
+		`INSERT INTO pricing_config_model_pricing (pricing_config_id, models, billing_mode, price_multiplier, fast_mode_multiplier, fast_multiplier, flex_multiplier, max_reasoning_effort_multiplier, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, image_input_price, image_output_price, per_request_price, time_pricing, reference_model)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING id, created_at, updated_at`,
 		pricing.PricingConfigID, modelsJSON, billingMode,
 		pricing.PriceMultiplier, pricing.FastModeMultiplier, pricing.FastMultiplier, pricing.FlexMultiplier, pricing.MaxReasoningEffortMultiplier,
-		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite1hPrice, pricing.CacheWrite30mPrice, pricing.CacheWrite12hPrice, pricing.CacheReadPrice,
+		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite5mPrice, pricing.CacheWrite1hPrice, pricing.CacheWrite30mPrice, pricing.CacheWrite12hPrice, pricing.CacheReadPrice,
 		pricing.ImageInputPrice, pricing.ImageOutputPrice, pricing.PerRequestPrice, timePricingJSON, pricing.ReferenceModel,
 	).Scan(&pricing.ID, &pricing.CreatedAt, &pricing.UpdatedAt)
 	if err != nil {
@@ -378,10 +378,10 @@ func unmarshalTimePricingConfig(data []byte) (*routing.TimePricingConfig, error)
 func createIntervalExec(ctx context.Context, exec dbExec, iv *routing.PricingInterval) error {
 	return exec.QueryRowContext(ctx,
 		`INSERT INTO pricing_config_pricing_intervals
-		 (pricing_id, min_tokens, max_tokens, tier_label, input_price, output_price, cache_write_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, input_multiplier, output_multiplier, cache_write_multiplier, cache_read_multiplier, per_request_price, sort_order)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id, created_at, updated_at`,
+		 (pricing_id, min_tokens, max_tokens, tier_label, input_price, output_price, cache_write_price, cache_write_5m_price, cache_write_1h_price, cache_write_30m_price, cache_write_12h_price, cache_read_price, input_multiplier, output_multiplier, cache_write_multiplier, cache_read_multiplier, per_request_price, sort_order)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id, created_at, updated_at`,
 		iv.PricingID, iv.MinTokens, iv.MaxTokens, iv.TierLabel,
-		iv.InputPrice, iv.OutputPrice, iv.CacheWritePrice, iv.CacheWrite1hPrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice, iv.CacheReadPrice,
+		iv.InputPrice, iv.OutputPrice, iv.CacheWritePrice, iv.CacheWrite5mPrice, iv.CacheWrite1hPrice, iv.CacheWrite30mPrice, iv.CacheWrite12hPrice, iv.CacheReadPrice,
 		iv.InputMultiplier, iv.OutputMultiplier, iv.CacheWriteMultiplier, iv.CacheReadMultiplier,
 		iv.PerRequestPrice, iv.SortOrder,
 	).Scan(&iv.ID, &iv.CreatedAt, &iv.UpdatedAt)

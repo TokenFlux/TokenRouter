@@ -141,9 +141,9 @@ OpenAI API Key 图片流模式：
 
 文本响应的客户端用量与后台结算使用同一次上游观察。每次上游尝试独立持有快照。
 
-- 输入桶口径：Messages 的 `input_tokens` 仅含普通输入，缓存读、写分放 `cache_read_input_tokens` 和 `cache_creation_input_tokens`；Chat `prompt_tokens` 与 Responses `input_tokens` 包含这三个输入桶。转换时只相加一次，缓存写入聚合数与 5 分钟、1 小时分档不重复计数。
+- 输入桶口径：Messages 的 `input_tokens` 仅含普通输入，缓存读、写分放 `cache_read_input_tokens` 和 `cache_creation_input_tokens`，而 Chat `prompt_tokens` 与 Responses `input_tokens` 包含这三个输入桶。转换时只相加一次，缓存写入聚合数与 TTL 分档不重复计数。强制覆盖缓存 TTL 时以正数 `cache_creation_input_tokens` 为权威总量，缺失正数总量时才用非负分档之和。
 - OpenAI Responses 提示缓存：原生路由保留 `prompt_cache_options` 和内容块上的 `prompt_cache_breakpoint`，显式缓存 TTL 被上游拒绝时兼容重试保留该语义。
-- Responses 缓存写入结算：读取 `input_tokens_details.cache_write_tokens_details` 的 30m 和 12h 计数，校验两者之和等于写入总数；仅提供总数或冲突时使用统一写入价。流式读取器合并稀疏用量并保留有效分档，终态明确报告完整零用量时按既有规则清空或保留整份快照。
+- Responses 缓存写入观测与结算：读取 `input_tokens_details.cache_write_tokens_details` 的 `30m` 和 `12h` 原始计数交给[缓存写入分档](../domains/routing_and_billing.md#cache_write_pricing)统一归档计费。外层写入总数为 0 时由正数分档之和回填有效总数，合成客户端响应报文时仅在双键非负且相加等于外层总数时输出明细。流式读取器合并稀疏用量并保留已观测分档，终态明确报告完整零用量时按既有规则清空或保留整份快照。
 - Gemini 与 OpenAI 兼容别名：Gemini 的 `cachedContentTokenCount` 映射到目标协议缓存读取字段（流式与非流式一致）。OpenAI 兼容响应支持标准嵌套明细和顶层别名（含 DeepSeek `prompt_cache_hit_tokens`、`prompt_cache_miss_tokens`）；标准嵌套优先，显式零不被替换，未报告数不估算。
 - 转换读取器合并规则：按字段合并不完整用量帧，再将同一份快照交给客户端转换和计费。仅有输出数的尾帧保留先前输入与缓存数；OpenAI 完整显式零用量可清空旧快照；Messages 保留累计字段与 TTL 分档更新规则。Responses 转换中，终态内嵌 `response.usage` 已报告字段优先于同帧顶层 `usage`，未报告字段从本次请求已有观察补齐。
 - 图片桶与容错：OpenAI 转换计费快照保留图片输入、输出桶，文本客户端类型未声明也不丢弃。图片明细缺失沿用已有观察，显式零更新对应桶；hosted image 明细仅补同一 envelope 中 usage 的零图片计数。Chat 帧因字段类型不兼容无法转换时，原始用量解析器可读计数仍参与累计；无法解析为有效 JSON 对象的 usage 不更新快照。

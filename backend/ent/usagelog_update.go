@@ -653,6 +653,18 @@ func (_u *UsageLogUpdate) ClearCacheCreation12hTokens() *UsageLogUpdate {
 	return _u
 }
 
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (_u *UsageLogUpdate) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogUpdate {
+	_u.mutation.SetCacheWriteAnomaly(v)
+	return _u
+}
+
+// ClearCacheWriteAnomaly clears the value of the "cache_write_anomaly" field.
+func (_u *UsageLogUpdate) ClearCacheWriteAnomaly() *UsageLogUpdate {
+	_u.mutation.ClearCacheWriteAnomaly()
+	return _u
+}
+
 // SetInputCost sets the "input_cost" field.
 func (_u *UsageLogUpdate) SetInputCost(v float64) *UsageLogUpdate {
 	_u.mutation.ResetInputCost()
@@ -1567,6 +1579,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.CacheCreation12hTokensCleared() {
 		_spec.ClearField(usagelog.FieldCacheCreation12hTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.CacheWriteAnomaly(); ok {
+		_spec.SetField(usagelog.FieldCacheWriteAnomaly, field.TypeJSON, value)
+	}
+	if _u.mutation.CacheWriteAnomalyCleared() {
+		_spec.ClearField(usagelog.FieldCacheWriteAnomaly, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.InputCost(); ok {
 		_spec.SetField(usagelog.FieldInputCost, field.TypeFloat64, value)
@@ -2553,6 +2571,18 @@ func (_u *UsageLogUpdateOne) ClearCacheCreation12hTokens() *UsageLogUpdateOne {
 	return _u
 }
 
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (_u *UsageLogUpdateOne) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogUpdateOne {
+	_u.mutation.SetCacheWriteAnomaly(v)
+	return _u
+}
+
+// ClearCacheWriteAnomaly clears the value of the "cache_write_anomaly" field.
+func (_u *UsageLogUpdateOne) ClearCacheWriteAnomaly() *UsageLogUpdateOne {
+	_u.mutation.ClearCacheWriteAnomaly()
+	return _u
+}
+
 // SetInputCost sets the "input_cost" field.
 func (_u *UsageLogUpdateOne) SetInputCost(v float64) *UsageLogUpdateOne {
 	_u.mutation.ResetInputCost()
@@ -3497,6 +3527,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.CacheCreation12hTokensCleared() {
 		_spec.ClearField(usagelog.FieldCacheCreation12hTokens, field.TypeInt)
+	}
+	if value, ok := _u.mutation.CacheWriteAnomaly(); ok {
+		_spec.SetField(usagelog.FieldCacheWriteAnomaly, field.TypeJSON, value)
+	}
+	if _u.mutation.CacheWriteAnomalyCleared() {
+		_spec.ClearField(usagelog.FieldCacheWriteAnomaly, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.InputCost(); ok {
 		_spec.SetField(usagelog.FieldInputCost, field.TypeFloat64, value)

@@ -131,6 +131,7 @@ var (
 		{name: "billing_key", dataType: "text"},
 		{name: "request_source", dataType: "text"},
 		{name: "system_usage", dataType: "jsonb"},
+		{name: "cache_write_anomaly", dataType: "jsonb"},
 	}
 
 	// usageLogInsert caches fixed SQL metadata once for the direct and batch
@@ -1215,6 +1216,12 @@ func prepareUsageLogInsert(log *usage.UsageLog) usageLogInsertPrepared {
 	if log.SystemUsage != nil {
 		systemArg = systemJSON
 	}
+	var anomalyArg any
+	if log.CacheWriteAnomaly != nil {
+		if anomalyJSON, err := json.Marshal(log.CacheWriteAnomaly); err == nil {
+			anomalyArg = anomalyJSON
+		}
+	}
 	var userIDArg, keyIDArg, payerIDArg any
 	userIDArg, keyIDArg = log.UserID, log.APIKeyID
 	billingUserID := log.BillingUserID
@@ -1309,6 +1316,7 @@ func prepareUsageLogInsert(log *usage.UsageLog) usageLogInsertPrepared {
 			nullStringValue(log.BillingKey),
 			log.EffectiveRequestSource(),
 			systemArg,
+			anomalyArg,
 		},
 	}
 }

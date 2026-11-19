@@ -727,9 +727,15 @@ function brandBadgeClass(group: MarketplaceGroup): string {
   return `${base} ${resolveProviderBrand(groupBrandSource(group)).badgeClass}`
 }
 
-// tokenPricingRowsFromValues collects positive standard and fast token-price categories.
-// Each row retains its category-specific key and the complete million-token unit.
-// Callers choose compact subsets or zero fallbacks from this ordered result.
+// hasNonNegativeValue recognizes finite numeric prices at or above zero, including explicit free tiers.
+function hasNonNegativeValue(value?: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+// tokenPricingRowsFromValues collects positive standard and fast token-price categories
+// alongside explicit non-negative TTL cache-write tiers. Each row retains its
+// category-specific key and the complete million-token unit; callers choose compact
+// subsets or zero fallbacks from this ordered result.
 function tokenPricingRowsFromValues(
   pricing: MarketplaceModelPricing | MarketplacePricingInterval,
 ): PricingRow[] {
@@ -756,14 +762,14 @@ function tokenPricingRowsFromValues(
       value: formatPerMillion(pricing.output_price_per_token),
     })
   }
-  if (pricing.cache_write_30m_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.cache_write_30m_price_per_token)) {
     rows.push({
       key: 'cache_write_30m',
       label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
       value: formatPerMillion(pricing.cache_write_30m_price_per_token),
     })
   }
-  if (pricing.cache_write_12h_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.cache_write_12h_price_per_token)) {
     rows.push({
       key: 'cache_write_12h',
       label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
@@ -771,22 +777,29 @@ function tokenPricingRowsFromValues(
     })
   }
   if (
-    pricing.cache_write_30m_price_per_token == null &&
-    pricing.cache_write_12h_price_per_token == null &&
-    hasPositiveValue(pricing.cache_write_price_per_token)
+    !hasNonNegativeValue(pricing.cache_write_30m_price_per_token) &&
+    !hasNonNegativeValue(pricing.cache_write_12h_price_per_token)
   ) {
-    rows.push({
-      key: 'cache_write',
-      label: t('marketplace.cacheWrite'),
-      value: formatPerMillion(pricing.cache_write_price_per_token),
-    })
-  }
-  if (hasPositiveValue(pricing.cache_write_1h_price_per_token)) {
-    rows.push({
-      key: 'cache_write_1h',
-      label: t('marketplace.cacheWrite1h'),
-      value: formatPerMillion(pricing.cache_write_1h_price_per_token),
-    })
+    if (hasNonNegativeValue(pricing.cache_write_5m_price_per_token)) {
+      rows.push({
+        key: 'cache_write_5m',
+        label: t('marketplace.cacheWriteLifetime', { ttl: '5m' }),
+        value: formatPerMillion(pricing.cache_write_5m_price_per_token),
+      })
+    } else if (hasPositiveValue(pricing.cache_write_price_per_token)) {
+      rows.push({
+        key: 'cache_write',
+        label: t('marketplace.cacheWrite'),
+        value: formatPerMillion(pricing.cache_write_price_per_token),
+      })
+    }
+    if (hasNonNegativeValue(pricing.cache_write_1h_price_per_token)) {
+      rows.push({
+        key: 'cache_write_1h',
+        label: t('marketplace.cacheWrite1h'),
+        value: formatPerMillion(pricing.cache_write_1h_price_per_token),
+      })
+    }
   }
   if (hasPositiveValue(pricing.cache_read_price_per_token)) {
     rows.push({
@@ -823,14 +836,14 @@ function tokenPricingRowsFromValues(
       value: formatPerMillion(pricing.fast_output_price_per_token),
     })
   }
-  if (pricing.fast_cache_write_30m_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.fast_cache_write_30m_price_per_token)) {
     rows.push({
       key: 'fast_cache_write_30m',
       label: t('marketplace.cacheWriteLifetime', { ttl: '30m' }),
       value: formatPerMillion(pricing.fast_cache_write_30m_price_per_token),
     })
   }
-  if (pricing.fast_cache_write_12h_price_per_token != null) {
+  if (hasNonNegativeValue(pricing.fast_cache_write_12h_price_per_token)) {
     rows.push({
       key: 'fast_cache_write_12h',
       label: t('marketplace.cacheWriteLifetime', { ttl: '12h' }),
@@ -838,22 +851,29 @@ function tokenPricingRowsFromValues(
     })
   }
   if (
-    pricing.fast_cache_write_30m_price_per_token == null &&
-    pricing.fast_cache_write_12h_price_per_token == null &&
-    hasPositiveValue(pricing.fast_cache_write_price_per_token)
+    !hasNonNegativeValue(pricing.fast_cache_write_30m_price_per_token) &&
+    !hasNonNegativeValue(pricing.fast_cache_write_12h_price_per_token)
   ) {
-    rows.push({
-      key: 'fast_cache_write',
-      label: t('marketplace.fastCacheWrite'),
-      value: formatPerMillion(pricing.fast_cache_write_price_per_token),
-    })
-  }
-  if (hasPositiveValue(pricing.fast_cache_write_1h_price_per_token)) {
-    rows.push({
-      key: 'fast_cache_write_1h',
-      label: t('marketplace.fastCacheWrite1h'),
-      value: formatPerMillion(pricing.fast_cache_write_1h_price_per_token),
-    })
+    if (hasNonNegativeValue(pricing.fast_cache_write_5m_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write_5m',
+        label: t('marketplace.cacheWriteLifetime', { ttl: '5m' }),
+        value: formatPerMillion(pricing.fast_cache_write_5m_price_per_token),
+      })
+    } else if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write',
+        label: t('marketplace.fastCacheWrite'),
+        value: formatPerMillion(pricing.fast_cache_write_price_per_token),
+      })
+    }
+    if (hasNonNegativeValue(pricing.fast_cache_write_1h_price_per_token)) {
+      rows.push({
+        key: 'fast_cache_write_1h',
+        label: t('marketplace.fastCacheWrite1h'),
+        value: formatPerMillion(pricing.fast_cache_write_1h_price_per_token),
+      })
+    }
   }
   if (hasPositiveValue(pricing.fast_cache_read_price_per_token)) {
     rows.push({

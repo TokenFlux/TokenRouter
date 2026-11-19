@@ -149,12 +149,13 @@ type AdminUsageLog struct {
 	// UpstreamResponseModel and UpstreamModelMismatch retain raw response
 	// declaration and comparison observations. Missing historical or upstream
 	// declarations leave these pointers nil and their JSON fields omitted.
-	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"` // optional upstream response model
-	UpstreamModelMismatch *bool   `json:"upstream_model_mismatch,omitempty"` // optional response model difference flag
-	PricingConfigID       *int64  `json:"pricing_config_id,omitempty"`       // optional selected pricing configuration
-	ModelMappingChain     *string `json:"model_mapping_chain,omitempty"`     // optional recorded model mapping chain
-	UpstreamRequestID     *string `json:"upstream_request_id,omitempty"`     // optional immediate upstream request identifier
-	BillingTier           *string `json:"billing_tier,omitempty"`            // optional selected price tier
+	UpstreamResponseModel *string                    `json:"upstream_response_model,omitempty"` // optional upstream response model
+	UpstreamModelMismatch *bool                      `json:"upstream_model_mismatch,omitempty"` // optional response model difference flag
+	CacheWriteAnomaly     *billing.CacheWriteAnomaly `json:"cache_write_anomaly,omitempty"`     // optional cache-write discrepancy diagnostics
+	PricingConfigID       *int64                     `json:"pricing_config_id,omitempty"`       // optional selected pricing configuration
+	ModelMappingChain     *string                    `json:"model_mapping_chain,omitempty"`     // optional recorded model mapping chain
+	UpstreamRequestID     *string                    `json:"upstream_request_id,omitempty"`     // optional immediate upstream request identifier
+	BillingTier           *string                    `json:"billing_tier,omitempty"`            // optional selected price tier
 
 	// ProviderRateMultiplier carries the recorded provider multiplier and
 	// remains JSON null when absent. Cost readers use one for absent historical

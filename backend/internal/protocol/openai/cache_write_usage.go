@@ -2,20 +2,22 @@ package openai
 
 import (
 	"encoding/json"
+	"math"
 
 	"github.com/tidwall/gjson"
 )
 
-// cache_write_usage.go validates Responses cache write counts and carries their
-// lifetime breakdown through sparse or additive usage observations. The cache
-// write total already belongs to the inclusive input count, and the breakdown
-// supplies a pricing split of that same total.
+// cache_write_usage.go extracts Responses cache-write counts and carries raw
+// lifetime breakdowns through sparse or additive usage observations. The cache
+// write total belongs to the inclusive input count, while nested lifetime
+// details supply 30m and 12h observations for downstream settlement and
+// anomaly diagnostics.
 //
-// An omitted aggregate can retain a complete prior observation from the same
-// response. An explicit contradictory breakdown removes the earlier split so
-// the caller can charge the reported aggregate at its fallback rate. For
-// independent observations, the combined split is usable only when the
-// positive write totals on both sides have compatible complete details.
+// Sparse terminal frames without write fields retain earlier same-response
+// totals and lifetime details. Explicit nonmatching or outer-zero breakdowns
+// remain attached to forwarded accounting so SettleCacheWrite can reconcile
+// partial, missing-total, or overreported splits, while Matches gates client
+// wire synthesis so converted responses emit only consistent splits.
 
 // CacheWriteTokensDetails partitions one write total by OpenAI cache lifetime.
 type CacheWriteTokensDetails struct {
@@ -29,53 +31,118 @@ func (d *CacheWriteTokensDetails) Matches(total int) bool {
 		d.Tokens30m <= total && d.Tokens12h == total-d.Tokens30m
 }
 
-// ObserveCacheWriteDetails returns the current total and its validated split.
-// Supply previous observations only for the same response. A sparse frame
-// without write fields preserves known details, while a changed total keeps
-// earlier details only when they still match. Invalid explicit detail leaves
-// the authoritative aggregate available without a split.
+// HasTokens reports whether either cache-write lifetime bucket is positive.
+func (d *CacheWriteTokensDetails) HasTokens() bool {
+	return d != nil && (d.Tokens30m > 0 || d.Tokens12h > 0)
+}
+
+// EffectiveCacheWriteTokens returns the authoritative cache-write count from an
+// outer aggregate and optional lifetime details. A positive aggregate wins,
+// while zero aggregates fall back to the nonnegative detail sum without
+// overflowing int.
+func EffectiveCacheWriteTokens(total int, details *CacheWriteTokensDetails) int {
+	if total > 0 {
+		return total
+	}
+	if total < 0 || details == nil {
+		return 0
+	}
+	short := max(details.Tokens30m, 0)
+	long := max(details.Tokens12h, 0)
+	if short > math.MaxInt-long {
+		return math.MaxInt
+	}
+	return short + long
+}
+
+// ObserveCacheWriteDetails returns the observed outer total and raw TTL split
+// for accounting. Supply previous observations only for the same response.
+//
+// Sparse frames without write fields retain the prior total and split, and
+// positive aggregate updates without nested details preserve earlier splits so
+// settlement can classify untagged increments. Explicit object-shaped details
+// with at least one TTL key retain their raw counts even when they differ from
+// total or omit the outer aggregate, while explicit zero writes and malformed
+// detail objects clear the split.
 func ObserveCacheWriteDetails(value gjson.Result, previousTotal int, previous *CacheWriteTokensDetails) (int, *CacheWriteTokensDetails) {
+	hasWrite := usageHasAny(value, cacheWriteDetailPaths...) || usageHasAny(value, cacheWriteAliasPaths...)
 	total := OpenAICacheCreationTokensFromUsage(value)
-	if previous != nil && !usageHasAny(value, cacheWriteDetailPaths...) && !usageHasAny(value, cacheWriteAliasPaths...) {
+	if previous != nil && !hasWrite {
 		total = previousTotal
 	}
 	raw := value.Get(cacheWriteDetailsPath)
 	if !raw.Exists() {
-		if previous.Matches(total) {
+		if !hasWrite || (total > 0 && previous != nil) {
 			return total, previous
 		}
+		return total, nil
+	}
+	if !raw.IsObject() {
 		return total, nil
 	}
 	var decoded struct {
 		Tokens30m *int `json:"ttl_30m_tokens"` // reported short TTL count
 		Tokens12h *int `json:"ttl_12h_tokens"` // reported long TTL count
 	}
-	if json.Unmarshal([]byte(raw.Raw), &decoded) != nil || decoded.Tokens30m == nil || decoded.Tokens12h == nil ||
-		!usageHasAny(value, cacheWriteDetailPaths...) && !usageHasAny(value, cacheWriteAliasPaths...) && previous == nil {
+	if json.Unmarshal([]byte(raw.Raw), &decoded) != nil || (decoded.Tokens30m == nil && decoded.Tokens12h == nil) {
 		return total, nil
 	}
-	details := &CacheWriteTokensDetails{Tokens30m: *decoded.Tokens30m, Tokens12h: *decoded.Tokens12h}
-	if !details.Matches(total) {
-		return total, nil
+	var tokens30m, tokens12h int
+	if decoded.Tokens30m != nil {
+		tokens30m = *decoded.Tokens30m
 	}
-	return total, details
+	if decoded.Tokens12h != nil {
+		tokens12h = *decoded.Tokens12h
+	}
+	if total == 0 && tokens30m == 0 && tokens12h == 0 {
+		return 0, nil
+	}
+	return total, &CacheWriteTokensDetails{Tokens30m: tokens30m, Tokens12h: tokens12h}
 }
 
-// AddCacheWriteDetails adds two disjoint accounting observations when any
-// positive contribution has a complete breakdown. A positive unknown
-// contribution makes the combined total unclassified; neutral zero usage
-// preserves the other side's observation.
+// AddCacheWriteDetails combines two disjoint accounting observations across
+// multi-turn or multi-step sessions. Neutral zero usage preserves the other
+// side's observation, untagged positive totals contribute to the default 30m
+// bucket when paired with a detailed turn, and negative details drop the split.
 func AddCacheWriteDetails(leftTotal int, left *CacheWriteTokensDetails, rightTotal int, right *CacheWriteTokensDetails) *CacheWriteTokensDetails {
+	_, details := combineCacheWriteObservations(leftTotal, left, rightTotal, right)
+	return details
+}
+
+// combineCacheWriteObservations merges two independent cache-write totals and
+// optional lifetime splits while preserving single-turn missing-total evidence.
+func combineCacheWriteObservations(leftTotal int, left *CacheWriteTokensDetails, rightTotal int, right *CacheWriteTokensDetails) (int, *CacheWriteTokensDetails) {
 	if leftTotal == 0 && left == nil {
-		return right
+		if right == nil {
+			return rightTotal, nil
+		}
+		return rightTotal, new(*right)
 	}
 	if rightTotal == 0 && right == nil {
-		return left
+		if left == nil {
+			return leftTotal, nil
+		}
+		return leftTotal, new(*left)
 	}
-	if !left.Matches(leftTotal) || !right.Matches(rightTotal) {
-		return nil
+	effLeft := EffectiveCacheWriteTokens(leftTotal, left)
+	effRight := EffectiveCacheWriteTokens(rightTotal, right)
+	total := effLeft + effRight
+	if left == nil && right == nil {
+		return total, nil
 	}
-	return &CacheWriteTokensDetails{Tokens30m: left.Tokens30m + right.Tokens30m, Tokens12h: left.Tokens12h + right.Tokens12h}
+	if (left != nil && (left.Tokens30m < 0 || left.Tokens12h < 0)) ||
+		(right != nil && (right.Tokens30m < 0 || right.Tokens12h < 0)) {
+		return total, nil
+	}
+	l30, l12 := max(effLeft, 0), 0
+	if left != nil {
+		l30, l12 = left.Tokens30m, left.Tokens12h
+	}
+	r30, r12 := max(effRight, 0), 0
+	if right != nil {
+		r30, r12 = right.Tokens30m, right.Tokens12h
+	}
+	return total, &CacheWriteTokensDetails{Tokens30m: l30 + r30, Tokens12h: l12 + r12}
 }
 
 // IsExplicitZeroOpenAIUsage reports whether both aggregate token fields
@@ -87,7 +154,8 @@ func IsExplicitZeroOpenAIUsage(raw gjson.Result, counts ForwardUsage) bool {
 		usageHasAny(raw, "output_tokens", "completion_tokens") &&
 		raw.Get("total_tokens").Int() == 0 &&
 		counts.InputTokens == 0 && counts.OutputTokens == 0 &&
-		counts.CacheCreationInputTokens == 0 && counts.CacheReadInputTokens == 0 &&
+		counts.CacheCreationInputTokens == 0 && !counts.CacheWriteDetails.HasTokens() &&
+		counts.CacheReadInputTokens == 0 &&
 		counts.ImageInputTokens == 0 && counts.ImageCacheReadTokens == 0 && counts.ImageOutputTokens == 0
 }
 

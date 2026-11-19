@@ -92,6 +92,11 @@ const messages: Record<string, string> = {
   'common.copied': 'Copied',
   'requests.copy': 'Copy request ID',
   'requests.copied': 'Request ID copied',
+  'admin.usage.cacheWriteAnomalyBadge': 'Anomaly',
+  'admin.usage.cacheWriteAnomalyLabel': 'Cache Write Anomaly',
+  'admin.usage.cacheWriteAnomalyPartial': 'Partial breakdown (raw {raw})',
+  'admin.usage.cacheWriteAnomalyMissingTotal': 'Missing total (raw {raw})',
+  'admin.usage.cacheWriteAnomalyExceeds': 'Exceeds total (raw {raw})',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -99,7 +104,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, string>) => {
+        const template = messages[key] ?? key
+        return params?.raw ? template.replace('{raw}', params.raw) : template
+      },
     }),
   }
 })
@@ -1204,9 +1212,9 @@ describe('admin UsageTable deleted-user badge', () => {
   })
 })
 
-// Known lifetimes, mixed counts, and legacy aggregates use the same usage cell.
-// A partial split shows its untagged remainder, and inconsistent detail
-// cannot increase the displayed total or introduce an unsupported lifetime.
+// Reported cache-write counts cover untagged models, partial splits, and overreported buckets
+// across Claude and OpenAI families. Every positive cache-write bucket renders a concrete TTL
+// tag without exposing untagged token counts.
 it.each([
   { ttl: [['5m', '687']], counts: { cache_creation_5m_tokens: 687 }, total: 687 },
   { ttl: [['1h', '687']], counts: { cache_creation_1h_tokens: 687 }, total: 687 },
@@ -1233,29 +1241,79 @@ it.each([
   },
   {
     ttl: [
+      ['5m', '80'],
       ['1h', '20'],
-      ['unknown', '80'],
     ],
     counts: { cache_creation_1h_tokens: 20 },
     total: 100,
   },
-  { ttl: [['unknown', '100']], counts: {}, total: 100 },
+  { ttl: [['30m', '100']], counts: {}, total: 100 },
   {
-    ttl: [['unknown', '100']],
+    ttl: [['5m', '100']],
+    counts: { model: 'claude-sonnet-4-6' },
+    total: 100,
+  },
+  {
+    ttl: [['5m', '100']],
     counts: { cache_creation_5m_tokens: 120 },
     total: 100,
   },
   { ttl: [], counts: {}, total: 0 },
-])('shows the reported write lifetime for each positive bucket %#', ({ total, counts, ttl }) => {
+])(
+  'shows a concrete billed write lifetime for each positive bucket %#',
+  ({ total, counts, ttl }) => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [
+          {
+            ...baseImageRow,
+            billing_mode: 'token',
+            image_count: 0,
+            cache_creation_tokens: total,
+            ...counts,
+          },
+        ],
+        columns: [{ key: 'tokens', label: 'Tokens' }],
+        loading: false,
+      },
+      global: {
+        stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true },
+      },
+    })
+
+    const written = wrapper.findAll('[data-testid="cache-write-bucket"]')
+    expect(
+      written.map((bucket) => {
+        const tag = bucket.find('[data-cache-write-ttl]')
+        return [tag.exists() ? tag.text() : 'unknown', bucket.get('span').text()]
+      }),
+    ).toEqual(ttl)
+    wrapper.unmount()
+  },
+)
+
+// An administrator usage row carries cache_write_anomaly metadata while an ordinary row omits
+// that field. Rendering exposes the anomaly badge and raw upstream detail tooltip only when
+// cache_write_anomaly is present.
+it('renders administrator cache-write anomaly badges and raw upstream tooltip details', async () => {
   const wrapper = mount(UsageTable, {
     props: {
       data: [
         {
           ...baseImageRow,
+          request_id: 'req-anomaly',
+          model: 'claude-sonnet-4-6',
           billing_mode: 'token',
           image_count: 0,
-          cache_creation_tokens: total,
-          ...counts,
+          cache_creation_tokens: 311,
+          cache_creation_5m_tokens: 311,
+          cache_creation_1h_tokens: 0,
+          cache_write_anomaly: {
+            kind: 'partial_breakdown' as const,
+            reported_total: 311,
+            reported_5m: 211,
+            reported_1h: 0,
+          },
         },
       ],
       columns: [{ key: 'tokens', label: 'Tokens' }],
@@ -1266,12 +1324,31 @@ it.each([
     },
   })
 
-  const written = wrapper.findAll('[data-testid="cache-write-bucket"]')
-  expect(
-    written.map((bucket) => {
-      const tag = bucket.find('[data-cache-write-ttl]')
-      return [tag.exists() ? tag.text() : 'unknown', bucket.get('span').text()]
-    }),
-  ).toEqual(ttl)
+  const badge = wrapper.get('[data-testid="cache-write-anomaly-badge"]')
+  expect(badge.text()).toBe('Anomaly')
+  expect(badge.attributes('title')).toBe('Partial breakdown (raw total:311, 5m:211, 1h:0)')
+
+  await wrapper.find('.group.relative').trigger('mouseenter')
+  await nextTick()
+
+  const detail = wrapper.get('[data-testid="cache-write-anomaly-detail"]')
+  expect(detail.text()).toContain('Cache Write Anomaly')
+  expect(detail.text()).toContain('Partial breakdown (raw total:311, 5m:211, 1h:0)')
+
+  await wrapper.setProps({
+    data: [
+      {
+        ...baseImageRow,
+        request_id: 'req-normal',
+        model: 'claude-sonnet-4-6',
+        billing_mode: 'token',
+        image_count: 0,
+        cache_creation_tokens: 311,
+        cache_creation_5m_tokens: 311,
+        cache_creation_1h_tokens: 0,
+      },
+    ],
+  })
+  expect(wrapper.find('[data-testid="cache-write-anomaly-badge"]').exists()).toBe(false)
   wrapper.unmount()
 })

@@ -431,6 +431,12 @@ func (_c *UsageLogCreate) SetNillableCacheCreation12hTokens(v *int) *UsageLogCre
 	return _c
 }
 
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (_c *UsageLogCreate) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogCreate {
+	_c.mutation.SetCacheWriteAnomaly(v)
+	return _c
+}
+
 // SetInputCost sets the "input_cost" field.
 func (_c *UsageLogCreate) SetInputCost(v float64) *UsageLogCreate {
 	_c.mutation.SetInputCost(v)
@@ -1293,6 +1299,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec.SetField(usagelog.FieldCacheCreation12hTokens, field.TypeInt, value)
 		_node.CacheCreation12hTokens = &value
 	}
+	if value, ok := _c.mutation.CacheWriteAnomaly(); ok {
+		_spec.SetField(usagelog.FieldCacheWriteAnomaly, field.TypeJSON, value)
+		_node.CacheWriteAnomaly = value
+	}
 	if value, ok := _c.mutation.InputCost(); ok {
 		_spec.SetField(usagelog.FieldInputCost, field.TypeFloat64, value)
 		_node.InputCost = value
@@ -2112,6 +2122,24 @@ func (u *UsageLogUpsert) AddCacheCreation12hTokens(v int) *UsageLogUpsert {
 // ClearCacheCreation12hTokens clears the value of the "cache_creation_12h_tokens" field.
 func (u *UsageLogUpsert) ClearCacheCreation12hTokens() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldCacheCreation12hTokens)
+	return u
+}
+
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (u *UsageLogUpsert) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogUpsert {
+	u.Set(usagelog.FieldCacheWriteAnomaly, v)
+	return u
+}
+
+// UpdateCacheWriteAnomaly sets the "cache_write_anomaly" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateCacheWriteAnomaly() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldCacheWriteAnomaly)
+	return u
+}
+
+// ClearCacheWriteAnomaly clears the value of the "cache_write_anomaly" field.
+func (u *UsageLogUpsert) ClearCacheWriteAnomaly() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldCacheWriteAnomaly)
 	return u
 }
 
@@ -3305,6 +3333,27 @@ func (u *UsageLogUpsertOne) UpdateCacheCreation12hTokens() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearCacheCreation12hTokens() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearCacheCreation12hTokens()
+	})
+}
+
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (u *UsageLogUpsertOne) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCacheWriteAnomaly(v)
+	})
+}
+
+// UpdateCacheWriteAnomaly sets the "cache_write_anomaly" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateCacheWriteAnomaly() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCacheWriteAnomaly()
+	})
+}
+
+// ClearCacheWriteAnomaly clears the value of the "cache_write_anomaly" field.
+func (u *UsageLogUpsertOne) ClearCacheWriteAnomaly() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearCacheWriteAnomaly()
 	})
 }
 
@@ -4748,6 +4797,27 @@ func (u *UsageLogUpsertBulk) UpdateCacheCreation12hTokens() *UsageLogUpsertBulk 
 func (u *UsageLogUpsertBulk) ClearCacheCreation12hTokens() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearCacheCreation12hTokens()
+	})
+}
+
+// SetCacheWriteAnomaly sets the "cache_write_anomaly" field.
+func (u *UsageLogUpsertBulk) SetCacheWriteAnomaly(v map[string]interface{}) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetCacheWriteAnomaly(v)
+	})
+}
+
+// UpdateCacheWriteAnomaly sets the "cache_write_anomaly" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateCacheWriteAnomaly() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateCacheWriteAnomaly()
+	})
+}
+
+// ClearCacheWriteAnomaly clears the value of the "cache_write_anomaly" field.
+func (u *UsageLogUpsertBulk) ClearCacheWriteAnomaly() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearCacheWriteAnomaly()
 	})
 }
 

@@ -233,10 +233,30 @@
           <!-- Token mode -->
           <div v-if="entry.billing_mode === 'token'">
             <!-- Default prices (fallback when no interval matches) -->
-            <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
-              {{ t('admin.pricing.form.defaultPrices', '默认价格（未命中区间时使用）') }}
-              <span class="ml-1 font-normal text-gray-400">$/MTok</span>
-            </label>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ t('admin.pricing.form.defaultPrices', '默认价格（未命中区间时使用）') }}
+                <span class="ml-1 font-normal text-gray-400">$/MTok</span>
+              </label>
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs text-gray-400">{{
+                  t('admin.pricing.form.cacheWriteModeLabel', '缓存写入档位')
+                }}</span>
+                <div v-segmented class="segmented" data-testid="cache-write-mode-switch">
+                  <button
+                    v-for="opt in cacheWriteModeOptions"
+                    :key="opt.value"
+                    type="button"
+                    :data-cache-write-mode="opt.value"
+                    class="segmented-item px-2 py-0.5 text-xs font-medium"
+                    :class="{ 'segmented-item-active': cacheWriteMode === opt.value }"
+                    @click="onCacheWriteModeChange(opt.value)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
             <div class="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
               <div>
                 <label class="text-xs text-gray-400">{{
@@ -266,9 +286,9 @@
                   :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
                 />
               </div>
-              <div>
+              <div v-if="cacheWriteMode === 'uniform'">
                 <label class="text-xs text-gray-400">{{
-                  t('admin.pricing.form.cacheWrite5mPrice', '缓存写入（5m）')
+                  t('admin.pricing.form.cacheWritePrice', '缓存写入')
                 }}</label>
                 <input
                   :value="entry.cache_write_price"
@@ -276,42 +296,67 @@
                   type="number"
                   step="any"
                   min="0"
+                  data-testid="cache-write-uniform-input"
                   class="input mt-0.5 text-sm"
                   :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
                 />
               </div>
-              <div>
-                <label class="text-xs text-gray-400">{{
-                  t('admin.pricing.form.cacheWrite1hPrice', '缓存写入（1h）')
-                }}</label>
-                <input
-                  :value="entry.cache_write_1h_price"
-                  @input="
-                    emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)
-                  "
-                  type="number"
-                  step="any"
-                  min="0"
-                  class="input mt-0.5 text-sm"
-                  :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
-                />
-              </div>
-              <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
-                <label class="text-xs text-gray-400">{{
-                  t('admin.pricing.form.cacheWriteLifetime', { ttl })
-                }}</label>
-                <input
-                  :value="entry[`cache_write_${ttl}_price`]"
-                  @input="
-                    emitField(`cache_write_${ttl}_price`, ($event.target as HTMLInputElement).value)
-                  "
-                  type="number"
-                  step="any"
-                  min="0"
-                  class="input mt-0.5 text-sm"
-                  :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
-                />
-              </div>
+              <template v-else-if="cacheWriteMode === '5m_1h'">
+                <div>
+                  <label class="text-xs text-gray-400">{{
+                    t('admin.pricing.form.cacheWrite5mPrice', '缓存写入（5m）')
+                  }}</label>
+                  <input
+                    :value="effectiveCacheWrite5mPrice"
+                    @input="emitCacheWrite5mPrice(($event.target as HTMLInputElement).value)"
+                    type="number"
+                    step="any"
+                    min="0"
+                    data-testid="cache-write-5m-input"
+                    class="input mt-0.5 text-sm"
+                    :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
+                  />
+                </div>
+                <div>
+                  <label class="text-xs text-gray-400">{{
+                    t('admin.pricing.form.cacheWrite1hPrice', '缓存写入（1h）')
+                  }}</label>
+                  <input
+                    :value="entry.cache_write_1h_price"
+                    @input="
+                      emitField('cache_write_1h_price', ($event.target as HTMLInputElement).value)
+                    "
+                    type="number"
+                    step="any"
+                    min="0"
+                    data-testid="cache-write-1h-input"
+                    class="input mt-0.5 text-sm"
+                    :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
+                  />
+                </div>
+              </template>
+              <template v-else>
+                <div v-for="ttl in ['30m', '12h'] as const" :key="ttl">
+                  <label class="text-xs text-gray-400">{{
+                    t('admin.pricing.form.cacheWriteLifetime', { ttl })
+                  }}</label>
+                  <input
+                    :value="entry[`cache_write_${ttl}_price`]"
+                    @input="
+                      emitField(
+                        `cache_write_${ttl}_price`,
+                        ($event.target as HTMLInputElement).value,
+                      )
+                    "
+                    type="number"
+                    step="any"
+                    min="0"
+                    :data-testid="`cache-write-${ttl}-input`"
+                    class="input mt-0.5 text-sm"
+                    :placeholder="t('admin.pricing.form.pricePlaceholder', '默认')"
+                  />
+                </div>
+              </template>
               <div>
                 <label class="text-xs text-gray-400">{{
                   t('admin.pricing.form.cacheReadPrice', '缓存读取')
@@ -430,6 +475,7 @@
                 <IntervalRow
                   :interval="iv"
                   :mode="entry.billing_mode"
+                  :cache-write-mode="cacheWriteMode"
                   @update="updateInterval(idx, $event)"
                 />
               </template>
@@ -478,6 +524,7 @@
                 <IntervalRow
                   :interval="iv"
                   :mode="entry.billing_mode"
+                  :cache-write-mode="cacheWriteMode"
                   @update="updateInterval(idx, $event)"
                 />
               </template>
@@ -527,6 +574,7 @@
                 <IntervalRow
                   :interval="iv"
                   :mode="entry.billing_mode"
+                  :cache-write-mode="cacheWriteMode"
                   @update="updateInterval(idx, $event)"
                 />
               </template>
@@ -541,7 +589,8 @@
 <script setup lang="ts">
 import ModelReferenceInput from '@/components/admin/model-attributes/ModelReferenceInput.vue'
 import Collapse from '@/components/common/Collapse.vue'
-import { ref, computed } from 'vue'
+import { vSegmented } from '@/directives/segmented'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import RuleListEditor from '@/components/common/RuleListEditor.vue'
 import Select from '@/components/common/Select.vue'
@@ -549,8 +598,8 @@ import Icon from '@/components/icons/Icon.vue'
 import IntervalRow from './IntervalRow.vue'
 import ModelTagInput from './ModelTagInput.vue'
 import TimePricingSection from './TimePricingSection.vue'
-import type { PricingFormEntry, IntervalFormEntry } from './types'
-import { perTokenToMTok, getPlatformTagClass } from './types'
+import type { PricingFormEntry, IntervalFormEntry, CacheWritePricingMode } from './types'
+import { perTokenToMTok, getPlatformTagClass, resolveCacheWritePricingMode } from './types'
 import type { BillingMode } from '@/api/admin/pricing'
 import pricingAPI from '@/api/admin/pricing'
 
@@ -638,6 +687,57 @@ const preservingLegacyFreeFast = computed(
   () => props.entry.fast_multiplier == null && props.entry.fast_mode_multiplier === 0,
 )
 
+// cacheWriteMode and cacheWriteModeOptions control whether the card edits a single uniform
+// cache-write amount or a two-tier 5m/1h or 30m/12h pair, while manualCacheWriteMode keeps an
+// administrator-selected tab active while its fields are still empty.
+const cacheWriteMode = ref<CacheWritePricingMode>(
+  resolveCacheWritePricingMode(props.entry, props.platform),
+)
+const manualCacheWriteMode = ref(false)
+const cacheWriteModeOptions = computed((): { value: CacheWritePricingMode; label: string }[] => [
+  { value: 'uniform', label: t('admin.pricing.form.cacheWriteModeUniform', '统一') },
+  { value: '5m_1h', label: '5m / 1h' },
+  { value: '30m_12h', label: '30m / 12h' },
+])
+
+// effectiveCacheWrite5mPrice falls back to legacy cache_write_price when an existing Claude
+// card configured cache_write_1h_price alongside cache_write_price before migration 316.
+const effectiveCacheWrite5mPrice = computed(
+  () => props.entry.cache_write_5m_price ?? props.entry.cache_write_price,
+)
+
+watch(
+  () => [
+    props.entry.cache_write_price,
+    props.entry.cache_write_5m_price,
+    props.entry.cache_write_1h_price,
+    props.entry.cache_write_30m_price,
+    props.entry.cache_write_12h_price,
+    props.entry.models,
+    props.platform,
+  ],
+  () => {
+    const explicitMode: CacheWritePricingMode | null =
+      props.entry.cache_write_30m_price != null || props.entry.cache_write_12h_price != null
+        ? '30m_12h'
+        : props.entry.cache_write_5m_price != null || props.entry.cache_write_1h_price != null
+          ? '5m_1h'
+          : props.entry.cache_write_price != null
+            ? 'uniform'
+            : null
+    if (explicitMode !== null) {
+      if (explicitMode !== cacheWriteMode.value) {
+        manualCacheWriteMode.value = false
+        cacheWriteMode.value = explicitMode
+      }
+      return
+    }
+    if (!manualCacheWriteMode.value) {
+      cacheWriteMode.value = resolveCacheWritePricingMode(props.entry, props.platform)
+    }
+  },
+)
+
 // emitField updates one price input in a copied entry. Empty input becomes null, and editing
 // the current Fast multiplier clears the legacy Fast field so the new field takes precedence.
 function emitField(field: keyof PricingFormEntry, value: string) {
@@ -645,6 +745,90 @@ function emitField(field: keyof PricingFormEntry, value: string) {
     ...props.entry,
     ...(field === 'fast_multiplier' ? { fast_mode_multiplier: null } : {}),
     [field]: value === '' ? null : value,
+  })
+}
+
+// emitCacheWrite5mPrice updates cache_write_5m_price and clears any legacy uniform
+// cache_write_price so editing 5m never overwrites inherited 1h catalog pricing.
+function emitCacheWrite5mPrice(value: string) {
+  emit('update', {
+    ...props.entry,
+    cache_write_price: null,
+    cache_write_5m_price: value === '' ? null : value,
+  })
+}
+
+// clearInactiveIntervalCacheWrite clears cache-write fields outside nextMode on an interval
+// draft while preserving existing row identity through Object.assign in update callers.
+function clearInactiveIntervalCacheWrite(
+  iv: IntervalFormEntry,
+  nextMode: CacheWritePricingMode,
+): IntervalFormEntry {
+  if (nextMode === 'uniform') {
+    return {
+      ...iv,
+      cache_write_5m_price: null,
+      cache_write_1h_price: null,
+      cache_write_30m_price: null,
+      cache_write_12h_price: null,
+    }
+  }
+  if (nextMode === '5m_1h') {
+    return {
+      ...iv,
+      cache_write_5m_price: iv.cache_write_5m_price ?? iv.cache_write_price ?? null,
+      cache_write_price: null,
+      cache_write_30m_price: null,
+      cache_write_12h_price: null,
+    }
+  }
+  return {
+    ...iv,
+    cache_write_price: null,
+    cache_write_5m_price: null,
+    cache_write_1h_price: null,
+  }
+}
+
+// onCacheWriteModeChange switches the active cache-write input group and clears inactive
+// cache-write fields on both the default card and its token intervals.
+function onCacheWriteModeChange(nextMode: CacheWritePricingMode) {
+  if (cacheWriteMode.value === nextMode) return
+  manualCacheWriteMode.value = true
+  cacheWriteMode.value = nextMode
+  const intervals = (props.entry.intervals || []).map((iv) => {
+    Object.assign(iv, clearInactiveIntervalCacheWrite(iv, nextMode))
+    return iv
+  })
+  if (nextMode === 'uniform') {
+    emit('update', {
+      ...props.entry,
+      cache_write_5m_price: null,
+      cache_write_1h_price: null,
+      cache_write_30m_price: null,
+      cache_write_12h_price: null,
+      intervals,
+    })
+    return
+  }
+  if (nextMode === '5m_1h') {
+    emit('update', {
+      ...props.entry,
+      cache_write_5m_price:
+        props.entry.cache_write_5m_price ?? props.entry.cache_write_price ?? null,
+      cache_write_price: null,
+      cache_write_30m_price: null,
+      cache_write_12h_price: null,
+      intervals,
+    })
+    return
+  }
+  emit('update', {
+    ...props.entry,
+    cache_write_price: null,
+    cache_write_5m_price: null,
+    cache_write_1h_price: null,
+    intervals,
   })
 }
 
@@ -678,6 +862,7 @@ function addInterval() {
     input_price: null,
     output_price: null,
     cache_write_price: null,
+    cache_write_5m_price: null,
     cache_write_1h_price: null,
     cache_write_30m_price: null,
     cache_write_12h_price: null,
@@ -706,6 +891,7 @@ function addMediaTier() {
     input_price: null,
     output_price: null,
     cache_write_price: null,
+    cache_write_5m_price: null,
     cache_write_1h_price: null,
     cache_write_30m_price: null,
     cache_write_12h_price: null,
@@ -742,7 +928,7 @@ function removeInterval(idx: number) {
 }
 
 // onModelsUpdate publishes model tags and optionally fills their first added model's default
-// token prices. Existing values in the five inspected token-price fields suppress lookup, and a
+// token prices. Existing values in the eight inspected token-price fields suppress lookup, and a
 // missing quote leaves the current entry available for manual editing. Quote amounts are
 // converted to the form's million-token units.
 //
@@ -758,13 +944,14 @@ async function onModelsUpdate(newModels: string[]) {
   const addedModels = newModels.filter((m) => !oldModels.includes(m))
   if (addedModels.length === 0) return
 
-  // Inspect the five token amount fields that guard automatic catalog price filling for this
+  // Inspect the eight token amount fields that guard automatic catalog price filling for this
   // card.
   const e = props.entry
   const hasPrice =
     e.input_price != null ||
     e.output_price != null ||
     e.cache_write_price != null ||
+    e.cache_write_5m_price != null ||
     e.cache_write_1h_price != null ||
     e.cache_write_30m_price != null ||
     e.cache_write_12h_price != null ||
@@ -776,15 +963,28 @@ async function onModelsUpdate(newModels: string[]) {
   try {
     const result = await pricingAPI.getModelDefaultPricing(addedModels[0])
     if (result.found && !props.entry.reference_mode) {
+      const has30m12h = result.cache_write_30m_price != null || result.cache_write_12h_price != null
+      const has5m1h =
+        !has30m12h && (result.cache_write_5m_price != null || result.cache_write_1h_price != null)
+      manualCacheWriteMode.value = false
+      cacheWriteMode.value = has30m12h ? '30m_12h' : has5m1h ? '5m_1h' : 'uniform'
       emit('update', {
         ...props.entry,
         models: newModels,
         input_price: perTokenToMTok(result.input_price ?? null),
         output_price: perTokenToMTok(result.output_price ?? null),
-        cache_write_price: perTokenToMTok(result.cache_write_price ?? null),
-        cache_write_1h_price: perTokenToMTok(result.cache_write_1h_price ?? null),
-        cache_write_30m_price: perTokenToMTok(result.cache_write_30m_price ?? null),
-        cache_write_12h_price: perTokenToMTok(result.cache_write_12h_price ?? null),
+        cache_write_price:
+          !has30m12h && !has5m1h ? perTokenToMTok(result.cache_write_price ?? null) : null,
+        cache_write_5m_price: has5m1h
+          ? perTokenToMTok(result.cache_write_5m_price ?? result.cache_write_price ?? null)
+          : null,
+        cache_write_1h_price: has5m1h ? perTokenToMTok(result.cache_write_1h_price ?? null) : null,
+        cache_write_30m_price: has30m12h
+          ? perTokenToMTok(result.cache_write_30m_price ?? null)
+          : null,
+        cache_write_12h_price: has30m12h
+          ? perTokenToMTok(result.cache_write_12h_price ?? null)
+          : null,
         cache_read_price: perTokenToMTok(result.cache_read_price ?? null),
         image_output_price: perTokenToMTok(result.image_output_price ?? null),
       })

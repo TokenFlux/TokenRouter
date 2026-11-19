@@ -259,7 +259,7 @@
                   <Icon name="edit" size="xs" class="h-3.5 w-3.5 text-amber-500" />
                   <span
                     v-for="bucket in cacheWriteBuckets(row)"
-                    :key="bucket.ttl ?? 'unknown'"
+                    :key="bucket.ttl"
                     data-testid="cache-write-bucket"
                     class="inline-flex items-center gap-1"
                   >
@@ -267,12 +267,18 @@
                       formatCacheTokens(bucket.tokens)
                     }}</span>
                     <span
-                      v-if="bucket.ttl"
                       :data-cache-write-ttl="bucket.ttl"
                       class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-100 text-orange-600 ring-1 ring-inset ring-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:ring-orange-500/30"
                       >{{ bucket.ttl }}</span
                     >
                   </span>
+                  <span
+                    v-if="row.cache_write_anomaly"
+                    data-testid="cache-write-anomaly-badge"
+                    :title="formatCacheWriteAnomalyText(row.cache_write_anomaly)"
+                    class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:ring-amber-500/30 cursor-help"
+                    >{{ t('admin.usage.cacheWriteAnomalyBadge') }}</span
+                  >
                   <span
                     v-if="row.cache_ttl_overridden"
                     :title="t('usage.cacheTtlOverriddenHint')"
@@ -589,19 +595,28 @@
               </div>
               <div
                 v-for="bucket in tokenTooltipCacheWrites"
-                :key="bucket.ttl ?? 'unknown'"
+                :key="bucket.ttl"
                 class="flex items-center justify-between gap-4"
               >
                 <span class="text-gray-400 flex items-center gap-1.5">
                   {{ t('admin.usage.cacheCreationTokens') }}
                   <span
-                    v-if="bucket.ttl"
                     :data-cache-write-ttl="bucket.ttl"
                     class="inline-flex items-center rounded-compact px-1 py-px text-xs font-medium leading-tight bg-orange-500/20 text-orange-400 ring-1 ring-inset ring-orange-500/30"
                     >{{ bucket.ttl }}</span
                   >
                 </span>
                 <span class="font-medium text-white">{{ bucket.tokens.toLocaleString() }}</span>
+              </div>
+              <div
+                v-if="tokenTooltipData && tokenTooltipData.cache_write_anomaly"
+                data-testid="cache-write-anomaly-detail"
+                class="flex items-center justify-between gap-4"
+              >
+                <span class="text-gray-400">{{ t('admin.usage.cacheWriteAnomalyLabel') }}</span>
+                <span class="font-medium text-amber-400">{{
+                  formatCacheWriteAnomalyText(tokenTooltipData.cache_write_anomaly)
+                }}</span>
               </div>
               <div
                 v-if="tokenTooltipData && tokenTooltipData.cache_ttl_overridden"
@@ -1345,33 +1360,76 @@ const tokenTooltipCacheWrites = computed(() =>
   tokenTooltipData.value ? cacheWriteBuckets(tokenTooltipData.value) : [],
 )
 
-// CacheWriteBucket pairs a displayed count with its recorded cache lifetime.
+// CacheWriteBucket pairs a displayed count with its concrete billed cache lifetime.
 interface CacheWriteBucket {
-  ttl: '5m' | '30m' | '1h' | '12h' | null // Recorded lifetime, or null for unclassified writes.
+  ttl: '5m' | '30m' | '1h' | '12h' // Concrete billed cache lifetime tag.
   tokens: number // Positive token count for this bucket.
 }
 
-// cacheWriteBuckets breaks down the aggregate count using available lifetime counters.
-// Each positive known count can appear separately, including mixed lifetimes in one
-// request. If the known amounts cover only part of the aggregate, the remainder has
-// unknown lifetime. An inconsistent split above the aggregate yields one
-// unclassified amount. The summary and tooltip both retain those counts and
-// display lifetime tags only for recorded durations.
+// cacheWriteBuckets partitions cache_creation_tokens into strictly one two-tier lifetime
+// family (5m/1h or 30m/12h). Untagged or partial counts assign the missing remainder to the
+// family's default short bucket and overreported counts cap at total, so displayed buckets
+// never expose untagged cache-write counts.
 function cacheWriteBuckets(row: AdminUsageLog): CacheWriteBucket[] {
   const total = row.cache_creation_tokens
   if (!(total > 0)) return []
 
-  const reported: CacheWriteBucket[] = [
-    { ttl: '5m', tokens: row.cache_creation_5m_tokens },
-    { ttl: '30m', tokens: row.cache_creation_30m_tokens ?? 0 },
-    { ttl: '1h', tokens: row.cache_creation_1h_tokens },
-    { ttl: '12h', tokens: row.cache_creation_12h_tokens ?? 0 },
-  ]
-  const buckets = reported.filter(({ tokens }) => tokens > 0)
-  const remainder = total - buckets.reduce((sum, { tokens }) => sum + tokens, 0)
-  if (remainder < 0) return [{ ttl: null, tokens: total }]
-  if (remainder > 0) buckets.push({ ttl: null, tokens: remainder })
+  const hasOpenAIBuckets =
+    row.cache_creation_30m_tokens != null || row.cache_creation_12h_tokens != null
+  const hasClaudeBuckets =
+    (row.cache_creation_5m_tokens ?? 0) > 0 || (row.cache_creation_1h_tokens ?? 0) > 0
+  const normalizedPlatform = (row.platform || '').trim().toLowerCase()
+  const isOpenAIFamily =
+    hasOpenAIBuckets ||
+    (!hasClaudeBuckets &&
+      (normalizedPlatform === 'openai' ||
+        normalizedPlatform === 'grok' ||
+        /^(gpt-|chatgpt-|o1|o3|o4|codex)/i.test((row.model || '').trim())))
+
+  const shortTtl = isOpenAIFamily ? '30m' : '5m'
+  const longTtl = isOpenAIFamily ? '12h' : '1h'
+  let shortTokens = Math.max(
+    isOpenAIFamily ? (row.cache_creation_30m_tokens ?? 0) : (row.cache_creation_5m_tokens ?? 0),
+    0,
+  )
+  let longTokens = Math.max(
+    isOpenAIFamily ? (row.cache_creation_12h_tokens ?? 0) : (row.cache_creation_1h_tokens ?? 0),
+    0,
+  )
+  const sum = shortTokens + longTokens
+  if (sum < total) {
+    shortTokens += total - sum
+  } else if (sum > total) {
+    shortTokens = Math.min(shortTokens, total)
+    longTokens = total - shortTokens
+  }
+  const buckets: CacheWriteBucket[] = []
+  if (shortTokens > 0) buckets.push({ ttl: shortTtl, tokens: shortTokens })
+  if (longTokens > 0) buckets.push({ ttl: longTtl, tokens: longTokens })
   return buckets
+}
+
+// formatCacheWriteAnomalyText formats administrator cache-write anomaly kind and raw upstream
+// counts for hover badges and token detail tooltips.
+function formatCacheWriteAnomalyText(
+  anomaly: NonNullable<AdminUsageLog['cache_write_anomaly']>,
+): string {
+  const parts: string[] = [`total:${anomaly.reported_total.toLocaleString()}`]
+  if (anomaly.reported_30m != null || anomaly.reported_12h != null) {
+    parts.push(`30m:${(anomaly.reported_30m ?? 0).toLocaleString()}`)
+    parts.push(`12h:${(anomaly.reported_12h ?? 0).toLocaleString()}`)
+  } else {
+    parts.push(`5m:${(anomaly.reported_5m ?? 0).toLocaleString()}`)
+    parts.push(`1h:${(anomaly.reported_1h ?? 0).toLocaleString()}`)
+  }
+  const raw = parts.join(', ')
+  if (anomaly.kind === 'partial_breakdown') {
+    return t('admin.usage.cacheWriteAnomalyPartial', { raw })
+  }
+  if (anomaly.kind === 'missing_total') {
+    return t('admin.usage.cacheWriteAnomalyMissingTotal', { raw })
+  }
+  return t('admin.usage.cacheWriteAnomalyExceeds', { raw })
 }
 
 // timingTooltipVisible, timingTooltipReady, timingTooltipRef, timingTooltipPosition, and

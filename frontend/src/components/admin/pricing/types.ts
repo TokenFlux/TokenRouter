@@ -15,6 +15,10 @@ import type { BillingMode, TimePricingConfig, PricingInterval } from '@/api/admi
 // TranslateFn resolves pricing validation messages with their optional interpolation arguments.
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string
 
+// CacheWritePricingMode selects whether a price card configures one uniform cache-write rate,
+// the 5m/1h lifetime pair, or the 30m/12h lifetime pair.
+export type CacheWritePricingMode = 'uniform' | '5m_1h' | '30m_12h'
+
 // IntervalFormEntry holds one editable context or named media price interval. Nullable amount
 // and multiplier fields accept empty numeric-input text during editing; converters turn cleared
 // values into null and retain explicit zero amounts.
@@ -26,7 +30,8 @@ export interface IntervalFormEntry {
   tier_label: string // media tier label
   input_price: number | string | null // USD per million input tokens
   output_price: number | string | null // USD per million output tokens
-  cache_write_price: number | string | null // USD per million cache-write tokens
+  cache_write_price: number | string | null // USD per million uniform cache-write tokens
+  cache_write_5m_price?: number | string | null // USD per million 5m cache-write tokens
   cache_write_1h_price?: number | string | null // USD per million hour-cache-write tokens
   cache_write_30m_price?: number | string | null // USD per million 30m cache-write tokens
   cache_write_12h_price?: number | string | null // USD per million 12h cache-write tokens
@@ -66,7 +71,8 @@ export interface PricingFormEntry {
   max_reasoning_effort_multiplier?: number | string | null // maximum reasoning price factor
   input_price: number | string | null // USD per million input tokens
   output_price: number | string | null // USD per million output tokens
-  cache_write_price: number | string | null // USD per million cache-write tokens
+  cache_write_price: number | string | null // USD per million uniform cache-write tokens
+  cache_write_5m_price?: number | string | null // USD per million 5m cache-write tokens
   cache_write_1h_price?: number | string | null // USD per million hour-cache-write tokens
   cache_write_30m_price?: number | string | null // USD per million 30m cache-write tokens
   cache_write_12h_price?: number | string | null // USD per million 12h cache-write tokens
@@ -324,6 +330,43 @@ function hasConfiguredPrice(val: number | string | null | undefined): boolean {
   return val !== null && val !== undefined && val !== ''
 }
 
+// resolveCacheWritePricingMode selects the initial cache-write UI mode from configured card
+// amounts, falling back to model or platform naming when no cache-write field is populated.
+export function resolveCacheWritePricingMode(
+  source: {
+    cache_write_price?: number | string | null // uniform write amount
+    cache_write_5m_price?: number | string | null // 5m write amount
+    cache_write_1h_price?: number | string | null // 1h write amount
+    cache_write_30m_price?: number | string | null // 30m write amount
+    cache_write_12h_price?: number | string | null // 12h write amount
+    models?: string[] // optional model patterns
+  },
+  platform?: string,
+): CacheWritePricingMode {
+  if (
+    hasConfiguredPrice(source.cache_write_30m_price) ||
+    hasConfiguredPrice(source.cache_write_12h_price)
+  ) {
+    return '30m_12h'
+  }
+  if (
+    hasConfiguredPrice(source.cache_write_5m_price) ||
+    hasConfiguredPrice(source.cache_write_1h_price)
+  ) {
+    return '5m_1h'
+  }
+  if (hasConfiguredPrice(source.cache_write_price)) {
+    return 'uniform'
+  }
+  const normalizedPlatform = (platform || '').trim().toLowerCase()
+  if (normalizedPlatform === 'openai') return '30m_12h'
+  if (normalizedPlatform === 'anthropic' || normalizedPlatform === 'kimi') return '5m_1h'
+  const firstModel = (source.models?.[0] || '').trim().toLowerCase()
+  if (/^(gpt-|chatgpt-|o1|o3|o4|codex)/.test(firstModel)) return '30m_12h'
+  if (/^(claude-|fable-|kimi)/.test(firstModel)) return '5m_1h'
+  return 'uniform'
+}
+
 // hasExplicitPricing reports whether a card configures a value used by its billing mode.
 // Per-request, image, and video cards inspect request amounts on the card or its intervals.
 // Token cards inspect token and image-token amounts, then interval token amounts and interval
@@ -349,6 +392,7 @@ export function hasExplicitPricing(entry: PricingFormEntry): boolean {
       entry.input_price,
       entry.output_price,
       entry.cache_write_price,
+      entry.cache_write_5m_price,
       entry.cache_write_1h_price,
       entry.cache_write_30m_price,
       entry.cache_write_12h_price,
@@ -365,6 +409,7 @@ export function hasExplicitPricing(entry: PricingFormEntry): boolean {
       iv.input_price,
       iv.output_price,
       iv.cache_write_price,
+      iv.cache_write_5m_price,
       iv.cache_write_1h_price,
       iv.cache_write_30m_price,
       iv.cache_write_12h_price,
@@ -388,6 +433,7 @@ export function apiIntervalsToForm(intervals: PricingInterval[]): IntervalFormEn
     input_price: perTokenToMTok(iv.input_price),
     output_price: perTokenToMTok(iv.output_price),
     cache_write_price: perTokenToMTok(iv.cache_write_price),
+    cache_write_5m_price: perTokenToMTok(iv.cache_write_5m_price),
     cache_write_1h_price: perTokenToMTok(iv.cache_write_1h_price),
     cache_write_30m_price: perTokenToMTok(iv.cache_write_30m_price),
     cache_write_12h_price: perTokenToMTok(iv.cache_write_12h_price),
@@ -412,6 +458,7 @@ export function formIntervalsToAPI(intervals: IntervalFormEntry[]): PricingInter
     input_price: mTokToPerToken(iv.input_price),
     output_price: mTokToPerToken(iv.output_price),
     cache_write_price: mTokToPerToken(iv.cache_write_price),
+    cache_write_5m_price: mTokToPerToken(iv.cache_write_5m_price),
     cache_write_1h_price: mTokToPerToken(iv.cache_write_1h_price),
     cache_write_30m_price: mTokToPerToken(iv.cache_write_30m_price),
     cache_write_12h_price: mTokToPerToken(iv.cache_write_12h_price),
@@ -579,6 +626,7 @@ function validateIntervalPrices(iv: IntervalFormEntry, idx: number, t: Translate
     ['inputPrice', iv.input_price],
     ['outputPrice', iv.output_price],
     ['cacheWritePrice', iv.cache_write_price],
+    ['cacheWrite5mPrice', iv.cache_write_5m_price],
     ['cacheWrite1hPrice', iv.cache_write_1h_price],
     ['cacheWrite30mPrice', iv.cache_write_30m_price],
     ['cacheWrite12hPrice', iv.cache_write_12h_price],

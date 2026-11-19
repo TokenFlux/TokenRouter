@@ -101,6 +101,21 @@ export interface UsageLog {
   subscription?: UserSubscription // Expanded subscription details.
 }
 
+// CacheWriteAnomalyKind classifies upstream cache-write counter discrepancies recorded for
+// administrator diagnostics.
+export type CacheWriteAnomalyKind = 'partial_breakdown' | 'exceeds_total' | 'missing_total'
+
+// CacheWriteAnomaly captures raw upstream cache-write counts when reported TTL buckets did not
+// cleanly partition the reported aggregate.
+export interface CacheWriteAnomaly {
+  kind: CacheWriteAnomalyKind // Discrepancy category label.
+  reported_total: number // Raw aggregate cache-creation count.
+  reported_5m?: number // Raw five-minute count when nonzero.
+  reported_1h?: number // Raw one-hour count when nonzero.
+  reported_30m?: number | null // Raw thirty-minute count when supplied.
+  reported_12h?: number | null // Raw twelve-hour count when supplied.
+}
+
 // UsageLogProviderSummary supplies the provider identifier and name displayed in usage
 // rows.
 export interface UsageLogProviderSummary {
@@ -112,6 +127,7 @@ export interface UsageLogProviderSummary {
 // observations.
 export interface AdminUsageLog extends UsageLog {
   request_source?: string // Customer or internal request source.
+  cache_write_anomaly?: CacheWriteAnomaly | null // Administrator cache-write discrepancy details.
   system_usage?: {
     parent_request_id: string // Owning internal test run.
     operator_user_id?: number // Initiating administrator, when available.

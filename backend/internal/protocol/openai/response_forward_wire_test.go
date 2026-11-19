@@ -646,12 +646,14 @@ func legacyExtractOpenAIUsageFromJSONBytes(body []byte) (ForwardUsage, bool) {
 }
 
 // TestResponsesCacheWriteLifetimesSurviveSparseCompletion observes both TTL
-// counters before a sparse terminal frame. It checks that HTTP streaming and
-// WebSocket use the same aggregate and drop contradictory detail on a later update.
+// counters before a sparse terminal frame, then checks inconsistent and
+// missing-total terminal updates. HTTP streaming and WebSocket must retain raw
+// TTL breakdowns for downstream settlement and anomaly recording.
 func TestResponsesCacheWriteLifetimesSurviveSparseCompletion(t *testing.T) {
 	progress := []byte(`{"type":"response.in_progress","response":{"usage":{"input_tokens":12000,"output_tokens":0,"input_tokens_details":{"cached_tokens":4000,"cache_write_tokens":7000,"cache_write_tokens_details":{"ttl_30m_tokens":3000,"ttl_12h_tokens":4000}}}}}`)
 	terminal := []byte(`{"type":"response.completed","response":{"usage":{"output_tokens":22}}}`)
 	inconsistent := []byte(`{"type":"response.completed","response":{"usage":{"input_tokens":12000,"output_tokens":22,"input_tokens_details":{"cached_tokens":4000,"cache_write_tokens":6500,"cache_write_tokens_details":{"ttl_30m_tokens":3000,"ttl_12h_tokens":4000}}}}}`)
+	missingTotal := []byte(`{"type":"response.completed","response":{"usage":{"input_tokens":12000,"output_tokens":22,"input_tokens_details":{"cached_tokens":4000,"cache_write_tokens_details":{"ttl_30m_tokens":200,"ttl_12h_tokens":100}}}}}`)
 	observeHTTP := func(body []byte, usage *ForwardUsage) {
 		ParseSSEUsageBytesWithType(body, "", usage)
 	}
@@ -670,7 +672,12 @@ func TestResponsesCacheWriteLifetimesSurviveSparseCompletion(t *testing.T) {
 
 			observe(inconsistent, &usage)
 			require.Equal(t, 6500, usage.CacheCreationInputTokens)
-			require.Nil(t, usage.CacheWriteDetails)
+			require.Equal(t, &CacheWriteTokensDetails{Tokens30m: 3000, Tokens12h: 4000}, usage.CacheWriteDetails)
+
+			var withoutOuter ForwardUsage
+			observe(missingTotal, &withoutOuter)
+			require.Zero(t, withoutOuter.CacheCreationInputTokens)
+			require.Equal(t, &CacheWriteTokensDetails{Tokens30m: 200, Tokens12h: 100}, withoutOuter.CacheWriteDetails)
 		})
 	}
 }
