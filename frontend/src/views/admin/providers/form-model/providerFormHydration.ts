@@ -1,7 +1,13 @@
 import { readImageStreamModes } from '@/components/provider/form/imageStreamModes'
 import type { Provider, OpenAIOAuthClientPolicy } from '@/api/admin/providers.types'
 import type { ProtocolID } from '@/api/protocols.types'
-import type { ProviderEditDraft } from './providerEditDraft'
+import {
+  GROK_CLIENT_TOOL_CACHE_EXTRA_KEY,
+  PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY,
+  supportsProviderSchedulingThresholdOverridePlatform,
+  supportsTLSFingerprint,
+  type ProviderFormDraft,
+} from './providerFormDraft'
 import type { CodexFingerprintMode } from '@/components/provider/form/providerFormOptions'
 import {
   DEFAULT_POOL_MODE_RETRY_COUNT,
@@ -36,61 +42,37 @@ import {
   splitQoderPersistedModelRestriction,
 } from '@/composables/useModelWhitelist'
 
-// providerEditHydration.ts restores provider responses into the edit dialog's typed refs.
-// Stored credentials and extra settings have different defaults for each authentication
-// type, so the hydrator selects those defaults before the component exposes the resulting
-// fields. Model mappings and whitelists remain separate representations, including Qoder's
-// distinction between an absent restriction and an intentionally saved empty whitelist.
+// providerFormHydration.ts restores persisted provider responses into the
+// shared form draft refs. Stored credentials and extra settings have distinct
+// defaults per authentication type, so the hydrator normalizes those defaults
+// before the dialog exposes editable fields while keeping secret inputs blank
+// when the server supplies only presence flags.
 //
-// Secret input refs stay empty where the server supplies only presence flags. CN addresses
-// are restored from protocol-specific values before the legacy forwarding address fills a
-// missing entry; root-derived platforms restore only their saved overrides. The calling component suppresses its endpoint watchers through the next
-// Vue tick while this synchronous work runs, preventing stored custom addresses from being
-// replaced by presets.
+// Model mappings and whitelists remain independent representations, including
+// Qoder's distinction between absent restrictions and an explicit empty
+// whitelist. CN addresses restore protocol-specific slots before falling back
+// to the legacy forwarding URL, while the caller suppresses endpoint watchers
+// through the next Vue tick so custom URLs are not overwritten by presets.
 
-// HydrationNotifications connects quota drafts owned by the existing notification
-// composable.
+export { supportsTLSFingerprint, supportsProviderSchedulingThresholdOverridePlatform }
+
+// HydrationNotifications connects quota drafts owned by the notification composable.
 export interface HydrationNotifications {
-  // loadFromExtra restores the notification editor from the current provider's
-  // extra object. Undefined extra values are accepted so provider responses without
-  // saved policy fields can use the composable defaults.
-  loadFromExtra: (extra: Record<string, unknown> | undefined) => void // Restore saved notification policy.
-  // reset clears notification drafts for provider types without this quota form.
-  // The hydrator invokes it after clearing quota amounts and schedules so changing
-  // provider type does not retain a hidden policy draft.
+  // loadFromExtra restores the notification editor from the provider's extra object.
+  loadFromExtra: (extra: Record<string, unknown> | undefined) => void
+  // reset clears notification drafts for provider types without the quota form.
   reset: () => void
 }
 
-// GROK_CLIENT_TOOL_CACHE_EXTRA_KEY identifies the persisted Grok cache preference read
-// when the OAuth editor opens.
-const GROK_CLIENT_TOOL_CACHE_EXTRA_KEY = 'grok_client_tool_cache_enabled'
-
-// PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY identifies the optional scheduling
-// threshold read from each supported provider credential object.
-const PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY = 'provider_scheduling_threshold'
-
 // readUpstreamRequestIdHeader reads the saved response-header override for the editor.
-// Missing extra settings and non-string values become an empty draft, allowing the edit
-// field to represent the default header.
+// Missing extra settings and non-string values become an empty draft.
 export const readUpstreamRequestIdHeader = (extra: unknown): string => {
   const value = (extra as Record<string, unknown> | undefined)?.upstream_request_id_header
   return typeof value === 'string' ? value : ''
 }
 
-// supportsTLSFingerprint reports whether this provider uses a supported simulated client.
-export const supportsTLSFingerprint = (provider: Provider | null | undefined) => {
-  return (
-    !!provider &&
-    ((provider.platform === 'anthropic' &&
-      (provider.type === 'oauth' || provider.type === 'setup-token')) ||
-      (provider.platform === 'openai' && provider.type === 'oauth') ||
-      (provider.platform === 'qoder' && provider.type === 'cosy'))
-  )
-}
-
 // normalizeOpenAIOAuthClientPolicy restores a known OAuth client policy from stored
-// extras. Unknown or absent policies fall back to the legacy Codex-only flag, then to
-// unrestricted clients when that flag is absent.
+// extras, falling back to the legacy Codex-only flag and then unrestricted access.
 const normalizeOpenAIOAuthClientPolicy = (
   policy: unknown,
   legacyCodexOnly?: unknown,
@@ -98,17 +80,8 @@ const normalizeOpenAIOAuthClientPolicy = (
   if (policy === 'codex_only' || policy === 'tls_router_matched_only' || policy === 'any') {
     return policy
   }
-  // Unknown policy strings use the legacy boolean so older stored Codex-only restrictions
-  // remain effective when the policy selector hydrates.
+  // Unknown policy strings use the legacy boolean so older stored Codex-only restrictions survive.
   return legacyCodexOnly === true ? 'codex_only' : 'any'
-}
-
-// supportsProviderSchedulingThresholdOverridePlatform reports whether the platform exposes
-// an individual scheduling threshold.
-export function supportsProviderSchedulingThresholdOverridePlatform(
-  platform: Provider['platform'] | undefined,
-) {
-  return platform === 'openai' || platform === 'anthropic' || platform === 'grok'
 }
 
 // normalizeProviderSchedulingThresholdOverride reads a valid integer percentage from a
@@ -122,15 +95,13 @@ export function normalizeProviderSchedulingThresholdOverride(value: unknown): nu
   if (!Number.isFinite(numeric)) {
     return null
   }
-  // Scheduling thresholds use integer percentages; truncation precedes the accepted range
-  // check so the form can reject values outside that domain.
+  // Scheduling thresholds use integer percentages; truncate before checking the 1..100 domain.
   const integer = Math.trunc(numeric)
   return integer >= 1 && integer <= 100 ? integer : null
 }
 
 // formatTempUnschedKeywords formats stored keywords for the comma-separated suspension
-// rule field. Arrays retain only trimmed nonempty strings; string inputs remain editable
-// as supplied, while other input types produce an empty field.
+// rule field, retaining trimmed nonempty strings for array inputs.
 function formatTempUnschedKeywords(value: unknown) {
   if (Array.isArray(value)) {
     return value
@@ -145,9 +116,7 @@ function formatTempUnschedKeywords(value: unknown) {
   return ''
 }
 
-// toPositiveNumber truncates positive numeric input for suspension rule fields. Invalid
-// and nonpositive values return null so the editor leaves the value unset until the
-// administrator corrects it.
+// toPositiveNumber truncates positive numeric input for suspension rule fields.
 function toPositiveNumber(value: unknown) {
   const num = Number(value)
   if (!Number.isFinite(num) || num <= 0) {
@@ -157,9 +126,7 @@ function toPositiveNumber(value: unknown) {
   return Math.trunc(num)
 }
 
-// toPositiveOrSpecialID restores a numeric TLS selection including negative sentinel
-// identifiers. Zero and nonfinite values become null, preserving the editor distinction
-// between a default profile and its special random selection.
+// toPositiveOrSpecialID restores a numeric TLS selection including negative sentinel IDs.
 function toPositiveOrSpecialID(value: unknown) {
   const num = Number(value)
   if (!Number.isFinite(num) || num === 0) {
@@ -169,9 +136,7 @@ function toPositiveOrSpecialID(value: unknown) {
   return Math.trunc(num)
 }
 
-// hasConfiguredModelRestriction reports whether Qoder has stored mappings or an
-// explicit whitelist. An empty whitelist counts as saved restriction configuration,
-// while allowing unrestricted final-model selection subject to other eligibility rules.
+// hasConfiguredModelRestriction reports whether Qoder has stored mappings or an explicit whitelist.
 const hasConfiguredModelRestriction = (
   existingMappings?: Record<string, string>,
   rawWhitelist?: unknown,
@@ -181,15 +146,12 @@ const hasConfiguredModelRestriction = (
     Object.keys(existingMappings).length > 0) ||
   Array.isArray(rawWhitelist)
 
-// hydrateProviderEditDraft restores one provider into existing form refs. The caller
+// hydrateProviderFormDraft restores one provider into existing form refs. The caller
 // suspends CN endpoint watchers until Vue has flushed these writes. Hydration resets
 // platform-specific options using the response authentication type and reconstructs
-// mappings without filling secret inputs with masked text. Explicit protocol arrays,
-// including empty arrays, are copied so the selector can edit them independently.
-// Notification state remains owned by its composable and is restored or cleared through
-// supplied callbacks during this pass.
-export function hydrateProviderEditDraft(
-  draft: ProviderEditDraft,
+// mappings without filling secret inputs with masked text.
+export function hydrateProviderFormDraft(
+  draft: ProviderFormDraft,
   newProvider: Provider,
   notifications: HydrationNotifications,
 ) {
@@ -307,9 +269,7 @@ export function hydrateProviderEditDraft(
   } = draft
   const { loadFromExtra: loadQuotaNotifyFromExtra, reset: resetQuotaNotify } = notifications
 
-  // hydrateModelRestrictionFromMapping restores the ordinary model editor from persisted
-  // rules. Separate whitelists retain their empty values, and the editor selects mapping
-  // mode only when the parsed response includes rewrite rows.
+  // hydrateModelRestrictionFromMapping restores the ordinary model editor from persisted rules.
   const hydrateModelRestrictionFromMapping = (
     existingMappings?: Record<string, string>,
     rawWhitelist?: unknown,
@@ -320,12 +280,7 @@ export function hydrateProviderEditDraft(
     modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
   }
 
-  // hydrateQoderModelRestrictionFromMapping restores Qoder rules while separating
-  // configured restrictions from editor defaults. Absent rules clear the saved and touched
-  // flags and select mapping mode. An explicit empty whitelist remains configured and
-  // selects whitelist mode when there are no rewrite rows. The patch builder later
-  // consults these flags so merely viewing generated rows does not persist them during an
-  // unrelated provider edit or site change.
+  // hydrateQoderModelRestrictionFromMapping separates configured restrictions from generated rows.
   const hydrateQoderModelRestrictionFromMapping = (
     existingMappings?: Record<string, string>,
     rawWhitelist?: unknown,
@@ -337,8 +292,6 @@ export function hydrateProviderEditDraft(
     qoderModelWhitelistConfigured.value = Array.isArray(rawWhitelist)
     qoderModelRestrictionTouched.value = false
     qoderModelWhitelistTouched.value = false
-    // Absent Qoder configuration leaves generated model rows uncommitted; clear editor
-    // state and touched flags before selecting the default mapping view.
     if (!qoderModelRestrictionConfigured.value) {
       allowedModels.value = []
       modelMappings.value = []
@@ -351,12 +304,8 @@ export function hydrateProviderEditDraft(
     modelMappings.value = parsed.modelMappings
     modelRestrictionMode.value = modelMappings.value.length > 0 ? 'mapping' : 'whitelist'
   }
-  // loadQuotaControlSettings resets request controls and restores settings supported by
-  // this provider. TLS settings prefer projected response fields over extra values,
-  // including the negative random-profile sentinel. Anthropic OAuth and setup-token
-  // accounts additionally restore their spending, session, rate, queue, and relay
-  // controls. Queue mode loads independently of the rate limit so a provider without an
-  // RPM value keeps its saved queue selection when the administrator saves other settings.
+
+  // loadQuotaControlSettings resets request controls and restores settings supported by this provider.
   function loadQuotaControlSettings(provider: Provider) {
     windowCostEnabled.value = false
     windowCostLimit.value = null
@@ -381,8 +330,6 @@ export function hydrateProviderEditDraft(
       const extra = provider.extra as Record<string, unknown> | undefined
       tlsFingerprintEnabled.value =
         provider.enable_tls_fingerprint === true || extra?.enable_tls_fingerprint === true
-      // Projected TLS fields take precedence over extra values so the form follows the
-      // server-selected view while still accepting older response shapes.
       tlsFingerprintProfileId.value =
         provider.tls_fingerprint_profile_id ??
         toPositiveOrSpecialID(extra?.tls_fingerprint_profile_id)
@@ -413,8 +360,6 @@ export function hydrateProviderEditDraft(
       rpmStrategy.value = (provider.rpm_strategy as 'tiered' | 'sticky_exempt') || 'tiered'
       rpmStickyBuffer.value = provider.rpm_sticky_buffer ?? null
     }
-    // Queue configuration is independent of RPM enforcement; load it even when the account
-    // has no request-rate limit configured.
     userMsgQueueMode.value = provider.user_msg_queue_mode ?? ''
     if (provider.session_id_masking_enabled === true) {
       sessionIdMaskingEnabled.value = true
@@ -430,8 +375,6 @@ export function hydrateProviderEditDraft(
   }
 
   // loadTempUnschedRules restores suspension rules from the provider credential object.
-  // Missing arrays clear the draft; each stored rule converts numeric inputs and keywords
-  // into the representation accepted by the rule editor.
   function loadTempUnschedRules(credentials?: Record<string, unknown>) {
     tempUnschedEnabled.value = credentials?.temp_unschedulable_enabled === true
     const rawRules = credentials?.temp_unschedulable_rules
@@ -451,9 +394,7 @@ export function hydrateProviderEditDraft(
     })
   }
 
-  // loadProviderSchedulingThresholdOverride restores an optional threshold for platforms
-  // supporting that override. Unsupported platforms and invalid stored percentages reset
-  // the disabled state and its display value to one hundred percent.
+  // loadProviderSchedulingThresholdOverride restores an optional threshold for supported platforms.
   function loadProviderSchedulingThresholdOverride(
     platform: Provider['platform'] | undefined,
     credentials: Record<string, unknown> | undefined,
@@ -469,12 +410,15 @@ export function hydrateProviderEditDraft(
     providerSchedulingThresholdOverrideEnabled.value = value !== null
     providerSchedulingThresholdOverrideValue.value = value ?? 100
   }
+
   draft.imageModes.value = readImageStreamModes(newProvider.credentials)
   draft.upstreamProtocols.value = Array.isArray(newProvider.credentials?.upstream_protocols)
     ? ([...newProvider.credentials.upstream_protocols] as ProtocolID[])
     : undefined
   form.name = newProvider.name
   form.notes = newProvider.notes || ''
+  form.platform = newProvider.platform
+  form.type = newProvider.type
   form.proxy_id = newProvider.proxy_id
   form.concurrency = newProvider.concurrency
   form.load_factor = newProvider.load_factor ?? null
@@ -540,8 +484,7 @@ export function hydrateProviderEditDraft(
     }
   }
   allowOverages.value = extra?.allow_overages === true
-  // The API stores utilization as fractions while the two pause inputs display
-  // percentages, so scale both values during hydration.
+  // The API stores utilization as fractions while the pause inputs display percentages.
   autoPause5hThreshold.value =
     typeof extra?.auto_pause_5h_threshold === 'number' ? extra.auto_pause_5h_threshold * 100 : null
   autoPause7dThreshold.value =
@@ -577,8 +520,6 @@ export function hydrateProviderEditDraft(
       extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openaiFlattenNamespacesEnabled.value =
       newProvider.type === 'oauth' && extra?.openai_responses_flatten_namespaces === true
-    // Subscription overrides affect OpenAI OAuth accounts; other authentication types start
-    // with an empty draft even if credentials contain a tier.
     editPlanType.value =
       newProvider.type === 'oauth'
         ? readPlanType(newProvider.credentials as Record<string, unknown> | undefined)
@@ -603,14 +544,11 @@ export function hydrateProviderEditDraft(
       codexCLIOnlyAllowClaudeCodeEnabled.value =
         Array.isArray(extra?.codex_cli_only_allowed_clients) &&
         (extra.codex_cli_only_allowed_clients as unknown[]).includes('claude_code')
-    }
-    if (newProvider.type === 'oauth') {
       const fpMode = extra?.codex_fingerprint_mode as string | undefined
       codexFingerprintMode.value = ['off', 'device', 'session', 'full'].includes(fpMode || '')
         ? (fpMode as CodexFingerprintMode)
         : 'off'
     }
-    const credentials = newProvider.credentials as Record<string, unknown> | undefined
     const compactMappings = credentials?.compact_model_mapping as Record<string, string> | undefined
     if (compactMappings && typeof compactMappings === 'object') {
       openAICompactModelMappings.value = Object.entries(compactMappings).map(([from, to]) => ({
@@ -625,8 +563,6 @@ export function hydrateProviderEditDraft(
       extra?.anthropic_apikey_auth_scheme === 'authorization_bearer'
         ? 'authorization_bearer'
         : 'x_api_key'
-    // The editor uses a three-state string selection; translate the legacy true boolean
-    // into enabled and treat other historical values as default.
     const wsVal = extra?.web_search_emulation
     if (wsVal === 'enabled' || wsVal === 'disabled') {
       webSearchEmulationMode.value = wsVal
@@ -672,7 +608,6 @@ export function hydrateProviderEditDraft(
     resetQuotaNotify()
   }
   if (newProvider.platform === 'antigravity') {
-    const credentials = newProvider.credentials as Record<string, unknown> | undefined
     const configuredProjectID = credentials?.[ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY]
     antigravityProjectId.value = typeof configuredProjectID === 'string' ? configuredProjectID : ''
     antigravityModelRestrictionMode.value = 'mapping'
@@ -684,8 +619,6 @@ export function hydrateProviderEditDraft(
       const entries = Object.entries(rawAgMapping)
       antigravityModelMappings.value = entries.map(([from, to]) => ({ from, to }))
     } else {
-      // When Antigravity has no mapping object, saved whitelist entries become self-
-      // mappings so the mapping-only editor can show those stored model choices.
       const rawWhitelist = credentials?.model_whitelist
       if (Array.isArray(rawWhitelist) && rawWhitelist.length > 0) {
         antigravityModelMappings.value = rawWhitelist
@@ -733,19 +666,17 @@ export function hydrateProviderEditDraft(
     }
   }
   if (newProvider.type === 'apikey' && newProvider.credentials) {
-    const credentials = newProvider.credentials as Record<string, unknown>
-    // A missing or unsupported saved mode restores the platform's first mode choice.
+    const apiCreds = newProvider.credentials as Record<string, unknown>
     const modeChoices = providerModeChoices(newProvider.platform)
     if (modeChoices.length > 0) {
       editProviderMode.value =
-        modeChoices.find((choice) => choice.value === credentials.provider_mode)?.value ??
+        modeChoices.find((choice) => choice.value === apiCreds.provider_mode)?.value ??
         modeChoices[0]!.value
     }
     const storedSlotAddresses =
-      (credentials.api_base_urls as Record<string, unknown> | undefined) || {}
+      (apiCreds.api_base_urls as Record<string, unknown> | undefined) || {}
     const derivedSlots = derivedEndpointSlots(newProvider.platform, '', editProviderMode.value)
     if (derivedSlots.length > 0) {
-      // Blank derived slots follow the service root, so only saved overrides are restored.
       const nextSlotAddresses: EndpointSlotAddresses = {
         chat_completions: '',
         anthropic: '',
@@ -762,10 +693,8 @@ export function hydrateProviderEditDraft(
       newProvider.platform === 'zhipu' ||
       newProvider.platform === 'deepseek'
     ) {
-      // Unified upstream_protocols selects the adaptive endpoint editor even for an empty
-      // array; older credentials retain their single-protocol editing mode.
       const storedProtocol =
-        credentials.upstream_protocols !== undefined ? 'adaptive' : credentials.api_protocol
+        apiCreds.upstream_protocols !== undefined ? 'adaptive' : apiCreds.api_protocol
       editApiProtocol.value =
         storedProtocol === 'adaptive' ||
         storedProtocol === 'chat_completions' ||
@@ -777,25 +706,25 @@ export function hydrateProviderEditDraft(
         !cnSupportsNativeResponses(newProvider.platform) &&
         editApiProtocol.value === 'responses'
       ) {
-        // Platforms without a native Responses endpoint use Chat Completions when old
-        // credentials select Responses, avoiding an unsupported endpoint field.
         editApiProtocol.value = 'chat_completions'
       }
       const adaptiveDefaults = defaultCNAdaptiveBaseUrls(
         newProvider.platform,
         editProviderMode.value,
       )
-      const storedBaseUrls = storedSlotAddresses
-      const legacyBaseUrl =
-        typeof credentials.base_url === 'string' ? credentials.base_url.trim() : ''
+      const legacyBaseUrl = typeof apiCreds.base_url === 'string' ? apiCreds.base_url.trim() : ''
       const storedChatBaseUrl =
-        typeof storedBaseUrls.chat_completions === 'string'
-          ? storedBaseUrls.chat_completions.trim()
+        typeof storedSlotAddresses.chat_completions === 'string'
+          ? storedSlotAddresses.chat_completions.trim()
           : ''
       const storedAnthropicBaseUrl =
-        typeof storedBaseUrls.anthropic === 'string' ? storedBaseUrls.anthropic.trim() : ''
+        typeof storedSlotAddresses.anthropic === 'string'
+          ? storedSlotAddresses.anthropic.trim()
+          : ''
       const storedResponsesBaseUrl =
-        typeof storedBaseUrls.responses === 'string' ? storedBaseUrls.responses.trim() : ''
+        typeof storedSlotAddresses.responses === 'string'
+          ? storedSlotAddresses.responses.trim()
+          : ''
       const nextAdaptiveBaseUrls: Record<CnNativeApiProtocol, string> = {
         chat_completions: storedChatBaseUrl || adaptiveDefaults.chat_completions,
         anthropic: storedAnthropicBaseUrl || adaptiveDefaults.anthropic,
@@ -813,17 +742,15 @@ export function hydrateProviderEditDraft(
           : legacyProtocol === 'responses'
             ? storedResponsesBaseUrl
             : storedChatBaseUrl
-      // The legacy base URL fills only its selected protocol when that protocol has no
-      // saved address, preserving independently configured adaptive endpoints.
       if (legacyBaseUrl && !storedLegacyBaseUrl) {
         nextAdaptiveBaseUrls[legacyProtocol] = legacyBaseUrl
       }
       editAdaptiveBaseUrls.value = nextAdaptiveBaseUrls
       if (newProvider.platform === 'zhipu') {
         editZhipuOrganization.value =
-          typeof credentials.zhipu_organization === 'string' ? credentials.zhipu_organization : ''
+          typeof apiCreds.zhipu_organization === 'string' ? apiCreds.zhipu_organization : ''
         editZhipuProject.value =
-          typeof credentials.zhipu_project === 'string' ? credentials.zhipu_project : ''
+          typeof apiCreds.zhipu_project === 'string' ? apiCreds.zhipu_project : ''
       }
     }
     const platformDefaultUrl =
@@ -837,18 +764,18 @@ export function hydrateProviderEditDraft(
       newProvider.type === 'apikey' &&
       editApiProtocol.value === 'adaptive'
         ? editAdaptiveBaseUrls.value.chat_completions
-        : (credentials.base_url as string) || platformDefaultUrl
-    const existingMappings = credentials.model_mapping as Record<string, string> | undefined
-    hydrateModelRestrictionFromMapping(existingMappings, credentials.model_whitelist)
-    poolModeEnabled.value = credentials.pool_mode === true
+        : (apiCreds.base_url as string) || platformDefaultUrl
+    const existingMappings = apiCreds.model_mapping as Record<string, string> | undefined
+    hydrateModelRestrictionFromMapping(existingMappings, apiCreds.model_whitelist)
+    poolModeEnabled.value = apiCreds.pool_mode === true
     poolModeRetryCount.value = normalizePoolModeRetryCount(
-      Number(credentials.pool_mode_retry_count ?? DEFAULT_POOL_MODE_RETRY_COUNT),
+      Number(apiCreds.pool_mode_retry_count ?? DEFAULT_POOL_MODE_RETRY_COUNT),
     )
     poolModeRetryStatusCodesInput.value = formatPoolModeRetryStatusCodes(
-      credentials.pool_mode_retry_status_codes,
+      apiCreds.pool_mode_retry_status_codes,
     )
-    customErrorCodesEnabled.value = credentials.custom_error_codes_enabled === true
-    const existingErrorCodes = credentials.custom_error_codes as number[] | undefined
+    customErrorCodesEnabled.value = apiCreds.custom_error_codes_enabled === true
+    const existingErrorCodes = apiCreds.custom_error_codes as number[] | undefined
     if (existingErrorCodes && Array.isArray(existingErrorCodes)) {
       selectedErrorCodes.value = [...existingErrorCodes]
     } else {
@@ -869,8 +796,6 @@ export function hydrateProviderEditDraft(
     }
     poolModeEnabled.value = bedrockCreds.pool_mode === true
     const retryCount = bedrockCreds.pool_mode_retry_count
-    // Bedrock retains a stored nonnegative numeric retry count as its editor value; other
-    // values use the shared default before submission normalizes it.
     poolModeRetryCount.value =
       typeof retryCount === 'number' && retryCount >= 0 ? retryCount : DEFAULT_POOL_MODE_RETRY_COUNT
     poolModeRetryStatusCodesInput.value = formatPoolModeRetryStatusCodes(
@@ -893,14 +818,14 @@ export function hydrateProviderEditDraft(
     newProvider.type === 'service_account' &&
     newProvider.credentials
   ) {
-    const credentials = newProvider.credentials as Record<string, unknown>
-    editVertexProjectId.value = (credentials.project_id as string) || ''
-    editVertexClientEmail.value = (credentials.client_email as string) || ''
+    const saCreds = newProvider.credentials as Record<string, unknown>
+    editVertexProjectId.value = (saCreds.project_id as string) || ''
+    editVertexClientEmail.value = (saCreds.client_email as string) || ''
     editVertexLocation.value =
-      (credentials.location as string) || (credentials.vertex_location as string) || 'us-central1'
+      (saCreds.location as string) || (saCreds.vertex_location as string) || 'us-central1'
     hydrateModelRestrictionFromMapping(
-      credentials.model_mapping as Record<string, string> | undefined,
-      credentials.model_whitelist,
+      saCreds.model_mapping as Record<string, string> | undefined,
+      saCreds.model_whitelist,
     )
   } else {
     const platformDefaultUrl =
@@ -937,3 +862,6 @@ export function hydrateProviderEditDraft(
   }
   editApiKey.value = ''
 }
+
+// hydrateProviderEditDraft preserves the edit-dialog import name for callers and tests.
+export const hydrateProviderEditDraft = hydrateProviderFormDraft

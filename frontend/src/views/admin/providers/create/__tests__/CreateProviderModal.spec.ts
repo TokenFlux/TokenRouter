@@ -41,6 +41,9 @@ vi.mock('@/api/admin', () => ({
     tlsFingerprintProfiles: {
       list: vi.fn().mockResolvedValue([]),
     },
+    tlsFingerprintRouters: {
+      list: vi.fn().mockResolvedValue([]),
+    },
   },
 }))
 
@@ -1072,6 +1075,38 @@ describe('OpenCode provider creation', () => {
         opencode_catalog_protocols: { payg: { 'new-model': 'anthropic_messages' }, go: {} },
       }),
     )
+    wrapper.unmount()
+  })
+
+  // Mounting the create dialog in its closed state on the provider list page must
+  // defer global settings lookups until the administrator actually opens the modal.
+  it('defers global feature settings reads while the modal stays closed', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.settings.getWebSearchEmulationConfig).mockClear()
+    vi.mocked(adminAPI.settings.getSettings).mockClear()
+
+    const wrapper = mount(CreateProviderModal, {
+      props: { show: false, proxies: [], groups: [] },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+          OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
+          ProxySelector: true,
+          GroupSelector: true,
+          Icon: true,
+          PlatformIcon: true,
+        },
+      },
+    })
+    await flushPromises()
+    expect(adminAPI.settings.getWebSearchEmulationConfig).not.toHaveBeenCalled()
+    expect(adminAPI.settings.getSettings).not.toHaveBeenCalled()
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(adminAPI.settings.getWebSearchEmulationConfig).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 })

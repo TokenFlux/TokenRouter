@@ -1,25 +1,34 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Provider } from '@/api/admin/providers.types'
-import { createProviderEditDraft } from '../providerEditDraft'
-import { hydrateProviderEditDraft } from '../providerEditHydration'
 import {
-  applyProviderExtraPatch,
+  createProviderEditDraft,
+  createProviderFormDraft,
+  resetPlatformScopedDraft,
+} from '../providerFormDraft'
+import { hydrateProviderEditDraft } from '../providerFormHydration'
+import {
+  applyAntigravityPolicyCredentials,
   applyPoolModeCredentials,
   applyProviderProtocolPatch,
+  applyProviderSchedulingThresholdCredentials,
   applyQoderModelRestriction,
   buildProviderBasePatch,
   type ProviderEditPatch,
-} from '../providerEditPatch'
+} from '../providerFormCredentials'
+import {
+  applyProviderExtraPatch,
+  buildAntigravityCreateExtra,
+  buildGrokOAuthCreateExtra,
+  buildOpenAICreateExtra,
+  withUpstreamRequestIdHeader,
+} from '../providerFormExtra'
 
-// providerEditPatch.spec.ts verifies representation-sensitive provider updates
-// independently of mounted controls. Draft factories, hydration, and patch
-// builders are exercised together so empty selections, inherited credentials,
-// mutable collections, and unrelated persisted settings retain their meanings
-// across the edit workflow.
+// providerFormModel.spec.ts verifies shared provider draft factories, platform
+// resets, hydration, and create/edit credential and Extra serializers. Tests
+// protect clearing sentinels, Antigravity RT batch policies, Codex image-tool
+// serialization, Grok cache preferences, and per-provider scheduling thresholds.
 
 // provider creates a minimal administration response for draft and patch tests.
-// Callers override platform-specific values explicitly; its credential object
-// contains no secret text so assertions can distinguish omission from replacement.
 function provider(overrides: Partial<Provider> = {}): Provider {
   return {
     id: 1,
@@ -37,7 +46,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
   } as Provider
 }
 
-describe('provider edit patch representations', () => {
+describe('provider form model representations', () => {
   // Each OpenAI authentication type hydrates a disabled GIF flag and can restore
   // its default. Editing must preserve unrelated metadata while retaining explicit false.
   it.each(['oauth', 'apikey'] as const)('preserves GIF policy for %s providers', (type) => {
@@ -187,6 +196,7 @@ describe('provider edit patch representations', () => {
     expect(source.extra?.quota_monthly_limit).toBe(25)
     expect(writeNotifications).toHaveBeenCalledWith(patch.extra, 'update')
   })
+
   // A saved OAuth driver is hydrated, edited, and cleared through the same draft.
   // Both writes preserve unrelated metadata and clearing submits an explicit blank.
   it('hydrates and clears an OAuth image driver override', () => {
@@ -202,5 +212,91 @@ describe('provider edit patch representations', () => {
     applyProviderExtraPatch(draft, source, patch, vi.fn())
     expect(patch.extra?.codex_image_responses_model).toBe('')
     expect(patch.extra?.retained).toBe(true)
+  })
+
+  // Switching platforms in create mode clears Grok's single-slot concurrency,
+  // OpenAI compaction overrides, Anthropic OAuth limits, and quota schedules.
+  it('resets platform-scoped create draft state without leaking Grok concurrency', () => {
+    const draft = createProviderFormDraft('create')
+    const resetNotify = vi.fn()
+    resetPlatformScopedDraft(draft, 'grok', resetNotify)
+    expect(draft.form.concurrency).toBe(1)
+
+    draft.openAICompactMode.value = 'force_off'
+    draft.windowCostEnabled.value = true
+    draft.windowCostLimit.value = 50
+    draft.providerSchedulingThresholdOverrideEnabled.value = true
+    draft.providerSchedulingThresholdOverrideValue.value = 85
+
+    resetPlatformScopedDraft(draft, 'gemini', resetNotify)
+    expect(draft.form.concurrency).toBe(10)
+    expect(draft.openAICompactMode.value).toBe('force_on')
+    expect(draft.windowCostEnabled.value).toBe(false)
+    expect(draft.windowCostLimit.value).toBeNull()
+    expect(draft.providerSchedulingThresholdOverrideEnabled.value).toBe(false)
+    expect(draft.providerSchedulingThresholdOverrideValue.value).toBe(100)
+    expect(resetNotify).toHaveBeenCalled()
+  })
+
+  // Create builders serialize Codex image-tool mode, Grok client-tool cache
+  // preference, Antigravity policies, request-ID headers, and scheduling thresholds.
+  it('serializes unified create policies across OpenAI, Grok, and Antigravity', () => {
+    const draft = createProviderFormDraft('create')
+    draft.antigravityProjectId.value = 'proj-ag'
+    draft.interceptWarmupRequests.value = true
+    draft.antigravityModelMappings.value = [{ from: 'claude-*', to: 'gemini-2.5-pro' }]
+    draft.antigravityWhitelistModels.value = ['gemini-2.5-pro']
+    const agCreds: Record<string, unknown> = { refresh_token: 'rt-1' }
+    applyAntigravityPolicyCredentials(draft, agCreds, 'create')
+    expect(agCreds).toMatchObject({
+      refresh_token: 'rt-1',
+      antigravity_project_id: 'proj-ag',
+      intercept_warmup_requests: true,
+      model_mapping: { 'claude-*': 'gemini-2.5-pro' },
+      model_whitelist: ['gemini-2.5-pro'],
+    })
+    expect(withUpstreamRequestIdHeader('X-Trace-Id', buildAntigravityCreateExtra(true))).toEqual({
+      allow_overages: true,
+      upstream_request_id_header: 'X-Trace-Id',
+    })
+
+    expect(
+      withUpstreamRequestIdHeader('X-Grok-Req', buildGrokOAuthCreateExtra(false, { email: 'a@b' })),
+    ).toEqual({
+      email: 'a@b',
+      grok_client_tool_cache_enabled: false,
+      upstream_request_id_header: 'X-Grok-Req',
+    })
+
+    const openAIExtra = buildOpenAICreateExtra({
+      platform: 'openai',
+      type: 'oauth',
+      providerCategory: 'oauth-based',
+      responsesWSConnectionMode: 'pooled',
+      openaiPassthroughEnabled: false,
+      openaiFlattenNamespacesEnabled: false,
+      openAIOAuthClientPolicy: 'any',
+      codexCLIOnlyAllowClaudeCodeEnabled: false,
+      autoPause5hThreshold: null,
+      autoPause7dThreshold: null,
+      autoPause5hDisabled: false,
+      autoPause7dDisabled: false,
+      tlsFingerprintEnabled: false,
+      tlsFingerprintProfileId: null,
+      tlsFingerprintRouterId: null,
+      codexFingerprintMode: 'off',
+      codexImageToolMode: 'enabled',
+      openAICompactMode: 'force_on',
+      openAINativeCompactionV2Mode: 'force_on',
+      openAIImagesURLToB64JSON: false,
+      openAIResponsesContinuationSupported: false,
+    })
+    expect(openAIExtra?.codex_image_generation_bridge).toBe(true)
+
+    draft.providerSchedulingThresholdOverrideEnabled.value = true
+    draft.providerSchedulingThresholdOverrideValue.value = 80
+    const openAICreds: Record<string, unknown> = {}
+    applyProviderSchedulingThresholdCredentials(draft, openAICreds, 'openai')
+    expect(openAICreds.provider_scheduling_threshold).toBe(80)
   })
 })

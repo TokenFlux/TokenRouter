@@ -61,6 +61,8 @@ export interface GroupSettingsDraft {
   // and update submission encodes the absent reference as zero.
   fallback_group_id: number | null
   openai_fast_policy: string // group Fast policy
+  default_mapped_model: string // preserved default mapped model identifier
+  rpm_limit: number // per-user group RPM limit; zero means unlimited
   // max_reasoning_effort and max_reasoning_effort_over_limit configure the ceiling and its
   // excess action. An empty ceiling means unlimited reasoning and disables the action control;
   // the action applies when a nonempty ceiling is configured.

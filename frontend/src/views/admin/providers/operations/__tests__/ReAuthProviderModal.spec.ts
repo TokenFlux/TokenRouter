@@ -4,32 +4,46 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { Provider } from '@/api/admin/providers.types'
 import ReAuthProviderModal from '../ReAuthProviderModal.vue'
 
-// ReAuthProviderModal.spec.ts checks OpenAI reauthorization with an existing
-// TLS router binding and provider error. The authorization stub exposes a
-// manual code while spies distinguish credential merging from full updates and
-// separate error-clearing requests.
+// ReAuthProviderModal.spec.ts verifies OAuth reauthorization across OpenAI,
+// Gemini, Antigravity, and Anthropic code and cookie flows. The authorization
+// stub exposes manual inputs while spies distinguish applyOAuthCredentials
+// merges from full provider updates and separate clearError requests.
 
 // Authorization spies separate code exchange, credential building, credential
-// merging, full provider updates, and error clearing so the test can detect
-// the wrong persistence route.
+// merging, full provider updates, and error clearing so each test can detect
+// regressions back to non-atomic two-step writes.
 const {
   showSuccessMock,
   showErrorMock,
   updateProviderMock,
   clearErrorMock,
   applyOAuthCredentialsMock,
+  exchangeCodeEndpointMock,
   exchangeAuthCodeMock,
   buildCredentialsMock,
   buildExtraInfoMock,
+  geminiExchangeMock,
+  geminiBuildCredentialsMock,
+  geminiBuildExtraInfoMock,
+  antigravityExchangeMock,
+  antigravityBuildCredentialsMock,
+  claudeBuildExtraInfoMock,
 } = vi.hoisted(() => ({
   showSuccessMock: vi.fn(),
   showErrorMock: vi.fn(),
   updateProviderMock: vi.fn(),
   clearErrorMock: vi.fn(),
   applyOAuthCredentialsMock: vi.fn(),
+  exchangeCodeEndpointMock: vi.fn(),
   exchangeAuthCodeMock: vi.fn(),
   buildCredentialsMock: vi.fn(),
   buildExtraInfoMock: vi.fn(),
+  geminiExchangeMock: vi.fn(),
+  geminiBuildCredentialsMock: vi.fn(),
+  geminiBuildExtraInfoMock: vi.fn(),
+  antigravityExchangeMock: vi.fn(),
+  antigravityBuildCredentialsMock: vi.fn(),
+  claudeBuildExtraInfoMock: vi.fn(),
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -55,19 +69,20 @@ vi.mock('@/api/admin', () => ({
       update: updateProviderMock,
       clearError: clearErrorMock,
       applyOAuthCredentials: applyOAuthCredentialsMock,
+      exchangeCode: exchangeCodeEndpointMock,
     },
   },
 }))
 
 vi.mock('@/composables/useProviderOAuth', () => ({
   useProviderOAuth: () => ({
-    authUrl: { value: '' },
-    sessionId: { value: '' },
+    authUrl: { value: 'https://claude.example.test' },
+    sessionId: { value: 'claude-session-1' },
     loading: { value: false },
     error: { value: '' },
     resetState: vi.fn(),
     generateAuthUrl: vi.fn(),
-    buildExtraInfo: vi.fn(),
+    buildExtraInfo: claudeBuildExtraInfoMock,
   }),
 }))
 
@@ -88,29 +103,30 @@ vi.mock('@/composables/useOpenAIOAuth', () => ({
 
 vi.mock('@/composables/useGeminiOAuth', () => ({
   useGeminiOAuth: () => ({
-    authUrl: { value: '' },
-    sessionId: { value: '' },
-    state: { value: '' },
+    authUrl: { value: 'https://gemini.example.test' },
+    sessionId: { value: 'gemini-session-1' },
+    state: { value: 'gemini-state-1' },
     loading: { value: false },
     error: { value: '' },
     resetState: vi.fn(),
     generateAuthUrl: vi.fn(),
-    exchangeAuthCode: vi.fn(),
-    buildCredentials: vi.fn(),
+    exchangeAuthCode: geminiExchangeMock,
+    buildCredentials: geminiBuildCredentialsMock,
+    buildExtraInfo: geminiBuildExtraInfoMock,
   }),
 }))
 
 vi.mock('@/composables/useAntigravityOAuth', () => ({
   useAntigravityOAuth: () => ({
-    authUrl: { value: '' },
-    sessionId: { value: '' },
-    state: { value: '' },
+    authUrl: { value: 'https://ag.example.test' },
+    sessionId: { value: 'ag-session-1' },
+    state: { value: 'ag-state-1' },
     loading: { value: false },
     error: { value: '' },
     resetState: vi.fn(),
     generateAuthUrl: vi.fn(),
-    exchangeAuthCode: vi.fn(),
-    buildCredentials: vi.fn(),
+    exchangeAuthCode: antigravityExchangeMock,
+    buildCredentials: antigravityBuildCredentialsMock,
   }),
 }))
 
@@ -129,20 +145,20 @@ const BaseDialogStub = defineComponent({
   template: '<div v-if="show"><slot /><slot name="footer" /></div>',
 })
 
-// OAuthAuthorizationFlowStub publishes fixed manual-code inputs through its
-// exposed instance so the parent can execute exchange and credential merge
-// handlers.
+// OAuthAuthorizationFlowStub publishes fixed manual-code inputs and cookie-auth
+// emission so the parent can execute exchange and credential merge handlers.
 const OAuthAuthorizationFlowStub = defineComponent({
   name: 'OAuthAuthorizationFlow',
+  emits: ['cookie-auth'],
   // setup exposes the manual authorization values consumed through the parent
-  // component ref. The fixed code and state allow the test to inspect exchange
+  // component ref. The fixed code and state allow tests to inspect exchange
   // arguments without performing an external authorization flow.
   setup(_, { expose }) {
     expose({
       authCode: 'auth-code-1',
       oauthState: 'state-1',
       projectId: '',
-      sessionKey: '',
+      sessionKey: 'sk-ant-sid01-test',
       inputMethod: 'manual',
       reset: vi.fn(),
     })
@@ -151,14 +167,16 @@ const OAuthAuthorizationFlowStub = defineComponent({
   template: '<div data-testid="oauth-flow" />',
 })
 
-// openAIProvider returns an errored OpenAI OAuth fixture with proxy and TLS
-// router bindings. Each call creates its credential and extra objects so tests
-// can compare the returned active provider with fresh input.
-function openAIProvider(): Provider {
+// providerFixture builds an errored OAuth provider record for the requested
+// platform while preserving proxy and TLS router bindings for assertions.
+function providerFixture(
+  platform: Provider['platform'],
+  overrides: Partial<Provider> = {},
+): Provider {
   return {
     id: 101,
-    name: 'OpenAI OAuth',
-    platform: 'openai',
+    name: `${platform} OAuth`,
+    platform,
     type: 'oauth',
     credentials: {},
     extra: {
@@ -184,6 +202,7 @@ function openAIProvider(): Provider {
     session_window_end: null,
     session_window_status: null,
     tls_fingerprint_router_id: 9,
+    ...overrides,
   }
 }
 
@@ -194,9 +213,16 @@ describe('admin/provider/ReAuthProviderModal', () => {
     updateProviderMock.mockReset()
     clearErrorMock.mockReset()
     applyOAuthCredentialsMock.mockReset()
+    exchangeCodeEndpointMock.mockReset()
     exchangeAuthCodeMock.mockReset()
     buildCredentialsMock.mockReset()
     buildExtraInfoMock.mockReset()
+    geminiExchangeMock.mockReset()
+    geminiBuildCredentialsMock.mockReset()
+    geminiBuildExtraInfoMock.mockReset()
+    antigravityExchangeMock.mockReset()
+    antigravityBuildCredentialsMock.mockReset()
+    claudeBuildExtraInfoMock.mockReset()
 
     exchangeAuthCodeMock.mockResolvedValue({
       access_token: 'new-access-token',
@@ -210,11 +236,38 @@ describe('admin/provider/ReAuthProviderModal', () => {
     buildExtraInfoMock.mockReturnValue({
       email: 'user@example.test',
     })
-    applyOAuthCredentialsMock.mockResolvedValue({
-      ...openAIProvider(),
+    geminiExchangeMock.mockResolvedValue({
+      access_token: 'gemini-access',
+      refresh_token: 'gemini-refresh',
+      extra: { email: 'gemini@example.test' },
+    })
+    geminiBuildCredentialsMock.mockReturnValue({
+      access_token: 'gemini-access',
+      refresh_token: 'gemini-refresh',
+    })
+    geminiBuildExtraInfoMock.mockReturnValue({
+      email: 'gemini@example.test',
+    })
+    antigravityExchangeMock.mockResolvedValue({
+      access_token: 'ag-access',
+      refresh_token: 'ag-refresh',
+    })
+    antigravityBuildCredentialsMock.mockReturnValue({
+      access_token: 'ag-access',
+      refresh_token: 'ag-refresh',
+    })
+    exchangeCodeEndpointMock.mockResolvedValue({
+      access_token: 'claude-access',
+      refresh_token: 'claude-refresh',
+    })
+    claudeBuildExtraInfoMock.mockReturnValue({
+      org_uuid: 'org-1',
+    })
+    applyOAuthCredentialsMock.mockImplementation(async (id: number) => ({
+      ...providerFixture('openai', { id }),
       status: 'active',
       error_message: null,
-    })
+    }))
   })
 
   // An errored OpenAI OAuth provider has proxy and TLS router bindings.
@@ -225,7 +278,7 @@ describe('admin/provider/ReAuthProviderModal', () => {
     const wrapper = mount(ReAuthProviderModal, {
       props: {
         show: true,
-        provider: openAIProvider(),
+        provider: providerFixture('openai'),
       },
       global: {
         stubs: {
@@ -258,5 +311,126 @@ describe('admin/provider/ReAuthProviderModal', () => {
       status: 'active',
       error_message: null,
     })
+  })
+
+  // Gemini OAuth code reauthorization exchanges the entered code and applies
+  // credentials plus extra metadata through applyOAuthCredentials without
+  // issuing a partial update or separate clearError call.
+  it('Gemini 代码重新授权调用 applyOAuthCredentials 合并凭据与扩展信息', async () => {
+    const wrapper = mount(ReAuthProviderModal, {
+      props: {
+        show: true,
+        provider: providerFixture('gemini', { credentials: { tier_id: 'standard-tier' } }),
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(applyOAuthCredentialsMock).toHaveBeenCalledWith(101, {
+      type: 'oauth',
+      credentials: {
+        access_token: 'gemini-access',
+        refresh_token: 'gemini-refresh',
+      },
+      extra: {
+        email: 'gemini@example.test',
+      },
+    })
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(clearErrorMock).not.toHaveBeenCalled()
+  })
+
+  // Antigravity OAuth code reauthorization merges exchanged credentials through
+  // applyOAuthCredentials so existing model mappings and intercept flags survive.
+  it('Antigravity 代码重新授权调用 applyOAuthCredentials 保留已有字段', async () => {
+    const wrapper = mount(ReAuthProviderModal, {
+      props: {
+        show: true,
+        provider: providerFixture('antigravity'),
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
+          Icon: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(applyOAuthCredentialsMock).toHaveBeenCalledWith(101, {
+      type: 'oauth',
+      credentials: {
+        access_token: 'ag-access',
+        refresh_token: 'ag-refresh',
+      },
+    })
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(clearErrorMock).not.toHaveBeenCalled()
+  })
+
+  // Anthropic OAuth code and cookie reauthorization both persist through
+  // applyOAuthCredentials with the selected authorization type and extra info.
+  it('Claude 代码与 Cookie 重新授权均通过 applyOAuthCredentials 原子更新', async () => {
+    const wrapper = mount(ReAuthProviderModal, {
+      props: {
+        show: false,
+        provider: providerFixture('anthropic', { type: 'setup-token' }),
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
+          Icon: true,
+        },
+      },
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.find('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(applyOAuthCredentialsMock).toHaveBeenCalledWith(101, {
+      type: 'setup-token',
+      credentials: {
+        access_token: 'claude-access',
+        refresh_token: 'claude-refresh',
+      },
+      extra: {
+        org_uuid: 'org-1',
+      },
+    })
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(clearErrorMock).not.toHaveBeenCalled()
+
+    applyOAuthCredentialsMock.mockClear()
+    wrapper.findComponent(OAuthAuthorizationFlowStub).vm.$emit('cookie-auth', 'sk-ant-sid01-cookie')
+    await flushPromises()
+
+    expect(applyOAuthCredentialsMock).toHaveBeenCalledWith(101, {
+      type: 'setup-token',
+      credentials: {
+        access_token: 'claude-access',
+        refresh_token: 'claude-refresh',
+      },
+      extra: {
+        org_uuid: 'org-1',
+      },
+    })
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(clearErrorMock).not.toHaveBeenCalled()
   })
 })

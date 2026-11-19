@@ -186,7 +186,7 @@ export function useOpenAICreateAuthorization(options: OpenAICreateAuthorizationO
       credentials.client_id = clientId
     }
     const oauthExtra = openaiOAuth.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
-    const extra = options.buildExtra(oauthExtra)
+    const extra = options.withRequestIdHeader(options.buildExtra(oauthExtra))
 
     if (!options.applyCredentialPolicies(credentials)) {
       openaiOAuth.error.value = t('admin.providers.tempUnschedulable.rulesInvalid')

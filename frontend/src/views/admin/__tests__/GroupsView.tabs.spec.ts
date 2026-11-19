@@ -703,3 +703,15 @@ it.each(['create', 'edit'] as const)('%s 探针协议按允许范围展示并校
   expect(showError).toHaveBeenLastCalledWith('admin.groups.availabilityProbe.protocolUnavailable')
   expect(saved.props('modelValue')).toBe('openai_responses')
 })
+
+// Editing an existing group preserves its stored default_mapped_model value
+// instead of overwriting it with an empty string on unrelated saves.
+it('preserves saved default_mapped_model when updating an existing group', async () => {
+  const wrapper = await open('edit', 'openai', {
+    default_mapped_model: 'gpt-5.4-mini',
+  })
+  await wrapper.get('#edit-group-form').trigger('submit')
+  await flushPromises()
+  expect(groups.update).toHaveBeenCalledTimes(1)
+  expect(groups.update.mock.calls[0]?.[1]?.default_mapped_model).toBe('gpt-5.4-mini')
+})

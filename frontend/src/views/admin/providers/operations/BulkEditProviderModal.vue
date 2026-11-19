@@ -197,7 +197,16 @@
             :label="t('admin.providers.customErrorCodes')"
             :hint="t('admin.providers.customErrorCodesHint')"
           >
-            <CustomErrorCodesFields v-model:codes="selectedErrorCodes" hide-toggle />
+            <template #control>
+              <Toggle
+                id="bulk-edit-custom-error-codes-toggle"
+                v-model="customErrorCodesEnabled"
+                :aria-label="t('admin.providers.customErrorCodes')"
+              />
+            </template>
+            <Collapse :open="customErrorCodesEnabled" unmount-on-hide>
+              <CustomErrorCodesFields v-model:codes="selectedErrorCodes" hide-toggle />
+            </Collapse>
           </BulkApplyField>
 
           <!-- Warmup interception applies to Anthropic and Antigravity targets. -->
@@ -813,6 +822,9 @@ import {
 interface Props {
   show: boolean // parent-controlled bulk editor visibility
   providerIds: number[] // explicit provider target identifiers
+  // Loaded current-page provider rows avoid redundant per-provider detail requests
+  // during model-restriction prefill; off-page IDs still fall back to getById.
+  selectedProviders?: Provider[] // optional loaded provider rows
   selectedPlatforms: ProviderPlatform[] // summarized target provider platforms
   selectedTypes: ProviderType[] // summarized target authentication types
   /**
@@ -1127,6 +1139,7 @@ const baseUrl = ref('')
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const modelMappings = ref<ModelMappingRow[]>([])
+const customErrorCodesEnabled = ref(false)
 const selectedErrorCodes = ref<number[]>([])
 const interceptWarmupRequests = ref(false)
 const headerOverrideEnabled = ref(false)
@@ -1423,9 +1436,8 @@ const loadTLSFingerprintRouters = async () => {
 
 /**
  * loadSelectedProviderDefaults reads selected provider records to prefill a common model
- * restriction. Each call increments a sequence before checking visibility and selection,
- * invalidating earlier requests even when the new selection requires no load. Mixed selected
- * platforms immediately clear the model draft.
+ * restriction. Filtered-target mode skips per-provider reads, while explicit selections reuse
+ * current-page rows from selectedProviders before requesting off-page IDs via getById.
  *
  * After all provider reads resolve, publication requires the latest sequence, an open dialog,
  * and a pristine model draft. This prevents obsolete selection results from replacing a newer
@@ -1434,7 +1446,11 @@ const loadTLSFingerprintRouters = async () => {
  */
 const loadSelectedProviderDefaults = async () => {
   const requestSeq = ++modelRestrictionPrefillSeq.value
-  if (!props.show || props.providerIds.length === 0) {
+  if (!props.show) {
+    return
+  }
+  if (targetMode.value === 'filtered' || props.providerIds.length === 0) {
+    resetModelRestrictionDraft()
     return
   }
   if (props.selectedPlatforms.length !== 1) {
@@ -1445,8 +1461,12 @@ const loadSelectedProviderDefaults = async () => {
   }
 
   try {
+    const preloadedById = new Map((props.selectedProviders ?? []).map((item) => [item.id, item]))
     const providers = await Promise.all(
-      props.providerIds.map((id) => adminAPI.providers.getById(id)),
+      props.providerIds.map((id) => {
+        const existing = preloadedById.get(id)
+        return existing ? Promise.resolve(existing) : adminAPI.providers.getById(id)
+      }),
     )
     // A newer selection or hidden dialog owns the draft now; discard this completed read before
     // checking whether administrator input remains pristine.
@@ -1619,8 +1639,12 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (enableCustomErrorCodes.value) {
-    credentials.custom_error_codes_enabled = true
-    credentials.custom_error_codes = [...selectedErrorCodes.value]
+    //Credential patches merge stored keys, so disabling custom error codes writes false and an
+    // empty array to replace any prior enabled list.
+    credentials.custom_error_codes_enabled = customErrorCodesEnabled.value
+    credentials.custom_error_codes = customErrorCodesEnabled.value
+      ? [...selectedErrorCodes.value]
+      : []
     credentialsChanged = true
   }
 
@@ -1970,6 +1994,7 @@ const resetBulkEditFormState = () => {
   codexImageToolMode.value = 'inherit'
   openAIResponsesContinuationSupported.value = false
   resetModelRestrictionDraft()
+  customErrorCodesEnabled.value = false
   selectedErrorCodes.value = []
   interceptWarmupRequests.value = false
   headerOverrideEnabled.value = false

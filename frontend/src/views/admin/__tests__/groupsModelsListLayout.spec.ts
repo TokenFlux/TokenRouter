@@ -11,12 +11,13 @@ import {
 
 // groupsModelsListLayout.spec.ts verifies the model chooser's template hierarchy
 // and dialog scrolling policy. Toolbar actions stay outside the bounded list,
-// while both group forms delegate scrolling to their own content and present
-// the unified model discovery endpoint.
+// while the shared group form modal delegates scrolling to its form content and
+// presents the unified model discovery endpoint.
 
-// Both parsed components retain element relationships and directive expressions;
+// Parsed components retain element relationships and directive expressions;
 // assertions therefore identify the target control instead of matching source lines.
 const groups = parseVue('views/admin/GroupsView.vue')
+const modal = parseVue('views/admin/groups/GroupFormModal.vue')
 const list = parseVue('components/admin/group/GroupModelsListFields.vue')
 
 describe('groups models list layout', () => {
@@ -32,20 +33,21 @@ describe('groups models list layout', () => {
       expect.arrayContaining(['max-h-64', 'divide-y', 'divide-gray-200', 'overflow-y-auto']),
     )
     expect(
-      groups.elements.some(
+      [...groups.elements, ...modal.elements].some(
         (element) => classes(element).includes('sticky') && classes(element).includes('top-0'),
       ),
     ).toBe(false)
   })
 
-  // Create and edit dialogs both delegate scrolling to their form content.
-  // Wide dimensions and disabled dialog body scrolling prevent a nested dialog scrollbar.
+  // GroupFormModal serves both create and edit modes inside one wide BaseDialog
+  // with form-owned scrolling, preventing a nested dialog scrollbar.
   it('uses wide create and edit dialogs with form-owned scrolling', () => {
-    const dialogs = groups.elements.filter(
+    const dialogs = modal.elements.filter(
       (element) => element.tag === 'BaseDialog' && attribute(element, 'width') === 'wide',
     )
-    expect(dialogs).toHaveLength(2)
-    for (const dialog of dialogs) expect(directive(dialog, 'bind', 'body-scroll')).toBe('false')
+    expect(dialogs).toHaveLength(1)
+    expect(directive(dialogs[0], 'bind', 'body-scroll')).toBe('false')
+    expect(groups.elements.some((element) => element.tag === 'GroupFormModal')).toBe(true)
   })
 
   // The model-list label and hint advertise the same API endpoint for every group.
@@ -62,7 +64,10 @@ describe('groups models list layout', () => {
       )
     }
     expect(
-      nodes(groups.script, ts.isCallExpression).some(
+      [
+        ...nodes(groups.script, ts.isCallExpression),
+        ...nodes(modal.script, ts.isCallExpression),
+      ].some(
         (node) => ts.isIdentifier(node.expression) && node.expression.text === 'modelsListEndpoint',
       ),
     ).toBe(false)

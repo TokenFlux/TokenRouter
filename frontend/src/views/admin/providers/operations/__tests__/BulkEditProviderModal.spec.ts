@@ -1415,6 +1415,60 @@ describe('BulkEditProviderModal', () => {
     })
     wrapper.unmount()
   })
+
+  // Preloaded current-page rows satisfy model-restriction prefill without issuing
+  // redundant getById requests, and filtered-target mode skips individual reads.
+  it('reuses selectedProviders rows and skips getById in filtered mode', async () => {
+    vi.mocked(adminAPI.providers.getById).mockClear()
+    const wrapper = mountModal({
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['apikey'],
+      selectedProviders: [
+        createProvider({ id: 1, credentials: { model_whitelist: ['claude-sonnet-4-5'] } }),
+        createProvider({ id: 2, credentials: { model_whitelist: ['claude-sonnet-4-5'] } }),
+      ],
+    })
+    await flushPromises()
+    expect(adminAPI.providers.getById).not.toHaveBeenCalled()
+    expect(wrapper.getComponent(ModelWhitelistSelector).props('modelValue')).toEqual([
+      'claude-sonnet-4-5',
+    ])
+    wrapper.unmount()
+
+    vi.mocked(adminAPI.providers.getById).mockClear()
+    const filteredWrapper = mountModal({
+      providerIds: [1, 2],
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['apikey'],
+      target: {
+        mode: 'filtered',
+        filters: { platform: 'anthropic' },
+        previewCount: 20,
+        selectedPlatforms: ['anthropic'],
+        selectedTypes: ['apikey'],
+      },
+    })
+    await flushPromises()
+    expect(adminAPI.providers.getById).not.toHaveBeenCalled()
+    filteredWrapper.unmount()
+  })
+
+  // Enabling the custom-error-codes apply checkbox while keeping its switch off
+  // clears custom error codes across the selected providers.
+  it('supports bulk disabling custom error codes with an explicit false flag', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['anthropic'], selectedTypes: ['apikey'] })
+    await flushPromises()
+    await wrapper.get('#bulk-edit-custom-error-codes-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-provider-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        custom_error_codes_enabled: false,
+        custom_error_codes: [],
+      },
+    })
+    wrapper.unmount()
+  })
 })
 
 useProtocolCatalogFixture()

@@ -603,48 +603,52 @@
       /></template>
     </TablePageLayout>
     <CreateProviderModal
-      :show="showCreate"
-      :initial-platform="createInitialPlatform"
+      :show="activeModal?.kind === 'create'"
+      :initial-platform="activeModal?.kind === 'create' ? activeModal.initialPlatform : undefined"
       :proxies="proxies"
       :groups="groups"
-      @close="showCreate = false"
+      @close="closeActiveModal"
       @created="reload"
     />
     <EditProviderModal
-      :show="showEdit"
-      :provider="edAcc"
+      :show="activeModal?.kind === 'edit'"
+      :provider="activeModal?.kind === 'edit' ? activeModal.provider : null"
       :proxies="proxies"
       :groups="groups"
-      @close="showEdit = false"
+      @close="closeActiveModal"
       @updated="handleProviderUpdated"
     />
     <ReAuthProviderModal
-      :show="showReAuth"
-      :provider="reAuthAcc"
+      :show="activeModal?.kind === 'reauth'"
+      :provider="activeModal?.kind === 'reauth' ? activeModal.provider : null"
       @close="closeReAuthModal"
       @reauthorized="handleProviderUpdated"
     />
     <ProviderTestModal
-      :show="showTest"
-      :provider="testingAcc"
+      :show="activeModal?.kind === 'test'"
+      :provider="activeModal?.kind === 'test' ? activeModal.provider : null"
       :initial-group-id="Number(params.group) || undefined"
       @close="closeTestModal"
     />
-    <ProviderStatsModal :show="showStats" :provider="statsAcc" @close="closeStatsModal" />
+    <ProviderStatsModal
+      :show="activeModal?.kind === 'stats'"
+      :provider="activeModal?.kind === 'stats' ? activeModal.provider : null"
+      @close="closeStatsModal"
+    />
     <AdvancedSchedulerScoreModal
-      :show="showAdvancedSchedulerScore"
-      :provider="advancedSchedulerScoreAcc"
+      :show="activeModal?.kind === 'advancedSchedulerScore'"
+      :provider="activeModal?.kind === 'advancedSchedulerScore' ? activeModal.provider : null"
       @close="closeAdvancedSchedulerScoreModal"
     />
     <CodexInviteResetModal
-      :show="showInviteReset"
-      :provider="inviteResetAcc"
+      :show="activeModal?.kind === 'inviteReset'"
+      :provider="activeModal?.kind === 'inviteReset' ? activeModal.provider : null"
       @close="closeInviteResetModal"
       @updated="enterAutoRefreshSilentWindow"
     />
     <ScheduledTestsPanel
-      :show="showSchedulePanel"
-      :provider-id="scheduleAcc?.id ?? null"
+      :show="activeModal?.kind === 'schedule'"
+      :provider-id="activeModal?.kind === 'schedule' ? activeModal.provider.id : null"
       :model-options="scheduleModelOptions"
       @close="closeSchedulePanel"
     />
@@ -668,57 +672,66 @@
       @delete="handleDelete"
     />
     <SyncFromCrsModal
-      :show="showSync"
-      @close="showSync = false"
+      :show="activeModal?.kind === 'sync'"
+      @close="closeActiveModal"
       @synced="handleExternalProvidersChanged"
     />
     <ImportDataModal
-      :show="showImportData"
-      @close="showImportData = false"
+      :show="activeModal?.kind === 'importData'"
+      @close="closeActiveModal"
       @imported="handleDataImported"
     />
     <BulkEditProviderModal
-      :show="showBulkEdit"
+      :show="activeModal?.kind === 'bulkEdit'"
       :provider-ids="selIds"
+      :selected-providers="visibleSelectedProviders"
       :selected-platforms="selPlatforms"
       :selected-types="selTypes"
-      :target="bulkEditTarget ?? undefined"
+      :target="activeModal?.kind === 'bulkEdit' ? activeModal.target : undefined"
       :proxies="proxies"
       :groups="groups"
-      @close="showBulkEdit = false"
+      @close="closeActiveModal"
       @updated="handleBulkUpdated"
     />
     <TempUnschedStatusModal
-      :show="showTempUnsched"
-      :provider="tempUnschedAcc"
-      @close="showTempUnsched = false"
+      :show="activeModal?.kind === 'tempUnsched'"
+      :provider="activeModal?.kind === 'tempUnsched' ? activeModal.provider : null"
+      @close="closeActiveModal"
       @reset="handleTempUnschedReset"
     />
     <ConfirmDialog
-      :show="showDeleteDialog"
+      :show="activeModal?.kind === 'delete'"
       :title="t('admin.providers.deleteProvider')"
-      :message="t('admin.providers.deleteConfirm', { name: deletingAcc?.name })"
+      :message="
+        t('admin.providers.deleteConfirm', {
+          name: activeModal?.kind === 'delete' ? activeModal.provider.name : undefined,
+        })
+      "
       :confirm-text="t('common.delete')"
       :cancel-text="t('common.cancel')"
       :danger="true"
       @confirm="confirmDelete"
-      @cancel="showDeleteDialog = false"
+      @cancel="closeActiveModal"
     />
     <ConfirmDialog
-      :show="showCreateShadowDialog"
+      :show="activeModal?.kind === 'createShadow'"
       :title="t('admin.providers.createSparkShadow')"
-      :message="t('admin.providers.createSparkShadowConfirm', { name: creatingShadowAcc?.name })"
+      :message="
+        t('admin.providers.createSparkShadowConfirm', {
+          name: activeModal?.kind === 'createShadow' ? activeModal.provider.name : undefined,
+        })
+      "
       @confirm="confirmCreateSparkShadow"
-      @cancel="showCreateShadowDialog = false"
+      @cancel="closeActiveModal"
     />
     <ConfirmDialog
-      :show="showExportDataDialog"
+      :show="activeModal?.kind === 'exportData'"
       :title="t('admin.providers.dataExport')"
       :message="t('admin.providers.dataExportConfirmMessage')"
       :confirm-text="t('admin.providers.dataExportConfirm')"
       :cancel-text="t('common.cancel')"
       @confirm="handleExportData"
-      @cancel="showExportDataDialog = false"
+      @cancel="closeActiveModal"
     >
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input
@@ -730,16 +743,16 @@
       </label>
     </ConfirmDialog>
     <ErrorPassthroughRulesModal
-      :show="showErrorPassthrough"
-      @close="showErrorPassthrough = false"
+      :show="activeModal?.kind === 'errorPassthrough'"
+      @close="closeActiveModal"
     />
     <TLSFingerprintProfilesModal
-      :show="showTLSFingerprintProfiles"
-      @close="showTLSFingerprintProfiles = false"
+      :show="activeModal?.kind === 'tlsProfiles'"
+      @close="closeActiveModal"
     />
     <TLSFingerprintRoutersModal
-      :show="showTLSFingerprintRouters"
-      @close="showTLSFingerprintRouters = false"
+      :show="activeModal?.kind === 'tlsRouters'"
+      @close="closeActiveModal"
     />
     <TotpStepUpDialog :controller="providerExportStepUp" />
   </AppLayout>
@@ -840,40 +853,38 @@ const groups = ref<AdminGroup[]>([])
 // table and its virtualized row order.
 const providerTableRef = ref<HTMLElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
-// Dialog visibility flags and selected-provider refs stay in this page so table
-// actions choose a target before its modal renders.
-const showCreate = ref(false)
-const createInitialPlatform = ref<ProviderPlatform | undefined>(undefined)
-const showEdit = ref(false)
-const showSync = ref(false)
-const showImportData = ref(false)
-const showExportDataDialog = ref(false)
+// ProviderActiveModal identifies the single open page dialog and its bound target
+// so interval refresh pausing and row replacement track every modal uniformly.
+type ProviderActiveModal =
+  | { kind: 'create'; initialPlatform?: ProviderPlatform }
+  | { kind: 'edit'; provider: Provider }
+  | { kind: 'reauth'; provider: Provider }
+  | { kind: 'test'; provider: Provider }
+  | { kind: 'stats'; provider: Provider }
+  | { kind: 'advancedSchedulerScore'; provider: Provider }
+  | { kind: 'inviteReset'; provider: Provider }
+  | { kind: 'schedule'; provider: Provider }
+  | { kind: 'tempUnsched'; provider: Provider }
+  | { kind: 'delete'; provider: Provider }
+  | { kind: 'createShadow'; provider: Provider }
+  | { kind: 'bulkEdit'; target?: ProviderBulkEditTarget }
+  | { kind: 'sync' }
+  | { kind: 'importData' }
+  | { kind: 'exportData' }
+  | { kind: 'errorPassthrough' }
+  | { kind: 'tlsProfiles' }
+  | { kind: 'tlsRouters' }
+
+// activeModal stores the currently displayed dialog and its target record, while
+// includeProxyOnExport and scheduleModelOptions hold companion dialog drafts.
+const activeModal = ref<ProviderActiveModal | null>(null)
 const includeProxyOnExport = ref(true)
-const showBulkEdit = ref(false)
-const bulkEditTarget = ref<ProviderBulkEditTarget | null>(null)
-const showTempUnsched = ref(false)
-const showDeleteDialog = ref(false)
-const showCreateShadowDialog = ref(false)
-const showReAuth = ref(false)
-const showTest = ref(false)
-const showStats = ref(false)
-const showAdvancedSchedulerScore = ref(false)
-const showInviteReset = ref(false)
-const showErrorPassthrough = ref(false)
-const showTLSFingerprintProfiles = ref(false)
-const showTLSFingerprintRouters = ref(false)
-const edAcc = ref<Provider | null>(null)
-const tempUnschedAcc = ref<Provider | null>(null)
-const deletingAcc = ref<Provider | null>(null)
-const creatingShadowAcc = ref<Provider | null>(null)
-const reAuthAcc = ref<Provider | null>(null)
-const testingAcc = ref<Provider | null>(null)
-const statsAcc = ref<Provider | null>(null)
-const advancedSchedulerScoreAcc = ref<Provider | null>(null)
-const inviteResetAcc = ref<Provider | null>(null)
-const showSchedulePanel = ref(false)
-const scheduleAcc = ref<Provider | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
+
+// closeActiveModal dismisses the active page dialog and clears its bound target.
+const closeActiveModal = () => {
+  activeModal.value = null
+}
 // togglingSchedulable marks the row whose scheduling request is pending, while
 // menu retains the provider and coordinates used by the open action menu.
 const togglingSchedulable = ref<number | null>(null)
@@ -892,8 +903,7 @@ const exportingData = ref(false)
 // selection. The platform is stored before the dialog becomes visible, allowing
 // platform-specific entry points to initialize the same creation form.
 const openCreateProvider = (platform?: ProviderPlatform) => {
-  createInitialPlatform.value = platform
-  showCreate.value = true
+  activeModal.value = { kind: 'create', initialPlatform: platform }
 }
 
 // The provider-tools and refresh dropdown refs associate each visible toolbar
@@ -1287,39 +1297,27 @@ useSwipeSelect(
   swipeVirtualContext,
 )
 
-// isAnyModalOpen combines the dialogs that currently suspend interval refresh,
-// allowing the list controller to read their visibility when each tick is
-// admitted.
-const isAnyModalOpen = computed(() => {
-  return (
-    showCreate.value ||
-    showEdit.value ||
-    showSync.value ||
-    showImportData.value ||
-    showExportDataDialog.value ||
-    showBulkEdit.value ||
-    showTempUnsched.value ||
-    showDeleteDialog.value ||
-    showReAuth.value ||
-    showTest.value ||
-    showStats.value ||
-    showInviteReset.value ||
-    showSchedulePanel.value ||
-    showErrorPassthrough.value ||
-    showTLSFingerprintProfiles.value ||
-    showTLSFingerprintRouters.value
-  )
-})
+// visibleSelectedProviders passes already-loaded current-page rows into bulk
+// editing so prefill avoids issuing duplicate per-provider detail requests.
+const visibleSelectedProviders = computed(() =>
+  providers.value.filter((provider) => isSelected(provider.id)),
+)
 
-// syncProviderRefs replaces matching provider references held by editing,
-// reauthorization, temporary-status, deletion, and action-menu state.
-// References for other provider IDs retain their existing objects when one row
-// changes.
+// isAnyModalOpen reports whether any page dialog is open, pausing automatic
+// interval refreshes across every modal kind including shadow confirmation and
+// scheduler diagnostics.
+const isAnyModalOpen = computed(() => activeModal.value !== null)
+
+// syncProviderRefs replaces matching provider references held by the active
+// dialog and action menu while leaving other provider identities untouched.
 const syncProviderRefs = (nextProvider: Provider) => {
-  if (edAcc.value?.id === nextProvider.id) edAcc.value = nextProvider
-  if (reAuthAcc.value?.id === nextProvider.id) reAuthAcc.value = nextProvider
-  if (tempUnschedAcc.value?.id === nextProvider.id) tempUnschedAcc.value = nextProvider
-  if (deletingAcc.value?.id === nextProvider.id) deletingAcc.value = nextProvider
+  if (
+    activeModal.value &&
+    'provider' in activeModal.value &&
+    activeModal.value.provider.id === nextProvider.id
+  ) {
+    activeModal.value = { ...activeModal.value, provider: nextProvider }
+  }
   if (menu.acc?.id === nextProvider.id) menu.acc = nextProvider
 }
 
@@ -1350,14 +1348,14 @@ const openBulkEditFilteredFromMenu = () => {
 // dialog.
 const openSyncFromCrs = () => {
   closeProviderToolsDropdown()
-  showSync.value = true
+  activeModal.value = { kind: 'sync' }
 }
 
 // openImportData closes provider tools and opens the provider data-import
 // dialog.
 const openImportData = () => {
   closeProviderToolsDropdown()
-  showImportData.value = true
+  activeModal.value = { kind: 'importData' }
 }
 
 // openExportDataDialogFromMenu closes provider tools and opens export with its
@@ -1371,21 +1369,21 @@ const openExportDataDialogFromMenu = () => {
 // rule editor.
 const openErrorPassthrough = () => {
   closeProviderToolsDropdown()
-  showErrorPassthrough.value = true
+  activeModal.value = { kind: 'errorPassthrough' }
 }
 
 // openTLSFingerprintProfiles closes provider tools and opens the TLS
 // fingerprint profile editor.
 const openTLSFingerprintProfiles = () => {
   closeProviderToolsDropdown()
-  showTLSFingerprintProfiles.value = true
+  activeModal.value = { kind: 'tlsProfiles' }
 }
 
 // openTLSFingerprintRouters closes provider tools and opens the TLS fingerprint
 // routing editor.
 const openTLSFingerprintRouters = () => {
   closeProviderToolsDropdown()
-  showTLSFingerprintRouters.value = true
+  activeModal.value = { kind: 'tlsRouters' }
 }
 
 // syncPendingListChanges clears the pending-sync notice and reloads the current
@@ -1672,8 +1670,7 @@ const cols = computed(() =>
 
 // handleEdit selects the provider row and opens its editing dialog.
 const handleEdit = (a: Provider) => {
-  edAcc.value = a
-  showEdit.value = true
+  activeModal.value = { kind: 'edit', provider: a }
 }
 // openMenu opens the action menu for one provider and positions it near the
 // trigger or pointer. Narrow viewports center the menu around the trigger and
@@ -1985,13 +1982,15 @@ const handleBulkToggleSchedulable = async (schedulable: boolean) => {
 // into a selected bulk-edit target. It stores that target before opening the
 // dialog so later selection changes do not mutate the request scope.
 const openBulkEditSelected = () => {
-  bulkEditTarget.value = {
-    mode: 'selected',
-    providerIds: [...selIds.value],
-    selectedPlatforms: [...selPlatforms.value],
-    selectedTypes: [...selTypes.value],
+  activeModal.value = {
+    kind: 'bulkEdit',
+    target: {
+      mode: 'selected',
+      providerIds: [...selIds.value],
+      selectedPlatforms: [...selPlatforms.value],
+      selectedTypes: [...selTypes.value],
+    },
   }
-  showBulkEdit.value = true
 }
 
 // openBulkEditFiltered captures current filters and fetches their provider
@@ -2001,12 +2000,14 @@ const openBulkEditSelected = () => {
 const openBulkEditFiltered = async () => {
   const filters = buildBulkEditFilterSnapshot()
   const metadata = await loadBulkEditFilterMetadata(filters)
-  bulkEditTarget.value = {
-    mode: 'filtered',
-    filters,
-    ...metadata,
+  activeModal.value = {
+    kind: 'bulkEdit',
+    target: {
+      mode: 'filtered',
+      filters,
+      ...metadata,
+    },
   }
-  showBulkEdit.value = true
 }
 
 // handleBulkUpdated invalidates upstream observations, closes bulk editing,
@@ -2015,8 +2016,9 @@ const openBulkEditFiltered = async () => {
 // subsequent load.
 const handleBulkUpdated = () => {
   invalidateAllUpstreamUsageCache()
-  showBulkEdit.value = false
-  bulkEditTarget.value = null
+  if (activeModal.value?.kind === 'bulkEdit') {
+    activeModal.value = null
+  }
   clearSelection()
   reload()
 }
@@ -2033,7 +2035,9 @@ const handleExternalProvidersChanged = () => {
 // cache identities from the refreshed list before observations can be restored.
 const handleDataImported = () => {
   invalidateAllUpstreamUsageCache()
-  showImportData.value = false
+  if (activeModal.value?.kind === 'importData') {
+    activeModal.value = null
+  }
   reload()
 }
 // These sentinel values distinguish an absent group or privacy mode from an
@@ -2209,7 +2213,7 @@ const formatExportTimestamp = () => {
 // starts from the inclusion default even after a previous export disabled it.
 const openExportDataDialog = () => {
   includeProxyOnExport.value = true
-  showExportDataDialog.value = true
+  activeModal.value = { kind: 'exportData' }
 }
 // handleExportData downloads the selected providers or current filtered result
 // after step-up authorization. It prevents duplicate starts, obtains the export
@@ -2270,75 +2274,57 @@ const handleExportData = async () => {
     }
   } finally {
     exportingData.value = false
-    showExportDataDialog.value = false
+    if (activeModal.value?.kind === 'exportData') {
+      activeModal.value = null
+    }
   }
 }
 // providerExportStepUp owns authorization for sensitive provider exports and
 // exposes the verification dialog used by the page template.
 const providerExportStepUp = useStepUp()
 // closeTestModal closes provider testing and clears its selected row reference.
-// The dialog receives no provider after closing, so the next opening starts
-// from the newly chosen row.
 const closeTestModal = () => {
-  showTest.value = false
-  testingAcc.value = null
+  if (activeModal.value?.kind === 'test') activeModal.value = null
 }
-// closeStatsModal closes provider statistics and clears its selected row
-// reference. The next statistics action assigns a provider before reopening,
-// keeping the dialog target tied to that action.
+// closeStatsModal closes provider statistics and clears its selected row reference.
 const closeStatsModal = () => {
-  showStats.value = false
-  statsAcc.value = null
+  if (activeModal.value?.kind === 'stats') activeModal.value = null
 }
-// closeAdvancedSchedulerScoreModal closes scheduler details and clears the
-// selected provider reference. The next opening assigns its target again so
-// cached page references do not choose the subsequent dialog row.
+// closeAdvancedSchedulerScoreModal closes scheduler details and clears its target.
 const closeAdvancedSchedulerScoreModal = () => {
-  showAdvancedSchedulerScore.value = false
-  advancedSchedulerScoreAcc.value = null
+  if (activeModal.value?.kind === 'advancedSchedulerScore') activeModal.value = null
 }
-// closeInviteResetModal closes invitation reset and clears the selected
-// provider reference. The next invitation action supplies its own target before
-// the dialog opens and begins reading account state.
+// closeInviteResetModal closes invitation reset and clears its selected provider.
 const closeInviteResetModal = () => {
-  showInviteReset.value = false
-  inviteResetAcc.value = null
+  if (activeModal.value?.kind === 'inviteReset') activeModal.value = null
 }
-// closeReAuthModal closes reauthorization and clears the selected provider row
-// reference. A later reauthorization action supplies its own target before
-// opening, so dialog state follows the newly chosen account.
+// closeReAuthModal closes reauthorization and clears its selected provider row.
 const closeReAuthModal = () => {
-  showReAuth.value = false
-  reAuthAcc.value = null
+  if (activeModal.value?.kind === 'reauth') activeModal.value = null
 }
 // handleTest selects a provider and opens its request-testing dialog.
 const handleTest = (a: Provider) => {
-  testingAcc.value = a
-  showTest.value = true
+  activeModal.value = { kind: 'test', provider: a }
 }
 // handleViewStats selects a provider and opens its usage-statistics dialog.
 const handleViewStats = (a: Provider) => {
-  statsAcc.value = a
-  showStats.value = true
+  activeModal.value = { kind: 'stats', provider: a }
 }
 // handleAdvancedSchedulerScore selects a provider and opens its detailed
 // scheduler scores.
 const handleAdvancedSchedulerScore = (a: Provider) => {
-  advancedSchedulerScoreAcc.value = a
-  showAdvancedSchedulerScore.value = true
+  activeModal.value = { kind: 'advancedSchedulerScore', provider: a }
 }
 // handleInviteReset selects a provider and opens its invitation-reset dialog.
 const handleInviteReset = (a: Provider) => {
-  inviteResetAcc.value = a
-  showInviteReset.value = true
+  activeModal.value = { kind: 'inviteReset', provider: a }
 }
 // handleSchedule opens scheduled testing and fetches model IDs for the selected
 // provider. Previous choices are cleared before the request; a failed model
 // lookup leaves the panel open with an empty options list.
 const handleSchedule = async (a: Provider) => {
-  scheduleAcc.value = a
   scheduleModelOptions.value = []
-  showSchedulePanel.value = true
+  activeModal.value = { kind: 'schedule', provider: a }
   try {
     const models = await adminAPI.providers.getAvailableModels(a.id)
     scheduleModelOptions.value = models.map((m: ClaudeModel) => ({ value: m.id, label: m.id }))
@@ -2349,18 +2335,15 @@ const handleSchedule = async (a: Provider) => {
   }
 }
 // closeSchedulePanel closes scheduled testing and clears both its provider
-// target and model choices. A later opening starts with an empty choice list
-// while its provider-specific model request runs.
+// target and model choices.
 const closeSchedulePanel = () => {
-  showSchedulePanel.value = false
-  scheduleAcc.value = null
+  if (activeModal.value?.kind === 'schedule') activeModal.value = null
   scheduleModelOptions.value = []
 }
 // handleReAuth selects a provider and opens its credential reauthorization
 // dialog.
 const handleReAuth = (a: Provider) => {
-  reAuthAcc.value = a
-  showReAuth.value = true
+  activeModal.value = { kind: 'reauth', provider: a }
 }
 // duplicatingProviderIDs locks duplicate requests per source provider until
 // their API calls settle, allowing independent providers to be copied
@@ -2488,19 +2471,17 @@ const onRevertFallback = async (a: Provider) => {
 // handleCreateSparkShadow selects a parent provider and opens shadow-creation
 // confirmation.
 const handleCreateSparkShadow = (a: Provider) => {
-  creatingShadowAcc.value = a
-  showCreateShadowDialog.value = true
+  activeModal.value = { kind: 'createShadow', provider: a }
 }
 // confirmCreateSparkShadow creates a named Spark shadow for the selected parent
 // provider. Missing selection does nothing; success clears the dialog target
 // and reloads rows, while failure leaves confirmation available for retry.
 const confirmCreateSparkShadow = async () => {
-  const a = creatingShadowAcc.value
-  if (!a) return
+  if (activeModal.value?.kind !== 'createShadow') return
+  const a = activeModal.value.provider
   try {
     await adminAPI.providers.createSparkShadow(a.id, { name: `${a.name} (Spark)` })
-    showCreateShadowDialog.value = false
-    creatingShadowAcc.value = null
+    activeModal.value = null
     appStore.showSuccess(t('admin.providers.createSparkShadowSuccess'))
     reload()
   } catch (error: any) {
@@ -2512,20 +2493,18 @@ const confirmCreateSparkShadow = async () => {
 }
 // handleDelete selects a provider and opens its deletion confirmation dialog.
 const handleDelete = (a: Provider) => {
-  deletingAcc.value = a
-  showDeleteDialog.value = true
+  activeModal.value = { kind: 'delete', provider: a }
 }
 // confirmDelete invalidates the selected provider cache before requesting
 // deletion. Success clears the dialog target and reloads rows; missing targets
 // do nothing and failures leave the current confirmation state available.
 const confirmDelete = async () => {
-  if (!deletingAcc.value) return
-  const providerID = deletingAcc.value.id
+  if (activeModal.value?.kind !== 'delete') return
+  const providerID = activeModal.value.provider.id
   try {
     invalidateUpstreamUsageCache(providerID)
     await adminAPI.providers.delete(providerID)
-    showDeleteDialog.value = false
-    deletingAcc.value = null
+    activeModal.value = null
     reload()
   } catch (error) {
     console.error('Failed to delete provider:', error)
@@ -2552,15 +2531,15 @@ const handleToggleSchedulable = async (a: Provider) => {
 // handleShowTempUnsched selects a provider and opens its
 // temporary-unavailability status dialog.
 const handleShowTempUnsched = (a: Provider) => {
-  tempUnschedAcc.value = a
-  showTempUnsched.value = true
+  activeModal.value = { kind: 'tempUnsched', provider: a }
 }
 // handleTempUnschedReset closes temporary-status inspection and patches the
 // returned provider row. It clears the dialog target first, then starts the
 // silent refresh window to retain the local reset result.
 const handleTempUnschedReset = async (updated: Provider) => {
-  showTempUnsched.value = false
-  tempUnschedAcc.value = null
+  if (activeModal.value?.kind === 'tempUnsched') {
+    activeModal.value = null
+  }
   patchProviderInList(updated)
   enterAutoRefreshSilentWindow()
 }

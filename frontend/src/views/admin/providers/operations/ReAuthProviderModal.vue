@@ -211,13 +211,11 @@ import OAuthAuthorizationFlow from '@/components/provider/OAuthAuthorizationFlow
  * credential building, and error feedback. Reopening initializes authentication choices from
  * the current provider record.
  *
- * Credential persistence differs by platform. Apply-credential endpoints return the updated
- * provider in one call, while other paths update credentials and then clear provider error
- * state. Parent notification and closure follow successful persistence, so a failure in the
- * later clear-error step can occur after credentials were already written. Authorization codes,
- * cookies, SSO tokens, and refresh tokens feed their respective exchange or validation flows.
- * Claude code and cookie paths save tokenInfo directly and build extra metadata separately;
- * the other platform flows construct credentials with their composable builders.
+ * Exchanged authorization codes, Claude session cookies, Grok SSO cookies, and refresh tokens
+ * persist through applyOAuthCredentials in a single request. That endpoint merges the new
+ * credentials and extra metadata into the existing provider record, clears error state, and
+ * invalidates cached tokens without overwriting unrelated fields such as model mappings or TLS
+ * router bindings. Parent notification and dialog closure follow successful persistence.
  */
 
 /**
@@ -470,10 +468,10 @@ const handleGenerateUrl = async () => {
  * prevents exchange. Entered state takes precedence over the composable session state where
  * that platform uses one.
  *
- * OpenAI and Grok use applyOAuthCredentials with built extra metadata. Gemini, Antigravity, and
- * Claude paths update credentials before separately clearing provider error state, so these two
- * writes are not an atomic operation. Success emits the returned provider before closing;
- * failures remain in the platform error state and use its corresponding feedback path.
+ * All platform branches persist through applyOAuthCredentials so new credentials and extra
+ * metadata merge into the existing provider record and clear its error state in one request.
+ * Success emits the returned provider before closing; failures remain in the platform error
+ * state and use its corresponding feedback path.
  */
 const handleExchangeCode = async () => {
   if (!props.provider) return
@@ -544,15 +542,14 @@ const handleExchangeCode = async () => {
     if (!tokenInfo) return
 
     const credentials = geminiOAuth.buildCredentials(tokenInfo)
+    const extra = geminiOAuth.buildExtraInfo(tokenInfo)
 
     try {
-      // Save credentials before clearError so recovery follows an accepted update; a later
-      // clearError failure leaves those credentials stored and keeps the dialog open.
-      await adminAPI.providers.update(props.provider.id, {
+      const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
         type: 'oauth',
         credentials,
+        extra,
       })
-      const updatedProvider = await adminAPI.providers.clearError(props.provider.id)
       appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
       emit('reauthorized', updatedProvider)
       handleClose()
@@ -581,13 +578,10 @@ const handleExchangeCode = async () => {
     const credentials = antigravityOAuth.buildCredentials(tokenInfo)
 
     try {
-      // Save credentials before clearError so recovery follows an accepted update; a later
-      // clearError failure leaves those credentials stored and keeps the dialog open.
-      await adminAPI.providers.update(props.provider.id, {
+      const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
         type: 'oauth',
         credentials,
       })
-      const updatedProvider = await adminAPI.providers.clearError(props.provider.id)
       appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
       emit('reauthorized', updatedProvider)
       handleClose()
@@ -652,17 +646,11 @@ const handleExchangeCode = async () => {
 
       const extra = claudeOAuth.buildExtraInfo(tokenInfo)
 
-      // Persist the exchanged credential payload before clearing provider errors so error
-      // recovery follows a successfully accepted credential write.
-      await adminAPI.providers.update(props.provider.id, {
-        type: addMethod.value, // Update type based on selected method
+      const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
+        type: addMethod.value,
         credentials: tokenInfo,
         extra,
       })
-
-      // Clear provider error state after the credential update; failure here leaves the earlier
-      // credential write committed and reports incomplete recovery.
-      const updatedProvider = await adminAPI.providers.clearError(props.provider.id)
 
       appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
       emit('reauthorized', updatedProvider)
@@ -682,10 +670,10 @@ const handleExchangeCode = async () => {
  * method when a provider is selected and is not OpenAI-like. It stores the returned tokenInfo
  * directly as credentials and builds extra metadata through the Claude composable.
  *
- * The credential update precedes clearError, and a clearError failure leaves the accepted
- * credential write in place. Failures populate the Claude error state and leave the dialog
- * open. Successful completion emits the recovered provider before closing, and the loading
- * flag resets after either outcome.
+ * Persistence calls applyOAuthCredentials so the exchanged credentials and extra metadata merge
+ * into the existing provider record and clear its error state in one request. Failures populate
+ * the Claude error state and leave the dialog open. Successful completion emits the recovered
+ * provider before closing, and the loading flag resets after either outcome.
  */
 const handleCookieAuth = async (sessionKey: string) => {
   if (!props.provider || isOpenAILike.value) return
@@ -708,17 +696,11 @@ const handleCookieAuth = async (sessionKey: string) => {
 
     const extra = claudeOAuth.buildExtraInfo(tokenInfo)
 
-    // Persist the exchanged credential payload before clearing provider errors so error
-    // recovery follows a successfully accepted credential write.
-    await adminAPI.providers.update(props.provider.id, {
-      type: addMethod.value, // Update type based on selected method
+    const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
+      type: addMethod.value,
       credentials: tokenInfo,
       extra,
     })
-
-    // Clear provider error state after the credential update; failure here leaves the earlier
-    // credential write committed and reports incomplete recovery.
-    const updatedProvider = await adminAPI.providers.clearError(props.provider.id)
 
     appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
     emit('reauthorized', updatedProvider)

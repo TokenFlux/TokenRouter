@@ -1059,6 +1059,37 @@
                 <p class="input-hint">{{ t('admin.providers.billingRateMultiplierHint') }}</p>
               </div>
             </div>
+            <template v-if="supportsProviderSchedulingThresholdOverride">
+              <SettingToggleRow
+                id="create-provider-scheduling-threshold"
+                v-model="providerSchedulingThresholdOverrideEnabled"
+                :label="t('admin.providers.providerSchedulingThresholdOverride')"
+                :hint="t('admin.providers.providerSchedulingThresholdOverrideHint')"
+                testid="provider-scheduling-threshold-override-enabled"
+                data-testid="provider-scheduling-threshold-section"
+              />
+              <Collapse :open="providerSchedulingThresholdOverrideEnabled" unmount-on-hide>
+                <SettingsSubpanel>
+                  <div>
+                    <label for="create-provider-scheduling-threshold-value" class="input-label">{{
+                      t('admin.providers.providerSchedulingThresholdOverrideValue')
+                    }}</label>
+                    <input
+                      id="create-provider-scheduling-threshold-value"
+                      v-model.number="providerSchedulingThresholdOverrideValue"
+                      data-testid="provider-scheduling-threshold-override-value"
+                      type="number"
+                      min="1"
+                      max="100"
+                      class="input"
+                    />
+                    <p class="input-hint">
+                      {{ t('admin.providers.providerSchedulingThresholdOverrideDisabledHint') }}
+                    </p>
+                  </div>
+                </SettingsSubpanel>
+              </Collapse>
+            </template>
           </SettingsSection>
 
           <TempUnschedFields
@@ -1276,6 +1307,13 @@
                 <GrokBaseUrlPresets @select="grokOAuthBaseUrl = $event" />
               </SettingsSubpanel>
             </Collapse>
+            <SettingToggleRow
+              id="create-grok-client-tool-cache"
+              v-model="grokClientToolCacheEnabled"
+              :label="t('admin.providers.grokClientToolCache.title')"
+              :hint="t('admin.providers.grokClientToolCache.hint')"
+              testid="grok-client-tool-cache-toggle"
+            />
           </SettingsSection>
 
           <template v-if="form.platform === 'openai'">
@@ -1362,6 +1400,7 @@
               </SettingRow>
             </SettingsSection>
 
+            <CodexImageToolModeSelector v-model="codexImageToolMode" />
             <SettingsSection v-if="isOpenAIOAuthCategory">
               <SettingRow
                 id="create-image-responses-model"
@@ -1806,26 +1845,42 @@ import {
   buildOpenAICreateExtra,
   buildQoderCreateExtra,
   buildAnthropicCreateExtra,
-} from './providerCreatePayload'
+  buildAnthropicOAuthCreateExtra,
+  buildAntigravityCreateExtra,
+  buildGrokOAuthCreateExtra,
+  withUpstreamRequestIdHeader as applyUpstreamRequestIdHeader,
+} from '../form-model/providerFormExtra'
+import {
+  createProviderFormDraft,
+  resetPlatformScopedDraft,
+  resetProviderFormDraft,
+  supportsProviderSchedulingThresholdOverridePlatform,
+} from '../form-model/providerFormDraft'
+import {
+  applyAntigravityPolicyCredentials,
+  applyCustomErrorCodesCredentials,
+  applyOpenAICompactModelMapping,
+  applyPersistedModelRestriction as writePersistedModelRestriction,
+  applyPoolModeCredentials,
+  applyProviderSchedulingThresholdCredentials,
+  applyQoderModelRestriction as writeQoderModelRestriction,
+  applyTempUnschedCredentials,
+  buildTempUnschedRules,
+} from '../form-model/providerFormCredentials'
+import CodexImageToolModeSelector from '@/components/provider/CodexImageToolModeSelector.vue'
 import OpenCodeFields from '@/components/provider/form/OpenCodeFields.vue'
 import { openCodeDraft, openCodeCredentials } from '@/components/provider/form/openCodeDraft'
 import ProviderProtocolSelector from '../../../../components/provider/ProviderProtocolSelector.vue'
-import { readImageStreamModes } from '@/components/provider/form/imageStreamModes'
 import {
   loadProtocolCatalog,
   nativeProtocolOptions,
   protocolName,
 } from '@/api/admin/protocolCapabilities'
-import type { ProtocolID } from '@/api/protocols.types'
 import OpenAICompactionToggle from '../../../../components/provider/OpenAICompactionToggle.vue'
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import {
-  buildModelMappingObject,
-  buildPersistedModelRestriction,
-  fetchAntigravityDefaultMappings,
-} from '@/composables/useModelWhitelist'
+import { fetchAntigravityDefaultMappings } from '@/composables/useModelWhitelist'
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
 import {
@@ -1845,9 +1900,6 @@ import type {
   ProviderPlatform,
   ProviderType,
   CreateProviderRequest,
-  OpenAICompactMode,
-  OpenAIOAuthClientPolicy,
-  UpstreamUsageAdapter,
 } from '@/api/admin/providers.types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -1856,8 +1908,6 @@ import UpstreamRequestIdHeaderField from '@/components/provider/UpstreamRequestI
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProviderModelMappingEditor from '@/components/provider/ProviderModelMappingEditor.vue'
-import type { TempUnschedRuleForm } from '@/components/provider/TempUnschedRulesEditor.vue'
-import type { ModelMappingRow } from '@/utils/modelMappingRules'
 import ProxySelector from '@/components/admin/proxy/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/provider/ModelWhitelistSelector.vue'
@@ -1885,32 +1935,20 @@ import TempUnschedFields from '@/components/provider/form/TempUnschedFields.vue'
 import TLSFingerprintFields from '@/components/provider/form/TLSFingerprintFields.vue'
 import { bindQuotaLimits } from '@/components/provider/form/quotaLimit'
 import {
-  DEFAULT_POOL_MODE_RETRY_COUNT,
-  normalizePoolModeRetryCount,
-  parsePoolModeRetryStatusCodes,
-} from '@/components/provider/form/poolMode'
-import {
   useAnthropicAPIKeyAuthSchemeOptions,
   useCodexFingerprintModeOptions,
   useOpenAIOAuthClientPolicyOptions,
   useWebSearchEmulationOptions,
-  type AnthropicAPIKeyAuthScheme,
-  type CodexFingerprintMode,
-  type RpmStrategy,
 } from '@/components/provider/form/providerFormOptions'
 import { vSegmented } from '@/directives/segmented'
 import { platformIconClass, platformLabel, platformTextClass } from '@/utils/platformColors'
 import { resolveUpstreamUsageConfig } from '@/utils/upstreamUsage'
 import type { SyncUpstreamModelsResult } from '@/api/admin/providers'
-import {
-  applyAntigravityProjectID,
-  applyInterceptWarmup,
-} from '@/components/provider/credentialsBuilder'
+import { applyInterceptWarmup } from '@/components/provider/credentialsBuilder'
 import {
   applyHeaderOverride,
   isHeaderOverrideCapable,
   validateHeaderOverrideRows,
-  type HeaderOverrideRow,
 } from '@/components/provider/form/headerOverrides'
 import {
   apiKeyPreset,
@@ -1924,7 +1962,6 @@ import {
   type CnApiProtocol,
   type CnNativeApiProtocol,
   type CnProviderMode,
-  type EndpointSlotAddresses,
   type ProviderMode,
 } from '@/components/provider/form/providerEndpoints'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
@@ -1933,10 +1970,8 @@ import {
   VERTEX_LOCATION_OPTIONS,
   groupedProviderSelectOptions,
 } from '@/constants/provider'
-import { RESPONSES_WS_POOLED, type ResponsesWSConnectionMode } from '@/utils/responsesWsConnection'
 import {
   buildUpstreamBalanceAlert,
-  defaultUpstreamBalanceAlert,
   supportsUpstreamBalanceAlert,
 } from '@/utils/upstreamBalanceAlert'
 import OAuthAuthorizationFlow from '../../../../components/provider/OAuthAuthorizationFlow.vue'
@@ -1953,11 +1988,120 @@ import OAuthAuthorizationFlow from '../../../../components/provider/OAuthAuthori
 // to apply across request diagnostics and usage recording. The dialog reports
 // completed creation through its event callbacks.
 
-// upstreamProtocols distinguishes an untouched selection from an explicitly
-// empty native set; submission filters either against the loaded catalog.
-const upstreamProtocols = ref<ProtocolID[] | undefined>(undefined)
-// imageModes owns separate endpoint capabilities until the create dialog is reset.
-const imageModes = ref(readImageStreamModes())
+// draft allocates isolated reactive refs shared with form-model serializers and
+// platform reset helpers for this create-dialog instance.
+const draft = createProviderFormDraft('create')
+const {
+  upstreamProtocols,
+  imageModes,
+  editBaseUrl: apiKeyBaseUrl,
+  editApiKey: apiKeyValue,
+  upstreamUsageEnabled,
+  balanceAlert,
+  upstreamUsageAdapter,
+  upstreamUsageBaseUrl,
+  upstreamUsageWalletAccessToken,
+  upstreamUsageWalletUserId,
+  geminiProviderType,
+  geminiAIStudioTier: geminiTierAIStudio,
+  editApiProtocol: apiProtocol,
+  editProviderMode: providerMode,
+  editZhipuOrganization: zhipuOrganization,
+  editZhipuProject: zhipuProject,
+  editAdaptiveBaseUrls: adaptiveBaseUrls,
+  editBedrockAccessKeyId: bedrockAccessKeyId,
+  editBedrockSecretAccessKey: bedrockSecretAccessKey,
+  editBedrockSessionToken: bedrockSessionToken,
+  editBedrockRegion: bedrockRegion,
+  editBedrockForceGlobal: bedrockForceGlobal,
+  editBedrockApiKeyValue: bedrockApiKeyValue,
+  editVertexProjectId: vertexProjectId,
+  editVertexClientEmail: vertexClientEmail,
+  editVertexLocation: vertexLocation,
+  modelMappings,
+  openAICompactModelMappings,
+  modelRestrictionMode,
+  allowedModels,
+  qoderModelRestrictionTouched,
+  qoderModelWhitelistTouched,
+  qoderSite,
+  poolModeEnabled,
+  poolModeRetryCount,
+  poolModeRetryStatusCodesInput,
+  customErrorCodesEnabled,
+  selectedErrorCodes,
+  headerOverrideEnabled,
+  headerOverrideRows,
+  grokOAuthCustomBaseUrlEnabled,
+  grokOAuthBaseUrl,
+  grokClientToolCacheEnabled,
+  interceptWarmupRequests,
+  autoPauseOnExpired,
+  autoPause5hThreshold,
+  autoPause7dThreshold,
+  autoPause5hDisabled,
+  autoPause7dDisabled,
+  upstreamRequestIdHeader,
+  allowOverages,
+  antigravityProjectId,
+  antigravityModelRestrictionMode,
+  antigravityWhitelistModels,
+  antigravityModelMappings,
+  tempUnschedEnabled,
+  providerSchedulingThresholdOverrideEnabled,
+  providerSchedulingThresholdOverrideValue,
+  tempUnschedRules,
+  windowCostEnabled,
+  windowCostLimit,
+  windowCostStickyReserve,
+  sessionLimitEnabled,
+  maxSessions,
+  sessionIdleTimeout,
+  rpmLimitEnabled,
+  baseRpm,
+  rpmStrategy,
+  rpmStickyBuffer,
+  userMsgQueueMode,
+  tlsFingerprintEnabled,
+  tlsFingerprintProfileId,
+  tlsFingerprintRouterId,
+  sessionIdMaskingEnabled,
+  cacheTTLOverrideEnabled,
+  cacheTTLOverrideTarget,
+  customBaseUrlEnabled,
+  customBaseUrl,
+  openaiPassthroughEnabled,
+  openaiFlattenNamespacesEnabled,
+  openAICompactMode,
+  openAINativeCompactionV2Mode,
+  openAIResponsesContinuationSupported,
+  openAIImagesGIFEnabled,
+  openAIImagesURLToB64JSON,
+  responsesWSConnectionMode,
+  codexCLIOnlyAllowClaudeCodeEnabled,
+  openAIOAuthClientPolicy,
+  codexFingerprintMode,
+  codexImageToolMode,
+  codexImageResponsesModel,
+  anthropicPassthroughEnabled,
+  anthropicAPIKeyAuthScheme,
+  webSearchEmulationMode,
+  editQuotaLimit,
+  editQuotaDailyLimit,
+  editQuotaWeeklyLimit,
+  editQuotaMonthlyLimit,
+  editDailyResetMode,
+  editDailyResetHour,
+  editWeeklyResetMode,
+  editMonthlyResetMode,
+  editWeeklyResetDay,
+  editMonthlyResetDay,
+  editWeeklyResetHour,
+  editMonthlyResetHour,
+  editResetTimezone,
+  form,
+} = draft
+
 // OAuthFlowExposed represents public authorization input after Vue unwraps
 // exposed refs.
 interface OAuthFlowExposed {
@@ -1991,22 +2135,11 @@ const oauthStepTitle = computed(() => {
   return t('admin.providers.oauth.title')
 })
 
-// upstreamRequestIdHeader selects the upstream response header captured in request
-// diagnostics and usage records; a blank field uses the backend X-Request-ID default.
-const upstreamRequestIdHeader = ref('')
-// codexImageResponsesModel selects an OAuth image driver; blank uses the backend default.
-const codexImageResponsesModel = ref('')
 // withUpstreamRequestIdHeader applies the trimmed diagnostic header override to
-// optional metadata. Blank input preserves the supplied base unchanged,
-// allowing the backend default header to remain effective for the created
-// provider.
+// optional metadata through the shared form-model helper.
 const withUpstreamRequestIdHeader = <T extends Record<string, unknown> | undefined>(
   extra: T,
-): T | Record<string, unknown> => {
-  const name = upstreamRequestIdHeader.value.trim()
-  if (!name) return extra
-  return { ...(extra || {}), upstream_request_id_header: name }
-}
+): T | Record<string, unknown> => applyUpstreamRequestIdHeader(upstreamRequestIdHeader.value, extra)
 
 // baseUrlHint describes the selected platform's address and Gemini connection source.
 // apiKeyHint supplies credential guidance for Anthropic, OpenAI, and Gemini.
@@ -2150,7 +2283,7 @@ const currentOpenAIAuthSessions = computed(() =>
 // means the configuration step has no authorization child to inspect or reset.
 const oauthFlowRef = ref<OAuthFlowExposed | null>(null)
 
-// Dialog progression and credential drafts belong to this mounted component;
+// Dialog progression and category selectors belong to this mounted component;
 // resetForm restores their defaults when the parent hides the creation dialog.
 const step = ref(1)
 const submitting = ref(false)
@@ -2158,35 +2291,12 @@ const providerCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_acc
   'oauth-based',
 ) // UI selection for provider category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'
-const apiKeyBaseUrl = ref('https://api.anthropic.com')
-const apiKeyValue = ref('')
-const upstreamUsageEnabled = ref(true)
-const balanceAlert = ref(defaultUpstreamBalanceAlert())
-const upstreamUsageAdapter = ref<UpstreamUsageAdapter>('sub2api')
-const upstreamUsageBaseUrl = ref('')
-const upstreamUsageWalletAccessToken = ref('')
-const upstreamUsageWalletUserId = ref('')
 
 // OpenCode model protocol tables belong to this dialog and are saved with its credential payload.
 const openCodeProtocols = ref(openCodeDraft())
 
-// Provider mode selects the CN billing mode or OpenCode service; with the CN API protocol
-// it also selects the default endpoints written into the credential draft.
-const providerMode = ref<ProviderMode>('payg')
 // modeChoices lists the provider modes offered by the selected platform; empty hides the selector.
 const modeChoices = computed(() => providerModeChoices(form.platform))
-// Zhipu organization and project drafts are submitted for Coding Plan providers when their trimmed values are nonempty.
-const zhipuOrganization = ref('')
-const zhipuProject = ref('')
-// API protocol selects native forwarding endpoints independently of provider type.
-// Adaptive mode retains per-protocol URLs; Responses is available for DeepSeek and Kimi.
-// adaptiveBaseUrls also holds the optional address overrides of root-derived platforms.
-const apiProtocol = ref<CnApiProtocol>('adaptive')
-const adaptiveBaseUrls = ref<EndpointSlotAddresses>({
-  chat_completions: '',
-  anthropic: '',
-  responses: '',
-})
 const isCNPlatform = computed(
   () => form.platform === 'kimi' || form.platform === 'zhipu' || form.platform === 'deepseek',
 )
@@ -2333,26 +2443,7 @@ const resolvedUpstreamUsageAdapter = computed(
     }).adapter,
 )
 
-// Local quota limits use USD amounts and optional reset schedules. Null fields
-// remain unconfigured until createProviderAndFinish selects the applicable
-// serialized defaults.
-const editQuotaLimit = ref<number | null>(null)
-const editQuotaDailyLimit = ref<number | null>(null)
-const editQuotaWeeklyLimit = ref<number | null>(null)
-const editQuotaMonthlyLimit = ref<number | null>(null)
-const editDailyResetMode = ref<'rolling' | 'fixed' | null>(null)
-const editDailyResetHour = ref<number | null>(null)
-const editWeeklyResetMode = ref<'rolling' | 'fixed' | null>(null)
-// editMonthlyResetMode selects elapsed thirty-day windows or a local monthly date.
-const editMonthlyResetMode = ref<'rolling' | 'fixed' | null>(null)
-const editWeeklyResetDay = ref<number | null>(null)
-// editMonthlyResetDay selects a calendar date from one through thirty-one.
-const editMonthlyResetDay = ref<number | null>(null)
-const editWeeklyResetHour = ref<number | null>(null)
-// editMonthlyResetHour selects the hour in the shared quota timezone.
-const editMonthlyResetHour = ref<number | null>(null)
-const editResetTimezone = ref<string | null>(null)
-// The quota field adapter shares these refs with the reusable editor, so child
+// The quota field adapter shares draft refs with the reusable editor, so child
 // updates remain part of the dialog's draft until submission.
 const { limits: quotaLimits, setLimit: setQuotaLimit } = bindQuotaLimits({
   totalLimit: editQuotaLimit,
@@ -2369,36 +2460,6 @@ const { limits: quotaLimits, setLimit: setQuotaLimit } = bindQuotaLimits({
   monthlyResetHour: editMonthlyResetHour,
   resetTimezone: editResetTimezone,
 })
-// Model mappings rewrite requests independently of the final whitelist. Qoder
-// additionally tracks explicit interaction so generated editor defaults do not
-// become persisted restrictions.
-const modelMappings = ref<ModelMappingRow[]>([])
-const openAICompactModelMappings = ref<ModelMappingRow[]>([])
-const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
-const allowedModels = ref<string[]>([])
-// qoderModelRestrictionTouched distinguishes generated defaults from explicit
-// edits; untouched mapping and whitelist fields are removed from Qoder credentials.
-const qoderModelRestrictionTouched = ref(false)
-// qoderModelWhitelistTouched records direct whitelist edits separately, so
-// mapping-only changes cannot persist model names populated by the editor itself.
-const qoderModelWhitelistTouched = ref(false)
-// Pool retry drafts select optional credential policy; disabled pooling omits
-// retry settings and enabled pooling normalizes the configured retry count.
-const poolModeEnabled = ref(false)
-const poolModeRetryCount = ref(DEFAULT_POOL_MODE_RETRY_COUNT)
-const poolModeRetryStatusCodesInput = ref('')
-
-// Custom error codes and header overrides remain local drafts; submission
-// includes their values only when the corresponding policy is enabled and
-// supported.
-const customErrorCodesEnabled = ref(false)
-const selectedErrorCodes = ref<number[]>([])
-const headerOverrideEnabled = ref(false)
-const headerOverrideRows = ref<HeaderOverrideRow[]>([])
-
-// Grok forwarding drafts apply only to provider requests; authorization and refresh continue using their dedicated OAuth endpoints.
-const grokOAuthCustomBaseUrlEnabled = ref(false)
-const grokOAuthBaseUrl = ref('')
 
 // validateGrokOAuthUpstreamConfig validates forwarding configuration before credentials are consumed.
 // Code exchange, refresh-token batches, and SSO imports share this check so invalid URLs or headers stop before upstream authorization.
@@ -2433,34 +2494,8 @@ const applyGrokOAuthUpstreamConfig = (credentials: Record<string, unknown>) => {
   applyHeaderOverride(credentials, headerOverrideEnabled.value, headerOverrideRows.value, 'create')
 }
 
-// Request and quota controls are collected separately from tokens; platform
-// builders include only policies applicable to the chosen authentication
-// category.
-const interceptWarmupRequests = ref(false)
-const autoPauseOnExpired = ref(true)
-const autoPause5hThreshold = ref<number | null>(null)
-const autoPause7dThreshold = ref<number | null>(null)
-const autoPause5hDisabled = ref(false)
-const autoPause7dDisabled = ref(false)
-const openaiPassthroughEnabled = ref(false)
-// Namespace flattening is an OAuth compatibility option; its disabled default preserves incoming tool namespaces.
-const openaiFlattenNamespacesEnabled = ref(false)
-const openAICompactMode = ref<OpenAICompactMode>('force_on')
-const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('force_on')
-// HTTP continuation starts disabled and is enabled only by the administrator for upstream previous_response_id support.
-const openAIResponsesContinuationSupported = ref(false)
-// Image URL backfill starts disabled and is serialized only for OpenAI API Key providers.
-/** GIF defaults to enabled for each new OpenAI provider draft. */
-const openAIImagesGIFEnabled = ref(true)
-const openAIImagesURLToB64JSON = ref(false)
-const responsesWSConnectionMode = ref<ResponsesWSConnectionMode>(RESPONSES_WS_POOLED)
-const codexCLIOnlyAllowClaudeCodeEnabled = ref(false)
-const openAIOAuthClientPolicy = ref<OpenAIOAuthClientPolicy>('any')
-const codexFingerprintMode = ref<CodexFingerprintMode>('off')
+// Option factories and global availability flags govern request and quota controls.
 const codexFingerprintModeOptions = useCodexFingerprintModeOptions()
-const anthropicPassthroughEnabled = ref(false)
-const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>('x_api_key')
-const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
 
 // Quota notification drafts and global availability share the editor lifecycle;
@@ -2471,130 +2506,69 @@ const {
   loadGlobalState: loadQuotaNotifyGlobal,
   writeToExtra: writeQuotaNotifyToExtra,
   setField: setQuotaNotifyField,
+  reset: resetQuotaNotify,
 } = useQuotaNotifyState()
 
-// Load global feature states once
-adminAPI.settings
-  .getWebSearchEmulationConfig()
-  .then((cfg) => {
-    webSearchGlobalEnabled.value = cfg?.enabled === true && (cfg?.providers?.length ?? 0) > 0
-  })
-  .catch(() => {
-    // Failed configuration loading hides unavailable emulation overrides so the
-    // administrator cannot select a feature whose global availability is unknown.
-    webSearchGlobalEnabled.value = false
-  })
+// Defer global settings reads until the create dialog opens so hidden mounting on
+// the provider list page issues zero background settings requests.
+let globalFeatureSettingsLoaded = false
+watch(
+  () => props.show,
+  (show) => {
+    if (!show || globalFeatureSettingsLoaded) return
+    globalFeatureSettingsLoaded = true
+    adminAPI.settings
+      .getWebSearchEmulationConfig()
+      .then((cfg) => {
+        webSearchGlobalEnabled.value = cfg?.enabled === true && (cfg?.providers?.length ?? 0) > 0
+      })
+      .catch(() => {
+        // Failed configuration loading hides unavailable emulation overrides.
+        webSearchGlobalEnabled.value = false
+      })
+    loadQuotaNotifyGlobal()
+  },
+  { immediate: true },
+)
 
-loadQuotaNotifyGlobal()
-// Antigravity overages and manual Qoder credentials are draft-only until
-// submission; changing authorization site resets sessions without clearing
-// manual credential text.
-const allowOverages = ref(false) // For antigravity providers: enable AI Credits overages
+// Manual Qoder, Bedrock auth-mode, Vertex JSON upload, and Gemini OAuth UI state
+// stay local to the create dialog while shared draft refs live in draft.
 const qoderProviderType = ref<'oauth' | 'manual'>('oauth')
-const qoderSite = ref<QoderSite>('global')
 const qoderPAT = ref('')
 const qoderSecurityOauthToken = ref('')
 const qoderMachineId = ref('')
 const qoderUidAid = ref('')
 const qoderRefreshToken = ref('')
 const qoderUserType = ref('personal_standard')
-// Antigravity project identity, whitelist, and mappings are independent inputs;
-// creation stores project selection and model restrictions alongside exchanged
-// credentials.
-const antigravityProjectId = ref('')
-const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
-const antigravityWhitelistModels = ref<string[]>([])
-const antigravityModelMappings = ref<ModelMappingRow[]>([])
-
-// Bedrock credentials
-// Bedrock credentials select SigV4 or API Key authentication; only the chosen
-// authentication branch validates and serializes its required secret fields.
 const bedrockAuthMode = ref<'sigv4' | 'apikey'>('sigv4')
-const bedrockAccessKeyId = ref('')
-const bedrockSecretAccessKey = ref('')
-const bedrockSessionToken = ref('')
-const bedrockRegion = ref('us-east-1')
-const bedrockForceGlobal = ref(false)
-const bedrockApiKeyValue = ref('')
-// Service-account JSON can be pasted, selected, or dropped; accepted JSON
-// populates project and email previews while location remains an independent
-// provider setting.
 const vertexServiceAccountFileInput = ref<HTMLInputElement | null>(null)
 const vertexServiceAccountJson = ref('')
-const vertexProjectId = ref('')
-const vertexClientEmail = ref('')
-const vertexLocation = ref('global')
 const vertexServiceAccountDragActive = ref(false)
-// Temporary-unschedulable drafts are validated before submission; Gemini
-// authorization capability state controls which OAuth variants can be selected
-// for the current provider.
-const tempUnschedEnabled = ref(false)
-const tempUnschedRules = ref<TempUnschedRuleForm[]>([])
 const geminiOAuthType = ref<'code_assist' | 'google_one' | 'ai_studio'>('google_one')
 const geminiAIStudioOAuthEnabled = ref(false)
 
 // The shared option factory supplies translated client-policy labels while
 // preserving the stable values consumed by OpenAI metadata construction.
 const openAIOAuthClientPolicyOptions = useOpenAIOAuthClientPolicyOptions()
-// buildAntigravityExtra serializes enabled AI Credits overages for Antigravity
-// creation. Disabled overages return undefined, leaving the backend default
-// policy intact without sending an explicit false override in Extra.
-function buildAntigravityExtra(): Record<string, unknown> | undefined {
-  const extra: Record<string, unknown> = {}
-  if (allowOverages.value) extra.allow_overages = true
-  return Object.keys(extra).length > 0 ? extra : undefined
-}
 
-// buildOpenAICompactModelMapping converts compact-context rows into persisted credentials.
-// An absent mapping object lets callers omit the optional compact_model_mapping
-// key, while populated rows remain separate from the ordinary model restriction.
-const buildOpenAICompactModelMapping = () =>
-  buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
 // Advanced OAuth and Gemini help visibility belong to the dialog; these controls
 // reveal explanations and optional input without changing credential selection.
 const showAdvancedOAuth = ref(false)
 const showGeminiHelpDialog = ref(false)
 
-// Quota control state (Anthropic OAuth/SetupToken only)
-// Anthropic authorization drafts govern cost windows, session limits, RPM
-// limits, and request queue mode; disabled policies are omitted when Extra is
-// assembled.
-const windowCostEnabled = ref(false)
-const windowCostLimit = ref<number | null>(null)
-const windowCostStickyReserve = ref<number | null>(null)
-const sessionLimitEnabled = ref(false)
-const maxSessions = ref<number | null>(null)
-const sessionIdleTimeout = ref<number | null>(null)
-const rpmLimitEnabled = ref(false)
-const baseRpm = ref<number | null>(null)
-const rpmStrategy = ref<RpmStrategy>('tiered')
-const rpmStickyBuffer = ref<number | null>(null)
-const userMsgQueueMode = ref('')
-// TLS fingerprint drafts keep profile and router selection separate. Discovery
-// populates display choices, while platform-specific builders decide which
-// selected identifiers may be persisted.
-const tlsFingerprintEnabled = ref(false)
-// tlsFingerprintProfileId uses null for the default profile and negative one for
-// random selection; discovered profiles contribute their persisted positive identifiers.
-const tlsFingerprintProfileId = ref<number | null>(null)
+// Discovered TLS fingerprint profile and router records populate selector labels.
 const tlsFingerprintProfiles = ref<
   {
     id: number // persisted selection identifier
     name: string // administrator display label
   }[]
 >([])
-// tlsFingerprintRouterId starts unset; metadata builders persist a selected router
-// only for OpenAI OAuth creation, independently of the chosen fingerprint profile.
-const tlsFingerprintRouterId = ref<number | null>(null)
 const tlsFingerprintRouters = ref<
   {
     id: number // persisted selection identifier
     name: string // administrator display label
   }[]
 >([])
-// Fingerprint select options prepend the translated default choice to discovered
-// administrator records; selection uses IDs rather than labels in creation
-// requests.
 const tlsFingerprintProfileOptions = computed(() => [
   { value: null, label: t('admin.providers.quotaControl.tlsFingerprint.defaultProfile') },
   ...(tlsFingerprintProfiles.value.length > 0
@@ -2606,29 +2580,14 @@ const tlsFingerprintRouterOptions = computed(() => [
   { value: null, label: t('admin.providers.quotaControl.tlsFingerprint.noRouter') },
   ...tlsFingerprintRouters.value.map((router) => ({ value: router.id, label: router.name })),
 ])
-// Anthropic request options independently control session masking, cache
-// lifetime, and custom forwarding address; disabled settings do not contribute
-// metadata fields during creation.
-const sessionIdMaskingEnabled = ref(false)
-const cacheTTLOverrideEnabled = ref(false)
-const cacheTTLOverrideTarget = ref<string>('5m')
 const webSearchEmulationOptions = useWebSearchEmulationOptions()
 const anthropicAPIKeyAuthSchemeOptions = useAnthropicAPIKeyAuthSchemeOptions()
-const customBaseUrlEnabled = ref(false)
-const customBaseUrl = ref('')
 
-// Gemini tier selection (used as fallback when auto-detection is unavailable/fails)
-// GeminiProviderType distinguishes official tier handling from third-party endpoint entry.
-type GeminiProviderType = 'official' | 'third_party'
-// Gemini source and quota-tier drafts determine official credential metadata;
-// third-party API Key creation requires a custom endpoint and omits official
-// tier information.
-const geminiProviderType = ref<GeminiProviderType>('official')
+// Gemini OAuth quota-tier fallbacks used when auto-detection is unavailable.
 const geminiTierGoogleOne = ref<'google_one_free' | 'google_ai_pro' | 'google_ai_ultra'>(
   'google_one_free',
 )
 const geminiTierGcp = ref<'gcp_standard' | 'gcp_enterprise'>('gcp_standard')
-const geminiTierAIStudio = ref<'aistudio_free' | 'aistudio_paid'>('aistudio_free')
 
 const geminiSelectedTier = computed(() => {
   if (form.platform !== 'gemini') return ''
@@ -2662,24 +2621,6 @@ const geminiHelpLinks = {
   countryCheck: 'https://policies.google.com/terms',
   countryChange: 'https://policies.google.com/country-association-form',
 }
-
-// Shared provider fields remain reactive across both configuration and
-// authorization steps. Request builders preserve these values, applying
-// endpoint-specific omission rules only at submission.
-const form = reactive({
-  name: '', // administrator display name
-  notes: '', // administrator provider notes
-  platform: 'anthropic' as ProviderPlatform, // selected upstream platform
-  type: 'oauth' as ProviderType, // platform-derived credential type
-  credentials: {} as Record<string, unknown>, // pending credential object
-  proxy_id: null as number | null, // optional outbound proxy
-  concurrency: 10, // concurrent request capacity
-  load_factor: null as number | null, // optional load weighting
-  priority: 1, // routing selection priority
-  rate_multiplier: 1, // provider rate multiplier
-  group_ids: [] as number[], // selected routing groups
-  expires_at: null as number | null, // optional expiration Unix seconds
-})
 // OpenAI batches and imports own their progress and partial-success reporting;
 // the dialog supplies the current draft policies at each persistence boundary.
 const {
@@ -2874,7 +2815,11 @@ const showModelRestriction = computed(
     form.platform === 'qoder' ||
     isApiKeyCredentials.value ||
     isBedrockCategory.value ||
+    isServiceAccountCategory.value ||
     (['openai', 'grok', 'gemini'].includes(form.platform) && isOAuthFlow.value),
+)
+const supportsProviderSchedulingThresholdOverride = computed(() =>
+  supportsProviderSchedulingThresholdOverridePlatform(form.platform),
 )
 const showHeaderOverride = computed(
   () =>
@@ -3056,42 +3001,23 @@ watch(
   { immediate: true },
 )
 
-// Reset platform-specific settings when platform changes
+// Reset platform-specific settings when platform changes so hidden draft controls
+// from the prior platform cannot leak into credentials, concurrency, or Extra.
 watch(
   () => form.platform,
   (newPlatform) => {
-    // Reset base URL based on platform; a Gemini relay source starts blank for its relay address.
-    apiKeyBaseUrl.value =
-      newPlatform === 'gemini' && geminiProviderType.value === 'third_party'
-        ? ''
-        : apiKeyPreset(newPlatform).defaultBaseUrl
-    // Model protocol tables describe one platform's models, so each platform starts empty.
     openCodeProtocols.value = openCodeDraft()
-    // Clear restrictions when the platform changes so prior-platform model names cannot silently become restrictions on the newly selected provider.
-    allowedModels.value = []
-    modelMappings.value = []
-    modelRestrictionMode.value =
-      newPlatform === 'qoder' || newPlatform === 'grok' ? 'mapping' : 'whitelist'
-    qoderModelRestrictionTouched.value = false
-    qoderModelWhitelistTouched.value = false
-    // Antigravity starts in mapping mode and asynchronously fills the platform default mappings while leaving its whitelist unrestricted.
+    resetPlatformScopedDraft(draft, newPlatform, resetQuotaNotify)
+
     if (newPlatform === 'antigravity') {
-      antigravityModelRestrictionMode.value = 'mapping'
       fetchAntigravityDefaultMappings().then((mappings) => {
         antigravityModelMappings.value = [...mappings]
       })
-      antigravityWhitelistModels.value = []
       providerCategory.value = 'oauth-based'
-    } else {
-      allowOverages.value = false
-      antigravityWhitelistModels.value = []
-      antigravityModelMappings.value = []
-      antigravityModelRestrictionMode.value = 'mapping'
     }
     if (newPlatform === 'qoder') {
       providerCategory.value = 'oauth-based'
       qoderProviderType.value = 'oauth'
-      qoderSite.value = 'global'
     } else {
       qoderProviderType.value = 'oauth'
       qoderPAT.value = ''
@@ -3104,9 +3030,6 @@ watch(
     if (newPlatform === 'grok') {
       providerCategory.value = 'oauth-based'
       addMethod.value = 'oauth'
-      modelRestrictionMode.value = 'mapping'
-      form.concurrency = 1
-      form.load_factor = null
     }
     if (
       newPlatform !== 'gemini' &&
@@ -3119,49 +3042,12 @@ watch(
       providerCategory.value = 'oauth-based'
     }
     if (apiKeyPreset(newPlatform).apiKeyOnly) providerCategory.value = 'apikey'
-    upstreamUsageEnabled.value = newPlatform !== 'jev'
-    // Reset Bedrock fields when switching platforms
-    bedrockAccessKeyId.value = ''
-    bedrockSecretAccessKey.value = ''
-    bedrockSessionToken.value = ''
-    bedrockRegion.value = 'us-east-1'
-    bedrockForceGlobal.value = false
-    bedrockAuthMode.value = 'sigv4'
-    bedrockApiKeyValue.value = ''
-    vertexServiceAccountJson.value = ''
-    vertexProjectId.value = ''
-    vertexClientEmail.value = ''
-    vertexLocation.value = 'global'
-    // Reset Anthropic/Antigravity-specific settings when switching to other platforms
-    if (newPlatform !== 'anthropic' && newPlatform !== 'antigravity') {
-      interceptWarmupRequests.value = false
-    }
-    if (newPlatform !== 'openai') {
-      openaiPassthroughEnabled.value = false
-      openaiFlattenNamespacesEnabled.value = false
-      openAIResponsesContinuationSupported.value = false
-      openAIImagesGIFEnabled.value = true
-      openAIImagesURLToB64JSON.value = false
-      responsesWSConnectionMode.value = RESPONSES_WS_POOLED
-      codexCLIOnlyAllowClaudeCodeEnabled.value = false
-      openAIOAuthClientPolicy.value = 'any'
-    }
-    if (newPlatform !== 'anthropic') {
-      anthropicPassthroughEnabled.value = false
-      anthropicAPIKeyAuthScheme.value = 'x_api_key'
-      webSearchEmulationMode.value = 'default'
-    }
 
-    // Header overrides use platform-specific names; clear their rows during platform
-    // changes so another platform cannot inherit the previous provider draft's request headers.
-    headerOverrideEnabled.value = false
-    headerOverrideRows.value = []
-    grokOAuthCustomBaseUrlEnabled.value = false
-    grokOAuthBaseUrl.value = ''
-    // Reset OAuth states
+    bedrockAuthMode.value = 'sigv4'
+    vertexServiceAccountJson.value = ''
+
     oauth.resetState()
     openaiOAuth.resetState()
-
     geminiOAuth.resetState()
     antigravityOAuth.resetState()
     qoderOAuth.resetState()
@@ -3254,116 +3140,22 @@ const setAllowedModels = (models: string[]) => {
   allowedModels.value = models
 }
 
-// applyPersistedModelRestriction updates mutable credentials with independent
-// mappings and whitelist. It removes absent mappings and always writes the
-// whitelist, including an explicit empty array that prevents backend derivation
-// from self-mappings.
-const applyPersistedModelRestriction = (credentials: Record<string, unknown>) => {
-  // Persist request mappings separately from the final whitelist. An explicit
-  // empty array must survive serialization because absence lets the backend
-  // derive a whitelist from self-mapping entries instead.
-  const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
-  if (persisted.modelMapping) {
-    credentials.model_mapping = persisted.modelMapping
-  } else {
-    delete credentials.model_mapping
-  }
-  credentials.model_whitelist = persisted.modelWhitelist
-}
+// applyPersistedModelRestriction delegates independent mapping and whitelist
+// serialization to the shared form-model helper.
+const applyPersistedModelRestriction = (credentials: Record<string, unknown>) =>
+  writePersistedModelRestriction(draft, credentials)
 
-// applyQoderModelRestriction preserves the distinction between generated editor
-// defaults and explicit administrator policy. Untouched controls remove both
-// fields so backend defaults remain authoritative. Once restrictions are
-// touched, mapping edits are serialized independently, while whitelist values
-// are included only after a direct whitelist edit. An explicitly cleared
-// whitelist stays an empty array; mapping-only edits also write an empty
-// whitelist to prevent accidental derivation from self-mapping entries.
-const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
-  if (!qoderModelRestrictionTouched.value) {
-    delete credentials.model_mapping
-    delete credentials.model_whitelist
-    return
-  }
-  const persisted = buildPersistedModelRestriction(
-    qoderModelWhitelistTouched.value ? allowedModels.value : [],
-    modelMappings.value,
-  )
-  if (persisted.modelMapping) {
-    credentials.model_mapping = persisted.modelMapping
-  } else {
-    delete credentials.model_mapping
-  }
-  credentials.model_whitelist = persisted.modelWhitelist
-}
+// applyQoderModelRestriction delegates touch-tracked Qoder model-restriction
+// serialization to the shared form-model helper.
+const applyQoderModelRestriction = (credentials: Record<string, unknown>) =>
+  writeQoderModelRestriction(draft, credentials)
 
-// buildTempUnschedRules converts valid form rows into temporary-unschedulable
-// request rules. Invalid HTTP codes, nonpositive durations, and empty keyword
-// lists are skipped; accepted numeric values are truncated and descriptions are
-// trimmed before persistence.
-const buildTempUnschedRules = (rules: TempUnschedRuleForm[]) => {
-  const out: Array<{
-    error_code: number // HTTP status code
-    keywords: string[] // matched message fragments
-    duration_minutes: number // suspension duration minutes
-    description: string // administrator rule description
-  }> = []
-
-  for (const rule of rules) {
-    const errorCode = Number(rule.error_code)
-    const duration = Number(rule.duration_minutes)
-    const keywords = splitTempUnschedKeywords(rule.keywords)
-    if (!Number.isFinite(errorCode) || errorCode < 100 || errorCode > 599) {
-      continue
-    }
-    if (!Number.isFinite(duration) || duration <= 0) {
-      continue
-    }
-    if (keywords.length === 0) {
-      continue
-    }
-
-    // Valid numeric form values may contain fractions; truncate both fields
-    // before persistence because HTTP codes and configured minutes are serialized as integers.
-    out.push({
-      error_code: Math.trunc(errorCode),
-      keywords,
-      duration_minutes: Math.trunc(duration),
-      description: rule.description.trim(),
-    })
-  }
-
-  return out
-}
-
-// applyTempUnschedConfig writes enabled temporary-unschedulable policy into
-// mutable credentials. Disabled policy removes both fields; enabled policy with
-// no valid rules reports the field error and returns false so submission stops.
-const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
-  if (!tempUnschedEnabled.value) {
-    delete credentials.temp_unschedulable_enabled
-    delete credentials.temp_unschedulable_rules
-    return true
-  }
-
-  const rules = buildTempUnschedRules(tempUnschedRules.value)
-  if (rules.length === 0) {
+// applyTempUnschedConfig validates enabled temporary-unschedulable rules and
+// reveals the rule editor when enabled rules contain no valid entries.
+const applyTempUnschedConfig = (credentials: Record<string, unknown>) =>
+  applyTempUnschedCredentials(draft, credentials, () => {
     failAt(t('admin.providers.tempUnschedulable.rulesInvalid'), 'temp-unsched')
-    return false
-  }
-
-  credentials.temp_unschedulable_enabled = true
-  credentials.temp_unschedulable_rules = rules
-  return true
-}
-
-// splitTempUnschedKeywords trims comma-separated or semicolon-separated
-// keywords and removes empty entries.
-const splitTempUnschedKeywords = (value: string) => {
-  return value
-    .split(/[,;]/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-}
+  })
 
 // createProtocolProvider applies native capability selection before creating a provider.
 // It waits for the protocol catalog, preserves an explicit empty selection, and
@@ -3436,141 +3228,32 @@ const submitCreateProvider = async (
   }
 }
 
-// resetForm clears dialog drafts and selects the initial creation step.
-// It also removes quota amounts and schedules so reopening the dialog starts
-// with unconfigured local spending limits.
+// resetForm clears dialog drafts, local OAuth inputs, and quota schedules so
+// reopening the dialog starts from clean create-mode defaults.
 const resetForm = () => {
   stopQoderPolling()
   closeQoderAuthPopup()
   resetQoderOAuthCompletionState()
   step.value = 1
-  form.name = ''
-  form.notes = ''
-  form.platform = 'anthropic'
-  form.type = 'oauth'
-  form.credentials = {}
-  upstreamProtocols.value = undefined
-  imageModes.value = readImageStreamModes()
-  form.proxy_id = null
-  form.concurrency = 10
-  form.load_factor = null
-  form.priority = 1
-  form.rate_multiplier = 1
-  form.group_ids = []
-  form.expires_at = null
   providerCategory.value = 'oauth-based'
   addMethod.value = 'oauth'
-  providerMode.value = 'payg'
-  apiProtocol.value = 'adaptive'
-  zhipuOrganization.value = ''
-  zhipuProject.value = ''
-  adaptiveBaseUrls.value = { chat_completions: '', anthropic: '', responses: '' }
-  apiKeyBaseUrl.value = 'https://api.anthropic.com'
-  apiKeyValue.value = ''
-  upstreamUsageEnabled.value = true
-  balanceAlert.value = defaultUpstreamBalanceAlert()
-  upstreamUsageAdapter.value = 'sub2api'
-  upstreamUsageBaseUrl.value = ''
-  upstreamUsageWalletAccessToken.value = ''
-  upstreamUsageWalletUserId.value = ''
-  upstreamRequestIdHeader.value = ''
-  codexImageResponsesModel.value = ''
-  editQuotaLimit.value = null
-  editQuotaDailyLimit.value = null
-  editQuotaWeeklyLimit.value = null
-  editQuotaMonthlyLimit.value = null
-  editDailyResetMode.value = null
-  editDailyResetHour.value = null
-  editWeeklyResetMode.value = null
-  editMonthlyResetMode.value = null
-  editWeeklyResetDay.value = null
-  editMonthlyResetDay.value = null
-  editWeeklyResetHour.value = null
-  editMonthlyResetHour.value = null
-  editResetTimezone.value = null
-  modelMappings.value = []
-  openAICompactModelMappings.value = []
-  modelRestrictionMode.value = 'whitelist'
-  allowedModels.value = []
-  qoderModelRestrictionTouched.value = false
-  qoderModelWhitelistTouched.value = false
-
-  antigravityModelRestrictionMode.value = 'mapping'
-  antigravityWhitelistModels.value = []
-  antigravityProjectId.value = ''
+  openCodeProtocols.value = openCodeDraft()
+  resetProviderFormDraft(draft, 'create', resetQuotaNotify)
   fetchAntigravityDefaultMappings().then((mappings) => {
     antigravityModelMappings.value = [...mappings]
   })
-  poolModeEnabled.value = false
-  poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
-  poolModeRetryStatusCodesInput.value = ''
-  customErrorCodesEnabled.value = false
-  selectedErrorCodes.value = []
-  headerOverrideEnabled.value = false
-  headerOverrideRows.value = []
-  grokOAuthCustomBaseUrlEnabled.value = false
-  grokOAuthBaseUrl.value = ''
-  interceptWarmupRequests.value = false
-  autoPauseOnExpired.value = true
-  autoPause5hThreshold.value = null
-  autoPause7dThreshold.value = null
-  autoPause5hDisabled.value = false
-  autoPause7dDisabled.value = false
-  openaiPassthroughEnabled.value = false
-  openaiFlattenNamespacesEnabled.value = false
-  openAICompactMode.value = 'force_on'
-  openAINativeCompactionV2Mode.value = 'force_on'
-  openAIResponsesContinuationSupported.value = false
-  openAIImagesGIFEnabled.value = true
-  openAIImagesURLToB64JSON.value = false
-  responsesWSConnectionMode.value = RESPONSES_WS_POOLED
-  codexCLIOnlyAllowClaudeCodeEnabled.value = false
-  openAIOAuthClientPolicy.value = 'any'
-  codexFingerprintMode.value = 'off'
-  anthropicPassthroughEnabled.value = false
-  anthropicAPIKeyAuthScheme.value = 'x_api_key'
-  webSearchEmulationMode.value = 'default'
-  // Reset quota control state
-  windowCostEnabled.value = false
-  windowCostLimit.value = null
-  windowCostStickyReserve.value = null
-  sessionLimitEnabled.value = false
-  maxSessions.value = null
-  sessionIdleTimeout.value = null
-  rpmLimitEnabled.value = false
-  baseRpm.value = null
-  rpmStrategy.value = 'tiered'
-  rpmStickyBuffer.value = null
-  userMsgQueueMode.value = ''
-  tlsFingerprintEnabled.value = false
-  tlsFingerprintProfileId.value = null
-  tlsFingerprintRouterId.value = null
-  sessionIdMaskingEnabled.value = false
-  cacheTTLOverrideEnabled.value = false
-  cacheTTLOverrideTarget.value = '5m'
-  customBaseUrlEnabled.value = false
-  customBaseUrl.value = ''
-  allowOverages.value = false
   qoderProviderType.value = 'oauth'
-  qoderSite.value = 'global'
   qoderPAT.value = ''
   qoderSecurityOauthToken.value = ''
   qoderMachineId.value = ''
   qoderUidAid.value = ''
   qoderRefreshToken.value = ''
   qoderUserType.value = 'personal_standard'
-  antigravityProjectId.value = ''
+  bedrockAuthMode.value = 'sigv4'
   vertexServiceAccountJson.value = ''
-  vertexProjectId.value = ''
-  vertexClientEmail.value = ''
-  vertexLocation.value = 'global'
-  tempUnschedEnabled.value = false
-  tempUnschedRules.value = []
   geminiOAuthType.value = 'code_assist'
-  geminiProviderType.value = 'official'
   geminiTierGoogleOne.value = 'google_one_free'
   geminiTierGcp.value = 'gcp_standard'
-  geminiTierAIStudio.value = 'aistudio_free'
   oauth.resetState()
   openaiOAuth.resetState()
   geminiOAuth.resetState()
@@ -3623,6 +3306,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>) =>
       tlsFingerprintProfileId: tlsFingerprintProfileId.value,
       tlsFingerprintRouterId: tlsFingerprintRouterId.value,
       codexFingerprintMode: codexFingerprintMode.value,
+      codexImageToolMode: codexImageToolMode.value,
       codexImageResponsesModel: codexImageResponsesModel.value,
       openAICompactMode: openAICompactMode.value,
       openAINativeCompactionV2Mode: openAINativeCompactionV2Mode.value,
@@ -3795,21 +3479,8 @@ const handleSubmit = async () => {
       credentials.aws_force_global = 'true'
     }
 
-    // Model restriction
     applyPersistedModelRestriction(credentials)
-
-    // Pool mode
-    if (poolModeEnabled.value) {
-      credentials.pool_mode = true
-      credentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
-      const parsedRetryStatusCodes = parsePoolModeRetryStatusCodes(
-        poolModeRetryStatusCodesInput.value,
-      )
-      if (parsedRetryStatusCodes.length > 0) {
-        credentials.pool_mode_retry_status_codes = parsedRetryStatusCodes
-      }
-    }
-
+    applyPoolModeCredentials(draft, credentials)
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
 
     await createProviderAndFinish('anthropic', 'bedrock' as ProviderType, credentials)
@@ -3879,6 +3550,8 @@ const handleSubmit = async () => {
       location: vertexLocation.value.trim(),
       tier_id: 'vertex',
     }
+    applyPersistedModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
     await createProviderAndFinish(form.platform, 'service_account' as ProviderType, credentials)
     return
   }
@@ -3967,29 +3640,10 @@ const handleSubmit = async () => {
   // remains explicit rather than being reconstructed from request-side mapping rows.
   applyPersistedModelRestriction(credentials)
   if (form.platform === 'openai') {
-    const compactModelMapping = buildOpenAICompactModelMapping()
-    if (compactModelMapping) {
-      credentials.compact_model_mapping = compactModelMapping
-    }
+    applyOpenAICompactModelMapping(draft, credentials)
   }
-
-  // Add pool mode if enabled
-  if (poolModeEnabled.value) {
-    credentials.pool_mode = true
-    credentials.pool_mode_retry_count = normalizePoolModeRetryCount(poolModeRetryCount.value)
-    const parsedRetryStatusCodes = parsePoolModeRetryStatusCodes(
-      poolModeRetryStatusCodesInput.value,
-    )
-    if (parsedRetryStatusCodes.length > 0) {
-      credentials.pool_mode_retry_status_codes = parsedRetryStatusCodes
-    }
-  }
-
-  // Add custom error codes if enabled
-  if (customErrorCodesEnabled.value) {
-    credentials.custom_error_codes_enabled = true
-    credentials.custom_error_codes = [...selectedErrorCodes.value]
-  }
+  applyPoolModeCredentials(draft, credentials)
+  applyCustomErrorCodesCredentials(draft, credentials)
 
   // Apply header overrides only for supported API Key platforms, after validation
   // has accepted their rows and before the shared provider submission boundary.
@@ -4173,12 +3827,7 @@ const createProviderAndFinish = async (
     }
   }
   if (platform === 'openai') {
-    const compactModelMapping = buildOpenAICompactModelMapping()
-    if (compactModelMapping) {
-      credentials.compact_model_mapping = compactModelMapping
-    } else {
-      delete credentials.compact_model_mapping
-    }
+    applyOpenAICompactModelMapping(draft, credentials)
   }
   if (platform === 'grok') {
     if (!credentials.base_url) {
@@ -4186,6 +3835,7 @@ const createProviderAndFinish = async (
     }
     applyPersistedModelRestriction(credentials)
   }
+  applyProviderSchedulingThresholdCredentials(draft, credentials, platform)
   if (!isCurrent()) return false
   return doCreateProvider(
     {
@@ -4224,15 +3874,13 @@ const ensureOpenAITempUnschedConfigReady = () => {
   return false
 }
 
-// applyOpenAICreateCredentialPolicies writes the currently selected model and
-// temporary-unschedulable policies into mutable credentials. It returns false
-// after validation reports invalid enabled rules, so callers stop before sending.
+// applyOpenAICreateCredentialPolicies writes the currently selected model,
+// scheduling-threshold, and temporary-unschedulable policies into mutable
+// credentials. It returns false after validation reports invalid enabled rules.
 const applyOpenAICreateCredentialPolicies = (credentials: Record<string, unknown>): boolean => {
   applyPersistedModelRestriction(credentials)
-  const compactModelMapping = buildOpenAICompactModelMapping()
-  if (compactModelMapping) {
-    credentials.compact_model_mapping = compactModelMapping
-  }
+  applyOpenAICompactModelMapping(draft, credentials)
+  applyProviderSchedulingThresholdCredentials(draft, credentials, 'openai')
   return applyTempUnschedConfig(credentials)
 }
 
@@ -4285,13 +3933,17 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
 
         const credentials = grokOAuth.buildCredentials(tokenInfo)
         applyGrokOAuthUpstreamConfig(credentials)
-        const extra = grokOAuth.buildExtraInfo(tokenInfo)
+        const extra = buildGrokOAuthCreateExtra(
+          grokClientToolCacheEnabled.value,
+          grokOAuth.buildExtraInfo(tokenInfo),
+        )
         const providerName =
           refreshTokens.length > 1
             ? `${form.name || tokenInfo.email || 'Grok OAuth Provider'} #${i + 1}`
             : form.name || tokenInfo.email || 'Grok OAuth Provider'
 
         applyPersistedModelRestriction(credentials)
+        applyProviderSchedulingThresholdCredentials(draft, credentials, 'grok')
         if (!applyTempUnschedConfig(credentials)) {
           failedCount++
           errors.push(`#${i + 1}: ${t('admin.providers.tempUnschedulable.rulesInvalid')}`)
@@ -4371,6 +4023,7 @@ const handleGrokImportSSO = async (ssoInput: string) => {
   const credentials: Record<string, unknown> = {}
   applyGrokOAuthUpstreamConfig(credentials)
   applyPersistedModelRestriction(credentials)
+  applyProviderSchedulingThresholdCredentials(draft, credentials, 'grok')
   if (!applyTempUnschedConfig(credentials)) {
     grokOAuth.loading.value = false
     return
@@ -4384,6 +4037,9 @@ const handleGrokImportSSO = async (ssoInput: string) => {
       proxy_id: form.proxy_id,
       group_ids: form.group_ids,
       credentials,
+      extra: withUpstreamRequestIdHeader(
+        buildGrokOAuthCreateExtra(grokClientToolCacheEnabled.value),
+      ),
       concurrency: form.concurrency,
       load_factor: form.load_factor ?? undefined,
       priority: form.priority,
@@ -4476,19 +4132,23 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
         }
 
         const credentials = antigravityOAuth.buildCredentials(tokenInfo, refreshTokens[i])
-        applyAntigravityProjectID(credentials, antigravityProjectId.value, 'create')
+        applyAntigravityPolicyCredentials(draft, credentials, 'create')
+        if (!applyTempUnschedConfig(credentials)) {
+          failedCount++
+          errors.push(`#${i + 1}: ${t('admin.providers.tempUnschedulable.rulesInvalid')}`)
+          continue
+        }
 
         // Generate provider name with index for batch
         const providerName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
 
-        // Note: Antigravity doesn't have buildExtraInfo, so we pass empty extra or rely on credentials
         const createPayload: CreateProviderRequest = {
           name: providerName,
           notes: form.notes,
           platform: 'antigravity',
           type: 'oauth',
           credentials,
-          extra: withUpstreamRequestIdHeader({}),
+          extra: withUpstreamRequestIdHeader(buildAntigravityCreateExtra(allowOverages.value)),
           proxy_id: form.proxy_id,
           concurrency: form.concurrency,
           load_factor: form.load_factor ?? undefined,
@@ -4602,20 +4262,8 @@ const handleAntigravityExchange = async (authCode: string) => {
     if (!tokenInfo) return
 
     const credentials = antigravityOAuth.buildCredentials(tokenInfo)
-    applyAntigravityProjectID(credentials, antigravityProjectId.value, 'create')
-    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-    // Antigravity mapping serialization uses mapping mode regardless of the UI
-    // selection, while its separate whitelist continues to control final model admission.
-    const antigravityModelMapping = buildModelMappingObject(
-      'mapping',
-      [],
-      antigravityModelMappings.value,
-    )
-    if (antigravityModelMapping) {
-      credentials.model_mapping = antigravityModelMapping
-    }
-    credentials.model_whitelist = [...antigravityWhitelistModels.value]
-    const extra = buildAntigravityExtra()
+    applyAntigravityPolicyCredentials(draft, credentials, 'create')
+    const extra = buildAntigravityCreateExtra(allowOverages.value)
     await createProviderAndFinish('antigravity', 'oauth', credentials, extra)
   } catch (error: any) {
     antigravityOAuth.error.value =
@@ -4628,8 +4276,9 @@ const handleAntigravityExchange = async (authCode: string) => {
 
 // handleGrokExchange validates forwarding settings before exchanging the
 // current Grok code. Successful credentials receive endpoint and header overrides,
-// model mapping and whitelist, and temporary-unschedulable rules through shared
-// creation. Invalid local policy stops persistence while retaining the dialog.
+// model mapping and whitelist, scheduling thresholds, and temporary-unschedulable
+// rules through shared creation. Invalid local policy stops persistence while
+// retaining the dialog.
 const handleGrokExchange = async (authCode: string) => {
   if (!authCode.trim() || !grokOAuth.sessionId.value) return
   if (!validateGrokOAuthUpstreamConfig()) return
@@ -4656,7 +4305,10 @@ const handleGrokExchange = async (authCode: string) => {
 
     const credentials = grokOAuth.buildCredentials(tokenInfo)
     applyGrokOAuthUpstreamConfig(credentials)
-    const extra = grokOAuth.buildExtraInfo(tokenInfo)
+    const extra = buildGrokOAuthCreateExtra(
+      grokClientToolCacheEnabled.value,
+      grokOAuth.buildExtraInfo(tokenInfo),
+    )
     await createProviderAndFinish('grok', 'oauth', credentials, extra)
   } catch (error: any) {
     grokOAuth.error.value = error.response?.data?.detail || t('admin.providers.oauth.authFailed')
@@ -4692,70 +4344,7 @@ const handleAnthropicExchange = async (authCode: string) => {
       ...proxyConfig,
     })
 
-    // Build extra with quota control settings
-    const baseExtra = oauth.buildExtraInfo(tokenInfo) || {}
-    const extra: Record<string, unknown> = { ...baseExtra }
-
-    // Add window cost limit settings
-    if (windowCostEnabled.value && windowCostLimit.value != null && windowCostLimit.value > 0) {
-      extra.window_cost_limit = windowCostLimit.value
-      extra.window_cost_sticky_reserve = windowCostStickyReserve.value ?? 10
-    }
-
-    // Add session limit settings
-    if (sessionLimitEnabled.value && maxSessions.value != null && maxSessions.value > 0) {
-      extra.max_sessions = maxSessions.value
-      extra.session_idle_timeout_minutes = sessionIdleTimeout.value ?? 5
-    }
-
-    // Add RPM limit settings
-    if (rpmLimitEnabled.value) {
-      // Missing or nonpositive RPM input uses fifteen requests per minute.
-      const DEFAULT_BASE_RPM = 15
-      extra.base_rpm = baseRpm.value != null && baseRpm.value > 0 ? baseRpm.value : DEFAULT_BASE_RPM
-      extra.rpm_strategy = rpmStrategy.value
-      if (rpmStickyBuffer.value != null && rpmStickyBuffer.value > 0) {
-        extra.rpm_sticky_buffer = rpmStickyBuffer.value
-      }
-    }
-
-    // User-message queue mode is configured independently of the RPM limiter.
-    if (userMsgQueueMode.value) {
-      extra.user_msg_queue_mode = userMsgQueueMode.value
-    }
-
-    // Add TLS fingerprint settings
-    if (tlsFingerprintEnabled.value) {
-      extra.enable_tls_fingerprint = true
-      if (tlsFingerprintProfileId.value) {
-        extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
-      }
-      if (
-        form.platform === 'openai' &&
-        providerCategory.value === 'oauth-based' &&
-        tlsFingerprintRouterId.value
-      ) {
-        extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
-      }
-    }
-
-    // Add session ID masking settings
-    if (sessionIdMaskingEnabled.value) {
-      extra.session_id_masking_enabled = true
-    }
-
-    // Add cache TTL override settings
-    if (cacheTTLOverrideEnabled.value) {
-      extra.cache_ttl_override_enabled = true
-      extra.cache_ttl_override_target = cacheTTLOverrideTarget.value
-    }
-
-    // Add custom base URL settings
-    if (customBaseUrlEnabled.value && customBaseUrl.value.trim()) {
-      extra.custom_base_url_enabled = true
-      extra.custom_base_url = customBaseUrl.value.trim()
-    }
-
+    const extra = buildAnthropicOAuthCreateExtra(draft, oauth.buildExtraInfo(tokenInfo) || {})
     const credentials: Record<string, unknown> = { ...tokenInfo }
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
     await createProviderAndFinish(
@@ -4839,75 +4428,12 @@ const handleCookieAuth = async (sessionKey: string) => {
           ...proxyConfig,
         })
 
-        // Build extra with quota control settings
-        const baseExtra = oauth.buildExtraInfo(tokenInfo) || {}
-        const extra: Record<string, unknown> = { ...baseExtra }
-
-        // Add window cost limit settings
-        if (windowCostEnabled.value && windowCostLimit.value != null && windowCostLimit.value > 0) {
-          extra.window_cost_limit = windowCostLimit.value
-          extra.window_cost_sticky_reserve = windowCostStickyReserve.value ?? 10
-        }
-
-        // Add session limit settings
-        if (sessionLimitEnabled.value && maxSessions.value != null && maxSessions.value > 0) {
-          extra.max_sessions = maxSessions.value
-          extra.session_idle_timeout_minutes = sessionIdleTimeout.value ?? 5
-        }
-
-        // Add RPM limit settings
-        if (rpmLimitEnabled.value) {
-          // Missing or nonpositive RPM input uses fifteen requests per minute.
-          const DEFAULT_BASE_RPM = 15
-          extra.base_rpm =
-            baseRpm.value != null && baseRpm.value > 0 ? baseRpm.value : DEFAULT_BASE_RPM
-          extra.rpm_strategy = rpmStrategy.value
-          if (rpmStickyBuffer.value != null && rpmStickyBuffer.value > 0) {
-            extra.rpm_sticky_buffer = rpmStickyBuffer.value
-          }
-        }
-
-        // User-message queue mode is configured independently of the RPM limiter.
-        if (userMsgQueueMode.value) {
-          extra.user_msg_queue_mode = userMsgQueueMode.value
-        }
-
-        // Add TLS fingerprint settings
-        if (tlsFingerprintEnabled.value) {
-          extra.enable_tls_fingerprint = true
-          if (tlsFingerprintProfileId.value) {
-            extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
-          }
-          if (
-            form.platform === 'openai' &&
-            providerCategory.value === 'oauth-based' &&
-            tlsFingerprintRouterId.value
-          ) {
-            extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
-          }
-        }
-
-        // Add session ID masking settings
-        if (sessionIdMaskingEnabled.value) {
-          extra.session_id_masking_enabled = true
-        }
-
-        // Add cache TTL override settings
-        if (cacheTTLOverrideEnabled.value) {
-          extra.cache_ttl_override_enabled = true
-          extra.cache_ttl_override_target = cacheTTLOverrideTarget.value
-        }
-
-        // Add custom base URL settings
-        if (customBaseUrlEnabled.value && customBaseUrl.value.trim()) {
-          extra.custom_base_url_enabled = true
-          extra.custom_base_url = customBaseUrl.value.trim()
-        }
-
+        const extra = buildAnthropicOAuthCreateExtra(draft, oauth.buildExtraInfo(tokenInfo) || {})
         const providerName = keys.length > 1 ? `${form.name} #${i + 1}` : form.name
 
         const credentials: Record<string, unknown> = { ...tokenInfo }
         applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+        applyProviderSchedulingThresholdCredentials(draft, credentials, 'anthropic')
         if (tempUnschedEnabled.value) {
           credentials.temp_unschedulable_enabled = true
           credentials.temp_unschedulable_rules = tempUnschedPayload

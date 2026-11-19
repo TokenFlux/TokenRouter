@@ -1024,19 +1024,25 @@ import {
   hydrateProviderEditDraft,
   supportsTLSFingerprint,
   supportsProviderSchedulingThresholdOverridePlatform,
-  normalizeProviderSchedulingThresholdOverride,
-} from './providerEditHydration'
+} from '../form-model/providerFormHydration'
 import {
   buildProviderBasePatch,
   applyProviderProtocolPatch,
-  applyProviderExtraPatch,
   applyPoolModeCredentials,
+  applyCustomErrorCodesCredentials,
   applyPersistedModelRestriction,
   applyQoderModelRestriction,
   applyOpenAIModelMappingCredentials,
+  applyOpenAICompactModelMapping,
+  applyTempUnschedCredentials,
+  applyProviderSchedulingThresholdCredentials,
   type ProviderEditPatch,
-} from './providerEditPatch'
-import { createProviderEditDraft } from './providerEditDraft'
+} from '../form-model/providerFormCredentials'
+import { applyProviderExtraPatch } from '../form-model/providerFormExtra'
+import {
+  GROK_CLIENT_TOOL_CACHE_EXTRA_KEY,
+  createProviderEditDraft,
+} from '../form-model/providerFormDraft'
 import Collapse from '@/components/common/Collapse.vue'
 
 import OpenCodeFields from '@/components/provider/form/OpenCodeFields.vue'
@@ -1062,7 +1068,6 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import UpstreamRequestIdHeaderField from '@/components/provider/UpstreamRequestIdHeaderField.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProviderModelMappingEditor from '@/components/provider/ProviderModelMappingEditor.vue'
-import type { TempUnschedRuleForm } from '@/components/provider/TempUnschedRulesEditor.vue'
 import ProxySelector from '@/components/admin/proxy/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import CodexImageToolModeSelector from '@/components/provider/CodexImageToolModeSelector.vue'
@@ -1122,7 +1127,7 @@ import { VERTEX_LOCATION_OPTIONS, groupedProviderSelectOptions } from '@/constan
 import { supportsUpstreamBalanceAlert } from '@/utils/upstreamBalanceAlert'
 import { resolveUpstreamUsageConfig } from '@/utils/upstreamUsage'
 import type { SyncUpstreamModelsResult } from '@/api/admin/providers'
-import { buildModelMappingObject, type QoderSite } from '@/composables/useModelWhitelist'
+import type { QoderSite } from '@/composables/useModelWhitelist'
 
 // EditProviderModal.vue presents provider settings, validates draft fields, and submits
 // administration updates. Authentication type and platform determine the visible controls
@@ -1500,10 +1505,6 @@ const isBedrockAPIKeyMode = computed(
     (props.provider?.credentials as Record<string, unknown>)?.auth_mode === 'apikey',
 )
 
-// GROK_CLIENT_TOOL_CACHE_EXTRA_KEY names the persisted Grok client-tool preference written
-// with both enabled and disabled values on save.
-const GROK_CLIENT_TOOL_CACHE_EXTRA_KEY = 'grok_client_tool_cache_enabled'
-
 // headerOverrideCapable reports whether the selected platform and authentication type
 // expose editable outbound header overrides in the form.
 const headerOverrideCapable = computed(
@@ -1513,10 +1514,6 @@ const headerOverrideCapable = computed(
 // isSyncingAntigravityUpstream prevents overlapping model synchronization requests while
 // the dialog appends the current response to its mapping editor.
 const isSyncingAntigravityUpstream = ref(false)
-
-// PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY names the optional saturation threshold
-// written only when its effective value changes during an edit.
-const PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY = 'provider_scheduling_threshold'
 
 // supportsProviderSchedulingThresholdOverride controls visibility of the per-provider
 // threshold switch using the platform support rule shared with hydration.
@@ -1751,18 +1748,27 @@ function failAt(message: string, field: string) {
   appStore.showError(message)
   void tabsRef.value?.revealField(`[data-provider-field="${field}"]`)
 }
-// Global search controls are optional to editing: a failed settings read hides the
-// override until a later dialog instance loads valid availability.
-adminAPI.settings
-  .getWebSearchEmulationConfig()
-  .then((cfg) => {
-    webSearchGlobalEnabled.value = cfg?.enabled === true && (cfg?.providers?.length ?? 0) > 0
-  })
-  .catch(() => {
-    webSearchGlobalEnabled.value = false
-  })
-
-loadQuotaNotifyGlobal()
+// Defer global settings reads until the edit dialog actually opens so mounting hidden
+// modals on the provider list page issues no unnecessary settings requests.
+let globalFeatureSettingsLoaded = false
+watch(
+  () => props.show,
+  (show) => {
+    if (!show || globalFeatureSettingsLoaded) return
+    globalFeatureSettingsLoaded = true
+    adminAPI.settings
+      .getWebSearchEmulationConfig()
+      .then((cfg) => {
+        webSearchGlobalEnabled.value = cfg?.enabled === true && (cfg?.providers?.length ?? 0) > 0
+      })
+      .catch(() => {
+        // Optional search availability hides the override when global settings cannot be read.
+        webSearchGlobalEnabled.value = false
+      })
+    loadQuotaNotifyGlobal()
+  },
+  { immediate: true },
+)
 // quotaLimits binds the persisted refs to shared quota controls; disabling a limit clears
 // its schedule before the patch builder reads the refs.
 const { limits: quotaLimits, setLimit: setQuotaLimit } = bindQuotaLimits({
@@ -2034,117 +2040,20 @@ const syncAntigravityUpstreamModels = async () => {
   }
 }
 
-// buildTempUnschedRules converts editable suspension rules into credential values. Rules
-// with invalid HTTP codes, nonpositive durations, or empty keyword lists are omitted;
-// accepted numeric values are truncated to integer units before submission.
-const buildTempUnschedRules = (rules: TempUnschedRuleForm[]) => {
-  const out: Array<{
-    error_code: number // Matched HTTP status code.
-    keywords: string[] // Response substring match terms.
-    duration_minutes: number // Suspension duration in minutes.
-    description: string // Administrator rule description text.
-  }> = []
-
-  for (const rule of rules) {
-    // HTTP error matching accepts status codes from 100 through 599 and positive
-    // durations; malformed rows are omitted so empty rules can fail validation.
-    const errorCode = Number(rule.error_code)
-    const duration = Number(rule.duration_minutes)
-    const keywords = splitTempUnschedKeywords(rule.keywords)
-    if (!Number.isFinite(errorCode) || errorCode < 100 || errorCode > 599) {
-      continue
-    }
-    if (!Number.isFinite(duration) || duration <= 0) {
-      continue
-    }
-    if (keywords.length === 0) {
-      continue
-    }
-    // Suspension rules serialize integer HTTP codes and minute durations, matching the
-    // backend fields after the editable numbers pass range checks.
-    out.push({
-      error_code: Math.trunc(errorCode),
-      keywords,
-      duration_minutes: Math.trunc(duration),
-      description: rule.description.trim(),
-    })
-  }
-
-  return out
-}
-
 // applyTempUnschedConfig writes validated temporary-suspension settings into a credential
-// copy. Disabled configuration removes both keys; enabled configuration with no valid
-// rules reveals the rule editor and stops submission by returning false.
-const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
-  if (!tempUnschedEnabled.value) {
-    delete credentials.temp_unschedulable_enabled
-    delete credentials.temp_unschedulable_rules
-    return true
-  }
-
-  const rules = buildTempUnschedRules(tempUnschedRules.value)
-  if (rules.length === 0) {
+// copy and reveals the rule editor when enabled rules contain no valid entries.
+const applyTempUnschedConfig = (credentials: Record<string, unknown>) =>
+  applyTempUnschedCredentials(draft, credentials, () => {
     failAt(t('admin.providers.tempUnschedulable.rulesInvalid'), 'temp-unsched')
-    return false
-  }
+  })
 
-  credentials.temp_unschedulable_enabled = true
-  credentials.temp_unschedulable_rules = rules
-  return true
-}
-
-// clampProviderSchedulingThresholdOverride clamps a submitted scheduling percentage to its
-// accepted integer range. Empty or nonnumeric values use one hundred, and finite values
-// remain between one and one hundred inclusive.
-function clampProviderSchedulingThresholdOverride(value: unknown): number {
-  // Scheduling thresholds are integer percentages; clamp submitted values to the accepted
-  // range and use full saturation for empty input.
-  return Math.min(100, Math.max(1, Math.trunc(Number(value) || 100)))
-}
-
-// applyProviderSchedulingThresholdOverridePatch writes a threshold change into mutable
-// credentials for supported platforms. Disabling an existing valid override writes null,
-// which tells the backend to clear it. Unchanged effective values leave the copied field
-// untouched, and unsupported platforms return without modification. The comparison uses
-// normalized stored values and the clamped draft so display defaults do not create a new
-// override during unrelated provider edits.
+// applyProviderSchedulingThresholdOverridePatch delegates per-provider threshold
+// serialization and null-clearing comparisons to the shared form-model helper.
 const applyProviderSchedulingThresholdOverridePatch = (
   credentials: Record<string, unknown>,
   currentCredentials: Record<string, unknown>,
   platform: Provider['platform'] | undefined = props.provider?.platform,
-) => {
-  if (!supportsProviderSchedulingThresholdOverridePlatform(platform)) {
-    return
-  }
-  const current = normalizeProviderSchedulingThresholdOverride(
-    currentCredentials[PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY],
-  )
-  if (!providerSchedulingThresholdOverrideEnabled.value) {
-    if (current !== null) {
-      // A disabled existing override needs an explicit null patch because omission would
-      // retain the backend credential value during merging.
-      credentials[PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY] = null
-    }
-    return
-  }
-  const next = clampProviderSchedulingThresholdOverride(
-    providerSchedulingThresholdOverrideValue.value,
-  )
-  if (current !== next) {
-    credentials[PROVIDER_SCHEDULING_THRESHOLD_CREDENTIAL_KEY] = next
-  }
-}
-
-// splitTempUnschedKeywords splits comma- or semicolon-separated keywords for suspension
-// rule validation. Whitespace is trimmed and empty fragments are removed so blank input
-// cannot produce a usable rule by itself.
-const splitTempUnschedKeywords = (value: string) => {
-  return value
-    .split(/[,;]/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-}
+) => applyProviderSchedulingThresholdCredentials(draft, credentials, platform, currentCredentials)
 
 // formatDateTimeLocal uses the shared local-time formatter for the expiry input, matching
 // other provider forms in the application.
@@ -2325,25 +2234,10 @@ const handleSubmit = async () => {
         applyPersistedModelRestriction(draft, newCredentials)
       }
       if (props.provider.platform === 'openai') {
-        const compactModelMapping = buildModelMappingObject(
-          'mapping',
-          [],
-          openAICompactModelMappings.value,
-        )
-        if (compactModelMapping) {
-          newCredentials.compact_model_mapping = compactModelMapping
-        } else {
-          delete newCredentials.compact_model_mapping
-        }
+        applyOpenAICompactModelMapping(draft, newCredentials)
       }
       applyPoolModeCredentials(draft, newCredentials)
-      if (customErrorCodesEnabled.value) {
-        newCredentials.custom_error_codes_enabled = true
-        newCredentials.custom_error_codes = [...selectedErrorCodes.value]
-      } else {
-        delete newCredentials.custom_error_codes_enabled
-        delete newCredentials.custom_error_codes
-      }
+      applyCustomErrorCodesCredentials(draft, newCredentials)
       if (isHeaderOverrideCapable(props.provider.platform, 'apikey')) {
         if (headerOverrideEnabled.value) {
           const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
