@@ -13,7 +13,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/modelcatalog"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -51,12 +50,6 @@ func (p *openAIRawChatAdapter) Error(status int, kind, message string) {
 	WriteForwardChatError(p.c, status, kind, message)
 }
 
-// ReplaceModel delegates byte-level model replacement in the outgoing Chat
-// body.
-func (p *openAIRawChatAdapter) ReplaceModel(b []byte, m string) []byte {
-	return openai.ReplaceModelInBody(b, m)
-}
-
 // FastRaw applies the provider fast-tier policy to the outgoing native Chat
 // body. A BlockedError marks local business limitation and writes a committed
 // permission error; the runner stops before upstream sending on that returned
@@ -68,12 +61,6 @@ func (p *openAIRawChatAdapter) FastRaw(ctx context.Context, m string, b []byte) 
 		WriteForwardChatError(p.c, http.StatusForbidden, "permission_error", blocked.Message)
 	}
 	return updated, err
-}
-
-// StripViewImage delegates removal of redundant Grok view-image declarations
-// from Chat.
-func (p *openAIRawChatAdapter) StripViewImage(b []byte) ([]byte, error) {
-	return grok.StripRedundantGrokChatViewImageTool(b)
 }
 
 // RawCredential resolves the selected provider's credential and
@@ -97,12 +84,6 @@ func (p *openAIRawChatAdapter) BridgeImages(ctx context.Context, b []byte, key s
 		WriteForwardChatError(p.c, http.StatusBadGateway, "upstream_error", err.Error())
 	}
 	return updated, usage, changed, err
-}
-
-// StripGrokCacheKey delegates removal of incompatible prompt-cache fields from
-// Grok Chat.
-func (p *openAIRawChatAdapter) StripGrokCacheKey(b []byte) ([]byte, error) {
-	return grok.StripGrokChatPromptCacheKey(b)
 }
 
 // GrokEffort resolves model attributes for the selected Chat provider and
@@ -134,10 +115,6 @@ func (p *openAIRawChatAdapter) RawTarget() (string, error) {
 // UserAgent reads the provider's configured OpenAI-compatible User-Agent for
 // native Chat.
 func (p *openAIRawChatAdapter) UserAgent() string { return p.provider.View().GetOpenAIUserAgent() }
-
-// GrokUserAgent returns the shared default User-Agent for Grok upstream
-// requests.
-func (p *openAIRawChatAdapter) GrokUserAgent() string { return grok.DefaultGrokUpstreamUserAgent() }
 
 // SendRaw resets model observation before sending the prepared native Chat
 // request. It supplies this attempt's provider and TLS matches to SendChat;

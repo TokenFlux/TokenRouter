@@ -139,7 +139,7 @@ func (p *inputTokensAttemptBridge) ForwardFailed(selected textflow.Selection, er
 func (p *inputTokensAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
 	var original *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &original)
-	WriteOpenAIFailoverExhausted(p.c, ProjectOpenAIFailoverError(original), false, p.ports.Rules, FailoverErrorHooks{Upstream: func(c *gin.Context, status int, message string) { SetOpsUpstreamError(c, status, message, "") }, SkipMonitoring: func(c *gin.Context) { c.Set(OpsSkipPassthroughKey, true) }}, func(c *gin.Context, status int, kind, message string, _ bool) {
+	WriteOpenAIFailoverExhausted(p.c, ProjectOpenAIFailoverError(original), false, p.ports.Rules, FailoverErrorHooks{Upstream: func(c *gin.Context, status int, message string) { SetOpsUpstreamError(c, status, message, "") }, SkipMonitoring: MarkOpsSkipMonitoring}, func(c *gin.Context, status int, kind, message string, _ bool) {
 		writeOpenAITokenError(c, status, kind, message)
 	})
 }

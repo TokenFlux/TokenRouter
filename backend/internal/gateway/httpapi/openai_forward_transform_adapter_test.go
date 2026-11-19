@@ -243,14 +243,13 @@ func TestOpenAIRequestBodyMayContainEmptyBase64InputImageSeesEscapedInputPrefix(
 }
 
 // TestGetOpenAIRequestBodyMap_DoesNotWriteContextCache decodes a model and
-// stream through the transform adapter. It checks the decoded model and that
-// the otherwise empty Gin key map stays empty.
+// stream through the request-state body decoder. It checks the decoded model
+// and that an empty Gin context remains untouched.
 func TestGetOpenAIRequestBodyMap_DoesNotWriteContextCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	adapter := openAIForwardTransformAdapter{openAIForwardPreludeAdapter: openAIForwardPreludeAdapter{c: c}}
-	got, err := adapter.Decode([]byte(`{"model":"gpt-5","stream":true}`))
+	got, err := requeststate.DecodeOpenAIRequestBody([]byte(`{"model":"gpt-5","stream":true}`))
 	require.NoError(t, err)
 	require.Equal(t, "gpt-5", got["model"])
 	require.Empty(t, c.Keys)

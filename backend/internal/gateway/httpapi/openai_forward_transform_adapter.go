@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/provider/modelrules"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -87,14 +84,6 @@ func (p openAIForwardTransformAdapter) ModelAttributes(ctx context.Context, mode
 	return result.ForRequest(gatewayadapter.ModelRequestState(body)), nil
 }
 
-// Decode delegates number-aware Responses object decoding to requeststate for
-// transformation. It returns a decoded map or parsing error without writing
-// Gin cache state; callers keep the returned mutable map stable through
-// subsequent synchronous transformation and serialization.
-func (p openAIForwardTransformAdapter) Decode(body []byte) (map[string]any, error) {
-	return requeststate.DecodeOpenAIRequestBody(body)
-}
-
 // GroupImagePolicy resolves explicit image-tool handling from the current
 // effective key group and admitted client protocol. The inherited provider
 // policy survives when no relevant group override applies;
@@ -144,78 +133,6 @@ func (p openAIForwardTransformAdapter) CompactModel(model string) string {
 	return p.s.Text.Compact.ResolveModel(p.provider, model)
 }
 
-// ImagePermissionMessage returns the shared client message for denied
-// image-generation admission.
-func (p openAIForwardTransformAdapter) ImagePermissionMessage() string {
-	return media.ImageGenerationPermissionMessage
-}
-
-// IsImageGenerationIntent delegates broad image-intent detection from
-// endpoint, model and raw body.
-func (p openAIForwardTransformAdapter) IsImageGenerationIntent(endpoint, model string, body []byte) bool {
-	return gatewayadapter.ImageIntent().IsImageGenerationIntent(endpoint, model, body)
-}
-
-// IsExplicitImageGenerationIntent delegates client-declared image-intent
-// detection for admission checks.
-func (p openAIForwardTransformAdapter) IsExplicitImageGenerationIntent(endpoint, model string, body []byte) bool {
-	return gatewayadapter.ImageIntent().IsExplicitImageGenerationIntent(endpoint, model, body)
-}
-
-// IsImageGenerationIntentMap delegates broad image-intent detection for a
-// decoded request map.
-func (p openAIForwardTransformAdapter) IsImageGenerationIntentMap(endpoint, model string, body map[string]any) bool {
-	return gatewayadapter.ImageIntent().IsImageGenerationIntentMap(endpoint, model, body)
-}
-
-// IsExplicitImageGenerationIntentMap delegates client-declared image-intent
-// detection for decoded input.
-func (p openAIForwardTransformAdapter) IsExplicitImageGenerationIntentMap(endpoint, model string, body map[string]any) bool {
-	return gatewayadapter.ImageIntent().IsExplicitImageGenerationIntentMap(endpoint, model, body)
-}
-
-// OpenAIRequestBodyImageGenerationToolNeedsNormalization delegates whether the
-// body's image tool needs compatibility normalization.
-func (p openAIForwardTransformAdapter) OpenAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool {
-	return gatewayadapter.ImageIntent().OpenAIRequestBodyImageGenerationToolNeedsNormalization(body)
-}
-
-// OpenAIRequestBodyHasImageGenerationDeclaration delegates whether raw input
-// declares an image-generation tool.
-func (p openAIForwardTransformAdapter) OpenAIRequestBodyHasImageGenerationDeclaration(body []byte) bool {
-	return gatewayadapter.ImageIntent().OpenAIRequestBodyHasImageGenerationDeclaration(body)
-}
-
-// EnsureOpenAIResponsesImageGenerationTool delegates image-tool insertion into
-// a writable request map. The shared helper reports whether it changed the
-// declaration; callers apply group and provider admission before using this
-// injection capability.
-func (p openAIForwardTransformAdapter) EnsureOpenAIResponsesImageGenerationTool(body map[string]any) bool {
-	return gatewayadapter.EnsureOpenAIResponsesImageGenerationTool(body)
-}
-
-// EnsureOpenAIResponsesImageGenerationToolChoiceAuto delegates compatible
-// image tool-choice adjustment on a writable map. Its change flag reports an
-// adopted edit; the shared transform decides when automatic image choice is
-// appropriate for the request.
-func (p openAIForwardTransformAdapter) EnsureOpenAIResponsesImageGenerationToolChoiceAuto(body map[string]any) bool {
-	return gatewayadapter.EnsureOpenAIResponsesImageGenerationToolChoiceAuto(body)
-}
-
-// ValidateCodexSparkInput delegates selected-model Spark input validation
-// before upstream preparation.
-func (p openAIForwardTransformAdapter) ValidateCodexSparkInput(body map[string]any, model string) error {
-	return gatewayadapter.ValidateCodexSparkInput(body, model)
-}
-
-// ApplyCodexImageGenerationBridgeInstructions delegates bridge instruction
-// insertion into the writable request map. The shared helper detects supported
-// existing markers and reports whether text was added; the caller selects
-// injection through its image policy.
-func (p openAIForwardTransformAdapter) ApplyCodexImageGenerationBridgeInstructions(body map[string]any) bool {
-	return gatewayadapter.ApplyCodexImageGenerationBridgeInstructions(body)
-}
-
 // CodexTransform delegates OAuth request normalization with installed provider
 // attributes and rules when available. The supplied writable map can change
 // during that operation; callers inspect the returned Error before adopting
@@ -226,12 +143,6 @@ func (p openAIForwardTransformAdapter) CodexTransform(body map[string]any, optio
 		options.Rules = &p.provider.Capabilities.Rules
 	}
 	return gatewayadapter.ApplyCodexOAuthTransformWithOptions(body, options)
-}
-
-// EnsureCodexOAuthInstructionsField delegates insertion of the required Codex
-// instructions field.
-func (p openAIForwardTransformAdapter) EnsureCodexOAuthInstructionsField(body map[string]any) {
-	protocolopenai.EnsureCodexInstructionsField(body)
 }
 
 // ToolNameReverse publishes the request-local reverse names returned by Codex
@@ -312,34 +223,4 @@ func (p openAIForwardTransformAdapter) FastBlocked(err error) {
 	if blocked, ok := errors.AsType[*tierpolicy.BlockedError](err); ok {
 		WriteFastPolicyBlockedResponse(p.c, blocked)
 	}
-}
-
-// SanitizeOpenAIResponsesOrphanToolOutputs delegates unmatched output removal
-// when continuation cannot supply call context. It requires a writable body
-// when filtering changes input; retained nested item values stay shared with
-// the supplied input slice.
-func (p openAIForwardTransformAdapter) SanitizeOpenAIResponsesOrphanToolOutputs(body map[string]any, input []any, hasPrevious bool) bool {
-	return gatewayadapter.SanitizeOpenAIResponsesOrphanToolOutputs(body, input, hasPrevious)
-}
-
-// FirstNonEmptyString delegates trimmed selection of the first usable string
-// value.
-func (p openAIForwardTransformAdapter) FirstNonEmptyString(values ...any) string {
-	return openai.FirstNonEmptyString(values...)
-}
-
-// Marshal serializes the prepared request through the number-aware JSON
-// wrapper. Callers retain the mutable map unchanged while serialization reads
-// it; unsupported values or invalid numeric literals return errors before the
-// prepared body is adopted.
-func (p openAIForwardTransformAdapter) Marshal(body map[string]any) ([]byte, error) {
-	return wirejson.Marshal(body)
-}
-
-// NormalizeTrigger delegates final remote-compaction trigger ordering after
-// other input edits. Reordered or duplicate triggers become one minimal final
-// trigger, while the helper retains other decoded values and returns original
-// bytes with errors.
-func (p openAIForwardTransformAdapter) NormalizeTrigger(body []byte) ([]byte, bool, error) {
-	return protocolopenai.NormalizeCompactionTriggerInputOrder(body)
 }

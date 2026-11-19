@@ -175,10 +175,10 @@ func openAIImagesStreamPrefix(parsed *gatewaymedia.ImageRequest) string {
 // available. Detachment retains any server-abort signal and supplies a no-op
 // release hook. Native execution owns acquired-body and activity cleanup. A
 // matched invalid Agent Identity task can request one guarded recursive
-// attempt after recovery, rebuilding from parsed input; the recursive call
-// currently uses default TLS match arguments. HTTP failures retain their own
-// result path, while other outcomes pass observed image count and error to
-// ImageOutcome before returning media fields.
+// attempt after recovery, rebuilding from parsed input while retaining the
+// supplied TLS router matches. HTTP failures retain their own result path,
+// while other outcomes pass observed image count and error to ImageOutcome
+// before returning media fields.
 func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	ctx context.Context,
 	c *gin.Context,
@@ -396,7 +396,7 @@ func (s *OpenAIImagesExecutor) forwardOpenAIImagesOAuth(
 	// Native cleanup has finished before rebuilding after matched identity recovery.
 	// Mark the source context so another invalid task cannot recurse through recovery.
 	if retryAgent {
-		return s.forwardOpenAIImagesOAuth(requeststate.WithAgentTaskRecovery(ctx), c, provider, parsed, groupMappedModel)
+		return s.forwardOpenAIImagesOAuth(requeststate.WithAgentTaskRecovery(ctx), c, provider, parsed, groupMappedModel, tlsRouterMatch...)
 	}
 	if httpFailure {
 		return legacyHTTPResult, err

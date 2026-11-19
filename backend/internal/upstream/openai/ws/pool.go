@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"errors"
-	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,28 +13,19 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-// pool.go arbitrates WebSocket leases, connection compatibility, capacity,
-// prewarming, and provider pool shutdown.
-// A provider can reuse an upstream WebSocket only when destination, proxy, TLS,
-// beta features, and selected fingerprint identity agree. Routing hints express
-// preference among compatible sockets; explicit continuation can require one
-// connection, while a forced-new request avoids existing continuation state.
-// Capacity includes active dials so concurrent selection cannot spend the same
-// unbuilt slot.
+// pool.go arbitrates WebSocket lease acquisition, queueing, idle health sweeps,
+// and provider pool lifecycle for OpenAI Responses WebSocket transport.
+// Capacity checks count both established sockets and reserved in-flight dials
+// so concurrent callers cannot oversubscribe a provider limit while handshakes
+// are still running outside the provider lock.
 //
-// A connection carries one lease token, separate direction locks, and atomic
-// activity observations. Provider locking protects connection maps,
-// reservations, pins, generation, and change notifications; closing runs
-// outside that lock. Acquisitions register against shutdown before queueing or
-// dialing, and late prewarm results recheck demand and compatibility before
-// publication. Callers finish lease I/O before Release, keep shared
-// provider/profile inputs stable, and close the pool after its transport work
-// ends.
+// Acquisitions register against pool shutdown before waiting or dialing, wake
+// queued selectors through generation-replaced channels, and close evicted or
+// expired sockets after releasing provider locks. Companion connection types
+// live in conn.go and adaptive background prewarming lives in prewarm.go.
 
 // These intervals and labels govern lease selection, background health/cleanup,
 // and prewarm suppression; fingerprint labels select which handshake identities
@@ -73,124 +63,6 @@ const (
 // entry checks and transport adapters support the same errors.Is
 // classification.
 var errOpenAIWSConnClosed = openai.ErrWSConnClosed
-
-// WSAcquireRequest selects provider transport identity and connection reuse
-// policy for one acquisition.
-type WSAcquireRequest struct {
-	// Provider supplies identity and concurrency/fingerprint rules; request cloning
-	// shares this pointer, so its fields remain stable during acquisition and
-	// retained prewarm use.
-	Provider *WSPoolProvider
-	// WSURL is the caller-validated WebSocket target; acquisition trims it and
-	// rejects blank text while target/redirect security belongs to the transport
-	// caller.
-	WSURL string
-	// Headers supplies stable handshake identity and routing preference;
-	// acquisition clones value slices, and compatibility uses these bytes before
-	// dial-time factory refresh.
-	Headers http.Header
-	// HeadersFactory optionally refreshes cloned headers for each actual dial;
-	// callback closure state stays shared and needs its own synchronization across
-	// concurrent dials.
-	HeadersFactory func(context.Context, http.Header) (http.Header, error)
-	ProxyURL       string // selected outbound proxy URL
-	// TLSProfile is passed through to the dialer without a deep copy; callers keep
-	// the profile stable while shared acquisition/prewarm requests use it.
-	TLSProfile *tlsfingerprint.Profile
-	// TLSProfileKey takes precedence over profile-derived identity when trimmed
-	// nonblank; callers supply a stable key when randomized instances represent one
-	// configured TLS profile.
-	TLSProfileKey string
-	// PreferredConnID is ordinary first preference unless ForcePreferredConn is
-	// active; ForceNewConn bypasses that continuation selection and uses fresh-dial
-	// policy.
-	PreferredConnID string
-	// ForceNewConn skips reuse and preferred enforcement; if no fresh slot or
-	// reclaimable idle socket exists, acquisition returns queue-full without
-	// waiting.
-	ForceNewConn bool
-	// ForcePreferredConn requires a compatible, unexpired PreferredConnID unless
-	// ForceNewConn overrides it; unavailable identities fail and busy selections
-	// queue only for that socket.
-	ForcePreferredConn bool
-}
-
-// openAIWSHandshakeCompatibilityKey stores comparable beta and fingerprint
-// identity values for socket reuse.
-// betaFeatures always participates in compatibility. codexInstallationID joins
-// in device/full modes; sessionIDHyphen, sessionIDUnderscore, threadID,
-// clientRequestID, and codexWindowID join for other non-off/non-device modes.
-// Missing selected values remain empty and still compare as tuple members.
-type openAIWSHandshakeCompatibilityKey struct {
-	betaFeatures        string // normalized beta feature set
-	codexInstallationID string // selected installation identity value
-	sessionIDHyphen     string // hyphenated session header value
-	sessionIDUnderscore string // underscored session header value
-	threadID            string // selected thread identity value
-	clientRequestID     string // selected client-request identity value
-	codexWindowID       string // selected Codex window identity
-}
-
-// WSConnLease owns one selected connection token and acquisition observations.
-// Keep Conn, ProviderID, and pool association stable while using it, finish its
-// I/O before Release, and do not copy a live lease containing its release
-// latch.
-type WSConnLease struct {
-	pool       *WSConnPool // owning lease connection pool
-	ProviderID int64       // selected lease provider identity
-	// Conn retains the selected socket; public lease operations check release at
-	// entry, so callers keep this reference stable and finish I/O before returning
-	// it.
-	Conn      *WSConn
-	queueWait time.Duration // accumulated queue reservation duration
-	connPick  time.Duration // delivered selection-loop pick duration
-	reused    bool          // existing socket acquisition choice
-	// released latches one token return per lease; it guards future operation entry
-	// but cannot stop I/O that already passed its check.
-	released atomic.Bool
-}
-
-// WSConn retains transport identity, one lease token, and independently
-// synchronized direction/activity state.
-// id, ws, handshakeHeaders, compatibility, and routingAffinity are filled
-// before pool publication and kept stable afterward. leaseCh governs occupancy
-// independently of closedCh; closeOnce publishes closure once, while direction
-// locks and atomic timestamps support concurrent transport observations.
-type WSConn struct {
-	id string // pool-generated socket identity string
-	// ws is the retained transport owned by connection closing; read/write/ping
-	// errors propagate while the session decides whether to evict or release.
-	ws openai.WSClientConn
-
-	handshakeHeaders http.Header         // cloned upstream handshake headers
-	compatibility    wsConnCompatibility // immutable outbound compatibility tuple
-	routingAffinity  string              // captured advisory route preference
-
-	// leaseCh holds one availability token and remains open after closure; closedCh
-	// separately rejects new acquisition even when a token is returned.
-	leaseCh chan struct{}
-	// closedCh is published before transport Close starts; token availability and
-	// completion of a close handshake can therefore lag this closure observation.
-	closedCh  chan struct{}
-	closeOnce sync.Once // connection disposal publication latch
-
-	// readMu serializes reads independently of writeMu; its ordinary mutex wait is
-	// not interruptible by the operation's parent or timeout context.
-	readMu sync.Mutex
-	// writeMu serializes writes and ping independently of reads; ping creates its
-	// timeout after this lock, while contextual writes derive theirs before
-	// waiting.
-	writeMu sync.Mutex
-
-	waiters atomic.Int32 // forced continuation waiter count
-	// createdAtNano and lastUsedNano store independent wall-clock timestamps in
-	// Unix nanoseconds. Construction initializes both together; successful read/write
-	// and release update activity alone, so sampled age and idle duration have
-	// distinct endpoints and retain no monotonic clock metadata.
-	createdAtNano atomic.Int64 // Unix nanoseconds
-	lastUsedNano  atomic.Int64 // Unix nanoseconds
-	prewarmed     atomic.Bool  // protocol warmup completion marker
-}
 
 // openAIWSProviderPool stores a provider's connections and admission/prewarm
 // state under its mutex.
@@ -317,25 +189,12 @@ type openAIWSIdlePingCandidate struct {
 	conn       *WSConn // sampled idle connection reference
 }
 
-// codexFingerprintMode aliases the provider's supplied fingerprint mode
-// spelling for handshake key selection.
-type codexFingerprintMode = string
-
 // WSPoolProviderState reports map-based provider counts with sampled lease
 // state. Connections is the connection-entry count. LeasedConnections is the
 // sampled occupied-token count. PinnedConnections is the pin-entry count.
 // Categories overlap, and lease tokens can change independently while the
 // provider map lock is held.
 type WSPoolProviderState struct{ Connections, LeasedConnections, PinnedConnections int }
-
-// wsConnCompatibility is the comparable destination, proxy, TLS, and selected
-// handshake identity tuple.
-type wsConnCompatibility struct {
-	wsURL         string                            // trimmed WebSocket target identity
-	proxyURL      string                            // trimmed outbound proxy identity
-	tlsProfileKey string                            // stable TLS compatibility identity
-	handshake     openAIWSHandshakeCompatibilityKey // selected handshake identity tuple
-}
 
 // activeConn rejects nil, missing-connection, and already released leases,
 // returning the retained connection otherwise. Its atomic released check is an
@@ -571,32 +430,6 @@ func (l *WSConnLease) Release() {
 		l.pool.reconcileProvider(l.ProviderID)
 		l.pool.notifyProviderPoolChanged(l.ProviderID)
 	}
-}
-
-// NewWSConn creates a connection with one available token and current
-// creation/activity timestamps. It clones handshake headers and records TLS
-// compatibility; pool dialing later fills destination/proxy/identity and
-// routing. The provider argument is unused, and nil transports support metadata
-// fixtures but fail applicable I/O.
-func NewWSConn(id string, _ int64, ws openai.WSClientConn, handshakeHeaders http.Header, profile *tlsfingerprint.Profile, profileKey string) *WSConn {
-	now := time.Now()
-	conn := &WSConn{
-		id: id,
-
-		ws: ws,
-
-		handshakeHeaders: cloneHeader(handshakeHeaders),
-
-		compatibility: wsConnCompatibility{tlsProfileKey: openAIWSTLSProfileKey(profile, profileKey)},
-
-		leaseCh: make(chan struct{}, 1),
-
-		closedCh: make(chan struct{}),
-	}
-	conn.leaseCh <- struct{}{}
-	conn.createdAtNano.Store(now.UnixNano())
-	conn.lastUsedNano.Store(now.UnixNano())
-	return conn
 }
 
 // tryAcquire nonblockingly takes the connection's one available token unless
@@ -930,17 +763,6 @@ func (c *WSConn) markPrewarmed() {
 		return
 	}
 	c.prewarmed.Store(true)
-}
-
-// openAIWSTLSProfileKey prefers a nonblank trimmed supplied key over the
-// profile-derived cache key. A stable supplied key can retain compatibility
-// across randomized profile instances. Callers own whether that key faithfully
-// identifies the intended TLS configuration.
-func openAIWSTLSProfileKey(profile *tlsfingerprint.Profile, profileKey string) string {
-	if key := stringsTrim(profileKey); key != "" {
-		return key
-	}
-	return tlsfingerprint.CacheKey(profile)
 }
 
 // changeChannelLocked returns the provider change channel, lazily creating it
@@ -1559,28 +1381,6 @@ func (p *WSConnPool) recordConnPickDuration(duration time.Duration) {
 	p.metrics.connPickMs.Add(duration.Milliseconds())
 }
 
-// recordLastSuccessfulAcquire stores a cloned successful request under provider
-// locking when its generation still matches. Missing pools or invalid IDs are
-// ignored. The stored provider/profile/callback references remain shared;
-// generation rejection prevents a pre-clear request from restoring the prewarm
-// target.
-func (p *WSConnPool) recordLastSuccessfulAcquire(providerID int64, generation uint64, req WSAcquireRequest) {
-	if p == nil || providerID <= 0 {
-		return
-	}
-	ap, ok := p.getProviderPool(providerID)
-	if !ok || ap == nil {
-		return
-	}
-	ap.mu.Lock()
-	if ap.generation != generation {
-		ap.mu.Unlock()
-		return
-	}
-	ap.lastAcquire = CloneWSAcquireRequestPtr(&req)
-	ap.mu.Unlock()
-}
-
 // pickOldestIdleConnLocked selects the least recently used reclaimable socket
 // under ap.mu. Leased, pinned, forced-waited, or generally compatible-waited
 // sockets are excluded. Equal timestamps follow map iteration rather than a
@@ -1785,281 +1585,6 @@ func (p *WSConnPool) pickAvailableConnLocked(ap *openAIWSProviderPool, preferred
 		return other
 	}
 	return nil
-}
-
-// providerPoolLoadLocked counts occupied tokens and both forced/general waiter
-// reservations under ap.mu. Nil state returns zeros. Token occupancy can change
-// on release outside that mutex, so the values are current sampled demand
-// rather than a persisted admission ledger.
-func providerPoolLoadLocked(ap *openAIWSProviderPool) (inflight int, waiters int) {
-	if ap == nil {
-		return 0, 0
-	}
-	for _, conn := range ap.conns {
-		if conn == nil {
-			continue
-		}
-		if conn.isLeased() {
-			inflight++
-		}
-		waiters += int(conn.waiters.Load())
-	}
-	for _, count := range ap.waiters {
-		waiters += count
-	}
-	return inflight, waiters
-}
-
-// ensureTargetIdleAsync starts one eligible prewarm batch for a provider using
-// its latest successful request. Missing state/target, active or
-// cooled/suppressed prewarm, satisfied demand, and shutdown prevent another
-// batch. runtimeMu orders registration against Close while ap.mu protects
-// reservations.
-//
-// The current target includes demand and in-progress dials. Required capacity
-// is reserved before launching the batch, and its generation/transport target
-// are captured for post-dial checks. Start is not required by this helper; the
-// lifecycle owner still joins prewarm through Close. Shared request
-// provider/profile/callback data remains stable while the retained batch uses
-// it.
-func (p *WSConnPool) ensureTargetIdleAsync(providerID int64) {
-	if p == nil || providerID <= 0 {
-		return
-	}
-
-	p.runtimeMu.Lock()
-	defer p.runtimeMu.Unlock()
-	if p.closed {
-		return
-	}
-
-	var req WSAcquireRequest
-	generation := uint64(0)
-	need := 0
-	ap, ok := p.getProviderPool(providerID)
-	if !ok || ap == nil {
-		return
-	}
-	ap.mu.Lock()
-	defer ap.mu.Unlock()
-	if ap.lastAcquire == nil {
-		return
-	}
-	if ap.prewarmActive {
-		return
-	}
-	now := time.Now()
-	if !ap.prewarmUntil.IsZero() && now.Before(ap.prewarmUntil) {
-		return
-	}
-	if p.shouldSuppressPrewarmLocked(ap, now) {
-		return
-	}
-	if !p.prewarmNeededLocked(ap) {
-		return
-	}
-	effectiveMaxConns := p.maxConnsHardCap()
-	if ap.lastAcquire != nil && ap.lastAcquire.Provider != nil {
-		effectiveMaxConns = p.effectiveMaxConnsByProvider(ap.lastAcquire.Provider)
-	}
-	target := p.targetConnCountLocked(ap, effectiveMaxConns)
-	current := len(ap.conns) + ap.creating
-	if current >= target {
-		return
-	}
-	need = target - current
-	if need <= 0 {
-		return
-	}
-	req = CloneWSAcquireRequest(*ap.lastAcquire)
-	generation = ap.generation
-	ap.prewarmActive = true
-	if cooldown := p.prewarmCooldown(); cooldown > 0 {
-		ap.prewarmUntil = now.Add(cooldown)
-	}
-	ap.creating += need
-	p.metrics.scaleUpTotal.Add(int64(need))
-
-	// Publish batch activity and reserved slots before spawning; Close excludes
-	// further registration through runtimeMu and waits for this complete resource batch.
-	p.prewarmWG.Go(func() { ; p.prewarmConns(providerID, req, need, generation) })
-}
-
-// targetConnCountLocked derives bounded connection demand from occupied tokens,
-// waiter reservations, minimum idle, and target utilization. Callers hold
-// ap.mu; nil state or nonpositive maxConns returns zero. No demand selects the
-// clamped idle floor.
-//
-// Demand above one is divided by utilization and rounded up, allowing spare
-// capacity. Waiting demand also requests at least one more connection than
-// currently exists before hard-cap clamping. These combined observations
-// prevent a low utilization target or an idle floor from exceeding the
-// effective capacity, while busy/pinned sockets can keep actual maps larger
-// until cleanup becomes eligible.
-func (p *WSConnPool) targetConnCountLocked(ap *openAIWSProviderPool, maxConns int) int {
-	if ap == nil {
-		return 0
-	}
-
-	if maxConns <= 0 {
-		return 0
-	}
-
-	minIdle := min(max(p.minIdlePerProvider(), 0), maxConns)
-
-	inflight, waiters := providerPoolLoadLocked(ap)
-	utilization := p.targetUtilization()
-	demand := inflight + waiters
-	if demand <= 0 {
-		return minIdle
-	}
-
-	target := 1
-	if demand > 1 {
-		// Round spare-capacity demand upward before clamping, so fractional target
-		// calculations still reserve a complete connection for the current queue/load observation.
-		target = int(math.Ceil(float64(demand) / utilization))
-	}
-	if waiters > 0 && target < len(ap.conns)+1 {
-		target = len(ap.conns) + 1
-	}
-	if target < minIdle {
-		target = minIdle
-	}
-	if target > maxConns {
-		target = maxConns
-	}
-	return target
-}
-
-// prewarmNeededLocked checks whether latest-request demand exceeds current
-// sockets and the eligible idle count is below the idle ceiling. Unleased,
-// unpinned sockets without forced continuation waiters contribute to that idle
-// count; general compatibility waiters remain separate demand observations.
-// Callers hold ap.mu and supply initialized provider state. Its decision is
-// sampled again after dialing because capacity and demand can change meanwhile.
-func (p *WSConnPool) prewarmNeededLocked(ap *openAIWSProviderPool) bool {
-	if ap.lastAcquire == nil {
-		return false
-	}
-	limit := p.effectiveMaxConnsByProvider(ap.lastAcquire.Provider)
-	if len(ap.conns) >= p.targetConnCountLocked(ap, limit) {
-		return false
-	}
-	idle := 0
-	for id, conn := range ap.conns {
-		if conn != nil && !conn.isLeased() && conn.waiters.Load() == 0 && !p.isConnPinnedLocked(ap, id) {
-			idle++
-		}
-	}
-	return idle < p.maxIdlePerProvider()
-}
-
-// prewarmConns consumes reserved dial capacity for one captured provider target
-// and generation, using the first optional generation or zero. The enclosing
-// registration owns joining. Caller reservations include total and stay
-// protected by provider locking as each dial finishes.
-//
-// Target identity and need are checked before and after each dial. Rejected
-// late sockets close outside locking; unused reservations return in the
-// deferred phase and wake selectors. A changed hard compatibility target schedules
-// recomputation using the latest successful request. Failed dials advance
-// suppression evidence but this batch can continue its reserved attempts;
-// suppression controls later batch admission. Prewarm uses its cancellable
-// parent plus dial budget and extra delay.
-func (p *WSConnPool) prewarmConns(providerID int64, req WSAcquireRequest, total int, generations ...uint64) {
-	generation := uint64(0)
-	if len(generations) > 0 {
-		generation = generations[0]
-	}
-	staleTarget := false
-	remaining := total
-	defer func() {
-		if ap, ok := p.getProviderPool(providerID); ok && ap != nil {
-			ap.mu.Lock()
-			// Return this batch's unused reservations before waking selectors,
-			// keeping other registered dials counted while newly available capacity becomes selectable.
-			ap.creating = max(0, ap.creating-remaining)
-			ap.prewarmActive = false
-			ap.signalChangedLocked()
-			ap.mu.Unlock()
-		}
-		if staleTarget {
-			// A stale target has lost its retained request ownership; recompute
-			// demand after reservations return so the next batch captures current compatible inputs.
-			p.ensureTargetIdleAsync(providerID)
-		}
-	}()
-
-	for remaining > 0 {
-		parent := p.prewarmCtx
-		if parent == nil {
-			parent = context.Background()
-		}
-		if parent.Err() != nil {
-			return
-		}
-		ap, ok := p.getProviderPool(providerID)
-		if !ok || ap == nil {
-			return
-		}
-		ap.mu.Lock()
-		if ap.generation != generation || ap.lastAcquire == nil {
-			ap.mu.Unlock()
-			return
-		}
-		if !sameOpenAIWSPrewarmTarget(req, *ap.lastAcquire) {
-			staleTarget = true
-			ap.mu.Unlock()
-			return
-		}
-		if !p.prewarmNeededLocked(ap) {
-			ap.mu.Unlock()
-			return
-		}
-		ap.mu.Unlock()
-		ctx, cancel := context.WithTimeout(parent, p.dialTimeout()+openAIWSConnPrewarmExtraDelay)
-		conn, err := p.dialConn(ctx, req)
-		cancel()
-
-		ap.mu.Lock()
-		remaining--
-		if ap.creating > 0 {
-			ap.creating--
-		}
-		if err != nil {
-			ap.prewarmFails++
-			ap.prewarmFailAt = time.Now()
-			ap.signalChangedLocked()
-			ap.mu.Unlock()
-			continue
-		}
-		if ap.generation != generation || ap.lastAcquire == nil {
-			ap.mu.Unlock()
-			conn.close()
-			return
-		}
-		if !sameOpenAIWSPrewarmTarget(req, *ap.lastAcquire) {
-			staleTarget = true
-			ap.signalChangedLocked()
-			ap.mu.Unlock()
-			conn.close()
-			return
-		}
-		// Dialing runs without provider locking; recheck target demand and
-		// cancellation before publication so a late socket cannot exceed changed idle/capacity needs.
-		if parent.Err() != nil || !p.prewarmNeededLocked(ap) {
-			ap.signalChangedLocked()
-			ap.mu.Unlock()
-			conn.close()
-			return
-		}
-		ap.conns[conn.id] = conn
-		ap.prewarmFails = 0
-		ap.prewarmFailAt = time.Time{}
-		ap.signalChangedLocked()
-		ap.mu.Unlock()
-	}
 }
 
 // ClearProvider removes and closes every recorded provider socket, including
@@ -2297,213 +1822,9 @@ func (p *WSConnPool) queueLimitPerConn() int { return p.nativeOptions().QueueLim
 // utilization ratio.
 func (p *WSConnPool) targetUtilization() float64 { return p.nativeOptions().TargetUtilization() }
 
-// prewarmCooldown delegates the current option snapshot's delay between
-// eligible prewarm batches.
-func (p *WSConnPool) prewarmCooldown() time.Duration {
-	return p.nativeOptions().PrewarmCooldown()
-}
-
-// shouldSuppressPrewarmLocked checks recent dial-failure evidence under ap.mu.
-// Nil provider state suppresses admission; missing or sufficiently old
-// last-failure time clears accumulated evidence. Recent count at the configured
-// threshold suppresses a new batch.
-//
-// The count includes failed acquisition and prewarm dials, and age is measured
-// from the latest failure rather than each failure's timestamp. New successful
-// dials or provider clearing reset it elsewhere. This helper can mutate stale
-// counters during selection, so callers hold the provider lock even when they
-// expect only a boolean query.
-func (p *WSConnPool) shouldSuppressPrewarmLocked(ap *openAIWSProviderPool, now time.Time) bool {
-	if ap == nil {
-		return true
-	}
-	if ap.prewarmFails <= 0 {
-		return false
-	}
-	if ap.prewarmFailAt.IsZero() {
-		ap.prewarmFails = 0
-		return false
-	}
-	if now.Sub(ap.prewarmFailAt) > openAIWSPrewarmFailureWindow {
-		ap.prewarmFails = 0
-		ap.prewarmFailAt = time.Time{}
-		return false
-	}
-	return ap.prewarmFails >= openAIWSPrewarmFailureSuppress
-}
-
 // dialTimeout delegates the current option snapshot's positive or default
 // prewarm dial budget.
 func (p *WSConnPool) dialTimeout() time.Duration { return p.nativeOptions().DialTimeout() }
-
-// CloneWSAcquireRequest copies headers/value slices and trims target, proxy,
-// and preferred-ID text. Other fields are shallow copies. Provider, TLSProfile,
-// and HeadersFactory remain shared, so callers keep those referenced inputs
-// stable while acquisition/prewarm consumes the clone.
-func CloneWSAcquireRequest(req WSAcquireRequest) WSAcquireRequest {
-	copied := req
-	copied.Headers = cloneHeader(req.Headers)
-	copied.WSURL = stringsTrim(req.WSURL)
-	copied.ProxyURL = stringsTrim(req.ProxyURL)
-	copied.PreferredConnID = stringsTrim(req.PreferredConnID)
-	return copied
-}
-
-// CloneWSAcquireRequestPtr returns a pointer to the header-copying request
-// clone, or nil for nil input. Provider/profile/callback references remain
-// shared. The result's scalar fields and cloned headers can diverge
-// independently from the supplied request.
-func CloneWSAcquireRequestPtr(req *WSAcquireRequest) *WSAcquireRequest {
-	if req == nil {
-		return nil
-	}
-	copied := CloneWSAcquireRequest(*req)
-	return &copied
-}
-
-// sameOpenAIWSPrewarmTarget compares the destination/proxy/TLS and selected
-// handshake identity used for dial/reuse. Routing hints remain advisory and are
-// excluded. Credential-header refresh is also outside that key; caller provider
-// invalidation handles credential recovery.
-func sameOpenAIWSPrewarmTarget(a, b WSAcquireRequest) bool {
-	return wsCompatibilityForRequest(a) == wsCompatibilityForRequest(b)
-}
-
-// normalizeOpenAIWSBetaFeatures collects beta features across case-insensitive
-// header names and comma-separated values, trimming, deduplicating, and sorting
-// their spelling. Feature case remains significant. Sorting makes reordered
-// equivalent declarations produce one comparable handshake key for reuse and
-// prewarm target checks.
-func normalizeOpenAIWSBetaFeatures(headers http.Header) string {
-	features := make(map[string]struct{})
-	for name, values := range headers {
-		if !strings.EqualFold(strings.TrimSpace(name), "x-codex-beta-features") {
-			continue
-		}
-		for _, value := range values {
-			for feature := range strings.SplitSeq(value, ",") {
-				if feature = strings.TrimSpace(feature); feature != "" {
-					features[feature] = struct{}{}
-				}
-			}
-		}
-	}
-	if len(features) == 0 {
-		return ""
-	}
-	normalized := make([]string, 0, len(features))
-	for feature := range features {
-		normalized = append(normalized, feature)
-	}
-	sort.Strings(normalized)
-	return strings.Join(normalized, ",")
-}
-
-// normalizeOpenAIWSHandshakeCompatibility builds a selected identity tuple from
-// beta features and fingerprint mode. Off uses beta alone; device additionally
-// uses installation identity; all other non-off modes include
-// session/thread/request/window headers.
-//
-// The key retains both session-id spellings separately. Stable identity lookup
-// uses canonical http.Header.Get, while beta scanning accepts name variants.
-// Values are copied as strings into comparable state before reuse, allowing
-// destination/transport identity to remain distinct from the advisory routing
-// hint and refreshed authentication supplied at dial time.
-func normalizeOpenAIWSHandshakeCompatibility(provider *WSPoolProvider, headers http.Header) openAIWSHandshakeCompatibilityKey {
-	key := openAIWSHandshakeCompatibilityKey{
-		betaFeatures: normalizeOpenAIWSBetaFeatures(headers),
-	}
-	mode := activeCodexFingerprintMode(provider)
-	if mode == codexFingerprintOff {
-		return key
-	}
-	key.codexInstallationID = normalizeOpenAIWSStableIdentityHeader(headers, "x-codex-installation-id")
-	if mode == codexFingerprintDevice {
-		return key
-	}
-	key.sessionIDHyphen = normalizeOpenAIWSStableIdentityHeader(headers, "session-id")
-	key.sessionIDUnderscore = normalizeOpenAIWSStableIdentityHeader(headers, "session_id")
-	key.threadID = normalizeOpenAIWSStableIdentityHeader(headers, "thread-id")
-	key.clientRequestID = normalizeOpenAIWSStableIdentityHeader(headers, "x-client-request-id")
-	key.codexWindowID = normalizeOpenAIWSStableIdentityHeader(headers, "x-codex-window-id")
-	return key
-}
-
-// normalizeOpenAIWSStableIdentityHeader returns a trimmed canonical header
-// lookup, or empty text for nil headers. It does not scan case variants
-// manually. Callers normalize header insertion when fingerprint identity must
-// participate in compatibility.
-func normalizeOpenAIWSStableIdentityHeader(headers http.Header, name string) string {
-	if headers == nil {
-		return ""
-	}
-	return strings.TrimSpace(headers.Get(name))
-}
-
-// normalizeOpenAIWSRoutingAffinity selects the first nonblank canonical
-// routing-header value, then case-insensitive name variants in sorted name
-// order. Missing/blank candidates yield empty affinity. Value order within each
-// header slice remains supplied.
-//
-// This deterministic name preference lets differently cased maps agree on the
-// advisory route chosen for socket selection. The value remains a string
-// preference; changing it does not invalidate otherwise compatible transport
-// identity or force prewarm result disposal. Actual hard compatibility is
-// represented by wsCompatibilityForRequest separately.
-func normalizeOpenAIWSRoutingAffinity(headers http.Header) string {
-	canonicalName := http.CanonicalHeaderKey(openAICodexRoutingHintHeader)
-	if values, ok := headers[canonicalName]; ok {
-		for _, value := range values {
-			if value = strings.TrimSpace(value); value != "" {
-				return value
-			}
-		}
-	}
-
-	variantNames := make([]string, 0)
-	for name := range headers {
-		if name != canonicalName && strings.EqualFold(strings.TrimSpace(name), openAICodexRoutingHintHeader) {
-			variantNames = append(variantNames, name)
-		}
-	}
-	sort.Strings(variantNames)
-	for _, name := range variantNames {
-		for _, value := range headers[name] {
-			if value = strings.TrimSpace(value); value != "" {
-				return value
-			}
-		}
-	}
-	return ""
-}
-
-// cloneHeader delegates independent header map/value-slice copying, returning
-// nil for nil input and writable empty storage for an empty nonnil map. Empty
-// supplied value slices remain as keys with nil values. The upstream helper
-// defines those representation details for handshake and request snapshots.
-func cloneHeader(src http.Header) http.Header { return upstream.CloneHeader(src) }
-
-// closeOpenAIWSConns closes each nonnil connection after callers release
-// provider locking. Empty lists are ignored. Connection close-once latches
-// accept repeated references, and this sequential loop can wait for each
-// transport handshake before returning.
-func closeOpenAIWSConns(conns []*WSConn) {
-	if len(conns) == 0 {
-		return
-	}
-	for _, conn := range conns {
-		if conn == nil {
-			continue
-		}
-		conn.close()
-	}
-}
-
-// stringsTrim returns the supplied text with surrounding Unicode whitespace
-// removed.
-func stringsTrim(value string) string {
-	return strings.TrimSpace(value)
-}
 
 // Start launches periodic ping/cleanup workers once while the pool is open. Nil
 // pools, repeated startup, and startup after Close are ignored. runtimeMu
@@ -2531,17 +1852,6 @@ func (p *WSConnPool) nativeOptions() *WSPoolOptions {
 		return nil
 	}
 	return p.cfg.Load()
-}
-
-// activeCodexFingerprintMode returns supplied fingerprint spelling, defaulting
-// nil/empty provider state to off. Other spellings remain as supplied.
-// Handshake selection treats any non-off/non-device value as requiring the
-// fuller identity tuple.
-func activeCodexFingerprintMode(provider *WSPoolProvider) codexFingerprintMode {
-	if provider == nil || provider.FingerprintMode == "" {
-		return codexFingerprintOff
-	}
-	return provider.FingerprintMode
 }
 
 // SnapshotProviderState returns provider map counts plus sampled occupied-token
@@ -2626,19 +1936,6 @@ func (p *WSConnPool) reconcileProvider(id int64) {
 	ap.signalChangedLocked()
 	ap.mu.Unlock()
 	closeOpenAIWSConns(evicted)
-}
-
-// wsCompatibilityForRequest builds the comparable transport target from trimmed
-// URL/proxy, stable TLS key, beta features, and selected fingerprint identity.
-// Routing hints and authentication are excluded. Dialing, ordinary reuse,
-// forced continuation, and prewarm checks consume the same tuple.
-func wsCompatibilityForRequest(req WSAcquireRequest) wsConnCompatibility {
-	return wsConnCompatibility{
-		wsURL:         stringsTrim(req.WSURL),
-		proxyURL:      stringsTrim(req.ProxyURL),
-		tlsProfileKey: openAIWSTLSProfileKey(req.TLSProfile, req.TLSProfileKey),
-		handshake:     normalizeOpenAIWSHandshakeCompatibility(req.Provider, req.Headers),
-	}
 }
 
 // matchesCompatibility reports exact transport-tuple equality for a nonnil

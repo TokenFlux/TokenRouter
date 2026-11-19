@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -336,4 +338,70 @@ func (s *passthroughTestSink) Emit(event upstream.OutputEvent) error {
 	// independent copy for assertions that run after response handling returns.
 	s.bodies = append(s.bodies, bytes.Clone(event.Data))
 	return nil
+}
+
+// TestReadPassthroughStreamingBareErrorClearedByCompleted streams semantic
+// output, a standalone Codex error frame, and a valid response.completed
+// terminal through ReadPassthroughStreaming. The completed terminal clears the
+// withheld bare error without synthesizing response.failed or firing deferred
+// terminal side effects.
+func TestReadPassthroughStreamingBareErrorClearedByCompleted(t *testing.T) {
+	sse := strings.Join([]string{
+		`event: response.output_text.delta`,
+		`data: {"type":"response.output_text.delta","delta":"hello"}`,
+		``,
+		`event: error`,
+		`data: {"type":"error","error":{"message":"transient warning"}}`,
+		``,
+		`event: response.completed`,
+		`data: {"type":"response.completed","response":{"id":"resp_recovered","model":"upstream-model","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":4,"output_tokens":2}}}`,
+		``,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+	var calls []string
+	sink := &passthroughTestSink{calls: &calls}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": {"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(sse)),
+	}
+	sideEffects := 0
+	clearDisconnects := 0
+	options := passthroughTestOptions(&calls)
+	options.NativeOpenAI = true
+	options.MaxLineSize = 1 << 20
+	options.ClientOutputStarted = func(started bool) bool { return started }
+	options.RestoreToolNames = func(payload []byte, _ string) []byte { return payload }
+	options.OpenAIStreamEventIsTerminalWithType = wire.OpenAIStreamEventIsTerminalWithType
+	options.TerminalSideEffects = func([]byte, string, http.Header, string) { sideEffects++ }
+	options.ClearDisconnect = func() { clearDisconnects++ }
+	options.BuildOpenAIResponseFailedSSE = func(_, _ string, _ []byte, msg string) string {
+		t.Fatalf("unexpected synthetic response.failed: %s", msg)
+		return ""
+	}
+
+	result, err := ReadPassthroughStreaming(
+		context.Background(),
+		resp,
+		upstream.NewOutputContext(sink),
+		options,
+		time.Now(),
+		"client-model",
+		"upstream-model",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "resp_recovered", result.ResponseID)
+	require.Equal(t, &wire.ForwardUsage{InputTokens: 4, OutputTokens: 2}, result.Usage)
+	require.Zero(t, sideEffects)
+	require.Equal(t, 1, clearDisconnects)
+	var emitted strings.Builder
+	for _, chunk := range sink.bodies {
+		_, _ = emitted.Write(chunk)
+	}
+	require.Contains(t, emitted.String(), `"type":"response.completed"`)
+	require.Contains(t, emitted.String(), `"model":"client-model"`)
+	require.NotContains(t, emitted.String(), `"transient warning"`)
+	require.NotContains(t, emitted.String(), `response.failed`)
 }

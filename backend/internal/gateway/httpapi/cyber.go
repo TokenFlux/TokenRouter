@@ -174,7 +174,7 @@ func (h *CyberHandler) EnqueueBlocked(c *gin.Context, key *apikey.APIKey, model,
 	if h == nil || h.runtime.Ops == nil || c == nil {
 		return
 	}
-	c.Set("ops_dedicated_error_recorded", true)
+	MarkOpsDedicatedErrorRecorded(c)
 	h.runtime.Ops.Enqueue(moderationflow.BuildSessionBlockedOpsEntry(h.Meta(c, key, nil, model, "openai", false, blockKey)))
 }
 
@@ -211,7 +211,7 @@ func (h *CyberHandler) RecordPolicy(c *gin.Context, in CyberPolicyCall) bool {
 	if in.Provider != nil && strings.TrimSpace(in.Provider.Platform) != "" {
 		platform = in.Provider.Platform
 	}
-	meta := h.Meta(c, in.Key, in.Provider, in.Model, platform, c.GetBool("ops_stream"), blockKey)
+	meta := h.Meta(c, in.Key, in.Provider, in.Model, platform, GetOpsStream(c), blockKey)
 	excerpt := CurrentOpenAICyberWarningPromptExcerpt(c)
 	warning := BuildOpenAICyberWarningInput(h.endpoints, c, in.Key, in.Provider, in.Model, mark.UpstreamStatus, []byte(mark.Body), mark.Message, excerpt)
 	if h.moderator != nil {

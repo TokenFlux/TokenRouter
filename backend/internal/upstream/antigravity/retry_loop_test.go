@@ -640,3 +640,30 @@ func TestNormalizeAntigravityModelName(t *testing.T) {
 		})
 	}
 }
+
+// TestCapacityTrackerIsolatesModelCooldownsAcrossInstances verifies that two
+// CapacityTracker instances keep independent per-model exhaustion deadlines
+// while pruning expired entries on subsequent writes.
+func TestCapacityTrackerIsolatesModelCooldownsAcrossInstances(t *testing.T) {
+	now := time.Date(2026, time.November, 19, 8, 0, 0, 0, time.UTC)
+	trackerA := NewCapacityTracker()
+	trackerB := NewCapacityTracker()
+
+	trackerA.MarkExhausted("gemini-2.5-pro", now.Add(10*time.Second), now)
+	deadline, active := trackerA.CooldownUntil("gemini-2.5-pro", now.Add(5*time.Second))
+	require.True(t, active)
+	require.Equal(t, now.Add(10*time.Second), deadline)
+
+	_, activeOnB := trackerB.CooldownUntil("gemini-2.5-pro", now.Add(5*time.Second))
+	require.False(t, activeOnB)
+
+	// Marking another model after the first deadline expires prunes the stale entry.
+	later := now.Add(11 * time.Second)
+	trackerA.MarkExhausted("claude-sonnet-4-5", later.Add(10*time.Second), later)
+	_, stillActive := trackerA.CooldownUntil("gemini-2.5-pro", later)
+	require.False(t, stillActive)
+
+	trackerA.Clear("claude-sonnet-4-5")
+	_, clearedActive := trackerA.CooldownUntil("claude-sonnet-4-5", later)
+	require.False(t, clearedActive)
+}

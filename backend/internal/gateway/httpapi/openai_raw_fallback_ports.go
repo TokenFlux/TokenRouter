@@ -10,7 +10,6 @@ import (
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
@@ -57,14 +56,6 @@ func (p *openAIRawFallbackAdapter) Error(status int, kind, message string) {
 	p.errorWriter()(p.c, status, kind, message)
 }
 
-// ThinkingFallback retains supplied effort before deriving a model display
-// default from enabled thinking. Its return supports usage attribution after
-// conversion, and a present pointer is retained even when the pointed-to
-// string is empty.
-func (p *openAIRawFallbackAdapter) ThinkingFallback(e *string, b []byte, m string) *string {
-	return gatewayprovider.ApplyThinkingEnabledFallback(e, b, m)
-}
-
 // PrepareModel applies selected-provider model attributes for Chat Completions
 // request bytes. The request helper extracts the body model and delegates
 // preparation; errors return before the runner obtains its target or sends the
@@ -97,14 +88,6 @@ func (p *openAIRawFallbackAdapter) RecacheInput(b json.RawMessage) {
 // identifier.
 func (p *openAIRawFallbackAdapter) ReasoningContent(id string) string {
 	return p.s.Output.Reasoning.Lookup(id)
-}
-
-// EffectiveEffort reads the final outgoing body's effort for result
-// attribution. The original bytes and model arguments are unused, so a control
-// discarded during conversion is not recovered from those inputs by this
-// adapter.
-func (p *openAIRawFallbackAdapter) EffectiveEffort(b, original []byte, models ...string) *string {
-	return requeststate.ExtractOpenAIReasoningEffortFromBody(b)
 }
 
 // ObserveModel records the chosen upstream model in the request's Ops context.

@@ -9,7 +9,12 @@ import (
 
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -112,7 +117,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if reqBody != nil {
 			return reqBody, nil
 		}
-		decoded, decodeErr := p.Decode(requestView.Bytes())
+		decoded, decodeErr := requeststate.DecodeOpenAIRequestBody(requestView.Bytes())
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
@@ -166,7 +171,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	// Explicit declarations decide image admission, while broad intent also
 	// controls bridge handling and billing; retain both observations when provider
 	// policy strips image tools.
-	explicitImageIntent := p.IsExplicitImageGenerationIntent("/v1/responses", reqModel, canonicalImageIntentBody)
+	explicitImageIntent := gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent("/v1/responses", reqModel, canonicalImageIntentBody)
 	// Strip provider-blocked image declarations on the decoded representation,
 	// then reevaluate both intent kinds against that adopted body before checking
 	// group admission.
@@ -177,15 +182,15 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		}
 		if openai.StripOpenAIImageGenerationTools(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Stripped /responses image_generation tool for Codex client by provider policy")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Stripped /responses image_generation tool for Codex client by provider policy")
 		}
-		imageIntent = p.IsImageGenerationIntentMap("/v1/responses", reqModel, decoded)
-		explicitImageIntent = p.IsExplicitImageGenerationIntentMap("/v1/responses", reqModel, decoded)
+		imageIntent = gatewayprovider.ImageIntent().IsImageGenerationIntentMap("/v1/responses", reqModel, decoded)
+		explicitImageIntent = gatewayprovider.ImageIntent().IsExplicitImageGenerationIntentMap("/v1/responses", reqModel, decoded)
 	} else {
 		imageIntent = canonicalImageIntent
 	}
 	if explicitImageIntent && !imageGenerationAllowed {
-		p.Reject(Rejection{Status: 403, Type: "permission_error", Message: p.ImagePermissionMessage(), FeatureDenied: true})
+		p.Reject(Rejection{Status: 403, Type: "permission_error", Message: media.ImageGenerationPermissionMessage, FeatureDenied: true})
 		return nil, errors.New("image generation disabled for group")
 	}
 
@@ -223,7 +228,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		markPatchDelete("top_p")
 	}
 	if billingModel != requestedModel {
-		p.Log("[OpenAI] Model mapping applied: %s -> %s (provider: %s, isCodexCLI: %v)", requestedModel, billingModel, profile.Name, isCodexCLI)
+		logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Model mapping applied: %s -> %s (provider: %s, isCodexCLI: %v)", requestedModel, billingModel, profile.Name, isCodexCLI)
 	}
 	reqModel = billingModel
 	if upstreamModel != requestedModel {
@@ -231,9 +236,9 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	}
 	if upstreamModel != billingModel {
 		if isCompactRequest {
-			p.Log("[OpenAI] Compact model mapping applied: %s -> %s (provider: %s, isCodexCLI: %v)", requestedModel, upstreamModel, profile.Name, isCodexCLI)
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Compact model mapping applied: %s -> %s (provider: %s, isCodexCLI: %v)", requestedModel, upstreamModel, profile.Name, isCodexCLI)
 		} else {
-			p.Log("[OpenAI] Upstream model resolved: %s -> %s (provider: %s, type: %s, isCodexCLI: %v)", billingModel, upstreamModel, profile.Name, profile.Type, isCodexCLI)
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Upstream model resolved: %s -> %s (provider: %s, type: %s, isCodexCLI: %v)", billingModel, upstreamModel, profile.Name, profile.Type, isCodexCLI)
 		}
 	}
 	// Structured output schemas need object-level normalization, so adopt pending
@@ -247,36 +252,36 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		}
 		if openai.NormalizeOpenAIResponseFormatSchemas(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Normalized Responses JSON schema compatibility")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Normalized Responses JSON schema compatibility")
 		}
 	}
 
-	imageIntent = imageIntent || p.IsImageGenerationIntent("/v1/responses", reqModel, nil) || attributes.Attributes.OutputOnly("image")
-	explicitImageIntent = explicitImageIntent || p.IsExplicitImageGenerationIntent("/v1/responses", reqModel, nil) || attributes.Attributes.OutputOnly("image")
+	imageIntent = imageIntent || gatewayprovider.ImageIntent().IsImageGenerationIntent("/v1/responses", reqModel, nil) || attributes.Attributes.OutputOnly("image")
+	explicitImageIntent = explicitImageIntent || gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent("/v1/responses", reqModel, nil) || attributes.Attributes.OutputOnly("image")
 	if explicitImageIntent && !imageGenerationAllowed {
-		p.Reject(Rejection{Status: 403, Type: "permission_error", Message: p.ImagePermissionMessage(), FeatureDenied: true})
+		p.Reject(Rejection{Status: 403, Type: "permission_error", Message: media.ImageGenerationPermissionMessage, FeatureDenied: true})
 		return nil, errors.New("image generation disabled for group")
 	}
 
 	// Bridge insertion and image-only model migration share the decoded path,
 	// allowing model validation and instruction preparation to inspect the same
 	// normalized image tool declaration.
-	if imageGenerationAllowed && !isCompactRequest && (codexImageGenerationBridgeEnabled || attributes.Attributes.OutputOnly("image") || p.OpenAIRequestBodyImageGenerationToolNeedsNormalization(body)) {
+	if imageGenerationAllowed && !isCompactRequest && (codexImageGenerationBridgeEnabled || attributes.Attributes.OutputOnly("image") || gatewayprovider.ImageIntent().OpenAIRequestBodyImageGenerationToolNeedsNormalization(body)) {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if codexImageGenerationBridgeEnabled && p.EnsureOpenAIResponsesImageGenerationTool(decoded) {
+		if codexImageGenerationBridgeEnabled && gatewayprovider.EnsureOpenAIResponsesImageGenerationTool(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Injected /responses image_generation tool for Codex client")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Injected /responses image_generation tool for Codex client")
 		}
-		if codexImageGenerationBridgeEnabled && p.EnsureOpenAIResponsesImageGenerationToolChoiceAuto(decoded) {
+		if codexImageGenerationBridgeEnabled && gatewayprovider.EnsureOpenAIResponsesImageGenerationToolChoiceAuto(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Set /responses image_generation tool_choice=auto for Codex client")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Set /responses image_generation tool_choice=auto for Codex client")
 		}
 		if openai.NormalizeOpenAIResponsesImageGenerationTools(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Normalized /responses image_generation tool payload")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Normalized /responses image_generation tool payload")
 		}
 		if openai.NormalizeOpenAIResponsesImageOnlyModel(decoded, attributes.Attributes.OutputOnly("image"), profile.ImageResponsesModel) {
 			imageMainModelAdapted = true
@@ -284,7 +289,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			if model, ok := decoded["model"].(string); ok {
 				upstreamModel = strings.TrimSpace(model)
 			}
-			p.Log("[OpenAI] Normalized /responses image-only model request inbound_model=%s image_model=%s upstream_model=%s", requestView.Model, billingModel, upstreamModel)
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Normalized /responses image-only model request inbound_model=%s image_model=%s upstream_model=%s", requestView.Model, billingModel, upstreamModel)
 		}
 		if err := openai.ValidateOpenAIResponsesImageModel(decoded, upstreamModel, upstreamModel == attributes.Target.Model && attributes.Attributes.OutputOnly("image")); err != nil {
 			p.Reject(Rejection{Status: 400, Type: "invalid_request_error", Message: err.Error(), Param: "model", PolicyDenied: true})
@@ -292,11 +297,11 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		}
 		if openai.HasOpenAIImageGenerationTool(decoded) {
 			imageIntent = true
-			p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
 		}
-	} else if imageGenerationAllowed && imageIntent && p.OpenAIRequestBodyHasImageGenerationDeclaration(body) {
+	} else if imageGenerationAllowed && imageIntent && gatewayprovider.ImageIntent().OpenAIRequestBodyHasImageGenerationDeclaration(body) {
 		// A complete image tool declaration can be read from raw JSON; validation, bridging, or legacy migration requires decoding input.
-		p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
+		logging.LegacyPrintf("service.openai_gateway", "[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s provider_type=%s", requestView.Model, upstreamModel, profile.Type)
 	}
 
 	// Wait until provider, Compact, and image driver mapping have resolved the
@@ -317,9 +322,9 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if p.ApplyCodexImageGenerationBridgeInstructions(decoded) {
+		if gatewayprovider.ApplyCodexImageGenerationBridgeInstructions(decoded) {
 			markDecodedModified()
-			p.Log("[OpenAI] Added Codex image_generation bridge instructions")
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Added Codex image_generation bridge instructions")
 		}
 	}
 
@@ -332,7 +337,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if err := p.ValidateCodexSparkInput(decoded, upstreamModel); err != nil {
+		if err := gatewayprovider.ValidateCodexSparkInput(decoded, upstreamModel); err != nil {
 			p.Reject(Rejection{Status: 400, Type: "invalid_request_error", Message: err.Error(), Param: "input", ObserveUpstream: true})
 			return nil, err
 		}
@@ -341,7 +346,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	// Resolved platform rules can disallow image tools after group admission and
 	// bridge preparation; remove declarations from the current map before OAuth
 	// serialization.
-	if imageToolsDisabled && p.OpenAIRequestBodyHasImageGenerationDeclaration(body) {
+	if imageToolsDisabled && gatewayprovider.ImageIntent().OpenAIRequestBodyHasImageGenerationDeclaration(body) {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
 			return nil, decodeErr
@@ -372,7 +377,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 				PreserveToolCallIDs:                 true,
 				OmitPromotedSystemMessagesFromInput: omitPromotedSystemMessages,
 			})
-			p.EnsureCodexOAuthInstructionsField(decoded)
+			protocolopenai.EnsureCodexInstructionsField(decoded)
 			markDecodedModified()
 		} else {
 			codexResult = p.CodexTransform(decoded, openai.CodexOAuthTransformOptions{
@@ -540,10 +545,10 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if input, ok := decoded["input"].([]any); ok && p.SanitizeOpenAIResponsesOrphanToolOutputs(
+		if input, ok := decoded["input"].([]any); ok && gatewayprovider.SanitizeOpenAIResponsesOrphanToolOutputs(
 			decoded,
 			input,
-			strings.TrimSpace(p.FirstNonEmptyString(decoded["previous_response_id"])) != "",
+			strings.TrimSpace(openai.FirstNonEmptyString(decoded["previous_response_id"])) != "",
 		) {
 			markDecodedModified()
 		}
@@ -575,7 +580,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 				return nil, decodeErr
 			}
 			var marshalErr error
-			body, marshalErr = p.Marshal(decoded)
+			body, marshalErr = wirejson.Marshal(decoded)
 			if marshalErr != nil {
 				return nil, fmt.Errorf("serialize request body: %w", marshalErr)
 			}
@@ -585,7 +590,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	// Place the compaction trigger after historical input only after all body
 	// edits are serialized; adopting reordered bytes rebuilds the view and clears
 	// cached decoding.
-	if normalizedBody, changed, normalizeErr := p.NormalizeTrigger(body); normalizeErr != nil {
+	if normalizedBody, changed, normalizeErr := protocolopenai.NormalizeCompactionTriggerInputOrder(body); normalizeErr != nil {
 		return nil, fmt.Errorf("normalize compaction trigger order: %w", normalizeErr)
 	} else if changed {
 		body = normalizedBody

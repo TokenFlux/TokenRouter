@@ -302,7 +302,7 @@ func (h MessagesErrorOutput) GeminiExhausted(c *gin.Context, failoverErr *forwar
 			}
 
 			if rule.SkipMonitoring {
-				c.Set(OpsSkipPassthroughKey, true)
+				MarkOpsSkipMonitoring(c)
 			}
 
 			WriteGoogleError(c, respCode, msg)

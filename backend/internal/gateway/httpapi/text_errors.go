@@ -155,8 +155,5 @@ func ErrorRequestID(c *gin.Context) string {
 // terminal Responses failures omit the model field when request metadata is
 // unavailable.
 func ErrorRequestModel(c *gin.Context) string {
-	if c == nil {
-		return ""
-	}
-	return strings.TrimSpace(c.GetString("ops_model"))
+	return strings.TrimSpace(GetOpsModel(c))
 }

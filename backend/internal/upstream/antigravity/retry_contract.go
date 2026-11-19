@@ -71,13 +71,12 @@ const (
 	AntigravityModelCapacityCooldown = 10 * time.Second
 )
 
-// modelCapacityExhaustedMu protects modelCapacityExhaustedUntil deadline reads
-// and updates; expiry is checked during capacity admission without removing
-// entries. Callers use the lock for every access to the shared deadline map.
-var (
-	modelCapacityExhaustedMu    sync.RWMutex                 // capacity deadline synchronization
-	modelCapacityExhaustedUntil = make(map[string]time.Time) // normalized model recovery deadline
-)
+// CapacityTracker stores per-model capacity-exhaustion cooldown deadlines for
+// one runtime instance so concurrent tests and services remain isolated.
+type CapacityTracker struct {
+	mu    sync.RWMutex         // synchronizes deadline reads and updates
+	until map[string]time.Time // normalized model name to recovery deadline
+}
 
 // AntigravityProviderSwitchError carries provider/model identity for gateway
 // retry selection after local rate-limit handling.
@@ -85,6 +84,59 @@ type AntigravityProviderSwitchError struct {
 	OriginalProviderID int64  // provider that requested a switch
 	RateLimitedModel   string // model selected for limit handling
 	IsStickySession    bool   // observed sticky-session affinity flag
+}
+
+// NewCapacityTracker constructs an empty per-model capacity cooldown tracker.
+func NewCapacityTracker() *CapacityTracker {
+	return &CapacityTracker{until: make(map[string]time.Time)}
+}
+
+// CooldownUntil reports the active capacity-exhaustion deadline for model when
+// now precedes that deadline. Nil trackers, blank models, and expired entries
+// return false.
+func (t *CapacityTracker) CooldownUntil(model string, now time.Time) (time.Time, bool) {
+	if t == nil || model == "" {
+		return time.Time{}, false
+	}
+	t.mu.RLock()
+	deadline, ok := t.until[model]
+	t.mu.RUnlock()
+	if !ok || !now.Before(deadline) {
+		return time.Time{}, false
+	}
+	return deadline, true
+}
+
+// Clear removes any stored capacity-exhaustion deadline for model. Nil trackers
+// and blank models are ignored.
+func (t *CapacityTracker) Clear(model string) {
+	if t == nil || model == "" {
+		return
+	}
+	t.mu.Lock()
+	delete(t.until, model)
+	t.mu.Unlock()
+}
+
+// MarkExhausted records until as the capacity-exhaustion deadline for model and
+// prunes expired entries observed at now. Nil trackers and blank models are
+// ignored.
+func (t *CapacityTracker) MarkExhausted(model string, until, now time.Time) {
+	if t == nil || model == "" {
+		return
+	}
+	t.mu.Lock()
+	if t.until == nil {
+		t.until = make(map[string]time.Time)
+	} else {
+		for key, existing := range t.until {
+			if !now.Before(existing) {
+				delete(t.until, key)
+			}
+		}
+	}
+	t.until[model] = until
+	t.mu.Unlock()
 }
 
 // Error formats the limited provider and model into the switch message.

@@ -18,14 +18,8 @@ import (
 // observations; the runner decides when to replay rejected fields, recover
 // agent tasks, or adopt a Compact model repair before final client output.
 
-// PassthroughPorts binds request byte preparation, recovery policy, and output for one attempt.
+// PassthroughPorts binds stateful provider policy, request preparation, recovery, and output for one attempt.
 type PassthroughPorts interface {
-	// ErrorMessage extracts the vendor explanation and sanitizes query credentials
-	// for diagnostics.
-	ErrorMessage(body []byte) string
-	// InvalidAgentTask classifies response evidence of a rejected agent execution
-	// task.
-	InvalidAgentTask(status int, body []byte) bool
 	// IsAgentIdentity reports whether the selected provider uses agent-task
 	// execution credentials.
 	IsAgentIdentity(ctx context.Context) bool
@@ -39,20 +33,12 @@ type PassthroughPorts interface {
 	// ResolvedServiceTier resolves the completion tier using observed output and
 	// outgoing intent.
 	ResolvedServiceTier(tier *string) *string
-	// ServiceTier extracts the normalized service tier from the prepared request
-	// bytes.
-	ServiceTier(body []byte) *string
 	// Sink returns the synchronous client output destination for this provider
 	// attempt.
 	Sink() upstream.OutputSink
 	// UpdateCodexUsage observes Codex rate-limit headers for the selected provider
 	// record.
 	UpdateCodexUsage(ctx context.Context, h http.Header)
-	// UpstreamContext returns the detached context used to construct an upstream
-	// request. Call the returned release after construction; the installed adapter
-	// retains request values and server-abort state while detaching client
-	// cancellation.
-	UpstreamContext(ctx context.Context) (context.Context, context.CancelFunc)
 	// Profile returns the selected provider's platform, credential, and protocol
 	// capability snapshot.
 	Profile() MessagesProfile
@@ -62,9 +48,6 @@ type PassthroughPorts interface {
 	// ForwardModel selects the provider-mapped vendor identity for the incoming
 	// model and Compact mode.
 	ForwardModel(model string, compact bool) string
-	// InstructionsRejection returns the reason to reject an incompatible Codex
-	// instructions value.
-	InstructionsRejection(model string, body []byte) string
 	// PolicyDenied records local client policy rejection in the request's
 	// diagnostics.
 	PolicyDenied()
@@ -74,13 +57,6 @@ type PassthroughPorts interface {
 	// Reject writes the client rejection with its status, category, message, and
 	// offending parameter.
 	Reject(status int, kind, message, param string)
-	// CodexModel reports whether the selected model uses Codex request instruction
-	// rules.
-	CodexModel(model string) bool
-	// OAuthBody normalizes Codex passthrough bytes for the selected Compact mode.
-	// Its changed flag selects adopted bytes, and parsing failures stop
-	// preparation before identity metadata or client compatibility repairs.
-	OAuthBody(body []byte, compact bool) ([]byte, bool, error)
 	// ProviderIdentityRaw applies the selected provider namespace to raw client
 	// metadata. A changed result replaces the request bytes before fingerprint
 	// preparation; errors stop the runner before transport starts.
@@ -92,34 +68,20 @@ type PassthroughPorts interface {
 	// Fingerprint derives the selected attempt's header fingerprint from provider
 	// and incoming request identity.
 	Fingerprint() *openai.FingerprintIDs
-	// FingerprintBody applies derived header IDs to raw client installation
-	// metadata. Changed bytes are adopted by the runner, and errors stop before
-	// those IDs can be staged for sending.
-	FingerprintBody(body []byte, ids *openai.FingerprintIDs) ([]byte, bool, error)
 	// HasContext reports whether the passthrough adapter has a live inbound HTTP
 	// context.
 	HasContext() bool
 	// LiteHeader reports whether inbound headers request Responses Lite
 	// preparation for this attempt.
 	LiteHeader() bool
-	// LitePayloadFlag reports whether raw request fields declare Responses Lite
-	// execution.
-	LitePayloadFlag(body []byte) bool
-	// CompatibilityBody applies Responses compatibility preparation with the
-	// resolved Lite flag. Its change result selects adopted bytes before reserved-
-	// tool aliasing; errors stop the runner before any exchange.
-	CompatibilityBody(body []byte, lite bool) ([]byte, bool, error)
-	// ReservedToolNames aliases provider-incompatible tool names and returns
-	// reverse names for output restoration. The runner merges that mapping and
-	// adopts changed bytes, while errors stop preparation before sending.
-	ReservedToolNames(body []byte) ([]byte, map[string]string, bool, error)
+	// CompatibilityBodyWithSkip applies Responses compatibility preparation with
+	// the resolved Lite flag while skipping stages already completed on identical
+	// prelude bytes.
+	CompatibilityBodyWithSkip(body []byte, lite bool, skipToolSchemasPlatform string, skipReasoningReplay, skipInputItemIDs bool) ([]byte, bool, error)
 	// MergeToolNames merges supplied reverse names over active-turn names and
 	// publishes a copied map. Keep supplied entries stable during copying; later
 	// restoration reads the newly published map for this request.
 	MergeToolNames(value map[string]string)
-	// NeedsClientTools reports whether raw input has client tools requiring
-	// request lowering.
-	NeedsClientTools(body []byte) bool
 	// AdaptClientTools lowers API Key client-tool shapes and records the output
 	// restoration mapping.
 	AdaptClientTools(body []byte) ([]byte, error)
@@ -137,27 +99,16 @@ type PassthroughPorts interface {
 	// ImageIntent resolves broad image intent from canonical evidence and the
 	// currently prepared payload.
 	ImageIntent(model string, canonical []byte, policy string, body []byte, invalidated bool) bool
-	// ExplicitImageIntent reports client-declared image intent for the current
-	// model and prepared bytes.
-	ExplicitImageIntent(model string, body []byte) bool
 	// ImageAllowed reports whether the current group allows declared image-
 	// generation requests.
 	ImageAllowed() bool
 	// FeatureDenied records a local feature-policy rejection for this request's
 	// diagnostics.
 	FeatureDenied()
-	// ImagePermissionMessage returns the client explanation for denied image-
-	// generation admission.
-	ImagePermissionMessage() string
 	// ImageBilling resolves image charge identity and size tiers from request
 	// bytes and model. Known capability errors are presented locally before the
 	// callback returns, so the runner can stop without upstream error reporting.
 	ImageBilling(body []byte, model string) (ImageBilling, error)
-	// UpstreamError records status and message for image configuration failure
-	// diagnostics.
-	UpstreamError(status int, message string)
-	// Log writes the supplied formatting message through the bound gateway logger.
-	Log(format string, args ...any)
 	// WarnTimeoutHeaders records streaming timeout-header diagnostics before the
 	// authenticated exchange begins.
 	WarnTimeoutHeaders(ctx context.Context)
@@ -197,8 +148,6 @@ type PassthroughPorts interface {
 	// CompactObserved records the selected provider's captured Compact rejection
 	// before model replay.
 	CompactObserved(r *http.Response, body []byte, message string)
-	// ErrorCode extracts the vendor failure category from captured response bytes.
-	ErrorCode(body []byte) string
 	// ShouldFailover classifies passthrough failure evidence before final client
 	// error presentation.
 	ShouldFailover(status int, body []byte) bool
@@ -219,9 +168,6 @@ type PassthroughPorts interface {
 	// prior-retry guard. An adopted repair closes the rejected response through
 	// the installed recovery helper before returning bytes for another exchange.
 	CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool)
-	// CompactSignal extracts a recognized Compact reader failure or reports an
-	// unrelated error.
-	CompactSignal(err error) (CompactFailure, bool)
 	// CompactErrorResponse constructs HTTP-like failure evidence from a captured
 	// Compact reader signal.
 	CompactErrorResponse(r *http.Response, v CompactFailure) (*http.Response, []byte)

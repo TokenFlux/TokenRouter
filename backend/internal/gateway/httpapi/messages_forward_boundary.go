@@ -262,7 +262,7 @@ func (b *MessageForwardBoundary) MatchRule(platform string, status int, body []b
 
 // SkipMonitoring marks this request to suppress passthrough error monitoring.
 func (b *MessageForwardBoundary) SkipMonitoring() {
-	b.context.Set(OpsSkipPassthroughKey, true)
+	MarkOpsSkipMonitoring(b.context)
 }
 
 // WriteHeaders copies upstream response headers under the selected output

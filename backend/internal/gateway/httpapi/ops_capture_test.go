@@ -442,7 +442,7 @@ func TestOpsCaptureWriter_CapturesSplitDataOnlyTerminalMarkers(t *testing.T) {
 			require.Empty(t, state.buf.Bytes(), "partial frame must remain in the bounded probe")
 			state.captureResponseChunk([]byte(tt.suffix+"\n\n"), http.StatusOK)
 
-			parsed := parseOpsErrorResponse(state.buf.Bytes())
+			parsed := opscore.ParseOpsErrorResponse(state.buf.Bytes())
 			require.True(t, state.sseCapturing)
 			require.True(t, parsed.StreamFailure)
 			require.Equal(t, tt.wantType, parsed.ErrorType)
@@ -789,7 +789,7 @@ func TestOpsErrorLoggerMiddleware_LocalModelConfigurationFields(t *testing.T) {
 	router.POST("/v1/chat/completions", func(c *gin.Context) {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalModelConfiguration)
 		c.Set(OpsProviderIDKey, int64(99))
-		c.Set(opsUpstreamModelKey, "stale-upstream-model")
+		c.Set(OpsUpstreamModelKey, "stale-upstream-model")
 		SetActualUpstreamEndpoint(c, "/v1/chat/completions")
 		c.Set(OpsUpstreamStatusCodeKey, http.StatusUnauthorized)
 		c.Set(OpsUpstreamErrorMessageKey, "stale upstream error")
@@ -1683,7 +1683,7 @@ func TestClassifyOpsUpstreamNoAvailableTextStillCountsForSLA(t *testing.T) {
 // error containing a string code. The extracted metadata must retain that exact
 // code alongside its error category and message.
 func TestParseOpsErrorResponsePreservesNestedStringCode(t *testing.T) {
-	parsed := parseOpsErrorResponse([]byte(`{"error":{"type":"permission_error","code":"GROUP_DELETED","message":"API Key 所属分组已删除"}}`))
+	parsed := opscore.ParseOpsErrorResponse([]byte(`{"error":{"type":"permission_error","code":"GROUP_DELETED","message":"API Key 所属分组已删除"}}`))
 
 	require.Equal(t, "permission_error", parsed.ErrorType)
 	require.Equal(t, "GROUP_DELETED", parsed.Code)
@@ -1719,7 +1719,7 @@ func TestParseOpsErrorResponsePreservesStructuredTopLevelSemantics(t *testing.T)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed := parseOpsErrorResponse([]byte(tt.body))
+			parsed := opscore.ParseOpsErrorResponse([]byte(tt.body))
 			require.Equal(t, tt.wantType, opscore.NormalizeErrorType(parsed.ErrorType, parsed.Code))
 			require.Equal(t, tt.wantCode, parsed.Code)
 			require.Equal(t, tt.wantMsg, parsed.Message)
@@ -1788,13 +1788,13 @@ func TestOpsCaptureWriter_ProtocolLevelTerminalFrameDetection(t *testing.T) {
 		state.captureResponseChunk([]byte(chunk), http.StatusOK)
 	}
 
-	parsed := parseOpsErrorResponse(state.buf.Bytes())
+	parsed := opscore.ParseOpsErrorResponse(state.buf.Bytes())
 	require.True(t, state.sseCapturing)
 	require.True(t, parsed.StreamFailure)
 	require.Equal(t, "service_unavailable_error", parsed.ErrorType)
 	require.Equal(t, "service_unavailable", parsed.Code)
 	require.Equal(t, "busy", parsed.Message)
-	require.Equal(t, http.StatusServiceUnavailable, inferStreamFailureStatus(nil, parsed))
+	require.Equal(t, http.StatusServiceUnavailable, opscore.InferStreamFailureStatus(parsed))
 }
 
 // TestParseOpsSSEFailure_TopLevelErrorsAndUnknownStatus supplies flattened
@@ -1835,13 +1835,13 @@ func TestParseOpsSSEFailure_TopLevelErrorsAndUnknownStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parsed := parseOpsErrorResponse([]byte(tt.body))
+			parsed := opscore.ParseOpsErrorResponse([]byte(tt.body))
 			require.True(t, parsed.StreamFailure)
 			require.Equal(t, tt.wantType, parsed.ErrorType)
 
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			SetOpsUpstreamError(c, http.StatusUnauthorized, "old attempt", "")
-			require.Equal(t, tt.wantStatus, inferStreamFailureStatus(c, parsed), "terminal status must not inherit an earlier attempt")
+			require.Equal(t, tt.wantStatus, opscore.InferStreamFailureStatus(parsed), "terminal status must not inherit an earlier attempt")
 		})
 	}
 }
@@ -1871,7 +1871,7 @@ func TestOpsCaptureWriter_TerminalMetadataSurvivesBodyCaptureTruncation(t *testi
 	state.finalizeResponseCapture()
 
 	require.Len(t, state.buf.Bytes(), opsCaptureWriterLimit)
-	require.True(t, parseOpsErrorResponse(state.buf.Bytes()).StreamFailure, "the bounded parser must fail closed from the terminal event line")
+	require.True(t, opscore.ParseOpsErrorResponse(state.buf.Bytes()).StreamFailure, "the bounded parser must fail closed from the terminal event line")
 	require.True(t, state.terminalFound)
 	require.Equal(t, "service_unavailable_error", state.terminalError.ErrorType)
 	require.Equal(t, "busy", state.terminalError.Message)
@@ -1939,7 +1939,7 @@ func TestOpsCaptureWriter_DetectsCROnlySSEFrame(t *testing.T) {
 	state.captureResponseChunk([]byte("data: {\"type\":\"error\",\"code\":\"service_unavailable\",\"message\":\"busy\"}\r\r"), http.StatusOK)
 
 	require.True(t, state.sseCapturing)
-	parsed := parseOpsErrorResponse(state.buf.Bytes())
+	parsed := opscore.ParseOpsErrorResponse(state.buf.Bytes())
 	require.True(t, parsed.StreamFailure)
 	require.Equal(t, "service_unavailable_error", parsed.ErrorType)
 }
@@ -1950,7 +1950,7 @@ func TestOpsCaptureWriter_DetectsCROnlySSEFrame(t *testing.T) {
 // values.
 func TestSanitizeOpsSSEDataForPersistence_RedactsJSONFields(t *testing.T) {
 	body := []byte("event: error\ndata: {\"type\":\"error\",\"authorization\":\"Bearer secret\",\ndata: \"nested\":{\"api_key\":\"sk-secret\"}}\n\n")
-	sanitized := sanitizeOpsSSEDataForPersistence(body)
+	sanitized := opscore.SanitizeOpsSSEDataForPersistence(body)
 	require.NotContains(t, sanitized, "Bearer secret")
 	require.NotContains(t, sanitized, "sk-secret")
 	require.Contains(t, sanitized, `"authorization":"[REDACTED]"`)
@@ -1963,7 +1963,7 @@ func TestSanitizeOpsSSEDataForPersistence_RedactsJSONFields(t *testing.T) {
 // secret.
 func TestSanitizeOpsSSEDataForPersistence_DropsTruncatedJSONFragment(t *testing.T) {
 	body := []byte("event: error\ndata: {\"type\":\"error\",\"authorization\":\"Bearer leaked")
-	sanitized := sanitizeOpsSSEDataForPersistence(body)
+	sanitized := opscore.SanitizeOpsSSEDataForPersistence(body)
 	require.NotContains(t, sanitized, "Bearer leaked")
 	require.Contains(t, sanitized, `data: {"payload_truncated":true}`)
 }
@@ -1992,7 +1992,7 @@ func TestSetOpsEndpointContext_SetsContextKeys(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	SetOpsEndpointContext(c, "claude-3-5-sonnet-20241022", int16(2)) // stream
 
-	v, ok := c.Get(opsUpstreamModelKey)
+	v, ok := c.Get(OpsUpstreamModelKey)
 	require.True(t, ok)
 	vStr, ok := v.(string)
 	require.True(t, ok)
@@ -2014,7 +2014,7 @@ func TestSetOpsEndpointContext_EmptyModelNotStored(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	SetOpsEndpointContext(c, "", int16(1))
 
-	_, ok := c.Get(opsUpstreamModelKey)
+	_, ok := c.Get(OpsUpstreamModelKey)
 	require.False(t, ok, "empty upstream model should not be stored")
 
 	rt, ok := c.Get(opsRequestTypeKey)

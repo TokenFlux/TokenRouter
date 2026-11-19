@@ -88,6 +88,7 @@ func provideAntigravityRetry(store *providerpostgres.ProviderStore, counter prov
 
 		TruncateString: logredact.TruncateUTF8,
 		SafeURL:        logredact.SafeUpstreamURL,
+		Capacity:       antigravity.NewCapacityTracker(),
 	}
 	return core
 }

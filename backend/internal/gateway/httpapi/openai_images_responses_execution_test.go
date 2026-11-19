@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -20,6 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	providerimages "github.com/TokenFlux/TokenRouter/internal/provider"
+	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -455,4 +461,100 @@ func TestImageStreamFailureUsesResponseDispatch(t *testing.T) {
 	require.Equal(t, 200, saved.Attempts[1].Status)
 	require.Equal(t, "shared", saved.Attempts[0].RequestID)
 	require.Len(t, saved.Aliases, 2)
+}
+
+// TestForwardOpenAIImagesOAuthPreservesTLSRouterMatchAcrossAgentTaskRecovery
+// triggers Agent Identity task recovery during an OAuth image request with an
+// explicit TLS router match. Both the rejected attempt and the recovered retry
+// keep the routed User-Agent, originator and TLS fingerprint profile.
+func TestForwardOpenAIImagesOAuthPreservesTLSRouterMatchAcrossAgentTaskRecovery(t *testing.T) {
+	key, privateKey := newTestAgentIdentityKey(t)
+	provider := &gatewayprovider.ExecutionProvider{
+		Record: providerimages.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           2301,
+			Name:         "agent-images-tls",
+			Platform:     capability.PlatformOpenAI,
+			Type:         capability.ProviderTypeOAuth,
+			Status:       billing.StatusActive,
+			Schedulable:  true,
+			Concurrency:  1,
+			Credentials: map[string]any{
+				"auth_mode":          providerimages.OpenAIAuthModeAgentIdentity,
+				"agent_runtime_id":   key.RuntimeID,
+				"agent_private_key":  privateKey,
+				"task_id":            "task-old",
+				"chatgpt_account_id": "provider-agent-images",
+			},
+			Extra: map[string]any{"enable_tls_fingerprint": true},
+		},
+	}
+	repo := &agentIdentityForwardRepo{provider: provider}
+	registerCalls := 0
+	registerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		registerCalls++
+		_, _ = io.WriteString(w, `{"task_id":"task-new"}`)
+	}))
+	// Close the local registration endpoint after the recovered retry completes
+	// so task replacement runs against an active HTTP listener.
+	defer registerServer.Close()
+
+	onePixelPNG := "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+	sseSuccess := "event: response.completed\n" +
+		`data: {"type":"response.completed","response":{"id":"resp_img","status":"completed","model":"gpt-5.4","output":[{"type":"image_generation_call","id":"ig_1","status":"completed","result":"` + onePixelPNG + `"}],"usage":{"input_tokens":5,"output_tokens":10,"total_tokens":15}}}` +
+		"\n\ndata: [DONE]\n\n"
+	upstream := &auxiliaryHTTPRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusUnauthorized,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`)),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:       io.NopCloser(strings.NewReader(sseSuccess)),
+		},
+	}}
+
+	svc := newImagesFixture(imagesFixtureInputs{store: repo, transport: upstream})
+	svc.Requests.Profiles = &egressprovider.TLSProfiles{}
+	svc.Requests.Identity = gatewayprovider.NewExecutionAgentIdentity(
+		&providerimages.OpenAITaskCoordinator{},
+		repo,
+		func(ctx context.Context, value *providerimages.Record) (string, error) {
+			return provideradapter.RegisterAgentIdentityTask(ctx, value, registerServer.URL)
+		},
+		nil,
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	parsed := &media.ImageRequest{
+		Endpoint:       upstreamcore.OpenAIImagesGenerationsEndpoint,
+		Model:          "gpt-image-2",
+		Prompt:         "draw a square",
+		N:              1,
+		ResponseFormat: "b64_json",
+	}
+	const routedUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
+	routerMatch := egress.TLSFingerprintRouterMatchResult{
+		Matched:                 true,
+		UpstreamUserAgent:       routedUA,
+		UpstreamOriginator:      "codex-tui",
+		TLSFingerprintProfileID: 0,
+	}
+
+	result, err := svc.forwardOpenAIImagesOAuth(context.Background(), c, provider, parsed, "", routerMatch)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, registerCalls)
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "task-new", decodeAgentAssertionTask(t, upstream.requests[1].Header.Get("Authorization")))
+	for _, req := range upstream.requests {
+		require.Equal(t, routedUA, req.Header.Get("User-Agent"))
+		require.Equal(t, "codex-tui", req.Header.Get("Originator"))
+	}
+	require.NotNil(t, upstream.lastTLSProfile)
+	require.Equal(t, "Built-in Default (Node.js 24.x)", upstream.lastTLSProfile.Name)
 }

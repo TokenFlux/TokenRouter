@@ -11,6 +11,8 @@ import (
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -58,7 +60,7 @@ func MessagesViaRawChat(ctx context.Context, body []byte, defaultMappedModel str
 		p.Error(http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
-	if err := p.ValidateEffort(body, originalModel); err != nil {
+	if err := requeststate.ValidateOpenAIReasoningEffort(body, originalModel); err != nil {
 		p.Error(http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err
 	}
@@ -87,8 +89,8 @@ func MessagesViaRawChat(ctx context.Context, body []byte, defaultMappedModel str
 
 	convertedEffort := chatReq.ReasoningEffort
 	reasoningEffort := &convertedEffort
-	reasoningEffort = p.ThinkingFallback(reasoningEffort, body, billingModel)
-	serviceTier := p.ServiceTier(body)
+	reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
+	serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(body)
 
 	chatBody, err := json.Marshal(chatReq)
 	if err != nil {
@@ -118,7 +120,7 @@ func MessagesViaRawChat(ctx context.Context, body []byte, defaultMappedModel str
 		return nil, err
 	}
 	if serviceTier == nil {
-		serviceTier = p.ServiceTier(chatBody)
+		serviceTier = requeststate.ExtractOpenAIServiceTierFromBody(chatBody)
 	}
 
 	p.Debug("openai messages: forwarding via raw chat completions",
@@ -189,7 +191,7 @@ func ResponsesViaRawChat(ctx context.Context, body []byte, p RawFallbackPorts) (
 	}
 
 	clientStream := responsesReq.Stream
-	serviceTier := p.ServiceTier(body)
+	serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(body)
 	// Cache plaintext summaries before resolving the converted history so
 	// encrypted-only copies with the same item identity can obtain the
 	// corresponding reasoning content.
@@ -226,12 +228,12 @@ func ResponsesViaRawChat(ctx context.Context, body []byte, p RawFallbackPorts) (
 		return nil, err
 	}
 	// Usage records use effort from the final Chat request after conversion and policy processing.
-	reasoningEffort := p.EffectiveEffort(chatBody, body, upstreamModel, billingModel, originalModel)
+	reasoningEffort := requeststate.ExtractOpenAIReasoningEffortFromBody(chatBody)
 	// Record a default display effort for supported Kimi, Zhipu, and DeepSeek
 	// models with thinking enabled and no explicit effort.
-	reasoningEffort = p.ThinkingFallback(reasoningEffort, chatBody, billingModel)
+	reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(reasoningEffort, chatBody, billingModel)
 	if serviceTier == nil {
-		serviceTier = p.ServiceTier(chatBody)
+		serviceTier = requeststate.ExtractOpenAIServiceTierFromBody(chatBody)
 	}
 
 	p.Debug("openai responses: forwarding via raw chat completions",

@@ -107,14 +107,10 @@ func TestGrokContentPolicySSEErrorDoesNotMutateOrFailover(t *testing.T) {
 	payload := []byte(`{"type":"response.create","model":"grok-4.5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"grok-4.5", "grok-4.5", "", "", "", "cache-id", 1,
-		func(message []byte) error {
-			writes = append(writes, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "grok-4.5", RoutingModel: "grok-4.5", GrokCacheIdentity: "cache-id", Turn: 1, WriteClient: func(message []byte) error {
+		writes = append(writes, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.Error(t, err)
 	require.NotNil(t, result)
@@ -210,11 +206,7 @@ func TestProxyOpenAIWSHTTPBridgeTurn_KeepsOutboundAndObservedServiceTiersSeparat
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", payload, len(payload),
-		"gpt-5.5", "", "", "", "", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5.5", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -245,11 +237,7 @@ func TestProxyOpenAIWSHTTPBridgeTurn_NormalizesFastWithoutLosingObservedDefault(
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", payload, len(payload),
-		"gpt-5.5", "", "", "", "", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5.5", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -295,14 +283,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyAdaptsClientTools(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", payload, len(payload),
-		"gpt-5", "", "", "", "", "", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -352,12 +336,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyKeepsDiscoveredFunctionNamespace(t *te
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, provider, "test-token", payload, len(payload), "gpt-5.6-sol", "", "", "", "", "", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5.6-sol", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "js", gjson.GetBytes(upstream.lastBody, "input.2.name").String())
@@ -401,14 +383,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyRestoresClientToolsInResponseDone(t *t
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", payload, len(payload),
-		"gpt-5", "", "", "", "", "", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -468,14 +446,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnGrokPromotesDiscoveryAndRestoresNamespaceSSE
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"grok-4.5", "", "", "", "", "", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "grok-4.5", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -519,10 +493,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnGrokInheritsToolSearchAndPromotesFollowupDis
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 
 	first := []byte(`{"type":"response.create","model":"grok-4.5","stream":true,"tools":[{"type":"tool_search"}],"input":"discover tools"}`)
-	_, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", first, len(first),
-		"grok-4.5", "", "", "", "", "grok-ws-cache", 1, func([]byte) error { return nil },
-	)
+	_, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: first, PayloadBytes: len(first), OriginalModel: "grok-4.5", GrokCacheIdentity: "grok-ws-cache", Turn: 1, WriteClient: func([]byte) error { return nil }})
 	require.NoError(t, err)
 
 	second := []byte(`{
@@ -532,14 +503,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnGrokInheritsToolSearchAndPromotesFollowupDis
 		]}]
 	}`)
 	var events [][]byte
-	_, err = svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", second, len(second),
-		"grok-4.5", "", "", "", "", "grok-ws-cache", 2,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	_, err = svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: second, PayloadBytes: len(second), OriginalModel: "grok-4.5", GrokCacheIdentity: "grok-ws-cache", Turn: 2, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.Len(t, upstream.bodies, 2)
@@ -578,17 +545,11 @@ func TestOpenAIWSHTTPBridgeAPIKeyReusesClientToolMappingWhenFollowupOmitsTools(t
 	write := func([]byte) error { return nil }
 
 	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.6","stream":true,"tools":[{"type":"custom","name":"exec"}],"input":"run pwd"}`)
-	_, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", firstPayload, len(firstPayload),
-		"gpt-5.6", "", "", "", "", "", 1, write,
-	)
+	_, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: firstPayload, PayloadBytes: len(firstPayload), OriginalModel: "gpt-5.6", Turn: 1, WriteClient: write})
 	require.NoError(t, err)
 
 	secondPayload := []byte(`{"type":"response.create","model":"gpt-5.6","stream":true,"previous_response_id":"resp_custom_first","input":[{"type":"custom_tool_call_output","id":"ctco_client_output_1","call_id":"call_custom_1","output":"ok"},{"type":"function_call","namespace":"mcp__cua_proxy","name":"js","call_id":"old_call","arguments":"{}"},{"type":"function_call_output","call_id":"old_call","output":"old result"}]}`)
-	_, err = svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "test-token", secondPayload, len(secondPayload),
-		"gpt-5.6", "", "", "", "", "", 2, write,
-	)
+	_, err = svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test-token", Payload: secondPayload, PayloadBytes: len(secondPayload), OriginalModel: "gpt-5.6", Turn: 2, WriteClient: write})
 	require.NoError(t, err)
 
 	require.Len(t, upstream.bodies, 2)
@@ -886,14 +847,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnTransportErrorFailoverSafety(t *testing.T) {
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			var writes [][]byte
 
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", tt.turn,
-				func(message []byte) error {
-					writes = append(writes, append([]byte(nil), message...))
-					return nil
-				},
-			)
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: tt.turn, WriteClient: func(message []byte) error {
+				writes = append(writes, append([]byte(nil), message...))
+				return nil
+			}})
 
 			require.Nil(t, result)
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -949,14 +906,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnHTTPStatusFailoverSafety(t *testing.T) {
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			var writes [][]byte
 
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", tt.turn,
-				func(message []byte) error {
-					writes = append(writes, append([]byte(nil), message...))
-					return nil
-				},
-			)
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: tt.turn, WriteClient: func(message []byte) error {
+				writes = append(writes, append([]byte(nil), message...))
+				return nil
+			}})
 
 			require.Nil(t, result)
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -1001,14 +954,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnRetriesRejectedFieldBeforeClientOutput(t *te
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi","truncation":"auto"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "sk-test", payload, len(payload),
-		"gpt-5", "", "", "", "", 1,
-		func(message []byte) error {
-			writes = append(writes, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+		writes = append(writes, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1041,14 +990,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnSSEErrorFailoverSafety(t *testing.T) {
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			var writes [][]byte
 
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", turn,
-				func(message []byte) error {
-					writes = append(writes, append([]byte(nil), message...))
-					return nil
-				},
-			)
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: turn, WriteClient: func(message []byte) error {
+				writes = append(writes, append([]byte(nil), message...))
+				return nil
+			}})
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.Nil(t, result)
@@ -1114,14 +1059,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnLaterTurn429FailsOverBeforeClientWrite(t *te
 	payload := []byte(`{"type":"response.create","model":"gpt-5.6-sol","previous_response_id":"resp_old","input":[{"role":"user","content":"continue"}]}`)
 	writes := 0
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"gpt-5.6-sol", "", "", "", "", "", 281,
-		func([]byte) error {
-			writes++
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5.6-sol", Turn: 281, WriteClient: func([]byte) error {
+		writes++
+		return nil
+	}})
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -1318,14 +1259,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnRewritesCapacityShedCodeForClient(t *testing
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			var writes [][]byte
 
-			_, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "", "", "", "", "", tt.turn,
-				func(message []byte) error {
-					writes = append(writes, append([]byte(nil), message...))
-					return nil
-				},
-			)
+			_, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: tt.turn, WriteClient: func(message []byte) error {
+				writes = append(writes, append([]byte(nil), message...))
+				return nil
+			}})
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -1363,10 +1300,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnBareErrorUsesAuthoritativeFailed(t *testing.
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, provider, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 2, func(message []byte) error {
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 2, WriteClient: func(message []byte) error {
 		writes = append(writes, append([]byte(nil), message...))
 		return nil
-	})
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1394,10 +1331,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnBareErrorEOFSynthesizesFailed(t *testing.T) 
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, provider, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 2, func(message []byte) error {
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 2, WriteClient: func(message []byte) error {
 		writes = append(writes, append([]byte(nil), message...))
 		return nil
-	})
+	}})
 
 	require.EqualError(t, err, "bad request")
 	require.NotNil(t, result)
@@ -1430,10 +1367,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnBareErrorFollowedByCompletedUsesCompleted(t 
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, provider, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 2, func(message []byte) error {
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 2, WriteClient: func(message []byte) error {
 		writes = append(writes, append([]byte(nil), message...))
 		return nil
-	})
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1471,14 +1408,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnStagesMetadataBeforeCapacityFailover(t *test
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "sk-test", payload, len(payload),
-		"gpt-5", "", "", "", "", "", 1,
-		func(message []byte) error {
-			writes = append(writes, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+		writes = append(writes, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -1516,14 +1449,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnDoesNotReplayCapacityAfterSemanticOutput(t *
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 	var writes [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "sk-test", payload, len(payload),
-		"gpt-5", "", "", "", "", "", 1,
-		func(message []byte) error {
-			writes = append(writes, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+		writes = append(writes, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NotNil(t, result)
 	require.NoError(t, err)
@@ -1573,14 +1502,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnRequiresTerminalEvent(t *testing.T) {
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			var writes [][]byte
 
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", 1,
-				func(message []byte) error {
-					writes = append(writes, append([]byte(nil), message...))
-					return nil
-				},
-			)
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: 1, WriteClient: func(message []byte) error {
+				writes = append(writes, append([]byte(nil), message...))
+				return nil
+			}})
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			if tt.wantFailover {
@@ -1661,22 +1586,7 @@ func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {
 			defer cancel()
 			return conn.Write(writeCtx, coderws.MessageText, message)
 		}
-		result, bridgeErr := svc.proxyOpenAIWSHTTPBridgeTurn(
-			r.Context(),
-			ginCtx,
-			provider,
-			"sk-test",
-			payload,
-			len(payload),
-			"gpt-5",
-			"gpt-5",
-			"",
-			"",
-			"",
-			"",
-			1,
-			writeClient,
-		)
+		result, bridgeErr := svc.proxyOpenAIWSHTTPBridgeTurn(r.Context(), ginCtx, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: 1, WriteClient: writeClient})
 		resultCh <- bridgeResult{result: result, err: bridgeErr}
 	}))
 	defer wsServer.Close()
@@ -1757,14 +1667,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnForGrokDefaultsEmptyModelTo45(t *testing.T) 
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"", "", "", "", "", "", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1800,11 +1706,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnForGrokDefaultModelErrorUsesCanonicalKey(t *
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"", "", "", "", "", "", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.Nil(t, result)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -1853,11 +1755,7 @@ func TestProxyOpenAIWSHTTPBridgeTurnForGrokFreeFunctionToolsUsesMixedRoute(t *te
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"", "", "", "", "", "cache-id", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "", GrokCacheIdentity: "cache-id", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1917,14 +1815,10 @@ func TestProxyOpenAIWSHTTPBridgeTurnPromotesCodexAdditionalToolsForMixedCache(t 
 	c.Request.Header.Set("X-TokenRouter-Grok-Client-Tool-Cache", "prefer-cache")
 	var events [][]byte
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), c, provider, "access-token", payload, len(payload),
-		"grok", "grok", "", "", "", "isolated-ws-cache-id", 1,
-		func(message []byte) error {
-			events = append(events, append([]byte(nil), message...))
-			return nil
-		},
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: "grok", RoutingModel: "grok", GrokCacheIdentity: "isolated-ws-cache-id", Turn: 1, WriteClient: func(message []byte) error {
+		events = append(events, append([]byte(nil), message...))
+		return nil
+	}})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -2563,7 +2457,7 @@ func TestHTTPBridgeWarmupDoesNotGenerate(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	var events [][]byte
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, provider, "test", payload, len(payload), "gpt-5.5", "", "", "", "", 1, func(b []byte) error { events = append(events, append([]byte(nil), b...)); return nil })
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5.5", Turn: 1, WriteClient: func(b []byte) error { events = append(events, append([]byte(nil), b...)); return nil }})
 	require.NoError(t, err)
 	require.Empty(t, upstream.requests)
 	require.Zero(t, result.Usage.InputTokens)
@@ -2698,12 +2592,7 @@ func TestOpenAIWSHTTPBridgeGrok429PersistsRateLimit(t *testing.T) {
 	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, ID: 68, Platform: capability.PlatformGrok, Type: capability.ProviderTypeOAuth, Concurrency: 1}}
 	before := time.Now()
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), nil, provider, "token",
-		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "grok-4.3", "", "", "", "cache-id", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), nil, wsHTTPBridgeTurnInput{Provider: provider, Token: "token", Payload: []byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`), PayloadBytes: 64, OriginalModel: "grok-4.3", RoutingModel: "grok-4.3", GrokCacheIdentity: "cache-id", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -2740,14 +2629,10 @@ func TestOpenAIWSHTTPBridgeSSEErrorSideEffectsRunOncePerPlatform(t *testing.T) {
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 			writes := 0
 
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-				context.Background(), c, provider, "sk-test", payload, len(payload),
-				"gpt-5", "gpt-5", "", "", "", "", 1,
-				func([]byte) error {
-					writes++
-					return nil
-				},
-			)
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: 1, WriteClient: func([]byte) error {
+				writes++
+				return nil
+			}})
 
 			require.Nil(t, result)
 			var failoverErr *forwardcore.UpstreamFailoverError
@@ -2806,14 +2691,10 @@ func TestOpenAIWSHTTPBridgeTerminalSideEffectsWithOptionalRequest(t *testing.T) 
 				payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi"}`)
 				writes := 0
 
-				result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-					context.Background(), c, provider, "sk-test", payload, len(payload),
-					"gpt-5", "gpt-5", "", "", "", "", 1,
-					func([]byte) error {
-						writes++
-						return nil
-					},
-				)
+				result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: provider, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", RoutingModel: "gpt-5", Turn: 1, WriteClient: func([]byte) error {
+					writes++
+					return nil
+				}})
 
 				require.Nil(t, result)
 				var failure *forwardcore.UpstreamFailoverError
@@ -2843,12 +2724,7 @@ func TestOpenAIWSHTTPBridgeGrokExhaustedSuccessPersistsRateLimit(t *testing.T) {
 	svc := newWSFixture(wsFixtureInputs{providers: repo, transport: upstream})
 	provider := &gatewayprovider.ExecutionProvider{Record: providercore.Record{LoadLocation: time.LoadLocation, ID: 69, Platform: capability.PlatformGrok, Type: capability.ProviderTypeOAuth, Concurrency: 1}}
 
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(
-		context.Background(), nil, provider, "token",
-		[]byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`),
-		64, "grok-4.3", "grok-4.3", "", "", "", "cache-id", 1,
-		func([]byte) error { return nil },
-	)
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), nil, wsHTTPBridgeTurnInput{Provider: provider, Token: "token", Payload: []byte(`{"type":"response.create","model":"grok-4.3","input":"hi"}`), PayloadBytes: 64, OriginalModel: "grok-4.3", RoutingModel: "grok-4.3", GrokCacheIdentity: "cache-id", Turn: 1, WriteClient: func([]byte) error { return nil }})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -2896,7 +2772,7 @@ func TestProxyOpenAIWSHTTPBridgeGrokReasoningOptions(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, target, "access-token", payload, len(payload), tc.model, tc.model, "", "", "", "", 1, func([]byte) error { return nil })
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(context.Background(), c, wsHTTPBridgeTurnInput{Provider: target, Token: "access-token", Payload: payload, PayloadBytes: len(payload), OriginalModel: tc.model, RoutingModel: tc.model, Turn: 1, WriteClient: func([]byte) error { return nil }})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Equal(t, tc.want, gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
@@ -2956,7 +2832,7 @@ func TestHTTPBridgeUsesTransportAttemptForDiagnostics(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil).WithContext(ctx)
 			payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi","truncation":"auto"}`)
-			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(ctx, c, target, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 1, func([]byte) error { return nil })
+			result, err := svc.proxyOpenAIWSHTTPBridgeTurn(ctx, c, wsHTTPBridgeTurnInput{Provider: target, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func([]byte) error { return nil }})
 			require.Len(t, saved.Attempts, count)
 			require.Equal(t, "selected", saved.Attempts[count-1].RequestID)
 			if mode == "failure" {
@@ -3016,7 +2892,7 @@ func TestHTTPBridgeRetryTimingBelongsToAcceptedDispatch(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil).WithContext(ctx)
 	payload := []byte(`{"type":"response.create","model":"gpt-5","input":"hi","truncation":"auto"}`)
-	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(ctx, c, target, "sk-test", payload, len(payload), "gpt-5", "", "", "", "", 1, func([]byte) error { return nil })
+	result, err := svc.proxyOpenAIWSHTTPBridgeTurn(ctx, c, wsHTTPBridgeTurnInput{Provider: target, Token: "sk-test", Payload: payload, PayloadBytes: len(payload), OriginalModel: "gpt-5", Turn: 1, WriteClient: func([]byte) error { return nil }})
 	require.NoError(t, err)
 	require.Len(t, saved.Attempts, 2)
 	require.Equal(t, int64(2), result.Timings.Values["attempt_number"])

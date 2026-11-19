@@ -12,7 +12,14 @@ import (
 
 	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -95,7 +102,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	}()
 	requestedModel := reqModel
 	upstreamPassthroughModel := ""
-	responsesLite := profile.OpenAI && ((p.HasContext() && p.LiteHeader()) || p.LitePayloadFlag(body))
+	responsesLite := profile.OpenAI && ((p.HasContext() && p.LiteHeader()) || gatewayprovider.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body))
 	defaultInstructions := ""
 	prepareInstructions := func(body []byte, model string) ([]byte, error) {
 		// An existing gateway prompt belongs to the previous model. Replace only
@@ -107,7 +114,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			}
 			return updated, nil
 		}
-		if rejectReason := p.InstructionsRejection(model, body); rejectReason != "" {
+		if rejectReason := openai.DetectOpenAIPassthroughInstructionsRejectReason(model, body); rejectReason != "" {
 			rejectMsg := "OpenAI codex passthrough requires a non-empty instructions field"
 			p.PolicyDenied()
 			p.LogInstructionsRejected(ctx, reqModel, rejectReason, body)
@@ -117,7 +124,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		// Lite clients can send their instructions as developer input. Synthesize
 		// only when both that input and the top-level field are absent, and retain
 		// the generated text for possible Compact recovery.
-		if p.CodexModel(model) && !wirejson.ParseView(body).Get("instructions").Exists() &&
+		if openai.IsOpenAICodexModel(model) && !wirejson.ParseView(body).Get("instructions").Exists() &&
 			(!responsesLite || !openai.HasResponsesLiteDeveloperInstructions(body)) {
 			defaultInstructions = openai.DefaultCodexSynthInstructions(model)
 			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultInstructions)
@@ -155,7 +162,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		// Apply Codex body compatibility before reading its stream flag and scoping
 		// metadata, so subsequent request identity handling uses the adopted OAuth
 		// representation.
-		normalizedBody, normalized, err := p.OAuthBody(body, p.CompactPath())
+		normalizedBody, normalized, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, p.CompactPath())
 		if err != nil {
 			return nil, err
 		}
@@ -188,7 +195,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		if !p.CompactPath() {
 			fingerprintIDs := p.Fingerprint()
 			if fingerprintIDs != nil {
-				updatedBody, changed, fingerprintErr := p.FingerprintBody(body, fingerprintIDs)
+				updatedBody, changed, fingerprintErr := openai.ApplyCodexFingerprintClientMetadataRaw(body, fingerprintIDs)
 				if fingerprintErr != nil {
 					return nil, fingerprintErr
 				}
@@ -205,18 +212,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// reserved names are then aliased for OAuth-like credentials with reverse
 	// names retained for output restoration.
 	if profile.OpenAI {
-		var (
-			normalizedBody []byte
-			normalized     bool
-			normalizeErr   error
-		)
-		if skipAware, ok := p.(interface {
-			CompatibilityBodyWithSkip(body []byte, lite bool, skipToolSchemasPlatform string, skipReasoningReplay, skipInputItemIDs bool) ([]byte, bool, error)
-		}); ok {
-			normalizedBody, normalized, normalizeErr = skipAware.CompatibilityBodyWithSkip(body, responsesLite, skipSchemasPlatform, skipReasoningReplay, skipInputItemIDs)
-		} else {
-			normalizedBody, normalized, normalizeErr = p.CompatibilityBody(body, responsesLite)
-		}
+		normalizedBody, normalized, normalizeErr := p.CompatibilityBodyWithSkip(body, responsesLite, skipSchemasPlatform, skipReasoningReplay, skipInputItemIDs)
 		if normalizeErr != nil {
 			return nil, fmt.Errorf("normalize passthrough Responses compatibility: %w", normalizeErr)
 		}
@@ -224,7 +220,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			body = normalizedBody
 		}
 		if profile.OAuthLike {
-			aliasedBody, reverse, aliased, aliasErr := p.ReservedToolNames(body)
+			aliasedBody, reverse, aliased, aliasErr := openai.AliasOpenAIOAuthReservedToolNamesBody(body)
 			if aliasErr != nil {
 				return nil, aliasErr
 			}
@@ -239,7 +235,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// retaining request-local mappings so response wrappers can restore the
 	// caller's tool representation.
 	if profile.OpenAI && profile.APIKey &&
-		!p.CompactPath() && p.NeedsClientTools(body) {
+		!p.CompactPath() && protocolbridge.NeedsOpenAIResponsesClientToolAdaptation(body) {
 		adaptedBody, adaptErr := p.AdaptClientTools(body)
 		if adaptErr != nil {
 			return nil, adaptErr
@@ -286,10 +282,10 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 	// explicit intent checks the prepared request and selected model before the
 	// group permission decision.
 	imageIntent := p.ImageIntent(reqModel, canonicalImageIntentBody, policyModel, body, attemptImageIntentInvalidated) || attributes.Attributes.OutputOnly("image")
-	explicitImageIntent := attributes.Attributes.OutputOnly("image") || p.ExplicitImageIntent(policyModel, body)
+	explicitImageIntent := attributes.Attributes.OutputOnly("image") || gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, policyModel, body)
 	if explicitImageIntent && !p.ImageAllowed() {
 		p.FeatureDenied()
-		p.Reject(403, "permission_error", p.ImagePermissionMessage(), "")
+		p.Reject(403, "permission_error", media.ImageGenerationPermissionMessage, "")
 		return nil, errors.New("image generation disabled for group")
 	}
 	imageBillingModel := ""
@@ -306,7 +302,8 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		imageInputSize = imageCfg.InputSize
 	}
 
-	p.Log(
+	logging.LegacyPrintf(
+		"service.openai_gateway",
 		"[OpenAI auto passthrough] Selected automatic passthrough: provider=%d name=%s type=%s model=%s stream=%v",
 		profile.ID,
 		profile.Name,
@@ -353,7 +350,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			actualModel = reqModel
 		}
 		p.UpstreamModelObserved(actualModel)
-		upstreamCtx, releaseUpstreamCtx := p.UpstreamContext(ctx)
+		upstreamCtx, releaseUpstreamCtx := gatewayprovider.DetachUpstreamContext(ctx)
 		upstreamReq, buildErr := p.BuildPass(upstreamCtx, body, token)
 		releaseUpstreamCtx()
 		if buildErr != nil {
@@ -385,20 +382,20 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				return nil, fmt.Errorf("normalize passthrough rejected Responses field retry body: %w", retryErr)
 			} else if changed && rejectedFieldRetryState.Allow(retryBody) {
 				body = retryBody
-				p.Log("[OpenAI] Retrying passthrough request after %s (provider: %s)", reason, profile.Name)
+				logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying passthrough request after %s (provider: %s)", reason, profile.Name)
 				continue
 			}
 			// Spend the separate agent-task budget before replay so repeated task
 			// rejection can proceed to Compact or final failure handling on a later
 			// response.
-			if !agentTaskRecoveryTried && p.IsAgentIdentity(ctx) && p.InvalidAgentTask(resp.StatusCode, probeBody) {
+			if !agentTaskRecoveryTried && p.IsAgentIdentity(ctx) && openai.IsAgentTaskInvalidHTTPResponse(resp.StatusCode, probeBody) {
 				agentTaskRecoveryTried = true
 				if recoveryErr := p.RecoverAgentTask(ctx); recoveryErr != nil {
 					return nil, fmt.Errorf("agent identity task recovery failed: %w", recoveryErr)
 				}
 				continue
 			}
-			upstreamMsg := p.ErrorMessage(probeBody)
+			upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(probeBody)))
 			// A captured Compact HTTP failure can replace the body and vendor model
 			// once; record the adopted model before restarting exchange with the spent-
 			// budget flag.
@@ -409,9 +406,10 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				upstreamPassthroughModel = fallbackModel
 				compactModelFallbackRetried = true
 				p.UpstreamModelObserved(fallbackModel)
-				p.Log(
+				logging.LegacyPrintf(
+					"service.openai_gateway",
 					"[OpenAI passthrough] Retrying explicit compact request once with fallback model (provider: %s, from: %s, to: %s, upstream_code: %s)",
-					profile.Name, fromModel, fallbackModel, p.ErrorCode(probeBody),
+					profile.Name, fromModel, fallbackModel, upstream.ExtractErrorCode(probeBody),
 				)
 				continue
 			}
@@ -442,9 +440,9 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				// An unrecovered Compact reader failure becomes HTTP-like evidence after
 				// closing the original body, allowing ordinary passthrough failover
 				// classification or final error presentation.
-				if signal, ok := p.CompactSignal(handleErr); ok {
+				if failure, ok := compact.AsFailure(handleErr); ok {
 					_ = resp.Body.Close()
-					compactResp, compactBody := p.CompactErrorResponse(resp, signal)
+					compactResp, compactBody := p.CompactErrorResponse(resp, CompactFailure{Message: failure.Message, Payload: failure.Payload})
 					if p.ShouldFailover(compactResp.StatusCode, compactBody) {
 						return nil, p.FailoverError(ctx, compactResp, body, compactBody)
 					}
@@ -475,9 +473,9 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 				// An unrecovered Compact reader failure becomes HTTP-like evidence after
 				// closing the original body, allowing ordinary passthrough failover
 				// classification or final error presentation.
-				if signal, ok := p.CompactSignal(handleErr); ok {
+				if failure, ok := compact.AsFailure(handleErr); ok {
 					_ = resp.Body.Close()
-					compactResp, compactBody := p.CompactErrorResponse(resp, signal)
+					compactResp, compactBody := p.CompactErrorResponse(resp, CompactFailure{Message: failure.Message, Payload: failure.Payload})
 					if p.ShouldFailover(compactResp.StatusCode, compactBody) {
 						return nil, p.FailoverError(ctx, compactResp, body, compactBody)
 					}
@@ -496,7 +494,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		break
 	}
 	defer func() { _ = resp.Body.Close() }()
-	serviceTier := p.ServiceTier(body)
+	serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(body)
 	p.BindOwner(ctx, responseID)
 
 	if !profile.Shadow {

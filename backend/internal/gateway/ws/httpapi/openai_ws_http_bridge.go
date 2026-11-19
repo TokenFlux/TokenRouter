@@ -80,6 +80,24 @@ type openAIWSToolCallReplayCollector struct {
 	allSeen  map[string]struct{} // full output deduplication keys
 }
 
+// wsHTTPBridgeTurnInput bundles request, model, image billing, client writer,
+// and TLS routing parameters for executing one WebSocket turn over HTTP.
+type wsHTTPBridgeTurnInput struct {
+	Provider          *gatewayprovider.ExecutionProvider       // selected execution provider for this turn
+	Token             string                                   // resolved upstream bearer or OAuth token
+	Payload           []byte                                   // client frame payload bytes
+	PayloadBytes      int                                      // byte count tracked across field-repair retries
+	OriginalModel     string                                   // client-requested model identifier
+	RoutingModel      string                                   // group-routed model identifier when mapped
+	ImageBillingModel string                                   // billing model override for image outputs
+	ImageSizeTier     string                                   // requested image size tier for billing
+	ImageInputSize    string                                   // input image dimensions for edit billing
+	GrokCacheIdentity string                                   // resolved Grok prompt-cache affinity key
+	Turn              int                                      // 1-based WebSocket turn ordinal
+	WriteClient       func([]byte) error                       // synchronous client WebSocket frame writer
+	RouterMatch       []egress.TLSFingerprintRouterMatchResult // matched TLS router overrides
+}
+
 // decodeOpenAIWSHTTPBridgeLoweredTools decodes saved lowered declarations into
 // an optional tool list. Empty or malformed bytes return nil, so tool
 // adaptation continues without inherited declarations when saved data cannot
@@ -544,17 +562,13 @@ func buildOpenAIWSHTTPBridgeFailedEvent(responseID, model string, source []byte,
 }
 
 // proxyOpenAIWSHTTPBridgeTurn executes one WS turn through HTTP and returns
-// observed usage, model and replay metadata. args supplies either five strings
-// (routing model, image billing model, size tier, input size and Grok identity)
-// or the older four-string form without routing model, plus turn number,
-// required client writer and optional TLS matches. More strings use the first
-// five, unsupported argument types are ignored, and fewer than four strings
-// fail.
+// observed usage, model and replay metadata. Callers supply a non-nil
+// execution provider, client frame writer, and turn metadata in in.
 //
-// Grok billing initially resolves routingModel, while body preparation resolves
-// originalModel when supplied. The prepared body's model becomes UpstreamModel
-// for restoration and health; the earlier billing candidate remains in this
-// bridge result until entry applies its settlement model rules.
+// Grok billing initially resolves in.RoutingModel, while body preparation
+// resolves in.OriginalModel when supplied. The prepared body's model becomes
+// UpstreamModel for restoration and health; the earlier billing candidate
+// remains in this bridge result until entry applies its settlement model rules.
 //
 // Tool declarations are adapted and saved before a local warmup returns without
 // an HTTP exchange. Real requests can repair explicitly rejected fields under a
@@ -575,49 +589,31 @@ func buildOpenAIWSHTTPBridgeFailedEvent(responseID, model string, source []byte,
 func (s *OpenAIWebSocketExecutor) proxyOpenAIWSHTTPBridgeTurn(
 	ctx context.Context,
 	c *gin.Context,
-	provider *gatewayprovider.ExecutionProvider,
-	token string,
-	payload []byte,
-	payloadBytes int,
-	originalModel string,
-	args ...any,
+	in wsHTTPBridgeTurnInput,
 ) (*forward.OpenAIResult, error) {
-	responseModelObserver := gatewayhttp.BeginUpstreamResponseModelObservation(c)
-	var routingModel, imageBillingModel, imageSizeTier, imageInputSize, grokCacheIdentity string
-	var turn int
-	var writeClientMessage func([]byte) error
-	var routerMatch []egress.TLSFingerprintRouterMatchResult
-	var stringArgs []string
-	for _, arg := range args {
-		switch value := arg.(type) {
-		case string:
-			stringArgs = append(stringArgs, value)
-		case int:
-			turn = value
-		case func([]byte) error:
-			writeClientMessage = value
-		case egress.TLSFingerprintRouterMatchResult:
-			routerMatch = append(routerMatch, value)
-		case []egress.TLSFingerprintRouterMatchResult:
-			routerMatch = append(routerMatch, value...)
-		}
-	}
-	if len(stringArgs) >= 5 {
-		routingModel, imageBillingModel, imageSizeTier, imageInputSize, grokCacheIdentity = stringArgs[0], stringArgs[1], stringArgs[2], stringArgs[3], stringArgs[4]
-	} else if len(stringArgs) == 4 {
-		imageBillingModel, imageSizeTier, imageInputSize, grokCacheIdentity = stringArgs[0], stringArgs[1], stringArgs[2], stringArgs[3]
-	} else {
-		return nil, errors.New("invalid websocket HTTP bridge arguments")
-	}
 	if s == nil {
 		return nil, errors.New("service is nil")
 	}
-	if provider == nil {
+	if in.Provider == nil {
 		return nil, errors.New("provider is nil")
 	}
-	if writeClientMessage == nil {
+	if in.WriteClient == nil {
 		return nil, errors.New("client websocket writer is nil")
 	}
+	responseModelObserver := gatewayhttp.BeginUpstreamResponseModelObservation(c)
+	provider := in.Provider
+	token := in.Token
+	payload := in.Payload
+	payloadBytes := in.PayloadBytes
+	originalModel := in.OriginalModel
+	routingModel := in.RoutingModel
+	imageBillingModel := in.ImageBillingModel
+	imageSizeTier := in.ImageSizeTier
+	imageInputSize := in.ImageInputSize
+	grokCacheIdentity := in.GrokCacheIdentity
+	turn := in.Turn
+	writeClientMessage := in.WriteClient
+	routerMatch := in.RouterMatch
 	body, err := prepareOpenAIWSHTTPBridgeBody(provider, payload)
 	if err != nil {
 		return nil, fmt.Errorf("prepare http bridge body: %w", err)

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	coderws "github.com/coder/websocket"
@@ -323,20 +324,60 @@ func TestRunIdleWatchdog_NoTimeoutWhenDisabled(t *testing.T) {
 	t.Parallel()
 
 	exitCh := make(chan relayExitSignal, 1)
+	startAt := time.Now()
 	lastActivity := &atomic.Int64{}
-	lastActivity.Store(time.Now().UnixNano())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Run disabled detection with an available exit slot while observing for
 	// unexpected publication; the configured zero budget should end this worker
 	// without a signal.
-	go runIdleWatchdog(ctx, time.Now, 0, lastActivity, nil, exitCh)
+	go runIdleWatchdog(ctx, startAt, time.Now, 0, lastActivity, nil, exitCh)
 	select {
 	case <-exitCh:
 		t.Fatal("unexpected idle timeout signal")
 	case <-time.After(200 * time.Millisecond):
 	}
+}
+
+// TestRunIdleWatchdog_UsesElapsedOffsetFromRelayStart advances virtual time
+// with refreshed activity offsets before exceeding the idle budget. Only the
+// post-budget tick emits an idle_timeout exit signal.
+func TestRunIdleWatchdog_UsesElapsedOffsetFromRelayStart(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		exitCh := make(chan relayExitSignal, 1)
+		startAt := time.Now()
+		lastActivity := &atomic.Int64{}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		go runIdleWatchdog(ctx, startAt, time.Now, 3*time.Second, lastActivity, nil, exitCh)
+
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+		select {
+		case sig := <-exitCh:
+			t.Fatalf("unexpected early timeout: %+v", sig)
+		default:
+		}
+
+		// Refresh activity at +2s so +4s remains only 2s idle (< 3s budget).
+		lastActivity.Store(int64(time.Since(startAt)))
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+		select {
+		case sig := <-exitCh:
+			t.Fatalf("unexpected timeout after refreshed activity: %+v", sig)
+		default:
+		}
+
+		// Advancing another 2s reaches 4s since the +2s activity offset (>= 3s budget).
+		time.Sleep(2 * time.Second)
+		synctest.Wait()
+		sig := <-exitCh
+		require.Equal(t, "idle_timeout", sig.stage)
+		require.ErrorIs(t, sig.err, context.DeadlineExceeded)
+	})
 }
 
 // TestHelperFunctionsCoverage supplies representative trace labels, disconnect

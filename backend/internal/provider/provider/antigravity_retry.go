@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -133,6 +134,23 @@ type AntigravityRetry struct {
 	// Configure it before the retry loop reaches its URL logging or
 	// observation path.
 	SafeURL func(string) string
+	// Capacity tracks shared MODEL_CAPACITY_EXHAUSTED cooldown deadlines across
+	// attempts bound by this service; nil allocates a lazy instance-local tracker.
+	Capacity        *antigravity.CapacityTracker
+	capacityOnce    sync.Once                    // guards lazy defaultCapacity initialization
+	defaultCapacity *antigravity.CapacityTracker // fallback tracker when Capacity is nil
+}
+
+// capacityTracker returns the configured Capacity tracker or initializes a
+// service-scoped fallback tracker once.
+func (s *AntigravityRetry) capacityTracker() *antigravity.CapacityTracker {
+	if s.Capacity != nil {
+		return s.Capacity
+	}
+	s.capacityOnce.Do(func() {
+		s.defaultCapacity = antigravity.NewCapacityTracker()
+	})
+	return s.defaultCapacity
 }
 
 // Bind constructs platform input and callbacks for one Antigravity attempt.
@@ -242,6 +260,7 @@ func (s *AntigravityRetry) Bind(p AntigravityRetryRequest) (*antigravity.RetryAd
 		CreditsFailure:       func(model string, resp *http.Response, err error) { s.creditsFailure(p, model, resp, err); changed() },
 		Internal500Exhausted: func() { s.Health.HandleInternal500RetryExhausted(p.Context, p.Prefix, value); changed() },
 		ResetInternal500:     func() { s.Health.ResetInternal500Counter(p.Context, p.Prefix, value.ID) },
+		Capacity:             s.capacityTracker(),
 	}
 	if p.LogConfig != nil {
 		options.LogBody, options.LogMaxBytes = p.LogConfig()

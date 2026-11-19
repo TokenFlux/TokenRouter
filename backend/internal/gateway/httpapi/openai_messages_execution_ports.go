@@ -17,7 +17,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -27,7 +26,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -163,26 +161,10 @@ func (p *openAIMessagesExecutionAdapter) Dispatch(ctx context.Context, route ope
 	return openaiexecution.FromForwardResult(r), err
 }
 
-// ValidateEffort delegates model-sensitive reasoning validation for the
-// supplied request body. RunMessages writes the returned validation error
-// before conversion, so invalid client controls do not reach the selected
-// upstream exchange.
-func (p *openAIMessagesExecutionAdapter) ValidateEffort(body []byte, model string) error {
-	return requeststate.ValidateOpenAIReasoningEffort(body, model)
-}
-
 // Error writes the current request's rejection using the Anthropic error
 // helper.
 func (p *openAIMessagesExecutionAdapter) Error(status int, kind, message string) {
 	WriteAnthropicError(p.c, status, kind, "", message)
-}
-
-// CloneDigest delegates a shallow Anthropic request copy for pre-mapping cache
-// digests. Nonempty system bytes and message-slice storage are copied, while
-// nested message content, metadata and other references remain shared and need
-// caller-controlled mutation.
-func (p *openAIMessagesExecutionAdapter) CloneDigest(r *protocolanthropic.AnthropicRequest) *protocolanthropic.AnthropicRequest {
-	return session.CloneAnthropicDigestRequest(r)
 }
 
 // BillingModel applies provider model policy to the requested and
@@ -209,30 +191,6 @@ func (p *openAIMessagesExecutionAdapter) ClaudeSession(body []byte) string {
 	return ExtractClaudeCodeSessionID(p.c, body)
 }
 
-// MetadataSession derives the Anthropic metadata-based prompt-cache identity
-// for this request.
-func (p *openAIMessagesExecutionAdapter) MetadataSession(r *protocolanthropic.AnthropicRequest) string {
-	return session.AnthropicMetadataPromptCacheKey(r)
-}
-
-// AutoCacheKey reports whether the model qualifies for compatibility cache-key
-// injection.
-func (p *openAIMessagesExecutionAdapter) AutoCacheKey(model string) bool {
-	return gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(model)
-}
-
-// CacheControlKey derives a compatibility prompt identity from Anthropic
-// cache-control anchors.
-func (p *openAIMessagesExecutionAdapter) CacheControlKey(r *protocolanthropic.AnthropicRequest) string {
-	return gatewayprovider.DeriveAnthropicCacheControlPromptCacheKey(r)
-}
-
-// DigestChain derives the ordered Anthropic history digest chain for prefix
-// reuse.
-func (p *openAIMessagesExecutionAdapter) DigestChain(r *protocolanthropic.AnthropicRequest) string {
-	return session.BuildAnthropicDigestChain(r)
-}
-
 // FindDigestKey searches the shared prompt cache by provider, key ID and
 // digest chain. A missing provider supplies ID zero to the cache; the returned
 // key and matched chain guide later history binding in RunMessages.
@@ -242,12 +200,6 @@ func (p *openAIMessagesExecutionAdapter) FindDigestKey(key int64, chain string) 
 		id = p.provider.Record.ID
 	}
 	return p.s.PromptCache.Find(id, key, chain)
-}
-
-// DigestKey derives a prompt-cache seed from the supplied Anthropic digest
-// chain.
-func (p *openAIMessagesExecutionAdapter) DigestKey(chain string) string {
-	return session.AnthropicDigestPromptCacheKey(chain)
 }
 
 // ContinuationEnabled delegates automatic continuation admission using
@@ -270,14 +222,6 @@ func (p *openAIMessagesExecutionAdapter) ResponseID(ctx context.Context, key str
 // because store lookup and cleanup are separate operations.
 func (p *openAIMessagesExecutionAdapter) ContinuationDisabled(ctx context.Context, key string) bool {
 	return p.s.Continuation.Disabled(compatResponseKey(p.c, p.provider, key))
-}
-
-// ReplayGuard delegates in-place Anthropic history trimming before Responses
-// conversion. It reports whether Messages was replaced by a copied suffix;
-// nested message content remains shared, and recognized tool partners can
-// expand the retained suffix.
-func (p *openAIMessagesExecutionAdapter) ReplayGuard(r *protocolanthropic.AnthropicRequest) bool {
-	return protocolbridge.ApplyAnthropicCompatFullReplayGuard(r)
 }
 
 // Convert resolves model capabilities and converts Anthropic input to
@@ -304,56 +248,10 @@ func (p *openAIMessagesExecutionAdapter) MessagesEffort(r *protocolanthropic.Ant
 	return gatewayprovider.OpenAICompatAnthropicReasoningEffort(r, model, effort, gatewayprovider.ExecutionModelAttributes(p.provider, model))
 }
 
-// TrimLatestTurn delegates replacing Input with the continuation suffix,
-// expanded for matching tool calls. Nil or undecodable input stays unchanged;
-// successful trimming uses typed serialization, which can drop unknown item
-// extensions and stringify nonstring outputs.
-func (p *openAIMessagesExecutionAdapter) TrimLatestTurn(r *protocolopenai.ResponsesRequest) {
-	protocolbridge.TrimCompatResponsesInputToLatestTurn(r)
-}
-
-// TodoGuard delegates developer-guard insertion for compatible Claude Code
-// replay input.
-func (p *openAIMessagesExecutionAdapter) TodoGuard(r *protocolopenai.ResponsesRequest) {
-	gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuard(r)
-}
-
-// HashForLog hashes sensitive session/cache values for diagnostic comparison
-// in logs.
-func (p *openAIMessagesExecutionAdapter) HashForLog(s string) string {
-	return upstream.HashSensitiveValueForLog(s)
-}
-
-// Truncate delegates bounded request-identity text for OpenAI diagnostic log
-// values.
-func (p *openAIMessagesExecutionAdapter) Truncate(s string, limit int) string {
-	return gatewayprovider.TruncateOpenAIWSLogValue(s, limit)
-}
-
-// LogIDLimit returns the common OpenAI request-identity log excerpt byte
-// ceiling.
-func (p *openAIMessagesExecutionAdapter) LogIDLimit() int {
-	return gatewayprovider.OpenAIWSIDValueMaxLen
-}
-
 // Debug writes supplied structured execution diagnostics through the shared
 // logger.
 func (p *openAIMessagesExecutionAdapter) Debug(msg string, fields ...zap.Field) {
 	logging.L().Debug(msg, fields...)
-}
-
-// Info writes supplied structured execution observations through the shared
-// logger.
-func (p *openAIMessagesExecutionAdapter) Info(msg string, fields ...zap.Field) {
-	logging.L().Info(msg, fields...)
-}
-
-// CodexTransform delegates OAuth map normalization using the supplied
-// transform options. It borrows the writable request map; callers inspect the
-// returned Error before adopting its body changes and reverse-tool mapping for
-// output restoration.
-func (p *openAIMessagesExecutionAdapter) CodexTransform(body map[string]any, o openai.CodexOAuthTransformOptions) openai.CodexTransformResult {
-	return gatewayprovider.ApplyCodexOAuthTransformWithOptions(body, o)
 }
 
 // ToolNameReverse installs this attempt's Codex reverse-tool names in request
@@ -374,18 +272,6 @@ func (p *openAIMessagesExecutionAdapter) ForcedTemplate() string {
 // request serialization.
 func (p *openAIMessagesExecutionAdapter) ForcedInstructions(body map[string]any, text string, data openaiexecution.TemplateData) (bool, error) {
 	return applyForcedCodexInstructionsTemplate(body, text, forcedCodexInstructionsTemplateData(data))
-}
-
-// EnsureInstructions delegates insertion of the required Codex instructions
-// field on the body.
-func (p *openAIMessagesExecutionAdapter) EnsureInstructions(body map[string]any) {
-	protocolopenai.EnsureCodexInstructionsField(body)
-}
-
-// TodoGuardBody delegates developer-guard insertion in the decoded compatible
-// request body.
-func (p *openAIMessagesExecutionAdapter) TodoGuardBody(body map[string]any) {
-	gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuardToRequestBody(body)
 }
 
 // ProviderIdentity applies the current Codex namespace and key ID to writable
@@ -430,12 +316,6 @@ func (p *openAIMessagesExecutionAdapter) ApplyFast(ctx context.Context, model st
 	return updated, err
 }
 
-// ServiceTier extracts the prepared body's service tier for outgoing attempt
-// attribution.
-func (p *openAIMessagesExecutionAdapter) ServiceTier(body []byte) *string {
-	return requeststate.ExtractOpenAIServiceTierFromBody(body)
-}
-
 // ResolvedServiceTier combines observed request tier with the supplied
 // outgoing tier for result attribution.
 func (p *openAIMessagesExecutionAdapter) ResolvedServiceTier(tier *string) *string {
@@ -454,14 +334,6 @@ func (p *openAIMessagesExecutionAdapter) GrokCacheIdentity(body []byte, key, mod
 // serialized or sent.
 func (p *openAIMessagesExecutionAdapter) PatchGrokBody(body []byte, model string) ([]byte, error) {
 	return gatewayprovider.PrepareGrokResponses(p.c.Request.Context(), p.provider, model, body, p.s.modelAttributes())
-}
-
-// ApplyGrokCache delegates cache-identity rewriting for the selected Grok
-// credential mode. The prepared body and canonical intent are supplied
-// separately, allowing the codec to choose the cache route from the intended
-// input while returning updated request bytes.
-func (p *openAIMessagesExecutionAdapter) ApplyGrokCache(body, intent []byte, key string, oauth bool) ([]byte, error) {
-	return grok.ApplyGrokResponsesCacheIdentity(body, intent, key, oauth)
 }
 
 // GrokFreeToolRoute delegates cache-route preparation for free Grok Messages
@@ -487,14 +359,6 @@ func (p *openAIMessagesExecutionAdapter) BindMessagesBridge(v bool) {
 	SetOpenAICompatMessagesBridgeContext(p.c, v)
 }
 
-// UpstreamContext derives a context that retains request values and any
-// server-abort signal while removing client cancellation and deadlines. Nil
-// input becomes Background; the returned cleanup callback is a no-op, called
-// by the runner after request construction for its uniform context interface.
-func (p *openAIMessagesExecutionAdapter) UpstreamContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return gatewayprovider.DetachUpstreamContext(ctx)
-}
-
 // Build constructs the prepared Responses exchange for this selected provider.
 // Grok uses its request builder with streaming forced true; other platforms
 // use the supplied stream/cache values and TLS matches, and the first context
@@ -510,14 +374,6 @@ func (p *openAIMessagesExecutionAdapter) Build(_ context.Context, ctx context.Co
 // prompt seed.
 func (p *openAIMessagesExecutionAdapter) IsolatedSessionID(key int64, cache string) string {
 	return upstream.GenerateSessionUUID(openai.IsolateOpenAIUpstreamSessionID(key, provideradapter.CodexIdentityNamespace(CodexIdentityRecord(p.c, p.provider.View())), cache))
-}
-
-// RestoreIdentity fills missing Codex identity headers before enforcing the
-// User-Agent/originator pair. Nil headers are ignored; callers invoke it after
-// header overrides so pairing reflects the outgoing identity and version rules.
-func (p *openAIMessagesExecutionAdapter) RestoreIdentity(h http.Header) {
-	openai.EnsureCodexIdentityHeaders(h)
-	openai.EnforceCodexIdentityHeaders(h)
 }
 
 // Header reads the named inbound header from the active HTTP request.
@@ -560,26 +416,6 @@ func (p *openAIMessagesExecutionAdapter) ReadErrorBody(r *http.Response) []byte 
 	return p.s.Output.ReadErrorBody(r)
 }
 
-// GrokInvalidEncrypted delegates recognition of Grok ciphertext-rejection
-// evidence in an HTTP response.
-func (p *openAIMessagesExecutionAdapter) GrokInvalidEncrypted(status int, body []byte) bool {
-	return gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(status, body)
-}
-
-// GrokHasEncrypted reports whether the outgoing Grok request contains
-// encrypted reasoning history.
-func (p *openAIMessagesExecutionAdapter) GrokHasEncrypted(body []byte) bool {
-	return gatewayprovider.GrokBodyCodec().RequestHasGrokEncryptedReasoning(body)
-}
-
-// TrimGrokEncrypted delegates body repair after explicit Grok
-// encrypted-content rejection. Updated bytes, change flag and errors return to
-// RunMessages, which owns its single recovery attempt and subsequent request
-// construction.
-func (p *openAIMessagesExecutionAdapter) TrimGrokEncrypted(body []byte) ([]byte, bool, error) {
-	return gatewayprovider.GrokBodyCodec().TrimGrokInvalidEncryptedContentRetryBody(body)
-}
-
 // ReadUpstreamError delegates bounded capture, original-body closure and
 // replay-body replacement. Callers supply a live response/body; the returned
 // message is query-sanitized while returned bytes are the captured content for
@@ -588,22 +424,10 @@ func (p *openAIMessagesExecutionAdapter) ReadUpstreamError(r *http.Response) ([]
 	return p.s.Output.ReadReplayableError(r)
 }
 
-// AgentRecoveryTried reads the request-context guard for prior Agent Identity
-// task recovery.
-func (p *openAIMessagesExecutionAdapter) AgentRecoveryTried(ctx context.Context) bool {
-	return requeststate.AgentTaskRecoveryTried(ctx)
-}
-
 // IsAgentIdentity reports whether this selected provider uses Agent Identity
 // execution credentials.
 func (p *openAIMessagesExecutionAdapter) IsAgentIdentity(ctx context.Context) bool {
 	return p.s.Requests.Identity.UsesAgentIdentity(ctx, p.provider)
-}
-
-// InvalidAgentTask delegates recognition of invalid Agent Identity task HTTP
-// evidence.
-func (p *openAIMessagesExecutionAdapter) InvalidAgentTask(status int, body []byte) bool {
-	return openai.IsAgentTaskInvalidHTTPResponse(status, body)
 }
 
 // RecoverAgentTask delegates recovery using the selected provider's current
@@ -614,36 +438,12 @@ func (p *openAIMessagesExecutionAdapter) RecoverAgentTask(ctx context.Context) e
 	return p.s.Requests.Identity.Recover(ctx, p.provider, p.provider.View().GetCredential("task_id"))
 }
 
-// MarkAgentRecovery derives a context marking Agent Identity recovery
-// attempted for this request.
-func (p *openAIMessagesExecutionAdapter) MarkAgentRecovery(ctx context.Context) context.Context {
-	return requeststate.WithAgentTaskRecovery(ctx)
-}
-
 // RedactErrorBody delegates captured error cleanup using this provider's
 // execution identity. Callers retain the returned bytes for health and
 // protocol handling; the identity service decides whether it can replace
 // sensitive provider fields.
 func (p *openAIMessagesExecutionAdapter) RedactErrorBody(ctx context.Context, body []byte) []byte {
 	return p.s.Requests.Identity.Redact(ctx, p.provider, body)
-}
-
-// ErrorMessage extracts, trims and query-sanitizes upstream message text for
-// later handling.
-func (p *openAIMessagesExecutionAdapter) ErrorMessage(body []byte) string {
-	return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
-}
-
-// PreviousMissing delegates recognition of unavailable or missing Responses
-// continuation evidence.
-func (p *openAIMessagesExecutionAdapter) PreviousMissing(status int, msg string, body []byte) bool {
-	return gatewayprovider.CompatPreviousResponseNotFound(status, msg, body)
-}
-
-// PreviousUnsupported delegates recognition that the upstream rejects HTTP
-// previous-response continuation.
-func (p *openAIMessagesExecutionAdapter) PreviousUnsupported(status int, msg string, body []byte) bool {
-	return gatewayprovider.CompatPreviousResponseUnsupported(status, msg, body)
 }
 
 // DisableContinuation records unsupported continuation for this
@@ -660,24 +460,6 @@ func (p *openAIMessagesExecutionAdapter) DisableContinuation(ctx context.Context
 // submitting full replay input.
 func (p *openAIMessagesExecutionAdapter) DeleteResponseID(ctx context.Context, key string) {
 	p.s.Continuation.DeleteResponse(compatResponseKey(p.c, p.provider, key))
-}
-
-// GrokStripRetried reads the request-context guard for a prior
-// encrypted-history stripping attempt.
-func (p *openAIMessagesExecutionAdapter) GrokStripRetried(ctx context.Context) bool {
-	return gatewayprovider.GrokBodyCodec().GrokEncryptedContentStripRetried(ctx)
-}
-
-// StripThinkingSignatures delegates Anthropic signature removal for
-// incompatible thinking-history replay.
-func (p *openAIMessagesExecutionAdapter) StripThinkingSignatures(body []byte) ([]byte, bool) {
-	return protocolanthropic.StripThinkingSignaturesJSON(body)
-}
-
-// MarkGrokStrip derives context marking Grok encrypted-content stripping
-// already attempted.
-func (p *openAIMessagesExecutionAdapter) MarkGrokStrip(ctx context.Context) context.Context {
-	return gatewayprovider.GrokBodyCodec().MarkGrokEncryptedContentStripRetried(ctx)
 }
 
 // FailoverHTTP delegates text HTTP recovery classification for the selected
@@ -734,12 +516,6 @@ func (p *openAIMessagesExecutionAdapter) ResponseOptions(r *http.Response, origi
 // evidence.
 func (p *openAIMessagesExecutionAdapter) CyberPolicy() bool {
 	return GetOpsCyberPolicy(p.c) != nil
-}
-
-// CyberError returns the sentinel identifying cyber-policy output already
-// forwarded to the client.
-func (p *openAIMessagesExecutionAdapter) CyberError() error {
-	return protocolforward.ErrCyberPolicyForwarded
 }
 
 // BindResponseID stores a successful response ID for this provider/key/prompt

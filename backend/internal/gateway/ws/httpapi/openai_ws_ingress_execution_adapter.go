@@ -402,7 +402,21 @@ func (s *OpenAIWebSocketExecutor) executeWSIngressAdapter(
 			if hooks != nil && hooks.ContextForTurn != nil {
 				ctx = hooks.ContextForTurn(turn)
 			}
-			result, err := s.proxyOpenAIWSHTTPBridgeTurn(ctx, c, provider, token, body, len(body), input.OriginalModel, input.RoutingModel, input.ImageBillingModel, input.ImageSizeTier, input.ImageInputSize, identity, turn, writeClientMessage, tlsRouterMatch)
+			result, err := s.proxyOpenAIWSHTTPBridgeTurn(ctx, c, wsHTTPBridgeTurnInput{
+				Provider:          provider,
+				Token:             token,
+				Payload:           body,
+				PayloadBytes:      len(body),
+				OriginalModel:     input.OriginalModel,
+				RoutingModel:      input.RoutingModel,
+				ImageBillingModel: input.ImageBillingModel,
+				ImageSizeTier:     input.ImageSizeTier,
+				ImageInputSize:    input.ImageInputSize,
+				GrokCacheIdentity: identity,
+				Turn:              turn,
+				WriteClient:       writeClientMessage,
+				RouterMatch:       []egress.TLSFingerprintRouterMatchResult{tlsRouterMatch},
+			})
 			return gatewayprovider.ProjectWSResult(result), err
 		},
 		SetStateFn: func(turnState, sessionHash string) {

@@ -100,7 +100,7 @@ func ApplyErrorPassthroughRule(
 	// A matching skip action applies to the whole request's ordinary Ops error
 	// observation. Set it here before returning the selected client response values.
 	if rule.SkipMonitoring {
-		c.Set(OpsSkipPassthroughKey, true)
+		MarkOpsSkipMonitoring(c)
 	}
 
 	// Matched rules use the upstream_error type, as in failover error responses.

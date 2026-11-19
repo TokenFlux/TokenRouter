@@ -59,7 +59,7 @@ func WriteAnthropicFailover(c *gin.Context, failoverErr *forwardcore.UpstreamFai
 			}
 
 			if rule.SkipMonitoring {
-				c.Set(OpsSkipPassthroughKey, true)
+				MarkOpsSkipMonitoring(c)
 			}
 
 			writeAnthropicFailure(c, respCode, "upstream_error", msg, streamStarted)

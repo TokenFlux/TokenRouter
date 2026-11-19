@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -108,4 +109,102 @@ func TestRunHTTPTransportFailureDoesNotRecover(t *testing.T) {
 	result, err := RunHTTP(context.Background(), HTTPInput{}, options)
 	require.Nil(t, result)
 	require.ErrorIs(t, err, failure)
+}
+
+// TestRunHTTPNonStreamCompactRecoveryAndTerminalClassification verifies that
+// buffered Compact reader failures close the failed attempt body before the
+// next exchange, record CompactRetryObserved on retry, and route unrecovered
+// Compact signals through CompactErrorResponse, ShouldFailover, and ErrorResponse.
+func TestRunHTTPNonStreamCompactRecoveryAndTerminalClassification(t *testing.T) {
+	for _, failoverEligible := range []bool{true, false} {
+		name := "terminal_presenter"
+		if failoverEligible {
+			name = "compact_failover"
+		}
+		t.Run(name, func(t *testing.T) {
+			var bodies []*trackedBody
+			observedRetries := 0
+			var observedModels []string
+			failoverErr := errors.New("compact failover classified")
+			presenterErr := errors.New("compact terminal presented")
+			var presenterModel string
+
+			options := HTTPOptions{
+				Exchange: openai.HTTPExchangeOptions{
+					RequestContext: func(ctx context.Context) (context.Context, context.CancelFunc) { return ctx, func() {} },
+					Build: func(ctx context.Context, body []byte) (*http.Request, error) {
+						return http.NewRequestWithContext(ctx, http.MethodPost, "http://fixture.invalid/responses", strings.NewReader(string(body)))
+					},
+					ApplyHeaders:   func(http.Header) {},
+					Latency:        func(time.Duration) {},
+					TransportError: func(err error) error { return err },
+					Do: func(*http.Request) (*http.Response, error) {
+						if len(bodies) > 0 {
+							require.GreaterOrEqual(t, bodies[len(bodies)-1].closes, 1, "prior attempt body must close before next exchange")
+						}
+						b := &trackedBody{Reader: strings.NewReader(`{"error":{"message":"compact rejected"}}`)}
+						bodies = append(bodies, b)
+						return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: b}, nil
+					},
+				},
+				NonStreamOptions: func() openai.NonStreamOptions {
+					return openai.NonStreamOptions{
+						ReadBody: func(io.Reader) ([]byte, error) {
+							return nil, &compact.Failure{
+								Message: "compact unsupported",
+								Payload: []byte(`{"error":{"message":"compact unsupported"}}`),
+							}
+						},
+					}
+				},
+				CompactRetry: func(_ []byte, _ int, _ string, _ []byte, tried bool) ([]byte, string, bool) {
+					if tried {
+						return nil, "", false
+					}
+					return []byte(`{"model":"gpt-5.1-codex"}`), "gpt-5.1-codex", true
+				},
+				CompactRetryObserved: func(*http.Response, []byte, string) {
+					observedRetries++
+				},
+				ObserveUpstreamModel: func(model string) {
+					observedModels = append(observedModels, model)
+				},
+				CompactErrorResponse: func(_ *http.Response, signal CompactFailure) (*http.Response, []byte) {
+					return &http.Response{
+						StatusCode: http.StatusBadRequest,
+						Header:     make(http.Header),
+					}, signal.Payload
+				},
+				ShouldFailover: func(int, string, []byte) bool {
+					return failoverEligible
+				},
+				CompactFailover: func(*http.Response, []byte, string, string) error {
+					return failoverErr
+				},
+				ErrorResponse: func(_ *http.Response, _ []byte, model string) error {
+					presenterModel = model
+					return presenterErr
+				},
+			}
+
+			result, err := RunHTTP(context.Background(), HTTPInput{
+				Body:          []byte(`{"model":"gpt-5"}`),
+				BillingModel:  "gpt-5-billing",
+				UpstreamModel: "gpt-5",
+			}, options)
+			require.Nil(t, result)
+			require.Len(t, bodies, 2)
+			require.Equal(t, 1, observedRetries)
+			require.Equal(t, []string{"gpt-5.1-codex"}, observedModels)
+			for i, b := range bodies {
+				require.GreaterOrEqual(t, b.closes, 1, "attempt %d body must close", i)
+			}
+			if failoverEligible {
+				require.ErrorIs(t, err, failoverErr)
+			} else {
+				require.ErrorIs(t, err, presenterErr)
+				require.Equal(t, "gpt-5.1-codex", presenterModel)
+			}
+		})
+	}
 }

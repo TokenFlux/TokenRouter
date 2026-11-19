@@ -31,8 +31,9 @@ import (
 // headers directly so retry metadata does not depend on early client exposure.
 //
 // NativeOpenAI selects this reader's bare-error terminal mode. Error evidence
-// is observed before client trimming, and a missing response.failed can be
-// synthesized after a retained bare error. Ordinary content delivery releases
+// is observed before client trimming, a subsequent response.completed clears
+// any withheld bare error, and a missing response.failed is synthesized at EOF
+// when a bare error remains unresolved. Ordinary content delivery releases
 // pending lines through the HTTP output boundary; synthetic EOF and deferred
 // flush paths retain their own terminal and usage decisions. Returned
 // streaming results contain usage/timing/ID/image observations, while the
@@ -107,23 +108,12 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 	clientDisconnected := false
 	sawDone := false
 	sawTerminalEvent := false
-	sawFailedEvent := false
-	sawBareError := false
-	sawResponseFailed := false
 	terminalEventType := ""
 	semanticOutputSeen := false
 	capacityFailoverSuppressedLogged := false
-	failedMessage := ""
-	// Failed-return warning classification receives a nil body in this reader;
-	// live failure processing observes its actual payload and retains the message separately.
-	var failedPayload []byte
 	clientOutputStarted := false
-	codexFailureTerminal := options.NativeOpenAI
+	lifecycle := newResponseStreamLifecycleTracker(options.NativeOpenAI)
 	failureDelivered := false
-	suppressCurrentEvent := false
-	responseFailedPending := false
-	var bareErrorPayload []byte
-	bareErrorProviderSideEffectsPending := false
 	upstreamRequestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
 	// Hold preamble lines before content, so caller output policy can classify
 	// empty terminal failure while semantic delivery remains eligible for request recovery.
@@ -132,7 +122,6 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 	// Retain the pending flush decision across lines until an event separator
 	// or return; disconnected sinks skip that delivery while usage observations remain available.
 	flushPending := false
-	pendingSSEEventType := ""
 	flushPendingOutput := func() {
 		if clientDisconnected || !flushPending {
 			return
@@ -155,20 +144,20 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 	// A retained bare error can end without response.failed; settle pending
 	// provider effects and emit a failed terminal before final stream flushing.
 	ensureResponseFailedTerminal := func() {
-		if !sawBareError || sawResponseFailed || failureDelivered {
+		if !lifecycle.HasUnresolvedBareError() || failureDelivered {
 			return
 		}
-		if bareErrorProviderSideEffectsPending {
-			options.TerminalSideEffects(bareErrorPayload, failedMessage, resp.Header, mappedModel)
-			bareErrorProviderSideEffectsPending = false
-		}
+		lifecycle.FlushBareErrorSideEffects(func(payload []byte, message string) {
+			options.TerminalSideEffects(payload, message, resp.Header, mappedModel)
+		})
 		if clientDisconnected || !writePendingLines() {
 			return
 		}
-		if _, err := fmt.Fprint(w, options.BuildOpenAIResponseFailedSSE(responseID, originalModel, bareErrorPayload, failedMessage)); err != nil {
+		if _, err := fmt.Fprint(w, options.BuildOpenAIResponseFailedSSE(responseID, originalModel, lifecycle.bareErrorPayload, lifecycle.failedMessage)); err != nil {
 			clientDisconnected = true
 			return
 		}
+		lifecycle.MarkBareErrorSynthesized()
 		clientOutputStarted = true
 		failureDelivered = true
 		flushPending = true
@@ -199,8 +188,6 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 		}
 	}
 
-	var lifecycleNormalizer wire.ResponseLifecycleNormalizer
-	pendingLifecycleHeader := ""
 	var heartbeatFilter upstream.SSEHeartbeatLineFilter
 	// Preserve incomplete candidates at EOF, while complete heartbeat frames never
 	// enter protocol output or establish the reader's client-content commitment.
@@ -214,28 +201,19 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 		}
 		for _, rawLine := range lines {
 			line := strings.TrimSuffix(string(rawLine), "\n")
-			if eventType, ok := wire.ExtractSSEEventLine(line); ok {
-				pendingSSEEventType = eventType
-				eventType = strings.TrimSpace(eventType)
-				suppressCurrentEvent = codexFailureTerminal && (eventType == "error" || (sawBareError && !sawResponseFailed && eventType != "response.failed"))
-				if wire.IsResponseLifecycleEvent(eventType) {
-					// Retain lifecycle headers with their data until normalization decides
-					// type and duplication, preventing an orphaned header when its terminal
-					// payload is suppressed.
-					pendingLifecycleHeader = line
-					continue
-				}
+			if lifecycle.ObserveEventHeader(line) {
+				continue
 			}
 			lineStartsClientOutput := false
 			forceFlushFailedEvent := false
 			if data, ok := wire.ExtractSSEDataLine(line); ok {
 				dataBytes := []byte(data)
 				trimmedData := strings.TrimSpace(data)
-				rawEventType := wire.EffectiveOpenAISSEEventType(dataBytes, pendingSSEEventType)
+				rawEventType := lifecycle.RawEventType(dataBytes)
 				if options.ObserveModel != nil {
 					options.ObserveModel(dataBytes, rawEventType)
 				}
-				normalizedData, normalizedType, duplicateTerminal := lifecycleNormalizer.Normalize(dataBytes, rawEventType)
+				normalizedData, normalizedType, duplicateTerminal := lifecycle.NormalizeData(dataBytes, rawEventType)
 				if !bytes.Equal(normalizedData, dataBytes) {
 					dataBytes = normalizedData
 					data = string(dataBytes)
@@ -273,9 +251,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 					}
 				}
 				eventType := wire.EffectiveOpenAISSEEventType(dataBytes, rawEventType)
-				// Lifecycle normalization can turn done into failed; recompute suppression
-				// using that terminal identity so a stale event-line decision cannot hide the failure.
-				suppressCurrentEvent = codexFailureTerminal && (eventType == "error" || (sawBareError && !sawResponseFailed && eventType != "response.failed"))
+				lifecycle.ResolveNormalizedEvent(eventType)
 				if !capacityFailoverSuppressedLogged && options.NativeOpenAI &&
 					(eventType == "error" || eventType == "response.failed") &&
 					options.ClientOutputStarted(clientOutputStarted) &&
@@ -285,18 +261,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 				}
 				cyberHit := false
 				if eventType == "response.failed" || eventType == "error" {
-					if codexFailureTerminal && eventType == "error" {
-						sawBareError = true
-						bareErrorPayload = append(bareErrorPayload[:0], dataBytes...)
-						suppressCurrentEvent = true
-					} else if codexFailureTerminal && eventType == "response.failed" {
-						sawResponseFailed = true
-					}
-					responseFailedPending = !codexFailureTerminal || eventType == "response.failed"
-					failedMessage = ExtractOpenAISSEErrorMessage(dataBytes)
-					if failedMessage == "" {
-						failedMessage = "Upstream response failed"
-					}
+					failedMessage := lifecycle.BeginFailureEvent(eventType, dataBytes)
 					// Observe terminal usage before policy recording and client trimming,
 					// retaining consumed-token evidence even when the failure copy later loses its usage field.
 					wire.ParseSSEUsageBytesWithType(dataBytes, eventType, usage)
@@ -317,16 +282,9 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 							return resultWithUsage(), compactErr
 						}
 					}
-					if outputStarted && !cyberHit {
-						if codexFailureTerminal && eventType == "error" {
-							// Retain provider effects until the authoritative failed terminal
-							// arrives, or apply them during bare-error EOF synthesis if no such terminal follows.
-							bareErrorProviderSideEffectsPending = true
-						} else {
-							options.TerminalSideEffects(dataBytes, failedMessage, resp.Header, mappedModel)
-							bareErrorProviderSideEffectsPending = false
-						}
-					}
+					lifecycle.RecordFailureSideEffects(eventType, outputStarted, cyberHit, func() {
+						options.TerminalSideEffects(dataBytes, failedMessage, resp.Header, mappedModel)
+					})
 					if !outputStarted {
 						shouldFailover := false
 						if !cyberHit {
@@ -340,7 +298,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 							return resultWithUsage(),
 								options.PassthroughFailoverWithModel(upstreamRequestID, dataBytes, failedMessage, mappedModel, resp.Header)
 						}
-						if !cyberHit && !sawBareError {
+						if !cyberHit && !lifecycle.sawBareError {
 							if status, errType, errMsg, matched := options.ErrorRule(dataBytes, failedMessage); matched {
 								// A matched rule commits its JSON client error after recording
 								// upstream evidence, keeping observation available despite customized
@@ -359,7 +317,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 						}
 					}
 					forceFlushFailedEvent = true
-					sawFailedEvent = true
+					lifecycle.CommitFailureEvent(eventType, dataBytes)
 				}
 				if trimmedData == "[DONE]" {
 					sawDone = true
@@ -411,32 +369,18 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 				// content commitment, so a lifecycle-only empty completion cannot settle as
 				// an ordinary success.
 				if (eventType == "response.completed" || eventType == "response.done") &&
-					!sawFailedEvent && !semanticOutputSeen && !clientOutputStarted &&
+					!lifecycle.sawFailedEvent && !semanticOutputSeen && !clientOutputStarted &&
 					wire.OpenAIResponsesCompletedEventIsEmpty(dataBytes, usage) {
 					return resultWithUsage(), options.EmptyCompleted(upstreamRequestID)
 				}
 				wire.ParseSSEUsageBytesWithType(dataBytes, eventType, usage)
-				if pendingLifecycleHeader != "" {
-					header := pendingLifecycleHeader
-					if eventType != strings.TrimSpace(pendingSSEEventType) {
-						header = "event: " + eventType
-					}
-					line = header + "\n" + line
-					pendingLifecycleHeader = ""
-				}
-				suppressCurrentEvent = suppressCurrentEvent || duplicateTerminal
+				line = lifecycle.ApplyLifecycleHeaderAndDuplicate(line, eventType, duplicateTerminal)
 			}
-			if line == "" {
-				pendingLifecycleHeader = ""
-				pendingSSEEventType = ""
-				if suppressCurrentEvent {
-					suppressCurrentEvent = false
-					responseFailedPending = false
-					continue
-				}
+			if line == "" && lifecycle.BeginEventSeparator(failureDelivered) {
+				continue
 			}
 
-			if !clientDisconnected && !failureDelivered && !suppressCurrentEvent {
+			if !clientDisconnected && !failureDelivered && !lifecycle.suppressCurrentEvent {
 				if !clientOutputStarted && !lineStartsClientOutput {
 					pendingLines = append(pendingLines, line)
 					continue
@@ -457,8 +401,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 					}
 				}
 			}
-			if line == "" && responseFailedPending {
-				responseFailedPending = false
+			if line == "" && lifecycle.ConsumeTerminalFailurePending() {
 				failureDelivered = true
 			}
 		}
@@ -471,13 +414,13 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 		// Terminal success takes precedence over a later scan failure, retaining
 		// observed usage and clearing disconnect policy instead of reclassifying the
 		// completed response.
-		if (sawDone || sawTerminalEvent) && !sawFailedEvent {
+		if (sawDone || sawTerminalEvent) && !lifecycle.sawFailedEvent {
 			options.ClearDisconnect()
 			return resultWithUsage(), nil
 		}
-		if sawFailedEvent {
-			err := fmt.Errorf("upstream response failed: %s", failedMessage)
-			return resultWithUsage(), options.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, failedPayload, failedMessage, err)
+		if lifecycle.sawFailedEvent {
+			err := fmt.Errorf("upstream response failed: %s", lifecycle.failedMessage)
+			return resultWithUsage(), options.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, lifecycle.failedPayload, lifecycle.failedMessage, err)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
@@ -505,9 +448,9 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 		)
 		return resultWithUsage(), fmt.Errorf("stream read error: %w", err)
 	}
-	if sawFailedEvent {
-		err := fmt.Errorf("upstream response failed: %s", failedMessage)
-		return resultWithUsage(), options.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, failedPayload, failedMessage, err)
+	if lifecycle.sawFailedEvent {
+		err := fmt.Errorf("upstream response failed: %s", lifecycle.failedMessage)
+		return resultWithUsage(), options.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, lifecycle.failedPayload, lifecycle.failedMessage, err)
 	}
 	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
 		options.MissingTerminal(upstreamRequestID)
@@ -518,7 +461,7 @@ func ReadPassthroughStreaming(ctx context.Context, resp *http.Response, c *upstr
 		options.RecordDisconnect(errors.New("stream ended before terminal event"), upstreamRequestID)
 		return resultWithUsage(), errors.New("stream usage incomplete: missing terminal event")
 	}
-	if (sawDone || sawTerminalEvent) && !sawFailedEvent {
+	if (sawDone || sawTerminalEvent) && !lifecycle.sawFailedEvent {
 		options.ClearDisconnect()
 	}
 	options.MissingUsage(resp, usage, terminalEventType, clientDisconnected)

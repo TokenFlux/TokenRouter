@@ -33,9 +33,6 @@ type RawFallbackPorts interface {
 	Profile() MessagesProfile
 	// Error writes the selected client protocol's local request failure response.
 	Error(int, string, string)
-	// ValidateEffort checks supplied reasoning controls against the request model
-	// policy.
-	ValidateEffort([]byte, string) error
 	// BillingModel selects the charge model using provider mapping and a caller
 	// default.
 	BillingModel(string, string) string
@@ -45,13 +42,6 @@ type RawFallbackPorts interface {
 	// MessagesEffort resolves converted reasoning effort from Anthropic controls
 	// and model attributes.
 	MessagesEffort(*protocolanthropic.AnthropicRequest, string, string) string
-	// ThinkingFallback retains a present effort pointer, including an empty
-	// string. Otherwise it derives a display effort from enabled thinking and the
-	// supplied model for result attribution after protocol preparation.
-	ThinkingFallback(*string, []byte, string) *string
-	// ServiceTier extracts the normalized service tier from the prepared request
-	// bytes.
-	ServiceTier([]byte) *string
 	// PrepareModel applies selected-provider model attributes to the outgoing Chat
 	// request bytes.
 	PrepareModel(context.Context, []byte) ([]byte, error)
@@ -71,10 +61,6 @@ type RawFallbackPorts interface {
 	// ReasoningContent looks up saved reasoning text for an opaque response item
 	// identifier.
 	ReasoningContent(string) string
-	// EffectiveEffort reads result effort from the final outgoing body after
-	// policy and conversion. The installed adapter ignores the original bytes and
-	// model hints, so discarded client controls stay discarded.
-	EffectiveEffort([]byte, []byte, ...string) *string
 	// ObserveModel records the mapped upstream model for this request attempt.
 	ObserveModel(string)
 	// Target returns the Chat-compatible credential and endpoint for the selected

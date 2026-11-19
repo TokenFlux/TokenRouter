@@ -80,12 +80,6 @@ func (p *openAIPassthroughExecutionAdapter) ForwardModel(model string, compact b
 	return gatewayadapter.ExecutionModelPolicy(p.provider).OpenAIUpstream(model, compact)
 }
 
-// InstructionsRejection delegates Codex passthrough instruction-validation
-// reason extraction from raw body and model.
-func (p *openAIPassthroughExecutionAdapter) InstructionsRejection(model string, body []byte) string {
-	return openai.DetectOpenAIPassthroughInstructionsRejectReason(model, body)
-}
-
 // PolicyDenied marks this request as locally limited by provider admission
 // policy.
 func (p *openAIPassthroughExecutionAdapter) PolicyDenied() {
@@ -102,19 +96,6 @@ func (p *openAIPassthroughExecutionAdapter) LogInstructionsRejected(ctx context.
 // field.
 func (p *openAIPassthroughExecutionAdapter) Reject(status int, kind, message, param string) {
 	WriteOpenAIForwardRejection(p.c, status, kind, message, param)
-}
-
-// CodexModel reports whether the supplied model qualifies for Codex
-// compatibility handling.
-func (p *openAIPassthroughExecutionAdapter) CodexModel(model string) bool {
-	return openai.IsOpenAICodexModel(model)
-}
-
-// OAuthBody delegates raw OAuth passthrough normalization with the current
-// Compact flag. Updated bytes and change state return to RunPassthrough;
-// normalization errors stop the request before the exchange loop starts.
-func (p *openAIPassthroughExecutionAdapter) OAuthBody(body []byte, compact bool) ([]byte, bool, error) {
-	return openai.NormalizeOpenAIPassthroughOAuthBody(body, compact)
 }
 
 // ProviderIdentityRaw rewrites raw client metadata with the current Codex
@@ -143,14 +124,6 @@ func (p *openAIPassthroughExecutionAdapter) Fingerprint() *openai.FingerprintIDs
 	return provideradapter.CodexFingerprintIDsFromRequest(p.provider.View(), headers)
 }
 
-// FingerprintBody delegates raw metadata rewriting using the supplied
-// fingerprint IDs. Callers use the same IDs for outgoing headers, and
-// preparation errors prevent adoption of an incompatible metadata
-// representation before forwarding.
-func (p *openAIPassthroughExecutionAdapter) FingerprintBody(body []byte, ids *openai.FingerprintIDs) ([]byte, bool, error) {
-	return openai.ApplyCodexFingerprintClientMetadataRaw(body, ids)
-}
-
 // HasContext reports whether this adapter holds an active Gin request context.
 func (p *openAIPassthroughExecutionAdapter) HasContext() bool {
 	return p.c != nil
@@ -160,20 +133,6 @@ func (p *openAIPassthroughExecutionAdapter) HasContext() bool {
 // Lite.
 func (p *openAIPassthroughExecutionAdapter) LiteHeader() bool {
 	return gatewayadapter.ImageIntent().IsOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
-}
-
-// LitePayloadFlag reports whether raw input declares the Responses Lite
-// payload flag.
-func (p *openAIPassthroughExecutionAdapter) LitePayloadFlag(body []byte) bool {
-	return gatewayadapter.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body)
-}
-
-// CompatibilityBody delegates credential-aware Responses compatibility
-// normalization for raw passthrough bytes. The shared helper orders its
-// preparation stages and returns original input on error, so RunPassthrough
-// adopts only a successful transformed request.
-func (p *openAIPassthroughExecutionAdapter) CompatibilityBody(body []byte, lite bool) ([]byte, bool, error) {
-	return gatewayadapter.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, gatewayadapter.ExecutionProtocolRecord(p.provider), lite)
 }
 
 // CompatibilityBodyWithSkip runs credential-aware Responses compatibility
@@ -192,24 +151,10 @@ func (p *openAIPassthroughExecutionAdapter) CompatibilityBodyWithSkip(body []byt
 	)
 }
 
-// ReservedToolNames delegates reserved OAuth function-name aliasing with its
-// restoration mapping. It returns change state and any collision or parsing
-// error; the passthrough runner merges the mapping only after successful
-// preparation.
-func (p *openAIPassthroughExecutionAdapter) ReservedToolNames(body []byte) ([]byte, map[string]string, bool, error) {
-	return openai.AliasOpenAIOAuthReservedToolNamesBody(body)
-}
-
 // MergeToolNames merges this preparation's reverse aliases into request-local
 // Codex tool state.
 func (p *openAIPassthroughExecutionAdapter) MergeToolNames(value map[string]string) {
 	MergeCodexToolNameReverse(p.c, value)
-}
-
-// NeedsClientTools reports whether raw Responses input contains tools
-// requiring client adaptation.
-func (p *openAIPassthroughExecutionAdapter) NeedsClientTools(body []byte) bool {
-	return protocolbridge.NeedsOpenAIResponsesClientToolAdaptation(body)
 }
 
 // AdaptClientTools lowers client tool nodes and publishes their restoration
@@ -254,12 +199,6 @@ func (p *openAIPassthroughExecutionAdapter) ImageIntent(model string, canonical 
 	return ResolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, gatewayadapter.ImageIntent().IsImageGenerationIntent)
 }
 
-// ExplicitImageIntent delegates client-declared image detection at the
-// Responses endpoint.
-func (p *openAIPassthroughExecutionAdapter) ExplicitImageIntent(model string, body []byte) bool {
-	return gatewayadapter.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)
-}
-
 // ImageAllowed reports image admission for the current request's effective key
 // group.
 func (p *openAIPassthroughExecutionAdapter) ImageAllowed() bool {
@@ -272,12 +211,6 @@ func (p *openAIPassthroughExecutionAdapter) FeatureDenied() {
 	MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 
-// ImagePermissionMessage returns the shared client message for denied image
-// generation.
-func (p *openAIPassthroughExecutionAdapter) ImagePermissionMessage() string {
-	return media.ImageGenerationPermissionMessage
-}
-
 // ImageBilling resolves image model and size metadata from prepared Responses
 // bytes. It translates the provider helper's detailed result into runner
 // fields. Capability failures receive a local protocol error with their
@@ -288,18 +221,6 @@ func (p *openAIPassthroughExecutionAdapter) ImageBilling(body []byte, model stri
 		WriteOpenAIModelAttributeError(p.c, err, p.c.Writer.Written())
 	}
 	return forward.ImageBilling{Model: v.Model, SizeTier: v.SizeTier, InputSize: v.InputSize}, err
-}
-
-// UpstreamError records the supplied rejection status and message in request
-// Ops state.
-func (p *openAIPassthroughExecutionAdapter) UpstreamError(status int, message string) {
-	SetOpsUpstreamError(p.c, status, message, "")
-}
-
-// Log writes passthrough execution diagnostics under the OpenAI gateway
-// logging component.
-func (p *openAIPassthroughExecutionAdapter) Log(format string, args ...any) {
-	logging.LegacyPrintf("service.openai_gateway", format, args...)
 }
 
 // WarnTimeoutHeaders logs recognized inbound timeout headers and their
@@ -403,12 +324,6 @@ func (p *openAIPassthroughExecutionAdapter) CompactObserved(r *http.Response, bo
 	p.s.Compact.Observe(p.c, p.provider, r, body, message, true)
 }
 
-// ErrorCode extracts the upstream classification code from captured HTTP error
-// bytes.
-func (p *openAIPassthroughExecutionAdapter) ErrorCode(body []byte) string {
-	return upstream.ExtractErrorCode(body)
-}
-
 // ShouldFailover delegates passthrough HTTP classification for this selected
 // provider and payload.
 func (p *openAIPassthroughExecutionAdapter) ShouldFailover(status int, body []byte) bool {
@@ -474,17 +389,6 @@ func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context)
 // response cleanup.
 func (p *openAIPassthroughExecutionAdapter) CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool) {
 	return p.s.Compact.ApplySignal(p.c, p.provider, model, body, err, tried, r)
-}
-
-// CompactSignal extracts recognized Compact failure data for the shared
-// runner. A miss returns false with empty data; recognized payload and message
-// are retained for final recovery classification or client presentation.
-func (p *openAIPassthroughExecutionAdapter) CompactSignal(err error) (forward.CompactFailure, bool) {
-	v, ok := compact.AsFailure(err)
-	if !ok {
-		return forward.CompactFailure{}, false
-	}
-	return forward.CompactFailure{Message: v.Message, Payload: v.Payload}, true
 }
 
 // CompactErrorResponse constructs the shared synthetic response and body for a

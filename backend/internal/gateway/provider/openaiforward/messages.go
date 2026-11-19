@@ -13,8 +13,17 @@ import (
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -64,11 +73,11 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		return nil, fmt.Errorf("parse anthropic request: %w", err)
 	}
-	if err := p.ValidateEffort(body, anthropicReq.Model); err != nil {
+	if err := requeststate.ValidateOpenAIReasoningEffort(body, anthropicReq.Model); err != nil {
 		p.Error(http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err
 	}
-	anthropicDigestReq := p.CloneDigest(&anthropicReq)
+	anthropicDigestReq := session.CloneAnthropicDigestRequest(&anthropicReq)
 	originalModel := anthropicReq.Model
 	normalizedModel := anthropicReq.Model
 	clientStream := anthropicReq.Stream // client output stream choice
@@ -88,7 +97,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		if sessionSeed := p.ClaudeSession(body); sessionSeed != "" {
 			promptCacheKey = sessionSeed
 			compatPromptCacheInjected = true
-		} else if sessionSeed := p.MetadataSession(&anthropicReq); sessionSeed != "" {
+		} else if sessionSeed := session.AnthropicMetadataPromptCacheKey(&anthropicReq); sessionSeed != "" {
 			promptCacheKey = sessionSeed
 			compatPromptCacheInjected = true
 		}
@@ -96,24 +105,24 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	// When compatibility injection is allowed, prefer metadata then cache-control
 	// identity; digest-prefix lookup can reuse the established key before a new
 	// chain seed is derived.
-	if promptCacheKey == "" && p.AutoCacheKey(upstreamModel) {
-		promptCacheKey = p.MetadataSession(&anthropicReq)
+	if promptCacheKey == "" && gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
+		promptCacheKey = session.AnthropicMetadataPromptCacheKey(&anthropicReq)
 		if promptCacheKey == "" {
-			promptCacheKey = p.CacheControlKey(&anthropicReq)
+			promptCacheKey = gatewayprovider.DeriveAnthropicCacheControlPromptCacheKey(&anthropicReq)
 		}
 		if promptCacheKey == "" {
-			anthropicDigestChain = p.DigestChain(anthropicDigestReq)
+			anthropicDigestChain = session.BuildAnthropicDigestChain(anthropicDigestReq)
 			if reusedKey, matchedChain := p.FindDigestKey(apiKeyID, anthropicDigestChain); reusedKey != "" {
 				promptCacheKey = reusedKey
 				anthropicMatchedDigestChain = matchedChain
 			} else {
-				promptCacheKey = p.DigestKey(anthropicDigestChain)
+				promptCacheKey = session.AnthropicDigestPromptCacheKey(anthropicDigestChain)
 			}
 		}
 		compatPromptCacheInjected = promptCacheKey != ""
 	}
 	compatReplayTrimmed := false
-	compatReplayGuardEnabled := p.AutoCacheKey(upstreamModel)
+	compatReplayGuardEnabled := gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(upstreamModel)
 	compatContinuationEnabled := p.ContinuationEnabled(upstreamModel)
 	previousResponseID := ""
 	if compatContinuationEnabled {
@@ -125,7 +134,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	// Codex uses session_id and x-codex-turn-state for caching. Keep the full replay
 	// so the cached prefix can grow beyond system instructions and tools between turns.
 	if compatReplayGuardEnabled && !profile.UsesCodex && previousResponseID == "" && !compatContinuationDisabled {
-		compatReplayTrimmed = p.ReplayGuard(&anthropicReq)
+		compatReplayTrimmed = protocolbridge.ApplyAnthropicCompatFullReplayGuard(&anthropicReq)
 	}
 
 	// Apply replay trimming before Messages-to-Responses conversion so the
@@ -155,13 +164,13 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	// trimming the outgoing history to the latest continuation turn.
 	if previousResponseID != "" {
 		responsesReq.PreviousResponseID = previousResponseID
-		p.TrimLatestTurn(responsesReq)
+		protocolbridge.TrimCompatResponsesInputToLatestTurn(responsesReq)
 	}
 	// Non-Codex replay policy inserts developer guard guidance before
 	// serialization, keeping its position beside initial developer instructions
 	// as later request preparation adopts the converted history.
 	if compatReplayGuardEnabled && !profile.UsesCodex {
-		p.TodoGuard(responsesReq)
+		gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuard(responsesReq)
 	}
 
 	logFields := []zap.Field{
@@ -176,7 +185,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	if compatPromptCacheInjected {
 		logFields = append(logFields,
 			zap.Bool("compat_prompt_cache_key_injected", true),
-			zap.String("compat_prompt_cache_key_sha256", p.HashForLog(promptCacheKey)),
+			zap.String("compat_prompt_cache_key_sha256", upstream.HashSensitiveValueForLog(promptCacheKey)),
 		)
 	}
 	if compatReplayTrimmed {
@@ -188,13 +197,13 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	if previousResponseID != "" {
 		logFields = append(logFields,
 			zap.Bool("compat_previous_response_id_attached", true),
-			zap.String("compat_previous_response_id", p.Truncate(previousResponseID, p.LogIDLimit())),
+			zap.String("compat_previous_response_id", gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen)),
 		)
 	}
 	if compatTurnState != "" {
 		logFields = append(logFields, zap.Bool("compat_turn_state_attached", true))
 	}
-	p.Debug("openai messages: model mapping applied", logFields...)
+	logging.L().Debug("openai messages: model mapping applied", logFields...)
 
 	responsesBody, err := json.Marshal(responsesReq)
 	if err != nil {
@@ -209,7 +218,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
 		}
-		codexResult := p.CodexTransform(reqBody, openai.CodexOAuthTransformOptions{
+		codexResult := gatewayprovider.ApplyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{
 			SkipDefaultInstructions: true,
 			PreserveToolCallIDs:     true,
 		})
@@ -239,9 +248,9 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		}); err != nil {
 			return nil, err
 		}
-		p.EnsureInstructions(reqBody)
-		if p.AutoCacheKey(upstreamModel) {
-			p.TodoGuardBody(reqBody)
+		protocolopenai.EnsureCodexInstructionsField(reqBody)
+		if gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
+			gatewayprovider.AppendOpenAICompatClaudeCodeTodoGuardToRequestBody(reqBody)
 		}
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
@@ -254,7 +263,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// seed.
 		p.ProviderIdentity(reqBody, apiKeyID)
 		delete(reqBody, "prompt_cache_key")
-		if p.AutoCacheKey(upstreamModel) {
+		if gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
 			compatTurnState = p.TurnState(ctx, promptCacheKey)
 		}
 		// The Codex transform forces stream=true, so read its response as a stream.
@@ -307,7 +316,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
-	if serviceTier := p.ServiceTier(responsesBody); serviceTier != nil {
+	if serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(responsesBody); serviceTier != nil {
 		responsesReq.ServiceTier = *serviceTier
 	} else {
 		responsesReq.ServiceTier = ""
@@ -323,7 +332,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		if patchErr != nil {
 			return nil, patchErr
 		}
-		responsesBody, patchErr = p.ApplyGrokCache(patchedBody, grokIntentBody, grokCacheIdentity, profile.GrokOAuth)
+		responsesBody, patchErr = grok.ApplyGrokResponsesCacheIdentity(patchedBody, grokIntentBody, grokCacheIdentity, profile.GrokOAuth)
 		if patchErr != nil {
 			return nil, fmt.Errorf("apply grok prompt cache identity: %w", patchErr)
 		}
@@ -344,7 +353,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// Restore identity headers after construction.
 		p.BindMessagesBridge(true)
 	}
-	upstreamCtx, releaseUpstreamCtx := p.UpstreamContext(ctx)
+	upstreamCtx, releaseUpstreamCtx := gatewayprovider.DetachUpstreamContext(ctx)
 	upstreamReq, err := p.Build(ctx, upstreamCtx, responsesBody, token, isStream, promptCacheKey, grokCacheIdentity)
 	releaseUpstreamCtx()
 	if err != nil {
@@ -365,8 +374,9 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// After bridge construction, restore missing Codex defaults and the
 		// Responses beta header, then enforce the outgoing User-Agent/originator
 		// pair before sending.
-		p.RestoreIdentity(upstreamReq.Header)
-		p.Debug("openai messages: upstream identity restored",
+		openai.EnsureCodexIdentityHeaders(upstreamReq.Header)
+		openai.EnforceCodexIdentityHeaders(upstreamReq.Header)
+		logging.L().Debug("openai messages: upstream identity restored",
 			zap.Int64("provider_id", profile.ID),
 			zap.String("upstream_model", upstreamModel),
 			zap.Bool("compat_identity_restored", true),
@@ -394,7 +404,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 			if profile.Platform != "grok" {
 				break
 			}
-			upstreamCtxRetry, releaseRetry := p.UpstreamContext(ctx)
+			upstreamCtxRetry, releaseRetry := gatewayprovider.DetachUpstreamContext(ctx)
 			upstreamReq, err = p.Build(ctx, upstreamCtxRetry, responsesBody, token, isStream, promptCacheKey, grokCacheIdentity)
 			releaseRetry()
 			if err != nil {
@@ -418,13 +428,13 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// On the first Grok 400, ciphertext presence permits removal even when error
 		// text is opaque; changed bytes enable one replay before final health
 		// handling.
-		shouldStrip := p.GrokInvalidEncrypted(resp.StatusCode, respBody) ||
-			p.GrokHasEncrypted(responsesBody)
+		shouldStrip := gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(resp.StatusCode, respBody) ||
+			gatewayprovider.GrokBodyCodec().RequestHasGrokEncryptedReasoning(responsesBody)
 		if !shouldStrip {
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 			break
 		}
-		retryBody, changed, trimErr := p.TrimGrokEncrypted(responsesBody)
+		retryBody, changed, trimErr := gatewayprovider.GrokBodyCodec().TrimGrokInvalidEncryptedContentRetryBody(responsesBody)
 		if trimErr != nil {
 			return nil, fmt.Errorf("prepare Grok invalid encrypted_content retry: %w", trimErr)
 		}
@@ -433,10 +443,10 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 			break
 		}
 		responsesBody = retryBody
-		p.Info("openai messages: retrying after stripping invalid Grok encrypted_content",
+		logging.L().Info("openai messages: retrying after stripping invalid Grok encrypted_content",
 			zap.Int64("provider_id", profile.ID),
 			zap.Bool("cache_identity_present", strings.TrimSpace(grokCacheIdentity) != ""),
-			zap.String("upstream_error_preview", p.Truncate(string(respBody), 240)),
+			zap.String("upstream_error_preview", gatewayprovider.TruncateOpenAIWSLogValue(string(respBody), 240)),
 		)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -446,30 +456,30 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// Record agent recovery in the request context before rebuilding from client
 		// bytes, preventing repeated task rejection from recursively spending another
 		// recovery opportunity.
-		if !p.AgentRecoveryTried(ctx) && p.IsAgentIdentity(ctx) && p.InvalidAgentTask(resp.StatusCode, respBody) {
+		if !requeststate.AgentTaskRecoveryTried(ctx) && p.IsAgentIdentity(ctx) && openai.IsAgentTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
 			if err := p.RecoverAgentTask(ctx); err != nil {
 				return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
 			}
-			return RunMessages(p.MarkAgentRecovery(ctx), body, promptCacheKey, defaultMappedModel, p)
+			return RunMessages(requeststate.WithAgentTaskRecovery(ctx), body, promptCacheKey, defaultMappedModel, p)
 		}
 		respBody = p.RedactErrorBody(ctx, respBody)
 		// The installed error reader already closed the network body; replace replay
 		// storage with redacted bytes before continuation classification and final
 		// failure presentation.
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-		upstreamMsg := p.ErrorMessage(respBody)
+		upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 		// Unavailable continuation requires changing its provider/key/prompt binding
 		// before recursion; capability rejection disables reuse, while a missing
 		// response removes the saved ID for the rebuilt request.
-		if previousResponseID != "" && (p.PreviousMissing(resp.StatusCode, upstreamMsg, respBody) || p.PreviousUnsupported(resp.StatusCode, upstreamMsg, respBody)) {
-			if p.PreviousUnsupported(resp.StatusCode, upstreamMsg, respBody) {
+		if previousResponseID != "" && (gatewayprovider.CompatPreviousResponseNotFound(resp.StatusCode, upstreamMsg, respBody) || gatewayprovider.CompatPreviousResponseUnsupported(resp.StatusCode, upstreamMsg, respBody)) {
+			if gatewayprovider.CompatPreviousResponseUnsupported(resp.StatusCode, upstreamMsg, respBody) {
 				p.DisableContinuation(ctx, promptCacheKey)
 			} else {
 				p.DeleteResponseID(ctx, promptCacheKey)
 			}
-			p.Info("openai messages: previous_response_id unavailable, retrying without continuation",
+			logging.L().Info("openai messages: previous_response_id unavailable, retrying without continuation",
 				zap.Int64("provider_id", profile.ID),
-				zap.String("previous_response_id", p.Truncate(previousResponseID, p.LogIDLimit())),
+				zap.String("previous_response_id", gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen)),
 				zap.String("upstream_model", upstreamModel),
 				zap.Bool("compat_continuation_supported", profile.ContinuationSupported),
 			)
@@ -478,13 +488,13 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		// A decryption failure can survive provider switching. Strip client-body thinking
 		// signatures once so the next attempt can replay the tool continuation.
 		if profile.Platform == "grok" &&
-			p.GrokInvalidEncrypted(resp.StatusCode, respBody) &&
-			!p.GrokStripRetried(ctx) {
-			if strippedBody, ok := p.StripThinkingSignatures(body); ok {
-				p.Info("openai messages: stripping thinking signatures for Grok failover retry",
+			gatewayprovider.GrokBodyCodec().IsGrokInvalidEncryptedContentResponse(resp.StatusCode, respBody) &&
+			!gatewayprovider.GrokBodyCodec().GrokEncryptedContentStripRetried(ctx) {
+			if strippedBody, ok := protocolanthropic.StripThinkingSignaturesJSON(body); ok {
+				logging.L().Info("openai messages: stripping thinking signatures for Grok failover retry",
 					zap.Int64("provider_id", profile.ID),
 				)
-				return RunMessages(p.MarkGrokStrip(ctx), strippedBody, promptCacheKey, defaultMappedModel, p)
+				return RunMessages(gatewayprovider.GrokBodyCodec().MarkGrokEncryptedContentStripRetried(ctx), strippedBody, promptCacheKey, defaultMappedModel, p)
 			}
 		}
 		if foErr := p.FailoverHTTP(ctx, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
@@ -527,7 +537,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	// specific error.
 	if p.CyberPolicy() {
 		if handleErr == nil {
-			handleErr = p.CyberError()
+			handleErr = forwardcore.ErrCyberPolicyForwarded
 		}
 		return nil, handleErr
 	}
@@ -544,7 +554,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		}
 		// Prefer the upstream's echoed tier; otherwise use the outgoing body's tier
 		// after fast-policy filtering or forcing.
-		if tier := p.ResolvedServiceTier(p.ServiceTier(responsesBody)); tier != nil {
+		if tier := p.ResolvedServiceTier(requeststate.ExtractOpenAIServiceTierFromBody(responsesBody)); tier != nil {
 			result.ServiceTier = tier
 		}
 		if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {

@@ -69,7 +69,7 @@ func TestCyberSessionBlockPreservesScopeAndDedicatedOps(t *testing.T) {
 	require.Equal(t, 403, w.Code)
 	require.Contains(t, w.Body.String(), "session_blocked_by_cyber_policy")
 	require.Equal(t, []string{"enabled", "group", "find", "ops"}, p.events)
-	require.True(t, c.GetBool("ops_dedicated_error_recorded"))
+	require.True(t, IsOpsDedicatedErrorRecorded(c))
 	p = &cyberTestPorts{enabled: true, scope: false}
 	c, _ = prefaceContext("body")
 	require.False(t, newCyberTest(p).RejectSession(c, prefaceKey(), nil, "model", CyberBlockResponses))

@@ -15,7 +15,7 @@ import (
 // runner keeps byte patches, cached views, restoration names, and final header
 // values synchronized for one provider attempt.
 
-// TransformPorts supplies model policy, mutable request transformations, and attempt observations.
+// TransformPorts supplies stateful model policy, provider identity, and fast-tier callbacks for one attempt.
 type TransformPorts interface {
 	// ModelAttributes resolves selected-model policy using request bytes and
 	// Compact mode. The installed adapter publishes endpoint capabilities before
@@ -25,12 +25,6 @@ type TransformPorts interface {
 	// Reject records requested diagnostics and writes the selected local request
 	// rejection.
 	Reject(Rejection)
-	// Log writes the supplied formatting message through the bound gateway logger.
-	Log(string, ...any)
-	// Decode returns a number-aware writable Responses object for synchronous
-	// transformation. Parsing failures stop preparation; callers keep returned
-	// mutable values stable through object edits and final serialization.
-	Decode(body []byte) (map[string]any, error)
 	// GroupImagePolicy resolves admitted group image handling over the inherited
 	// provider value. The inherited policy remains when no relevant group override
 	// applies, including a different declared client protocol.
@@ -53,50 +47,10 @@ type TransformPorts interface {
 	// CompactModel reads the selected provider's configured Compact recovery model
 	// for the request.
 	CompactModel(model string) string
-	// ImagePermissionMessage returns the client explanation for rejected group
-	// image admission.
-	ImagePermissionMessage() string
-	// IsImageGenerationIntent reports broad image intent from endpoint, model, and
-	// raw request bytes.
-	IsImageGenerationIntent(endpoint, model string, body []byte) bool
-	// IsExplicitImageGenerationIntent reports declared image intent used by group
-	// permission checks.
-	IsExplicitImageGenerationIntent(endpoint, model string, body []byte) bool
-	// IsImageGenerationIntentMap reports broad image intent from the supplied
-	// decoded request object.
-	IsImageGenerationIntentMap(endpoint, model string, body map[string]any) bool
-	// IsExplicitImageGenerationIntentMap reports declared image intent in the
-	// supplied decoded request object.
-	IsExplicitImageGenerationIntentMap(endpoint, model string, body map[string]any) bool
-	// OpenAIRequestBodyImageGenerationToolNeedsNormalization reports whether raw
-	// image tools need compatibility preparation.
-	OpenAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool
-	// OpenAIRequestBodyHasImageGenerationDeclaration reports whether raw input
-	// declares an image-generation tool.
-	OpenAIRequestBodyHasImageGenerationDeclaration(body []byte) bool
-	// EnsureOpenAIResponsesImageGenerationTool inserts the automatic bridge tool
-	// into a writable body. Its result reports a mutation for serialization; the
-	// caller applies group and provider admission before invoking insertion.
-	EnsureOpenAIResponsesImageGenerationTool(body map[string]any) bool
-	// EnsureOpenAIResponsesImageGenerationToolChoiceAuto applies automatic image
-	// choice to a writable body. Its result reports a mutation for serialization;
-	// the caller selects this operation when automatic bridge policy permits it.
-	EnsureOpenAIResponsesImageGenerationToolChoiceAuto(body map[string]any) bool
-	// ValidateCodexSparkInput checks image input against selected Spark model
-	// capability restrictions.
-	ValidateCodexSparkInput(body map[string]any, model string) error
-	// ApplyCodexImageGenerationBridgeInstructions adds automatic bridge
-	// instructions to a writable request body. A true result reports changed text
-	// for serialization; callers invoke it after image-tool preparation under
-	// bridge-enabled policy.
-	ApplyCodexImageGenerationBridgeInstructions(body map[string]any) bool
 	// CodexTransform applies OAuth-compatible preparation to the supplied writable
 	// request map. Callers inspect its Error before adopting serialized bytes and
 	// tool mappings; failed preparation can leave map changes visible.
 	CodexTransform(body map[string]any, options openai.CodexOAuthTransformOptions) openai.CodexTransformResult
-	// EnsureCodexOAuthInstructionsField inserts required instructions into the
-	// writable OAuth request map.
-	EnsureCodexOAuthInstructionsField(body map[string]any)
 	// ToolNameReverse publishes copied active-turn names and clears future-session
 	// names for this request. Keep the supplied map stable while the setter copies
 	// it; output readers later borrow the published copy.
@@ -123,21 +77,4 @@ type TransformPorts interface {
 	// FastBlocked writes the dedicated response for a recognized fast-tier policy
 	// denial.
 	FastBlocked(err error)
-	// SanitizeOpenAIResponsesOrphanToolOutputs removes unmatched outputs when
-	// continuation cannot provide their call context. The body is writable,
-	// retained nested input values stay shared, and a true result requests
-	// serialization.
-	SanitizeOpenAIResponsesOrphanToolOutputs(body map[string]any, input []any, hasPrevious bool) bool
-	// FirstNonEmptyString returns the first trimmed, nonblank string among the
-	// supplied values. Nonstrings are ignored and no usable value returns empty,
-	// allowing orphan-output cleanup to recognize an absent continuation ID.
-	FirstNonEmptyString(values ...any) string
-	// Marshal serializes the stable prepared map using the number-aware JSON
-	// wrapper. Unsupported values and invalid numeric literals return errors, and
-	// the runner adopts bytes only after serialization succeeds.
-	Marshal(body map[string]any) ([]byte, error)
-	// NormalizeTrigger places one compaction trigger after other input items in
-	// raw request bytes. Its changed result selects replacement bytes; errors stop
-	// final preparation before the result is returned.
-	NormalizeTrigger(body []byte) ([]byte, bool, error)
 }

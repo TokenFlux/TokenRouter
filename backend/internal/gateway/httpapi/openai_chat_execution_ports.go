@@ -9,7 +9,6 @@ import (
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	openaiexecution "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -113,12 +112,6 @@ func (p *openAIChatExecutionAdapter) ResponsesToChat(r *protocolopenai.Responses
 	return protocolbridge.ResponsesToChatCompletionsRequestWithOptions(r, &protocolbridge.ResponsesToChatOptions{ReasoningContentByID: p.s.Output.Reasoning.Lookup})
 }
 
-// GrokBridgeEligible reports whether Grok conversion can represent the
-// supplied body.
-func (p *openAIChatExecutionAdapter) GrokBridgeEligible(body []byte) (bool, string) {
-	return gatewayprovider.GrokBodyCodec().GrokChatResponsesBridgeEligibility(body)
-}
-
 // ChatError commits response state before writing the Chat protocol rejection.
 // Callers terminate the failed preparation path afterward so the outer attempt
 // handler does not replace this dedicated error.
@@ -131,12 +124,6 @@ func (p *openAIChatExecutionAdapter) ChatError(status int, kind, message string)
 // Completions.
 func (p *openAIChatExecutionAdapter) DefaultChat() bool {
 	return resolveOpenAITextProtocolForAttempt(p.c, p.provider, providercore.TextProtocolChatCompletions) == providercore.TextProtocolChatCompletions
-}
-
-// DeriveCacheKey derives the compatibility prompt-cache seed for the mapped
-// Chat request.
-func (p *openAIChatExecutionAdapter) DeriveCacheKey(r *protocolopenai.ChatCompletionsRequest, model string) string {
-	return gatewayprovider.DeriveCompatPromptCacheKey(r, model)
 }
 
 // IsolateCacheKey namespaces the compatibility seed with the authenticated
@@ -184,20 +171,6 @@ func (p *openAIChatExecutionAdapter) ApplyChatFast(ctx context.Context, model st
 	return updated, err
 }
 
-// EffectiveEffort reads reasoning effort from the outgoing body for usage
-// attribution. The original bytes and model arguments are unused here, so a
-// control removed by conversion does not reappear through those inputs.
-func (p *openAIChatExecutionAdapter) EffectiveEffort(body, original []byte, models ...string) *string {
-	return requeststate.ExtractOpenAIReasoningEffortFromBody(body)
-}
-
-// ThinkingFallback derives missing effort from the body's enabled-thinking
-// setting. A present effort is passed through by the provider policy; the
-// billing-model argument guides the derived value used in attempt results.
-func (p *openAIChatExecutionAdapter) ThinkingFallback(effort *string, body []byte, model string) *string {
-	return gatewayprovider.ApplyThinkingEnabledFallback(effort, body, model)
-}
-
 // AccessToken resolves execution credentials for the adapter's current
 // provider record.
 func (p *openAIChatExecutionAdapter) AccessToken(ctx context.Context) (string, error) {
@@ -216,12 +189,6 @@ func (p *openAIChatExecutionAdapter) BuildChat(ctx context.Context, body []byte,
 // namespace.
 func (p *openAIChatExecutionAdapter) UpstreamSessionKey(id int64, key string) string {
 	return openai.IsolateOpenAIUpstreamSessionID(id, provideradapter.CodexIdentityNamespace(CodexIdentityRecord(p.c, p.provider.View())), key)
-}
-
-// SessionUUID deterministically encodes the isolated session key as a session
-// UUID.
-func (p *openAIChatExecutionAdapter) SessionUUID(key string) string {
-	return upstream.GenerateSessionUUID(key)
 }
 
 // ChatErrorResponse applies Chat HTTP-error handling to the supplied response

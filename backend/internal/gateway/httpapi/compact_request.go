@@ -219,15 +219,11 @@ func (h *OpenAITextHandler) LogRemoteCompactOutcome(c *gin.Context, startedAt ti
 		if userAgent := strings.TrimSpace(c.GetHeader("User-Agent")); userAgent != "" {
 			fields = append(fields, zap.String("request_user_agent", userAgent))
 		}
-		if v, ok := c.Get(OpsModelKey); ok {
-			if model, ok := v.(string); ok && strings.TrimSpace(model) != "" {
-				fields = append(fields, zap.String("request_model", strings.TrimSpace(model)))
-			}
+		if model := strings.TrimSpace(GetOpsModel(c)); model != "" {
+			fields = append(fields, zap.String("request_model", model))
 		}
-		if v, ok := c.Get(OpsProviderIDKey); ok {
-			if providerID, ok := v.(int64); ok && providerID > 0 {
-				fields = append(fields, zap.Int64("provider_id", providerID))
-			}
+		if providerID, ok := GetOpsProviderID(c); ok {
+			fields = append(fields, zap.Int64("provider_id", providerID))
 		}
 		if c.Writer != nil {
 			if upstreamRequestID := strings.TrimSpace(c.Writer.Header().Get("x-request-id")); upstreamRequestID != "" {

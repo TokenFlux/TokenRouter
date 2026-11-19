@@ -10,8 +10,11 @@ import (
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -68,7 +71,7 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 	}
 	upstreamBody := body
 	if upstreamModel != originalModel {
-		upstreamBody = p.ReplaceModel(body, upstreamModel)
+		upstreamBody = protocolopenai.ReplaceModelInBody(body, upstreamModel)
 	}
 	upstreamBody, err := p.PrepareModel(ctx, upstreamBody)
 	if err != nil {
@@ -83,12 +86,12 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 	// Capture the tier after fast policy has changed the outgoing bytes; the
 	// response reader can separately observe the vendor tier for completion
 	// resolution.
-	serviceTier := p.ServiceTier(upstreamBody)
+	serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(upstreamBody)
 	// Remove redundant view_image declarations before Composer description
 	// handling so the native Chat payload uses the platform's selected image
 	// representation.
 	if profile.Grok {
-		strippedBody, stripErr := p.StripViewImage(upstreamBody)
+		strippedBody, stripErr := grok.StripRedundantGrokChatViewImageTool(upstreamBody)
 		if stripErr != nil {
 			return nil, fmt.Errorf("strip redundant Grok Chat view_image tool: %w", stripErr)
 		}
@@ -132,7 +135,7 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 	// remove the Responses key and apply model-specific effort normalization
 	// before exchange.
 	if profile.Grok {
-		upstreamBody, err = p.StripGrokCacheKey(upstreamBody)
+		upstreamBody, err = grok.StripGrokChatPromptCacheKey(upstreamBody)
 		if err != nil {
 			return nil, fmt.Errorf("remove Responses-only Grok prompt cache key: %w", err)
 		}
@@ -147,8 +150,8 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 	upstreamBody = p.OllamaBody(upstreamBody)
 
 	// Record effort after applying platform parameter conversions.
-	reasoningEffort := p.EffectiveEffort(upstreamBody, body, upstreamModel, billingModel, originalModel)
-	reasoningEffort = p.ThinkingFallback(reasoningEffort, upstreamBody, billingModel)
+	reasoningEffort := requeststate.ExtractOpenAIReasoningEffortFromBody(upstreamBody)
+	reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(reasoningEffort, upstreamBody, billingModel)
 
 	p.Debug("openai chat_completions raw: forwarding without protocol conversion",
 		zap.Int64("provider_id", profile.ID),
@@ -166,7 +169,7 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 	p.Endpoint(RawChatEndpoint)
 	customUA := p.UserAgent()
 	if customUA == "" && profile.GrokOAuth {
-		customUA = p.GrokUserAgent()
+		customUA = grok.DefaultGrokUpstreamUserAgent()
 	}
 	resp, err := p.SendRaw(ctx, targetURL, upstreamBody, clientStream, token, customUA, grokCacheIdentity)
 	if err != nil {

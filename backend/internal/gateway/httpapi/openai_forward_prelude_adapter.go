@@ -11,7 +11,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -82,14 +81,6 @@ func (p openAIForwardPreludeAdapter) BlockGroupImages() bool {
 	return false
 }
 
-// StripImages delegates removal of image-generation declarations from raw
-// Responses input. The provider helper returns updated bytes, a change
-// indication and any parsing or patch error for PreparePrelude to stop before
-// further preparation.
-func (p openAIForwardPreludeAdapter) StripImages(body []byte) ([]byte, bool, error) {
-	return gatewayprovider.StripOpenAIImageGenerationToolsFromRawPayload(body)
-}
-
 // Begin resets model observation and actual-endpoint metadata for this
 // attempt. A provider resolved to raw Chat records that endpoint immediately,
 // so later transport or conversion errors report the route chosen before
@@ -157,14 +148,6 @@ func (p openAIForwardPreludeAdapter) Reject(v forward.Rejection) {
 	WriteOpenAIForwardRejection(p.c, v.Status, v.Type, v.Message, v.Param)
 }
 
-// ToolSchemas delegates platform-specific schema cleanup for raw Responses
-// tool declarations. Its change flag identifies an adopted body, while parse
-// or patch errors return to PreparePrelude before upstream request
-// construction.
-func (p openAIForwardPreludeAdapter) ToolSchemas(body []byte) ([]byte, bool, error) {
-	return gatewayprovider.SanitizeOpenAIResponsesToolSchemasForPlatform(body, p.provider.Record.Platform)
-}
-
 // LiteHeader reports whether the inbound header declares Responses Lite
 // execution.
 func (p openAIForwardPreludeAdapter) LiteHeader() bool {
@@ -195,21 +178,6 @@ func (p openAIForwardPreludeAdapter) CompactPath() bool {
 	return IsOpenAIResponsesCompactPath(p.c)
 }
 
-// CompactBody delegates the legacy Compact request whitelist and compatibility
-// normalization. Updated bytes and change flag describe an adopted request;
-// any normalization error returns to the shared prelude before dispatch.
-func (p openAIForwardPreludeAdapter) CompactBody(body []byte) ([]byte, bool, error) {
-	return openai.NormalizeOpenAICompactRequestBody(body)
-}
-
-// CompactAPIKeyReplay delegates API-key store=false reasoning replay repair
-// with Compact enabled. Its change result lets the prelude adopt the bytes,
-// while errors stop preparation rather than forwarding a partially repaired
-// request.
-func (p openAIForwardPreludeAdapter) CompactAPIKeyReplay(body []byte) ([]byte, bool, error) {
-	return openai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, true)
-}
-
 // FlattenRequired delegates namespace-declaration flattening policy for this
 // provider, transport and Compact state.
 func (p openAIForwardPreludeAdapter) FlattenRequired(v forward.TransportDecision, passthrough, compact bool) bool {
@@ -238,20 +206,6 @@ func (p openAIForwardPreludeAdapter) KeepNamespaces(v forward.TransportDecision,
 	return gatewayprovider.ShouldKeepOpenAIResponsesToolCallNamespaces(p.provider, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact)
 }
 
-// StripNamespaces delegates byte-level historical namespace cleanup with the
-// selected call-retention flag. It returns the bridge result and any error to
-// PreparePrelude, which writes the corresponding input rejection before
-// dispatch.
-func (p openAIForwardPreludeAdapter) StripNamespaces(body []byte, keep bool) ([]byte, error) {
-	return protocolbridge.StripOpenAIResponsesInputNamespaces(body, keep)
-}
-
-// NeedsClientTools reports whether Responses input contains client tools
-// requiring adaptation.
-func (p openAIForwardPreludeAdapter) NeedsClientTools(body []byte) bool {
-	return protocolbridge.NeedsOpenAIResponsesClientToolAdaptation(body)
-}
-
 // AdaptClientTools lowers client tool representations and binds the
 // response-restoration mapping on success. A bridge error leaves existing
 // request mapping untouched; callers clear that state at attempt start before
@@ -264,34 +218,6 @@ func (p openAIForwardPreludeAdapter) AdaptClientTools(body []byte) ([]byte, erro
 		SetOpenAIResponsesClientToolMapping(p.c, mapping)
 	}
 	return body, err
-}
-
-// ValidateEffort delegates request reasoning-effort validation against the
-// supplied model identity.
-func (p openAIForwardPreludeAdapter) ValidateEffort(body []byte, model string) error {
-	return requeststate.ValidateOpenAIReasoningEffort(body, model)
-}
-
-// ReasoningReplay delegates Responses reasoning-content replay normalization
-// for compatible upstream input. The returned change flag controls adoption by
-// PreparePrelude, and an error stops preparation before the affected history
-// can be forwarded.
-func (p openAIForwardPreludeAdapter) ReasoningReplay(body []byte) ([]byte, bool, error) {
-	return openai.NormalizeOpenAIResponsesReasoningContentReplay(body)
-}
-
-// InputItemIDs delegates historical input-item ID sanitation for Responses
-// requests. Updated bytes and change state reach the prelude, which adopts
-// successful normalization and returns errors before entering an upstream
-// exchange.
-func (p openAIForwardPreludeAdapter) InputItemIDs(body []byte) ([]byte, bool, error) {
-	return gatewayprovider.SanitizeOpenAIResponsesInputItemIDs(body)
-}
-
-// MessagesBridge recognizes a Messages-compatibility marker or cache-key hint
-// in the body.
-func (p openAIForwardPreludeAdapter) MessagesBridge(body []byte) bool {
-	return gatewayprovider.IsOpenAICompatMessagesBridgeBody(body)
 }
 
 // BindMessagesBridge delegates the request's Messages-compatibility marker
@@ -331,18 +257,4 @@ func (p openAIForwardPreludeAdapter) ObserveTransport(v forward.TransportDecisio
 // preparation.
 func (p openAIForwardPreludeAdapter) MappedModel(model string) string {
 	return gatewayprovider.ExecutionModelPolicy(p.provider).Mapped(model)
-}
-
-// PassthroughEffort extracts effort and applies a model-specific
-// enabled-thinking display default. The provider helper retains any existing
-// pointer, and the returned value supports result attribution without itself
-// changing outgoing body controls.
-func (p openAIForwardPreludeAdapter) PassthroughEffort(body []byte, model string) *string {
-	return gatewayprovider.ApplyThinkingEnabledFallback(requeststate.ExtractOpenAIReasoningEffortFromBody(body), body, model)
-}
-
-// Log writes Responses preparation diagnostics under the OpenAI gateway
-// component.
-func (p openAIForwardPreludeAdapter) Log(format string, args ...any) {
-	logging.LegacyPrintf("service.openai_gateway", format, args...)
 }

@@ -12,8 +12,13 @@ import (
 
 	"github.com/tidwall/gjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -142,10 +147,10 @@ type HTTPOptions struct {
 	// checks.
 	ReadErrorBody    func(*http.Response) []byte
 	IsAgentIdentity  func(context.Context) bool           // agent credential classification callback
-	InvalidAgentTask func(int, []byte) bool               // invalid agent-task classifier
+	InvalidAgentTask func(int, []byte) bool               // optional invalid agent-task classifier override
 	RecoverAgentTask func(context.Context) error          // provider task-recovery callback
 	RedactErrorBody  func(context.Context, []byte) []byte // provider-specific error-body redactor
-	ErrorDetails     func([]byte) (string, string)        // vendor message and code extractor
+	ErrorDetails     func([]byte) (string, string)        // optional vendor message and code extractor override
 	RetryEncrypted   func([]byte) ([]byte, bool, error)   // ciphertext-removal repair callback
 	// MarkInvalidLineage receives LineageEntryBody after a ciphertext repair is
 	// adopted; it records the rejected history for later requests.
@@ -155,7 +160,7 @@ type HTTPOptions struct {
 	// exchange.
 	CompactRetry         func([]byte, int, string, []byte, bool) ([]byte, string, bool)
 	CompactRetryObserved func(*http.Response, []byte, string) // Compact recovery diagnostic callback
-	CompactSignal        func(error) (CompactFailure, bool)   // reader-error Compact signal decoder
+	CompactSignal        func(error) (CompactFailure, bool)   // optional reader-error Compact signal decoder override
 	// Compact error response constructor
 	CompactErrorResponse func(*http.Response, CompactFailure) (*http.Response, []byte)
 	ShouldFailover       func(int, string, []byte) bool // HTTP provider-switch classifier
@@ -163,11 +168,10 @@ type HTTPOptions struct {
 	// continues final presentation, while a nonnil error returns to the caller.
 	HTTPFailover func(*http.Response, []byte, string, string) error
 	// Compact provider-switch error constructor
-	CompactFailover      func(*http.Response, []byte, string, string) error
-	ErrorResponse        func(*http.Response, []byte, string) error // final HTTP failure presenter
-	ErrorSchedulingModel func(string, string) string                // Compact error model selector
+	CompactFailover func(*http.Response, []byte, string, string) error
+	ErrorResponse   func(*http.Response, []byte, string) error // final HTTP failure presenter
 	// WrapResponseBody may replace a successful response body before reading; its
-	// wrapper retains body closure for the runner's deferred cleanup.
+	// wrapper retains body closure for the runner's per-attempt cleanup.
 	WrapResponseBody func(*http.Response)
 	// ReleaseDecodedRequest drops the prepared decoder reference after successful
 	// headers and before response reading; repair callbacks retain their own
@@ -178,8 +182,175 @@ type HTTPOptions struct {
 	ObserveUpstreamModel  func(string)                       // adopted recovery model observer
 	ObservedServiceTier   func() string                      // vendor declared tier reader
 	ResolvedServiceTier   func(*string) *string              // effective charge tier resolver
-	ExtractServiceTier    func([]byte) *string               // outbound payload tier reader
-	Log                   func(string, ...any)               // provider recovery diagnostic writer
+	Log                   func(string, ...any)               // optional provider recovery diagnostic writer override
+}
+
+// httpAttemptReadOutcome captures one 2xx response-reading attempt so body
+// closure runs per iteration rather than accumulating deferred closes across
+// retries.
+type httpAttemptReadOutcome struct {
+	result           *Result // assembled completion observations when retry is false
+	err              error   // terminal or delivery error when retry is false
+	retryBody        []byte  // adopted replacement payload when retry is true
+	retryModel       string  // adopted replacement model when retry is true
+	retryCompactOnce bool    // requests another exchange iteration with spent Compact budget
+}
+
+// readHTTPAttemptResponse wraps, reads, and closes one successful HTTP response
+// body within a single exchange iteration. Both streaming and buffered Compact
+// reader failures share the same recovery, diagnostic, failover, and terminal
+// error classification sequence before closing the iteration body on return.
+func readHTTPAttemptResponse(ctx context.Context, resp *http.Response, body []byte, upstreamModel string, compactRetried bool, input HTTPInput, o HTTPOptions) httpAttemptReadOutcome {
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	if o.WrapResponseBody != nil {
+		o.WrapResponseBody(resp)
+	}
+	tier := requeststate.ExtractOpenAIServiceTierFromBody(body)
+	if o.ReleaseDecodedRequest != nil {
+		o.ReleaseDecodedRequest()
+	}
+
+	var (
+		usage           *wire.ForwardUsage
+		responseID      string
+		imageCount      int
+		imageFrameCount int
+		imageSizes      []string
+		readErr         error
+		performance     *timing.Performance
+	)
+	if input.Stream {
+		streamResult, err := openai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.StreamOptions(), input.StartedAt, input.OriginalModel, upstreamModel, input.ReasoningEffortValue)
+		readErr = err
+		performance = timing.PerformanceFromContext(ctx)
+		if streamResult != nil {
+			usage = streamResult.Usage
+			responseID = strings.TrimSpace(streamResult.ResponseID)
+			imageCount = streamResult.ImageCount
+			imageFrameCount = streamResult.ImageFrameCount
+			imageSizes = streamResult.ImageOutputSizes
+		}
+	} else {
+		nonStreamResult, err := openai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.NonStreamOptions(), input.OriginalModel, upstreamModel)
+		readErr = err
+		if nonStreamResult != nil {
+			usage = nonStreamResult.Usage
+			responseID = strings.TrimSpace(nonStreamResult.ResponseID)
+			imageCount = nonStreamResult.ImageCount
+			imageFrameCount = nonStreamResult.ImageFrameCount
+			imageSizes = nonStreamResult.ImageOutputSizes
+		}
+	}
+	if readErr != nil && !errors.Is(readErr, wire.ErrGIFResultInvalid) {
+		// Streaming and buffered Compact failures carry the same structured signal.
+		// Close the failed reader body immediately before model replay or synthetic
+		// HTTP failover classification so open bodies cannot outlive this attempt.
+		if signal, ok := extractCompactFailure(readErr, o.CompactSignal); ok {
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			if o.CompactRetry != nil {
+				if retryBody, model, retry := o.CompactRetry(body, http.StatusBadRequest, signal.Message, signal.Payload, compactRetried); retry {
+					if o.CompactRetryObserved != nil {
+						o.CompactRetryObserved(resp, signal.Payload, signal.Message)
+					}
+					if o.ObserveUpstreamModel != nil {
+						o.ObserveUpstreamModel(model)
+					}
+					return httpAttemptReadOutcome{retryBody: retryBody, retryModel: model, retryCompactOnce: true}
+				}
+			}
+			compactResp, compactBody := o.CompactErrorResponse(resp, signal)
+			if o.ShouldFailover(compactResp.StatusCode, signal.Message, compactBody) {
+				return httpAttemptReadOutcome{err: o.CompactFailover(compactResp, compactBody, signal.Message, upstreamModel)}
+			}
+			return httpAttemptReadOutcome{err: o.ErrorResponse(compactResp, body, gatewayprovider.ErrorSchedulingModel(input.BillingModel, upstreamModel))}
+		}
+		return httpAttemptReadOutcome{err: readErr}
+	}
+
+	if o.BindResponseOwner != nil {
+		o.BindResponseOwner(ctx, responseID)
+	}
+	if input.OAuth && !input.Shadow && o.UpdateUsageSnapshot != nil {
+		o.UpdateUsageSnapshot(ctx, resp.Header)
+	}
+	// Readers may finish without token observations; supply an empty usage value
+	// so completion receives a consistent result shape for that successful
+	// response.
+	if usage == nil {
+		usage = &wire.ForwardUsage{}
+	}
+	var observedTier string
+	if o.ObservedServiceTier != nil {
+		observedTier = o.ObservedServiceTier()
+	}
+	var resolvedTier *string
+	if o.ResolvedServiceTier != nil {
+		resolvedTier = o.ResolvedServiceTier(tier)
+	}
+	result := &Result{
+		RequestID: resp.Header.Get("x-request-id"), ResponseID: responseID, Headers: resp.Header,
+		Usage: *usage, Model: input.OriginalModel, BillingModel: input.BillingModel, UpstreamModel: upstreamModel,
+		UpstreamResponseServiceTier: observedTier, ServiceTier: resolvedTier, ReasoningEffort: input.ReasoningEffort,
+		Stream: input.Stream, Duration: time.Since(input.StartedAt), Timings: performance,
+	}
+	// Observed generated images switch billing to the image identity and carry
+	// size evidence, while text-only results retain the text billing model.
+	if imageCount > 0 {
+		result.ImageCount = imageCount
+		result.ImageFrameCount = imageFrameCount
+		result.ImageSize = input.ImageSizeTier
+		result.ImageInputSize = input.ImageInputSize
+		result.ImageOutputSizes = imageSizes
+		result.BillingModel = input.ImageBillingModel
+	}
+	return httpAttemptReadOutcome{result: result, err: readErr}
+}
+
+// extractCompactFailure decodes a reader error using the optional override or
+// the standard compact.AsFailure classifier.
+func extractCompactFailure(err error, custom func(error) (CompactFailure, bool)) (CompactFailure, bool) {
+	if custom != nil {
+		return custom(err)
+	}
+	failure, ok := compact.AsFailure(err)
+	if !ok {
+		return CompactFailure{}, false
+	}
+	return CompactFailure{Message: failure.Message, Payload: failure.Payload}, true
+}
+
+// extractHTTPErrorDetails extracts a query-sanitized error message and upstream
+// error code unless a caller-provided extractor overrides it.
+func extractHTTPErrorDetails(payload []byte, custom func([]byte) (string, string)) (string, string) {
+	if custom != nil {
+		return custom(payload)
+	}
+	return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(payload))), upstream.ExtractErrorCode(payload)
+}
+
+// isHTTPInvalidAgentTask checks for an invalid agent-task HTTP response unless
+// overridden by a test callback.
+func isHTTPInvalidAgentTask(status int, payload []byte, custom func(int, []byte) bool) bool {
+	if custom != nil {
+		return custom(status, payload)
+	}
+	return openai.IsAgentTaskInvalidHTTPResponse(status, payload)
+}
+
+// logHTTPRecovery writes diagnostic recovery logs through the optional callback
+// or the default OpenAI gateway logger.
+func logHTTPRecovery(custom func(string, ...any), format string, args ...any) {
+	if custom != nil {
+		custom(format, args...)
+		return
+	}
+	logging.LegacyPrintf("service.openai_gateway", format, args...)
 }
 
 // RunHTTP executes HTTP exchanges and returns completion data after its
@@ -225,16 +396,18 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 			resp.Body = io.NopCloser(bytes.NewReader(payload))
 			// Agent-task rejection spends its own one-recovery budget before replay, so
 			// repeated task failures reach ordinary error handling on the next response.
-			if !agentRetried && o.IsAgentIdentity(ctx) && o.InvalidAgentTask(resp.StatusCode, payload) {
+			if !agentRetried && o.IsAgentIdentity != nil && o.IsAgentIdentity(ctx) && isHTTPInvalidAgentTask(resp.StatusCode, payload, o.InvalidAgentTask) {
 				agentRetried = true
 				if err := o.RecoverAgentTask(ctx); err != nil {
 					return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
 				}
 				continue
 			}
-			payload = o.RedactErrorBody(ctx, payload)
+			if o.RedactErrorBody != nil {
+				payload = o.RedactErrorBody(ctx, payload)
+			}
 			resp.Body = io.NopCloser(bytes.NewReader(payload))
-			message, code := o.ErrorDetails(payload)
+			message, code := extractHTTPErrorDetails(payload, o.ErrorDetails)
 			// An explicit ciphertext rejection permits one adopted removal; mark the
 			// entry lineage only after changed bytes are available for replay.
 			if !encryptedRetried && resp.StatusCode == http.StatusBadRequest && code == "invalid_encrypted_content" {
@@ -244,13 +417,15 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 				}
 				if changed {
 					body = retryBody
-					o.MarkInvalidLineage(input.LineageEntryBody)
+					if o.MarkInvalidLineage != nil {
+						o.MarkInvalidLineage(input.LineageEntryBody)
+					}
 					encryptedRetried = true
 					rejected.Remember(body)
-					o.Log("[OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (provider: %s)", input.ProviderName)
+					logHTTPRecovery(o.Log, "[OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (provider: %s)", input.ProviderName)
 					continue
 				}
-				o.Log("[OpenAI] Skip non-WSv2 invalid_encrypted_content retry because encrypted state items are missing (provider: %s)", input.ProviderName)
+				logHTTPRecovery(o.Log, "[OpenAI] Skip non-WSv2 invalid_encrypted_content retry because encrypted state items are missing (provider: %s)", input.ProviderName)
 			}
 			// Rejected-field repair uses remembered payloads to bound repeated
 			// normalization while retaining the independent ciphertext and Compact
@@ -259,21 +434,27 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 				return nil, fmt.Errorf("normalize rejected Responses field retry body: %w", retryErr)
 			} else if changed && rejected.Allow(retryBody) {
 				body = retryBody
-				o.Log("[OpenAI] Retrying non-WSv2 request after %s (provider: %s)", reason, input.ProviderName)
+				logHTTPRecovery(o.Log, "[OpenAI] Retrying non-WSv2 request after %s (provider: %s)", reason, input.ProviderName)
 				continue
 			}
 			// A Compact HTTP rejection can select a different upstream model once;
 			// observe the replacement model before the next exchange and its
 			// diagnostics.
-			if retryBody, model, retry := o.CompactRetry(body, resp.StatusCode, message, payload, compactRetried); retry {
-				o.CompactRetryObserved(resp, payload, message)
-				from := strings.TrimSpace(gjson.GetBytes(body, "model").String())
-				body = retryBody
-				upstreamModel = model
-				compactRetried = true
-				o.ObserveUpstreamModel(model)
-				o.Log("[OpenAI] Retrying explicit compact request once with fallback model (provider: %s, from: %s, to: %s, upstream_code: %s)", input.ProviderName, from, model, code)
-				continue
+			if o.CompactRetry != nil {
+				if retryBody, model, retry := o.CompactRetry(body, resp.StatusCode, message, payload, compactRetried); retry {
+					if o.CompactRetryObserved != nil {
+						o.CompactRetryObserved(resp, payload, message)
+					}
+					from := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+					body = retryBody
+					upstreamModel = model
+					compactRetried = true
+					if o.ObserveUpstreamModel != nil {
+						o.ObserveUpstreamModel(model)
+					}
+					logHTTPRecovery(o.Log, "[OpenAI] Retrying explicit compact request once with fallback model (provider: %s, from: %s, to: %s, upstream_code: %s)", input.ProviderName, from, model, code)
+					continue
+				}
 			}
 			if o.ShouldFailover(resp.StatusCode, message, payload) {
 				// Health may request generic presentation even when the status is a
@@ -285,106 +466,13 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 			}
 			return nil, o.ErrorResponse(resp, body, input.BillingModel)
 		}
-		// Capture this iteration's response for eventual cleanup; Compact recovery
-		// also closes it before exchange, so wrappers can receive repeated closes.
-		defer func() { _ = resp.Body.Close() }()
-		o.WrapResponseBody(resp)
-		tier := o.ExtractServiceTier(body)
-		o.ReleaseDecodedRequest()
-		var deliveryErr error
-		var usage *wire.ForwardUsage
-		var performance *timing.Performance
-		responseID := ""
-		imageCount := 0
-		imageFrameCount := 0
-		var imageSizes []string
-		if input.Stream {
-			result, readErr := openai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.StreamOptions(), input.StartedAt, input.OriginalModel, upstreamModel, input.ReasoningEffortValue)
-			if readErr != nil && !errors.Is(readErr, wire.ErrGIFResultInvalid) {
-				// A withheld Compact stream failure carries HTTP-like evidence; close the
-				// failed reader body before either model replay or final failure
-				// presentation.
-				if signal, ok := o.CompactSignal(readErr); ok {
-					if retryBody, model, retry := o.CompactRetry(body, http.StatusBadRequest, signal.Message, signal.Payload, compactRetried); retry {
-						if resp.Body != nil {
-							_ = resp.Body.Close()
-						}
-						o.CompactRetryObserved(resp, signal.Payload, signal.Message)
-						body = retryBody
-						upstreamModel = model
-						compactRetried = true
-						o.ObserveUpstreamModel(model)
-						continue
-					}
-					if resp.Body != nil {
-						_ = resp.Body.Close()
-					}
-					compactResp, compactBody := o.CompactErrorResponse(resp, signal)
-					if o.ShouldFailover(compactResp.StatusCode, signal.Message, compactBody) {
-						return nil, o.CompactFailover(compactResp, compactBody, signal.Message, upstreamModel)
-					}
-					return nil, o.ErrorResponse(compactResp, body, o.ErrorSchedulingModel(input.BillingModel, upstreamModel))
-				}
-				return nil, readErr
-			}
-			deliveryErr = readErr
-			usage = result.Usage
-			performance = timing.PerformanceFromContext(ctx)
-			responseID = strings.TrimSpace(result.ResponseID)
-			imageCount = result.ImageCount
-			imageFrameCount = result.ImageFrameCount
-			imageSizes = result.ImageOutputSizes
-		} else {
-			result, readErr := openai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.NonStreamOptions(), input.OriginalModel, upstreamModel)
-			if readErr != nil && !errors.Is(readErr, wire.ErrGIFResultInvalid) {
-				// Buffered Compact decoding can request a replacement model; release the
-				// current body before replay because its reader has already reported
-				// failure.
-				if signal, ok := o.CompactSignal(readErr); ok {
-					if retryBody, model, retry := o.CompactRetry(body, http.StatusBadRequest, signal.Message, signal.Payload, compactRetried); retry {
-						_ = resp.Body.Close()
-						body = retryBody
-						upstreamModel = model
-						compactRetried = true
-						o.ObserveUpstreamModel(model)
-						continue
-					}
-				}
-				return nil, readErr
-			}
-			deliveryErr = readErr
-			usage = result.Usage
-			responseID = strings.TrimSpace(result.ResponseID)
-			imageCount = result.ImageCount
-			imageFrameCount = result.ImageFrameCount
-			imageSizes = result.ImageOutputSizes
+		outcome := readHTTPAttemptResponse(ctx, resp, body, upstreamModel, compactRetried, input, o)
+		if outcome.retryCompactOnce {
+			body = outcome.retryBody
+			upstreamModel = outcome.retryModel
+			compactRetried = true
+			continue
 		}
-		o.BindResponseOwner(ctx, responseID)
-		if input.OAuth && !input.Shadow {
-			o.UpdateUsageSnapshot(ctx, resp.Header)
-		}
-		// Readers may finish without token observations; supply an empty usage value
-		// so completion receives a consistent result shape for that successful
-		// response.
-		if usage == nil {
-			usage = &wire.ForwardUsage{}
-		}
-		result := &Result{
-			RequestID: resp.Header.Get("x-request-id"), ResponseID: responseID, Headers: resp.Header,
-			Usage: *usage, Model: input.OriginalModel, BillingModel: input.BillingModel, UpstreamModel: upstreamModel,
-			UpstreamResponseServiceTier: o.ObservedServiceTier(), ServiceTier: o.ResolvedServiceTier(tier), ReasoningEffort: input.ReasoningEffort,
-			Stream: input.Stream, Duration: time.Since(input.StartedAt), Timings: performance,
-		}
-		// Observed generated images switch billing to the image identity and carry
-		// size evidence, while text-only results retain the text billing model.
-		if imageCount > 0 {
-			result.ImageCount = imageCount
-			result.ImageFrameCount = imageFrameCount
-			result.ImageSize = input.ImageSizeTier
-			result.ImageInputSize = input.ImageInputSize
-			result.ImageOutputSizes = imageSizes
-			result.BillingModel = input.ImageBillingModel
-		}
-		return result, deliveryErr
+		return outcome.result, outcome.err
 	}
 }

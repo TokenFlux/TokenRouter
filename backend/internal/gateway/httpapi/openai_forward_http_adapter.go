@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -71,15 +68,11 @@ func (s *OpenAIResponsesExecutor) nativeForwardHTTPOptions(ctx context.Context, 
 		NonStreamOptions: func() openai.NonStreamOptions { return s.Output.NonStreamOptions(ctx, c, provider) },
 		ReadErrorBody:    s.Output.ReadErrorBody,
 		IsAgentIdentity:  func(ctx context.Context) bool { return s.Requests.Identity.UsesAgentIdentity(ctx, provider) },
-		InvalidAgentTask: openai.IsAgentTaskInvalidHTTPResponse,
 		RecoverAgentTask: func(ctx context.Context) error {
 			return s.Requests.Identity.Recover(ctx, provider, provider.View().GetCredential("task_id"))
 		},
 		RedactErrorBody: func(ctx context.Context, body []byte) []byte {
 			return s.Requests.Identity.Redact(ctx, provider, body)
-		},
-		ErrorDetails: func(body []byte) (string, string) {
-			return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body))), upstream.ExtractErrorCode(body)
 		},
 		RetryEncrypted: retryEncrypted, MarkInvalidLineage: markLineage,
 		CompactRetry: func(body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
@@ -87,13 +80,6 @@ func (s *OpenAIResponsesExecutor) nativeForwardHTTPOptions(ctx context.Context, 
 		},
 		CompactRetryObserved: func(resp *http.Response, payload []byte, message string) {
 			s.Text.Compact.Observe(c, provider, resp, payload, message, false)
-		},
-		CompactSignal: func(err error) (forward.CompactFailure, bool) {
-			signal, ok := compact.AsFailure(err)
-			if !ok {
-				return forward.CompactFailure{}, false
-			}
-			return forward.CompactFailure{Message: signal.Message, Payload: signal.Payload}, true
 		},
 		CompactErrorResponse: func(resp *http.Response, signal forward.CompactFailure) (*http.Response, []byte) {
 			return CompactFallbackErrorResponse(resp, &compact.Failure{Message: signal.Message, Payload: signal.Payload})
@@ -151,7 +137,6 @@ func (s *OpenAIResponsesExecutor) nativeForwardHTTPOptions(ctx context.Context, 
 			_, err := s.Output.ResponseError(ctx, resp, c, provider, body, model)
 			return err
 		},
-		ErrorSchedulingModel: gatewayprovider.ErrorSchedulingModel,
 		WrapResponseBody: func(resp *http.Response) {
 			if mapping, ok := OpenAIResponsesClientToolMapping(c); ok && openai.IsEventStreamResponse(resp.Header) {
 				limit := OpenAIResponseDefaultMaxLineSize
@@ -172,10 +157,6 @@ func (s *OpenAIResponsesExecutor) nativeForwardHTTPOptions(ctx context.Context, 
 		ObserveUpstreamModel: func(model string) { SetOpsUpstreamModel(c, model) },
 		ObservedServiceTier:  func() string { return ObservedUpstreamResponseServiceTier(c) },
 		ResolvedServiceTier:  func(tier *string) *string { return ResolvedOpenAIUpstreamServiceTier(c, tier) },
-		ExtractServiceTier:   requeststate.ExtractOpenAIServiceTierFromBody,
-		Log: func(format string, args ...any) {
-			logging.LegacyPrintf("service.openai_gateway", format, args...)
-		},
 	}
 }
 

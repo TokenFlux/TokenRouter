@@ -22,15 +22,9 @@ type RawChatPorts interface {
 	// GrokCacheIdentity derives a stable cache identity from client bytes and
 	// model before bridging.
 	GrokCacheIdentity([]byte, string, string) string
-	// ReplaceModel applies byte-level model replacement in the supplied outgoing
-	// Chat body.
-	ReplaceModel([]byte, string) []byte
 	// FastRaw applies the selected provider's fast-tier policy to native Chat
 	// bytes.
 	FastRaw(context.Context, string, []byte) ([]byte, error)
-	// StripViewImage removes redundant Grok view_image tool declarations from
-	// native Chat input.
-	StripViewImage([]byte) ([]byte, error)
 	// RawCredential returns credential text and its kind through the shared
 	// request budget. Errors stop request preparation; RunRawChat separately
 	// rejects a successful result whose trimmed credential text is empty.
@@ -40,9 +34,6 @@ type RawChatPorts interface {
 	// errors stop the main exchange before auxiliary usage is added to a final
 	// result.
 	BridgeImages(context.Context, []byte, string) ([]byte, protocolopenai.ForwardUsage, bool, error)
-	// StripGrokCacheKey removes Responses-only prompt-cache fields from the
-	// prepared Grok Chat bytes.
-	StripGrokCacheKey([]byte) ([]byte, error)
 	// GrokEffort normalizes the selected Grok model's reasoning controls before
 	// exchange.
 	GrokEffort([]byte, string) ([]byte, error)
@@ -55,9 +46,6 @@ type RawChatPorts interface {
 	// UserAgent reads the configured upstream User-Agent for the selected provider
 	// attempt.
 	UserAgent() string
-	// GrokUserAgent returns the platform's default upstream Grok User-Agent value
-	// for OAuth.
-	GrokUserAgent() string
 	// SendRaw exchanges prepared native Chat bytes with the supplied credential,
 	// identity, and User-Agent. The runner retains successful response-body
 	// ownership until reading or final error handling is finished.

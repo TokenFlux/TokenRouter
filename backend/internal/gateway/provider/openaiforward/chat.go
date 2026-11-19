@@ -15,6 +15,11 @@ import (
 	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -87,24 +92,24 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 			return p.DispatchChat(ctx, DispatchRawChat, body, promptCacheKey, defaultMappedModel)
 		}
 		if profile.Protocol == protocol.ProtocolOpenAIResponses {
-			if eligible, reason := p.GrokBridgeEligible(body); !eligible {
+			if eligible, reason := gatewayprovider.GrokBodyCodec().GrokChatResponsesBridgeEligibility(body); !eligible {
 				return nil, fmt.Errorf("configured Grok Responses conversion cannot preserve request: %s", reason)
 			}
 			return p.DispatchChat(ctx, DispatchGrok, body, promptCacheKey, defaultMappedModel)
 		}
 		if profile.GrokOAuth {
-			eligible, reason := p.GrokBridgeEligible(body)
+			eligible, reason := gatewayprovider.GrokBodyCodec().GrokChatResponsesBridgeEligibility(body)
 			if eligible {
 				return p.DispatchChat(ctx, DispatchGrok, body, promptCacheKey, defaultMappedModel)
 			}
-			p.Debug("grok chat_completions: using raw fallback",
+			logging.L().Debug("grok chat_completions: using raw fallback",
 				zap.Int64("provider_id", profile.ID),
 				zap.String("reason", reason),
 			)
 		}
 		return p.DispatchChat(ctx, DispatchRawChat, body, promptCacheKey, defaultMappedModel)
 	}
-	if err := p.ValidateEffort(body, gjson.GetBytes(body, "model").String()); err != nil {
+	if err := requeststate.ValidateOpenAIReasoningEffort(body, gjson.GetBytes(body, "model").String()); err != nil {
 		p.ChatError(http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err
 	}
@@ -173,8 +178,8 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	// Derive a missing Chat cache seed only for eligible model/provider pairs;
 	// API Key requests namespace that seed and record its isolation so later
 	// session construction uses the already-isolated identity.
-	if promptCacheKey == "" && !isResponsesShape && (profile.UsesCodex || profile.OpenAIAPIKey) && p.AutoCacheKey(upstreamModel) {
-		promptCacheKey = p.DeriveCacheKey(&chatReq, upstreamModel)
+	if promptCacheKey == "" && !isResponsesShape && (profile.UsesCodex || profile.OpenAIAPIKey) && gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
+		promptCacheKey = gatewayprovider.DeriveCompatPromptCacheKey(&chatReq, upstreamModel)
 		compatPromptCacheInjected = promptCacheKey != ""
 		if compatPromptCacheInjected && profile.OpenAIAPIKey {
 			promptCacheKey = p.IsolateCacheKey(promptCacheKey)
@@ -240,10 +245,10 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	if compatPromptCacheInjected {
 		logFields = append(logFields,
 			zap.Bool("compat_prompt_cache_key_injected", true),
-			zap.String("compat_prompt_cache_key_sha256", p.HashForLog(promptCacheKey)),
+			zap.String("compat_prompt_cache_key_sha256", upstream.HashSensitiveValueForLog(promptCacheKey)),
 		)
 	}
-	p.Debug("openai chat_completions: model mapping applied", logFields...)
+	logging.L().Debug("openai chat_completions: model mapping applied", logFields...)
 
 	// Codex preparation runs on a writable Responses map, retaining the reverse-
 	// tool names and normalized cache/model values needed by the later output and
@@ -254,7 +259,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
 		}
 		isJSONObjectFormat := strings.EqualFold(strings.TrimSpace(gjson.GetBytes(responsesBody, "text.format.type").String()), "json_object")
-		codexResult := p.CodexTransform(reqBody, openai.CodexOAuthTransformOptions{
+		codexResult := gatewayprovider.ApplyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{
 			SkipDefaultInstructions:             !isResponsesShape,
 			OmitPromotedSystemMessagesFromInput: !isResponsesShape && !isJSONObjectFormat,
 		})
@@ -264,7 +269,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 		}
 		p.ToolNameReverse(codexResult.ToolNameReverse)
 		if !isResponsesShape {
-			p.EnsureInstructions(reqBody)
+			protocolopenai.EnsureCodexInstructionsField(reqBody)
 		}
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
@@ -308,9 +313,9 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	responsesBody = updatedBody
 	// Record the outgoing effort so fields discarded during conversion are not
 	// reported as forwarded controls in usage records.
-	reasoningEffort := p.EffectiveEffort(responsesBody, body, upstreamModel, billingModel, originalModel)
-	reasoningEffort = p.ThinkingFallback(reasoningEffort, responsesBody, billingModel)
-	if serviceTier := p.ServiceTier(responsesBody); serviceTier != nil {
+	reasoningEffort := requeststate.ExtractOpenAIReasoningEffortFromBody(responsesBody)
+	reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(reasoningEffort, responsesBody, billingModel)
+	if serviceTier := requeststate.ExtractOpenAIServiceTierFromBody(responsesBody); serviceTier != nil {
 		responsesReq.ServiceTier = *serviceTier
 	} else {
 		responsesReq.ServiceTier = ""
@@ -321,7 +326,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 		return nil, fmt.Errorf("get access token: %w", err)
 	}
 
-	upstreamCtx, releaseUpstreamCtx := p.UpstreamContext(ctx)
+	upstreamCtx, releaseUpstreamCtx := gatewayprovider.DetachUpstreamContext(ctx)
 	upstreamReq, err := p.BuildChat(upstreamCtx, responsesBody, token, promptCacheKey)
 	releaseUpstreamCtx()
 	if err != nil {
@@ -334,7 +339,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 		if !compatPromptCacheTenantIsolated {
 			sessionKey = p.UpstreamSessionKey(apiKeyID, promptCacheKey)
 		}
-		upstreamReq.Header.Set("session_id", p.SessionUUID(sessionKey))
+		upstreamReq.Header.Set("session_id", upstream.GenerateSessionUUID(sessionKey))
 	}
 
 	// Prepare proxy state for this selected exchange; recursive agent recovery
@@ -351,18 +356,18 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 		// Spend the request-context agent recovery guard before recursion, allowing a
 		// rebuilt attempt while repeated task rejection proceeds to ordinary failure
 		// handling.
-		if !p.AgentRecoveryTried(ctx) && p.IsAgentIdentity(ctx) && p.InvalidAgentTask(resp.StatusCode, respBody) {
+		if !requeststate.AgentTaskRecoveryTried(ctx) && p.IsAgentIdentity(ctx) && openai.IsAgentTaskInvalidHTTPResponse(resp.StatusCode, respBody) {
 			if err := p.RecoverAgentTask(ctx); err != nil {
 				return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
 			}
-			return RunChat(p.MarkAgentRecovery(ctx), body, promptCacheKey, defaultMappedModel, compatPromptCacheTenantIsolated, p)
+			return RunChat(requeststate.WithAgentTaskRecovery(ctx), body, promptCacheKey, defaultMappedModel, compatPromptCacheTenantIsolated, p)
 		}
 		respBody = p.RedactErrorBody(ctx, respBody)
 		// ReadUpstreamError already closed the network body; replace its replay copy
 		// with credential-redacted bytes before health classification and final Chat
 		// presentation.
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-		upstreamMsg := p.ErrorMessage(respBody)
+		upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 		if foErr := p.FailoverHTTP(ctx, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
 			return nil, foErr
 		}
@@ -385,7 +390,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	// the warning failure.
 	if p.CyberPolicy() {
 		if handleErr == nil {
-			handleErr = p.CyberError()
+			handleErr = forwardcore.ErrCyberPolicyForwarded
 		}
 		return nil, handleErr
 	}
@@ -394,7 +399,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	// Prefer the upstream's echoed tier, then the body after fast-policy processing.
 	// A filtered tier must not reappear from the original client request.
 	if handleErr == nil && result != nil {
-		if tier := p.ResolvedServiceTier(p.ServiceTier(responsesBody)); tier != nil {
+		if tier := p.ResolvedServiceTier(requeststate.ExtractOpenAIServiceTierFromBody(responsesBody)); tier != nil {
 			result.ServiceTier = tier
 		}
 		result.ReasoningEffort = reasoningEffort

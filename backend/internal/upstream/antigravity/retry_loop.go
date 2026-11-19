@@ -31,7 +31,7 @@ import (
 //
 // Model limits can request provider switching unless enabled credits or
 // single-provider mode allow dispatch. Shared capacity uses a fixed retry
-// budget and writes a process-local deadline only after exhaustion; concurrent
+// budget and writes a tracker-scoped deadline only after exhaustion; concurrent
 // sequences already started can each retry. Captured HTTP failures are closed
 // and rebuilt for callers, while smart-retry termination distinguishes 429/503
 // from other statuses. Requested waits have their own budgets, with transport
@@ -176,6 +176,9 @@ type RetryOptions struct {
 	// ResetInternal500 clears provider internal-500 penalty state after any
 	// selected response below 400, including successful smart or credit retries.
 	ResetInternal500 func()
+	// Capacity tracks instance-scoped MODEL_CAPACITY_EXHAUSTED cooldown deadlines
+	// across attempts; nil skips cross-attempt capacity deduplication.
+	Capacity *CapacityTracker
 }
 
 // RetryAdapter performs provider-local request retries using Options for
@@ -363,10 +366,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			// Read the cooldown before this sequence starts; the lookup reserves no
 			// active retry work, so concurrently admitted sequences may each continue.
 			if decision.ModelName != "" {
-				modelCapacityExhaustedMu.RLock()
-				cooldownUntil, exists := modelCapacityExhaustedUntil[decision.ModelName]
-				modelCapacityExhaustedMu.RUnlock()
-				if exists && time.Now().Before(cooldownUntil) {
+				if cooldownUntil, active := s.Options.Capacity.CooldownUntil(decision.ModelName, time.Now()); active {
 					log.Printf("%s status=%d model_capacity_exhausted_dedup model=%s provider=%d cooldown_until=%v (skip retry)",
 						p.Prefix, resp.StatusCode, decision.ModelName, p.ProviderID, cooldownUntil.Format("15:04:05"))
 					return &SmartRetryResult{
@@ -418,9 +418,7 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 				// HTTP failure, because this sequence terminates on that broader response
 				// classification.
 				if decision.Kind == SmartRetryCapacity && decision.ModelName != "" {
-					modelCapacityExhaustedMu.Lock()
-					delete(modelCapacityExhaustedUntil, decision.ModelName)
-					modelCapacityExhaustedMu.Unlock()
+					s.Options.Capacity.Clear(decision.ModelName)
 				}
 				return &SmartRetryResult{Action: SmartRetryActionBreakWithResp, Resp: retryResp}
 			}
@@ -474,9 +472,8 @@ func (s *RetryAdapter) HandleSmartRetry(p RetryInput, resp *http.Response, respB
 			// Write the deadline after exhaustion so later sequences can skip capacity
 			// retries; this update does not interrupt or reserve already admitted work.
 			if decision.ModelName != "" {
-				modelCapacityExhaustedMu.Lock()
-				modelCapacityExhaustedUntil[decision.ModelName] = time.Now().Add(AntigravityModelCapacityCooldown)
-				modelCapacityExhaustedMu.Unlock()
+				now := time.Now()
+				s.Options.Capacity.MarkExhausted(decision.ModelName, now.Add(AntigravityModelCapacityCooldown), now)
 			}
 			log.Printf("%s status=%d smart_retry_exhausted_model_capacity attempts=%d model=%s provider=%d body=%s (model capacity exhausted, not switching provider)",
 				p.Prefix, resp.StatusCode, maxAttempts, decision.ModelName, p.ProviderID, s.Options.TruncateForLog(retryBody, 200))

@@ -439,13 +439,12 @@ func Relay(
 	relayCtx, relayCancel := context.WithCancel(ctx)
 	defer relayCancel()
 
-	// Both forwarding directions publish activity through this timestamp while the
-	// watchdog samples it independently; the clock callback must tolerate those
-	// concurrent calls.
+	// Both forwarding directions publish elapsed nanoseconds from startAt while
+	// the watchdog samples it independently; storing elapsed offsets from startAt
+	// preserves Go's monotonic clock readings across Time.Sub calls.
 	lastActivity := atomic.Int64{}
-	lastActivity.Store(nowFn().UnixNano())
 	markActivity := func() {
-		lastActivity.Store(nowFn().UnixNano())
+		lastActivity.Store(int64(nowFn().Sub(startAt)))
 	}
 
 	writeUpstream := func(msgType coderws.MessageType, payload []byte) error {
@@ -576,7 +575,7 @@ func Relay(
 	// The optional watchdog shares the workers' exit channel and cancellation
 	// context, allowing inactivity to select shutdown while either frame reader
 	// remains blocked.
-	go runIdleWatchdog(relayCtx, nowFn, options.IdleTimeout, &lastActivity, onTrace, exitCh)
+	go runIdleWatchdog(relayCtx, startAt, nowFn, options.IdleTimeout, &lastActivity, onTrace, exitCh)
 
 	// The first signal selects drain or cancellation while other workers can still
 	// progress; close preparation runs before internal cancellation affects
@@ -982,16 +981,18 @@ func runUpstreamToClient(
 	}
 }
 
-// runIdleWatchdog sends an idle-timeout exit when its sampled activity
-// timestamp has aged past the configured budget. Nonpositive budgets disable
-// the worker. Checks run at one quarter of the budget, bounded between one and
-// five seconds, so short budgets can be detected after their nominal deadline.
+// runIdleWatchdog sends an idle-timeout exit when elapsed duration since its
+// sampled activity offset exceeds the configured budget. Nonpositive budgets
+// disable the worker. Checks run at one quarter of the budget, bounded between
+// one and five seconds, so short budgets can be detected after their nominal
+// deadline.
 //
 // Selecting ctx.Done ends the worker without a signal. A selected tick can race
-// with new activity or cancellation, and the caller supplies a concurrency-safe
-// clock and enough exit-channel capacity for that decision.
+// with new activity or cancellation, and the caller supplies startAt, a
+// concurrency-safe clock, and enough exit-channel capacity for that decision.
 func runIdleWatchdog(
 	ctx context.Context,
+	startAt time.Time,
 	nowFn func() time.Time,
 	idleTimeout time.Duration,
 	lastActivity *atomic.Int64,
@@ -1015,10 +1016,10 @@ func runIdleWatchdog(
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// The shared Unix-nanosecond timestamp has lost monotonic clock metadata, so
-			// wall-clock movement can change these idle elapsed comparisons.
-			last := time.Unix(0, lastActivity.Load())
-			if nowFn().Sub(last) < idleTimeout {
+			// Compare elapsed offsets relative to startAt so Time.Sub retains monotonic
+			// clock readings instead of converting through wall-clock Unix nanoseconds.
+			elapsedSinceActivity := nowFn().Sub(startAt) - time.Duration(lastActivity.Load())
+			if elapsedSinceActivity < idleTimeout {
 				continue
 			}
 			emitRelayTrace(onTrace, RelayTraceEvent{

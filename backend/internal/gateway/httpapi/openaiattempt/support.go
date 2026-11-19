@@ -70,12 +70,8 @@ func OpenAIProviderScheduleModel(c *gin.Context, provider *gatewayprovider.Execu
 			return actual
 		}
 	}
-	if c != nil {
-		if value, ok := c.Get(gatewayhttp.OpsUpstreamModelKey); ok {
-			if actual, ok := value.(string); ok && strings.TrimSpace(actual) != "" {
-				return strings.TrimSpace(actual)
-			}
-		}
+	if actual := gatewayhttp.GetOpsUpstreamModel(c); actual != "" {
+		return actual
 	}
 	return gatewayprovider.ExecutionModelPolicy(provider).OpenAIUpstream(forwardModel, requireCompact)
 }
@@ -257,7 +253,7 @@ func (h *Support) HandleFailoverExhausted(c *gin.Context, failoverErr *forwardco
 	}
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteFailoverExhausted(c, gatewayhttp.ProjectOpenAIFailoverError(failoverErr), streamStarted, rules, gatewayhttp.FailoverErrorHooks{Upstream: func(c *gin.Context, status int, message string) {
 		gatewayhttp.SetOpsUpstreamError(c, status, message, "")
-	}, SkipMonitoring: func(c *gin.Context) { c.Set(gatewayhttp.OpsSkipPassthroughKey, true) }})
+	}, SkipMonitoring: gatewayhttp.MarkOpsSkipMonitoring})
 }
 
 // HandleFailoverExhaustedSimple maps an upstream status to safe terminal OpenAI
@@ -360,15 +356,7 @@ func (h *Support) RecordCyberPolicyIfMarked(c *gin.Context, apiKey *apikey.APIKe
 // giving Cyber usage capture a nonstreaming default when that observation is
 // unavailable.
 func requestIsStream(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	if v, ok := c.Get(gatewayhttp.OpsStreamKey); ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
-	}
-	return false
+	return gatewayhttp.GetOpsStream(c)
 }
 
 // OpenAIForwardMayFailover evaluates retry permission against meaningful-output
