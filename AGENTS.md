@@ -18,6 +18,12 @@ Use the repository's [project-doc](.agents/skills/project-doc/SKILL.md) skill fi
 - Before writing or changing other prose, load and follow the project [humanizer](.agents/skills/humanizer/SKILL.md) skill. This includes documentation, commit messages, PR descriptions, UI text, i18n entries, error and log messages, plans, skill instructions, and agent guidelines.
 - Choose the writing skill by content type. Apply one of `code-comments` or `humanizer` to each passage. When a task includes both comments and other prose, use the corresponding skill for each. This division takes precedence over conflicting scope statements in the skills.
 - Read each applicable skill in full on first use, and reread it if its content is lost. Before committing, delivering documentation, or finishing the task, perform the corresponding skill's self-review.
+- Keep Project Doc concise, scannable, and decoupled from internal plumbing:
+  - Lead each section with a summary table, flow diagram, or numbered rule list when describing stages, options, or more than two parallel cases. Keep prose paragraphs short (roughly 3-4 sentences) and avoid chaining unrelated rules with semicolons.
+  - Record cross-module invariants, ordering constraints, failure and fallback semantics, external contracts, and troubleshooting entry points. Do not transcribe `app` wiring, Wire bindings, private adapter struct names, or single-function implementation details into prose.
+  - Describe current behavior directly. Avoid PR-diff narration ("no longer...", "changed from...") in current-state documents; keep migration steps in `docs/operations/upgrade_notes.md`.
+  - Keep one source of truth per rule or volatile version constant (such as cache versions or scheduler key prefixes), and link to that section from other documents instead of repeating it.
+  - Run `make check-docs` after adding, moving, or reorganizing documentation or `@project-doc` anchors.
 
 ## Change conventions
 

@@ -175,15 +175,13 @@ Redis 结构：
 - 单作业锁键：`batch_image.queue.lock_key_prefix`
 - 由下载限流器管理的下载限制键
 
-`batchimage.Public` 负责提交、目录、查询和取消，`PipelineProcessor` 推进轮询、索引和结算，`Cleanup` 和 `Download` 分别负责清理和读取输出。HTTP 在 `batchimage/httpapi`，元数据和队列在 PostgreSQL 和 Redis 适配层，平台操作在 `batchimage/provider`。app 直接构造 Gemini 和 Vertex 的 provider，把 `batchimage.Registry`（只有一个实例）注入提交、轮询、下载和清理；Vertex 需要的配置也由 app 整理好传入。
+模块分工：提交、目录、查询与取消归 `batchimage` 核心与 `batchimage/httpapi`，元数据和队列分别在 PostgreSQL 与 Redis 适配层，Gemini/Vertex 平台执行在 `batchimage/provider`。下载与清理每次从提供商存储读取作业绑定的提供商并获取独立凭据副本；下载校验提供商资格并脱敏错误。
 
-下载和清理的用例也由 app 直接构造。ResultAccess 在每次操作时从提供商存储读取作业绑定的提供商，每次供应商操作都拿到一份独立的凭据副本；下载会检查提供商资格并返回脱敏的错误，清理按自己的规则传播错误。处理、索引、结算和失活资金的恢复，由 app 组合同一个提供商存储、`billing.Funds`、usage 存储和报价器；worker 配置只在 app 里整理。提交、目录、查询和取消直接绑定 Public；候选在查询时通过 `provider.Candidates` 从 ProviderStore 读取，复用 provider 的模型规则和 routing 对每个候选的协议解析。套餐只在资金模式需要时读取，指定订阅不会退回其他来源。
-
-worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行。只有 Redis 队列预留返回具体批量作业 ID 后才读取数据库。队列由 `batchimage/rediscache` 唯一实现；取得任务锁后，心跳、ACK 和重排通过持有者句柄原子比较现有锁 token。续期不匹配或无法确认所有权时取消本轮推进，旧 worker 不得清除接管者的活动记录。数据键、字符串 token 与 TTL 不变，也不构成 Redis/PostgreSQL 的分布式事务。
+worker 必须从 Redis 预留作业，不以数据库扫描循环运行；仅当 Redis 队列返回具体批量作业 ID 后才读库。队列由 `batchimage/rediscache` 唯一实现，取得任务锁后通过持有者句柄原子校验锁 token，续期不匹配或无法确认所有权时立即取消本轮推进，旧 worker 不得清除接管者记录。
 
 ## 计费
 
-作业资金调用 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表的写入由所属模块的 PostgreSQL 参与者完成，billing 通过 app 登记的工厂在同一个 SQL 事务里调用它，资金分配和 allowance 标记一次提交；任务状态机和供应商执行只由 batchimage 和它的 provider 负责。v1、v2、v3 快照、原来的请求 ID 和指纹，以及删除 Key 或成员退出后的释放规则，都保持兼容。
+作业资金通过 `billing.Funds` 的 `Reserve/Capture/Release`（与创作台共用同一实现）在单 SQL 事务内同步更新任务表、资金分配与 allowance 标记；v1/v2/v3 快照、请求 ID、指纹及删除 Key 或成员退出后的释放规则保持兼容。
 
 计费规则：
 
@@ -204,7 +202,7 @@ worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行
 
 ## 清理
 
-批量 worker 与清理分别使用 `batchimage.Runtime` 管理运行 context 和固定完成信号；清理直接运行所属模块的 Cleanup.Run，由 app 绑定唯一运行实例；Stop 不可逆，重复停止共享结果，并按应用剩余预算报告未完成工作。
+批量 worker 与清理均由 `batchimage.Runtime` 管理运行 context 和完成信号；Stop 不可逆，重复停止共享结果，并按应用剩余预算报告未完成工作。
 
 默认值：
 

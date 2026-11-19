@@ -1,6 +1,6 @@
 # MCP 管理接口
 
-TokenRouter 在主 HTTP 服务的 `/mcp` 提供 Streamable HTTP MCP，支持专用访问令牌和管理员 OAuth 应用授权。本文说明操作目录、授权、执行和浏览器接续。普通管理接口的业务规则见 [HTTP 接口](http_api.md)，管理员身份与 TOTP 见[身份与租户](../domains/identity_and_tenancy.md)。
+TokenRouter 在主 HTTP 服务的 `/mcp` 提供 Streamable HTTP MCP，支持专用访问令牌和管理员 OAuth 应用授权。本文说明操作目录、授权、执行和浏览器接续。普通管理接口业务规则见 [HTTP 接口](http_api.md)，管理员身份与 TOTP 见[身份与租户](../domains/identity_and_tenancy.md)。
 
 ## 章节导航
 
@@ -15,24 +15,21 @@ TokenRouter 在主 HTTP 服务的 `/mcp` 提供 Streamable HTTP MCP，支持专�
 <a id="operation_catalog"></a>
 ## 操作目录
 
-各模块的 `management_operations.go` 声明稳定的操作 ID、说明、HTTP 方法、路径、输入 schema、读写属性和交互要求。声明在包初始化时通过 `server/adminapi.Define` 注册，HTTP 注册函数通过 `adminapi.Register` 挂载同一个描述及原 handler。
+各模块的 `management_operations.go` 声明稳定的操作 ID、说明、HTTP 方法、路径、输入 schema、读写属性和交互要求；包初始化时经 `server/adminapi.Define` 注册，HTTP 经 `adminapi.Register` 挂载同一描述及原 handler。
 
-应用完成路由装配后，按实际存在的路由构造目录。`/api/v1/admin/*` 缺少描述时启动失败；管理用的 `/api/v1/pages` 也有显式登记。目录不会因为某个包包含声明，就暴露当前实例未挂载的接口。操作 ID 独立于 handler 名称，改名时保持已有权限含义。
-
-请求结构复用 HTTP handler 解码的 Go 类型。`binding:"required"` 决定必填字段，指针允许显式 `null`，动态 map 保持开放的键空间，业务校验继续由原 handler 和服务执行。查询参数单独声明为字符串，路径参数按名称提交。新增结构体字段会进入 schema；新增手工读取的查询参数要同步登记。`omitempty` 位于 `oneof` 前时，字符串枚举保留空串。使用原始 JSON 成员存在性区分默认值的接口需要补充声明，例如告警规则显式允许 `enabled:null` 表示 false，省略则仍由 HTTP handler 默认启用。
-
-使用记录列表、统计、清理和后台导出，以及用量趋势、模型、分组与组合快照，支持与 HTTP 相同的 `request_source` 选择。`system` 汇总全部系统模型调用，也可以选择 `group_probe`、`provider_test`、`scheduled_test` 或 `quota_probe`。使用记录列表和统计默认包含全部来源；仪表盘图表默认统计用户流量，显式传 `all` 才合并系统请求。
-
-新增接口时，在所属模块补一条描述并使用共享注册函数。读写属性按业务行为填写；POST 查询可以声明为只读，连接测试等会调用真实上游的动作使用执行工具。有限 SSE 声明终态事件；特殊交互填写浏览器入口。覆盖测试检查实际路由、目录、重复 ID 和查询别名，禁止未知接口自动获得通用调用入口。
-
-目录同时供 MCP 发现、管理页面权限选择和 OpenAPI 导出使用。前端的模块译名属于展示文本，操作权限仍使用后端提供的 ID。WebSocket 原路由通过 `http_upgrade` 声明升级要求，OpenAPI 输出 101 响应；`x-tokenrouter-mcp-alias` 标明 MCP 实际使用的等效查询操作。
-
-JSON 响应提供共享 HTTP envelope schema，已声明的具体响应 DTO 会展开其字段。动态 map 的结果保持开放，由操作说明解释字段和业务状态。`response_schema` 描述原 HTTP 结果，MCP 在外层补充执行状态和关联 ID，并按调用凭据的设置决定是否遮蔽响应字段。
+- 按实际路由装配：路由装配完成后按实际存在的路由构造目录，`/api/v1/admin/*` 缺少描述时启动失败，管理用 `/api/v1/pages` 显式登记。未挂载的接口不会暴露；操作 ID 独立于 handler 名称，改名保持已有权限含义。
+- 请求结构体与参数：复用 HTTP handler 解码的 Go 类型，`binding:"required"` 决定必填，指针允许显式 `null`，动态 map 保持开放键空间，业务校验仍由原 handler 和服务执行。查询参数单独声明为字符串，路径参数按名称提交；新增结构体字段自动进入 schema，手工读取的查询参数须同步登记。
+- 枚举与显式 null 约定：`omitempty` 位于 `oneof` 前时，字符串枚举保留空串；依赖原始 JSON 成员存在性区分默认值的接口需补充声明（例如告警规则允许 `enabled:null` 表示 `false`，省略则由 handler 默认启用）。
+- `request_source` 筛选：使用记录列表、统计、清理、后台导出及用量趋势、模型、分组、组合快照支持与 HTTP 相同的 `request_source`（`system` 汇总全部系统模型调用，或选 `group_probe`、`provider_test`、`scheduled_test`、`quota_probe`）。
+- `request_source` 默认口径：使用记录列表和统计默认包含全部来源；仪表盘图表默认统计用户流量，显式传 `all` 才合并系统请求。
+- 新增接口规范：在所属模块补充描述并使用共享注册函数。读写属性按业务填写（POST 查询可声明为只读，连接测试等触发真实上游动作的归执行工具），有限 SSE 声明终态事件，特殊交互填写浏览器入口。覆盖测试检查实际路由、目录、重复 ID 和查询别名，禁止未知接口自动获得通用调用入口。
+- 导出与升级标记：目录同时供 MCP 发现、管理页权限选择和 OpenAPI 导出（前端模块译名为展示文本，权限仍用后端 ID）。WebSocket 原路由以 `http_upgrade` 声明升级要求，OpenAPI 输出 101 响应；`x-tokenrouter-mcp-alias` 标明 MCP 等效查询操作。
+- 响应 schema：JSON 响应提供共享 HTTP envelope schema 并展开具体 DTO 字段（动态 map 保持开放，由操作说明解释）；`response_schema` 描述原 HTTP 结果，MCP 外层补充执行状态和关联 ID，并按凭据设置决定是否遮蔽响应字段。
 
 <a id="access_tokens"></a>
 ## 访问令牌
 
-管理员在 `/admin/mcp` 管理自己的令牌。后端入口位于 `/api/v1/admin/mcp`：
+管理员在 `/admin/mcp` 管理自己的令牌，后端入口位于 `/api/v1/admin/mcp`：
 
 | 接口 | 用途 |
 | --- | --- |
@@ -43,50 +40,57 @@ JSON 响应提供共享 HTTP envelope schema，已声明的具体响应 DTO 会�
 | `GET /confirmations/:id`、`POST /confirmations/:id/approve` | 浏览器查看和批准请求 |
 | `POST /files`、`GET /files/:id` | 上传 JSON 请求体、下载受保护结果 |
 
-令牌由 32 字节随机数生成，使用 `tr_mcp_` 前缀。PostgreSQL 的 `mcp_access_tokens` 保存用于认证的 SHA-256 摘要、AES-256-GCM 加密的完整令牌、显示前缀和管理元数据。创建成功后返回完整值，所属管理员也可以在列表中按需复制。列表与认证查询不读取密文；复制接口解密后核对摘要，使用 `Cache-Control: no-store`，并记录 `admin.mcp.tokens.copy` 审计。停用和过期令牌仍可复制，撤销后拒绝读取。页面默认设置 30 天有效期，也可以清空为不过期。撤销保留记录，不能通过编辑恢复。
-
-令牌更新可以携带 `expected_updated_at`，SQL 在同一次写入中比较所读取的配置时间；不匹配返回 `MCP_TOKEN_CHANGED`。管理页的编辑和启停提交都携带该值，各行分别记录忙状态，避免旧表单覆盖已经完成的修改。需要 TOTP 的页面操作依次发起请求、验证和重试；取消当前验证会释放该项忙状态，再处理排队的下一项。
-
-创建和复制需要固定的 配置文件中的 `security.secret_encryption_key`，与现有加密组件共用。各实例必须使用同一密钥，备份时一起保存；缺少固定配置时拒绝创建和复制。更换密钥后，旧密文无法解密。普通令牌认证继续使用摘要。
-
-每个请求读取当前令牌和所属用户，检查启用状态、有效期、撤销状态和管理员角色。操作执行前及进入原管理路由时再次检查权限。已提交的撤销、降权和权限收窄影响后续请求；在途业务仍遵循原 handler 的取消规则。
-
-权限保存为具体操作 ID 集合。模块批量选择只包含当时选中的操作；升级新增接口不会扩大既有令牌权限。通过 MCP 创建或编辑其他自有令牌时，提交的权限必须包含在调用令牌现有权限内。
-
-管理页提供只读查询、网关配置与运维、用户与订阅管理、全部管理操作四套预设。选择预设会替换当前权限草稿，然后可以逐项调整。预设按当时的操作目录展开，保存后仍是具体 ID 集合，不会随升级自动扩权。
-
-专用令牌通过 `/mcp` 的 `Authorization: Bearer` 提交，不能直接作为普通管理 REST 接口的凭据。完整令牌复制、浏览器确认和文件下载要求所属管理员的 JWT 会话。
+- 生成与存储：令牌由 32 字节随机数加 `tr_mcp_` 前缀构成。PostgreSQL `mcp_access_tokens` 保存认证用 SHA-256 摘要、AES-256-GCM 密文、显示前缀和管理元数据；页面默认 30 天有效期（可清空为不过期）；撤销保留记录且不可恢复。
+- 完整令牌复制：创建后返回完整值，所属管理员可按需复制（列表与认证不读密文）。复制接口解密后核对摘要，返回 `Cache-Control: no-store` 并记录 `admin.mcp.tokens.copy` 审计；停用和过期令牌仍可复制，撤销后拒绝读取。
+- 固定加密密钥：创建和复制要求固定的 `security.secret_encryption_key`（与现有加密组件共用），各实例须同密钥并随备份保存，缺固定配置拒绝创建和复制。换密钥后旧密文无法解密，普通认证继续走摘要。
+- 乐观并发与 TOTP：更新可携带 `expected_updated_at`，SQL 同次写入比对配置时间，不匹配返回 `MCP_TOKEN_CHANGED`。管理页编辑和启停均携带该值，各行独立记录忙状态防旧表单覆盖。需 TOTP 的操作依次请求、验证和重试；取消验证释放该项忙状态再处理下一排队项。
+- 权限校验：每次请求读取当前令牌和所属用户，检查启用状态、有效期、撤销状态和管理员角色，操作执行前及进入原路由时再次检权；已提交撤销、降权和收窄影响后续请求（在途业务遵循原 handler 取消规则）。
+- 权限集合与预设：权限保存为具体操作 ID 集合，升级新增接口不自动扩权；经 MCP 创建或编辑其他自有令牌时，权限不得超出调用令牌现有范围。管理页提供只读查询、网关配置与运维、用户与订阅管理、全部管理操作四套预设，按当时目录展开并可逐项调整。
+- 认证隔离：专用令牌仅经 `/mcp` 的 `Authorization: Bearer` 提交，不能直接访问普通管理 REST 接口；完整令牌复制、浏览器确认和文件下载要求所属管理员 JWT 会话。
 
 <a id="oauth_authorization"></a>
 ## OAuth 应用授权
 
-OAuth 直接复用站点的 `frontend_url`：后台保存的非空地址优先，未填写时使用部署配置 `site.frontend_url`。地址须为 HTTPS origin，不含路径、用户信息、查询或片段；回环 HTTP 用于本地开发。尾部根斜杠会规范化。没有单独的 OAuth 地址或覆盖配置，`api_base_url`、请求 Host 和代理头不参与地址生成。有效前端地址使 OAuth 自动可用；地址缺失或无效时，状态接口说明原因，协议请求拒绝准入，手工 Token 继续工作。
+OAuth 直接复用站点的 `frontend_url`（后台非空值优先，未填用部署配置 `site.frontend_url`），须为 HTTPS origin 且不含路径、用户信息、查询或片段（回环 HTTP 仅用于本地开发），尾部根斜杠规范化。
 
-资源发现提供 `/.well-known/oauth-protected-resource/mcp` 和无 `/mcp` 后缀的兼容入口；授权发现位于 `/.well-known/oauth-authorization-server`。`/mcp/oauth` 下的 `authorize`、`token`、`register` 和 `revoke` 分别处理授权、换票/刷新、DCR 和撤销。这些端点使用 OAuth JSON；管理页接口仍使用 HTTP envelope。OAuth 可用时，未认证的 `/mcp` 请求通过 `WWW-Authenticate` 公布资源元数据地址。
+没有单独的 OAuth 地址或覆盖配置，`api_base_url`、请求 Host 和代理头不参与生成。有效地址自动启用 OAuth；缺失或无效时状态接口说明原因、协议请求拒绝准入、手工 Token 继续工作。
 
-支持授权码与强制 S256 PKCE。客户端通过 HTTPS CIMD 文档或动态注册确定身份，DCR 支持 `none`、`client_secret_basic` 和 `client_secret_post`。CIMD 使用 `none`；客户端提供 `token_endpoint_auth_methods_supported` 数组时，按双方支持的方法取交集，数组包含 `none` 才接受；数组缺省时使用旧的单值字段。这支持 ChatGPT 同时公布 `private_key_jwt` 偏好和 `none` 能力的元数据。文档中的 client_id 与 URL 精确一致，读取禁止代理和重定向，DNS 解析及实际拨号排除内网、回环和保留地址。客户端显示名称属于未验证文本。回调与注册信息匹配，允许规范中的本机回环 HTTP 回调。
+每次 OAuth 请求和稳定授权检查读取当前站点地址（同次协议交换使用固定快照），读取设置失败拒绝准入。修改前端 origin 后，旧地址的授权码、access token、refresh token 和待授权请求不能用于新地址，应用列表提示需要重新连接。
 
-CIMD 的 `grant_types` 与服务端支持的授权类型取交集。非空列表必须包含 `authorization_code`，只有声明了 `refresh_token` 才支持刷新。DCR 提交的授权类型须全部受服务端支持。
+### 端点清单
 
-短期授权请求保存首次验证的完整回调地址。客户端只有一个已注册回调时可省略 `redirect_uri`，浏览器仍展示已解析的地址。决定授权时重新检查该地址是否仍被客户端注册允许；CIMD 回调变化不能替换待授权请求的回调。授权码保留原请求是否提交 `redirect_uri` 的信息，以便换票执行对应的参数校验。
+| 路径 | 用途与响应格式 |
+| --- | --- |
+| `/.well-known/oauth-protected-resource/mcp` 及无 `/mcp` 兼容入口 | 资源发现（OAuth JSON）；OAuth 可用时未认证 `/mcp` 经 `WWW-Authenticate` 公布 |
+| `/.well-known/oauth-authorization-server` | 授权服务器发现（OAuth JSON） |
+| `/mcp/oauth/{authorize,token,register,revoke}` | 授权、换票/刷新、DCR 和撤销（OAuth JSON） |
+| `/api/v1/admin/mcp/oauth/status` | 管理员 JWT（HTTP envelope）；`enabled` 表可用性，`reason` 区分地址缺失与无效 |
+| `/api/v1/admin/mcp/oauth/requests/:id`、`/requests/:id/decision` | 管理员 JWT；读取待授权请求、提交批准或拒绝 |
+| `/api/v1/admin/mcp/oauth/grants`、`/grants/:id` | 管理员 JWT；应用授权列表、更新（带 `expected_updated_at` 防并发覆盖）和删除 |
 
-授权服务器公布 RFC 9207 issuer 支持，并在已验证的成功或错误回调中返回 `iss`。授权和授权码换票需要匹配 resource；刷新请求省略 resource 时继承凭据族已绑定的 resource，提交不同值则拒绝。`mcp` scope 表示接入资格，实际可调用操作由持久授权中的具体 ID 决定。`offline_access` 由授权服务器公布，资源发现不将它作为必需权限。支持 refresh_token 的客户端获得可轮换的刷新凭据。
+### 协议校验与客户端身份
 
-管理员通过 `/admin/mcp/authorize` 登录后，在 MCP 管理页的授权弹窗中决定授权。有效请求关闭时提交拒绝，过期或失败的流程可关闭并返回管理列表。十分钟请求绑定当前管理员及 JWT session，决定提交还需 session-bound nonce。首次默认勾选安全只读预设；已有应用展示当前权限，新增操作不会自动加入。批准使用现有近期 TOTP 策略，拒绝不要求 step-up。弹窗在请求、账户或可见状态变化后丢弃旧响应，并阻止旧请求再次发起 TOTP 重试。确认请求只能消费一次，客户端不能替用户批准。
+- 授权码与 Resource：强制 S256 PKCE，公布 RFC 9207 `iss` 并在已验证成功或错误回调中返回。授权和换票须匹配 `resource`；刷新省略 `resource` 时继承凭据族绑定值，提交不同值拒绝。
+- Scope 约定：`mcp` scope 表接入资格，实际可调操作由持久授权的具体 ID 决定；`offline_access` 由授权服务器公布，资源发现不将其作为必需权限；支持 `refresh_token` 的客户端获得可轮换刷新凭据。
+- DCR 客户端：支持 `none`、`client_secret_basic` 和 `client_secret_post`，提交的 `grant_types` 须全部受服务端支持。
+- CIMD 认证与授权类型：使用 `none`；提供 `token_endpoint_auth_methods_supported` 时取交集且须含 `none`（缺省用旧单值字段，兼容 ChatGPT 同时公布 `private_key_jwt` 与 `none`）。`grant_types` 取交集，非空须含 `authorization_code`，声明 `refresh_token` 才支持刷新。
+- CIMD 安全校验：文档 `client_id` 须与 URL 精确一致，读取禁代理和重定向，DNS 解析与实际拨号排除内网、回环和保留地址；显示名称为未验证文本。
+- 回调一致性：回调须匹配注册信息，允许规范中的本机回环 HTTP 回调。短期授权请求保存首次验证的完整回调地址；客户端只有一个已注册回调时可省 `redirect_uri`（浏览器仍展示已解析地址）；决定授权时复检该地址是否仍被允许，CIMD 回调变化不能替换待授权回调；授权码保留原请求是否提交 `redirect_uri` 以执行对应换票校验。
 
-每次 OAuth 请求和稳定授权检查读取当前站点地址；同一次协议交换使用固定的地址快照。修改前端 origin 后，旧地址的授权码、access token、refresh token 和待授权请求不能用于新地址，客户端需要重新连接，应用列表会显示需要重新连接。读取设置失败时拒绝 OAuth 准入。换票时的管理员角色、账户状态和删除状态查询复用当前数据库事务，避免持有事务连接时再等待同一连接池中的空闲连接。
+### 浏览器授权与凭据生命周期
 
-授权码有效期五分钟，access token 有效期十五分钟，refresh token 每次使用后轮换并续期三十天。应用授权默认无固定期限，连续三十天未刷新需要重新连接。授权与 token 原文分开存储，OAuth token 不提供浏览器复制功能。重用已消费的 refresh token 会撤销其整个凭据族；其他应用和手工令牌不受该次撤销影响。
+- 浏览器授权入口：管理员经 `/admin/mcp/authorize` 登录后在 MCP 管理页弹窗决定；有效请求关闭提交拒绝，过期或失败流程可关闭回列表。10 分钟请求绑定当前管理员与 JWT session，决定提交另需 session-bound nonce。
+- 授权弹窗与 TOTP：首次默认勾选安全只读预设；已有应用展示当前权限，新增操作不自动加入。批准遵循近期 TOTP 策略，拒绝不要求 step-up；弹窗在请求、账户或可见状态变化后丢弃旧响应并阻止旧请求再触发 TOTP 重试；确认请求只能消费一次，客户端不能代批。
+- 有效期与轮换：授权码 5 分钟，access token 15 分钟，refresh token 每次使用后轮换并续期 30 天；应用授权默认无固定期限，连续 30 天未刷新须重新连接。授权与 token 原文分开存储，不提供浏览器复制。重用已消费的 refresh token 会撤销整个凭据族，不影响其他应用和手工令牌。
+- 撤销语义：客户端撤销校验客户端与凭据归属，应用停用或管理员暂不可访问时仍可撤销，成功后使该族 access/refresh token 失效。未知凭据返回 HTTP 200；数据库读写或事务提交失败返回 OAuth `temporarily_unavailable` 和 HTTP 503，客户端应视凭据仍在并重试。
+- 稳定 ID 与并发隔离：请求、限流、内部 dispatch、确认及文件同时用来源类型和稳定 ID 区分手工令牌与 OAuth（旧 Redis 记录缺来源视为手工令牌）。刷新不改变授权 ID 或配置版本；改权限使旧浏览器确认失效；后续请求和下载复查授权、用户状态和管理员角色。同客户端重新授权更新存量授权并撤销旧凭据族；已永久撤销记录保留历史，新连接创建新记录。
 
-客户端撤销校验客户端与凭据的归属，应用停用或管理员暂时不能访问时仍可撤销。撤销成功使该族的 access token 和 refresh token 失效。未知凭据返回 HTTP 200；数据库读写或事务提交失败返回 OAuth `temporarily_unavailable` 和 HTTP 503，客户端应视凭据仍然存在并重试。
+### 存储、密钥与限流
 
-应用授权采用稳定 ID。请求、限流、内部 dispatch、确认及文件同时使用来源类型和 ID 区分手工令牌与 OAuth，旧 Redis 记录缺少来源时视为手工令牌。刷新不改变授权 ID 或配置版本；修改权限会使旧浏览器确认失效。后续请求和下载复查当前授权、用户状态和管理员角色。相同客户端重新授权时更新存量授权并撤销旧凭据族，已永久撤销的记录保持历史，新连接创建新记录。
-
-浏览器管理入口位于 `/api/v1/admin/mcp/oauth`：`GET /status` 查询接入状态，`GET /requests/:id` 和 `POST /requests/:id/decision` 完成授权，`GET /grants`、`PUT /grants/:id` 和 `DELETE /grants/:id` 管理应用。所有入口要求管理员 JWT 会话。状态中的 `enabled` 表示 OAuth 是否可用，`reason` 区分地址缺失和地址无效。应用授权更新携带 `expected_updated_at`，防止旧草稿覆盖并发修改。
-
-Fosite 负责协议验证，identity/provider 负责 MCP resource、CIMD 和浏览器授权编排，identity/postgres 负责事务与持久化。迁移 302 增加 OAuth 表，独立签名密钥通过 `security_secrets` 持久化。未配置固定 TOTP 加密密钥时，OAuth 部署从持久签名密钥通过独立 HKDF 上下文派生临时文件的 AES 密钥，使后端重启后能解密仍有效的 Redis 文件；已配置固定 TOTP 密钥的部署沿用该密钥。授权码消费、刷新轮换和应用重新授权在事务中完成；重放拒绝会提交撤销结果，其他交换失败回滚。清理任务每小时删除过期请求和完全过期的凭据族。清理与换票按相同顺序获取应用及凭据族锁，并在取得锁后重新检查到期状态。已消费刷新记录保留至整个族过期，以便检测旧凭据重放。
-
-公开注册每 IP 每分钟 10 次，授权 30 次，换票和撤销各 60 次；使用可信代理解析后的客户端地址及共享 Redis 计数。请求体上限 32 KiB，授权查询上限 16 KiB。数据库和限流故障拒绝准入，响应禁止缓存，日志及审计省略凭据和授权决定正文。
+- 模块与表结构：Fosite 负责协议验证，`identity/provider` 负责 MCP resource、CIMD 和浏览器授权编排，`identity/postgres` 负责事务与持久化。迁移 302 新增 OAuth 表，独立签名密钥持久化在 `security_secrets`。
+- 临时文件加密密钥：未配置固定 TOTP 加密密钥时，从持久签名密钥经独立 HKDF 上下文派生临时文件 AES 密钥（重启后可解密有效 Redis 文件）；已配固定 TOTP 密钥的部署沿用该密钥。
+- 事务与清理：换票时管理员角色、账户和删除状态查询复用当前事务，避免连接池等待。授权码消费、刷新轮换和重新授权在事务中完成，重放拒绝提交撤销，其他失败回滚。清理任务每小时删除过期请求和完全过期凭据族，与换票同序加应用及凭据族锁并在锁内复检到期；已消费刷新记录保留至整族过期以检测重放。
+- 限流与配额：按可信代理解析后的客户端 IP 与共享 Redis 计数，每 IP 每分钟公开注册 10 次、授权 30 次、换票和撤销各 60 次。请求体上限 32 KiB，授权查询上限 16 KiB。数据库和限流故障拒绝准入，响应禁止缓存，日志和审计省略凭据与授权决定正文。
 
 <a id="tool_execution"></a>
 ## 工具调用
@@ -98,64 +102,60 @@ Fosite 负责协议验证，identity/provider 负责 MCP resource、CIMD 和浏�
 | `read_operation` | 执行明确声明为只读的操作 |
 | `execute_operation` | 执行授权动作，或发起必要的浏览器接续 |
 
-执行参数包含 `operation_id`、`path`、`query`、`body`，以及需要时使用的 `idempotency_key`、`confirmation_id`、`file_id`。省略 JSON body 与显式 `null` 保持区别。`file_id` 可以代替上传过的 JSON body，两者不能同时提供。
-
-主动提供商用量查询和 Grok 配额探测可能恢复提供商状态或调整调度限流，使用 `execute_operation`。`providers.usage.passive.list` 对应 `GET /api/v1/admin/providers/:id/usage/passive`，只读取 Anthropic OAuth/SetupToken 的已采集数据；其他平台保留原被动查询的不支持错误。
-
-执行器由目录决定方法和路径，拒绝可改变路由的路径分隔符、转义以及未知参数。调用方不能提供目标主机或认证请求头。内部 HTTP 请求通过私有 context 携带令牌身份，原管理员中间件复核最终路由，再运行已有的限流、审计、强认证和业务处理。
-
-结果包含请求关联 ID、HTTP 状态和原接口数据。JSON 与有限 SSE 的数值在通用转换中保留原十进制表示，大整数 ID 不经过浮点舍入。文本结果与结构化结果使用同一份数据，业务错误通过 MCP 的 `isError` 返回。`succeeded` 表示该 API 调用完成。创建备份等后台任务后，仍要查询任务状态。执行器不自动重试写操作，也不提供跨管理接口的事务回滚。响应中断时，写操作返回 `outcome_unknown`，不能据此判断业务未执行。
-
-在 MCP 管理页编辑手工令牌或 OAuth 应用时，可以开启「工具结果脱敏」（`redact_tool_results`）。新建和已有凭据默认关闭，保存后从下一次工具调用生效。管理 API 更新凭据时，省略该字段或传 `null` 会保留已保存的值。关闭时保留原接口返回的字段。开启时对内联 JSON（含业务错误）和有限 SSE 事件应用 MCP 字段规则。浏览器确认预览和审计按各自的规则脱敏，凭据导出仍通过受保护文件交付。
-
-已有幂等接口可以接收 `idempotency_key`，继续使用原协调器；未声明支持的接口拒绝该参数。普通审计沿用异步尽力写入机制，额外记录 `mcp_token_id` 和 `mcp_operation_id`。审计额外记录 `mcp_source`：空值表示手工令牌，`oauth` 表示应用授权。应用授权使用 `oauth:<id>` 作为审计标识。审计关键词可以搜索显示前缀，管理页据此链接到对应令牌的记录。上传文件的审计正文整体省略，防止编码后的凭据绕过字段脱敏。
-
-浏览器确认、状态查看和文件下载也记录关联令牌与操作，同时保留实际 JWT 认证方式。令牌的审计入口默认按显示前缀和 MCP 认证方式查询；将认证方式切换为“全部”后，可以同时查看智能体执行和管理员接续记录。链接里的筛选会回填到审计页控件，路由变化时重新同步。
+- 执行参数：支持 `operation_id`、`path`、`query`、`body`，按需附带 `idempotency_key`、`confirmation_id`、`file_id`。省略 JSON body 与显式 `null` 保持区别；`file_id` 可代替上传的 JSON body，两者互斥。
+- 特殊探测操作：主动提供商用量查询与 Grok 配额探测可能恢复状态或调整限流，归 `execute_operation`；`providers.usage.passive.list`（`GET /api/v1/admin/providers/:id/usage/passive`）只读 Anthropic OAuth/SetupToken 已采集数据，其他平台保留原不支持错误。
+- 安全分发：目录决定方法和路径，拒绝可改变路由的路径分隔符、转义和未知参数，调用方不能指定目标主机或认证头。内部 HTTP 经私有 context 携带令牌身份，原管理员中间件复核最终路由后再执行限流、审计、强认证和业务处理。
+- 结果与失败语义：结果含关联 ID、HTTP 状态和原数据；JSON 与有限 SSE 数值保留十进制表示（大整数不浮点舍入）。文本与结构化结果同源，业务错误以 MCP `isError` 返回；`succeeded` 只表示 API 调用完成（备份等后台任务需另查状态）。不自动重试写操作，无跨接口回滚；响应中断时写操作返回 `outcome_unknown`。
+- 工具结果脱敏（`redact_tool_results`）：编辑手工令牌或 OAuth 应用时可开启，新建和已有凭据默认关闭，保存后自下次调用生效；更新时省略或传 `null` 保留原值。关闭保留原接口字段；开启后对内联 JSON（含业务错误）和有限 SSE 事件应用 MCP 字段规则。浏览器确认预览和审计各有独立脱敏规则；凭据导出仍走受保护文件。
+- 幂等与核心审计：已声明幂等的接口接收 `idempotency_key` 并走原协调器，未声明接口拒绝该参数。审计异步尽力写入，附加 `mcp_token_id`、`mcp_operation_id` 和 `mcp_source`（空值表手工令牌，`oauth` 表应用授权，标识 `oauth:<id>`）；关键词可搜显示前缀并由管理页跳转；上传文件审计正文整体省略。
+- 接续审计筛选：浏览器确认、状态查看和文件下载也记录关联令牌与操作并保留 JWT 认证方式。令牌审计入口默认按显示前缀和 MCP 认证查询，切换为「全部」可同时查看智能体执行与管理员接续记录，链接筛选回填控件并随路由重同步。
 
 <a id="browser_confirmation"></a>
 ## 浏览器确认
 
-综合设置、身份与权限变更、凭据导出、MCP 令牌管理等操作在目录中标记为敏感。默认调用先返回 `confirmation_required` 和确认链接，业务尚未执行。
+综合设置、身份与权限变更、凭据导出、MCP 令牌管理等操作在目录中标记为敏感，默认先返回 `confirmation_required` 和确认链接，业务尚未执行。
 
-管理员可以为单个令牌开启 `skip_browser_confirmation`（跳过浏览器确认），默认关闭。开启后，授权范围内的敏感操作可以直接执行；权限检查、受保护文件交付及浏览器授权流程继续生效。存在已启用的近期 TOTP 要求时，仍通过浏览器确认取得当前会话授权。目录的 `step_up_when` 用参数 schema 表达条件要求，例如用户创建和编辑仅在 `body.role=admin` 时要求近期验证。执行按实际参数判断，确认记录保留该次判断，浏览器批准时完成验证。发现阶段没有具体参数时将此类操作提示为可能需要确认；`describe_operation` 给出条件。工具发现返回按当前令牌计算的 `requires_confirmation`，审计用 `mcp_confirmation_skipped` 标记直接执行。
-
-开关与权限一起持久化，每次调用重新读取。直接执行也绑定已读取的配置版本；关闭开关或修改令牌后，尚未进入原路由的旧请求会被拒绝。
-
-确认记录保存在 Redis，包含管理员、令牌、令牌配置版本、操作描述与精确请求摘要、脱敏预览和十分钟有效期。数字的摘要和脱敏预览保留原始十进制表示，公开配置的空值、零值和布尔值保留原类型。摘要始终绑定原始参数，预览脱敏不会使不同凭据或不同价格上限共用一次批准。服务端格式化预览，页面直接显示该文本，避免大整数经过浏览器数值解析后改变显示值。预览省略超过 256 KiB 的输入，紧凑 JSON 超过 16 KiB 时截断并标记，再对完整 JSON 缩进。敏感原文由后续工具重试重新提交；普通 HTTP 审计仍使用独立的审计脱敏规则。
-
-管理员在浏览器登录后，确认链接在 MCP 管理页直接打开操作确认弹窗，展示操作说明和脱敏请求预览。加载、失败和批准结果都在弹窗中显示；取消或关闭只移除 URL 中的确认参数，不会批准操作。提交批准或等待近期 TOTP 验证时，弹窗保持打开；需要近期 TOTP 的操作复用现有验证流程。工具携带确认 ID 重新提交相同参数，服务端复核权限、摘要、版本及必要的近期验证，再原子消费确认。已消费、过期、参数改变、目录改变或令牌配置变化的记录不能继续执行。
-
-确认 URL 本身不提供权限。MCP 内部身份及管理 API Key 不能替代浏览器会话进行批准。需要直接输入 TOTP 的审计清空操作，接续到已有操作日志页面完成。
-
-拥有 `mcp.confirmations.get` 权限的令牌可以查询自己发起的确认状态，同时仍需保有所确认操作的权限。同一管理员的其他令牌不能读取该记录；查询只返回脱敏预览，不返回会话标识或参数摘要。
+- 跳过确认开关（`skip_browser_confirmation`）：按单令牌配置，默认关闭，与权限一同持久化且每次重读。开启后授权内敏感操作可直接执行（权限检查、受保护文件和浏览器授权仍生效）；存在已启用的近期 TOTP 要求时仍须浏览器确认。发现返回按当前令牌计算的 `requires_confirmation`，直接执行审计标 `mcp_confirmation_skipped`。
+- 条件强认证与版本绑定：目录 `step_up_when` 用参数 schema 表达条件（例如用户创建和编辑仅 `body.role=admin` 需近期验证），执行按实参判断并记入确认记录，发现阶段提示可能需确认、`describe_operation` 给出条件。直接执行绑定已读配置版本，关开关或改令牌后尚未进入原路由的旧请求被拒。
+- 确认记录与摘要：保存于 Redis（10 分钟 TTL），含管理员、令牌、配置版本、操作描述、精确请求摘要和脱敏预览。数字保留十进制表示，公开配置空值、零值和布尔值保留原类型；摘要绑定原始参数，脱敏预览不使不同凭据或价格上限共用批准。
+- 预览格式与截断：服务端格式化预览并由页面直显（防浏览器解析改变大整数）；省略超过 256 KiB 的输入，紧凑 JSON 超 16 KiB 截断并标记后再缩进。敏感原文由后续重试重新提交，普通 HTTP 审计走独立脱敏。
+- 浏览器批准与消费：管理员登录后，确认链接在 MCP 管理页直接打开弹窗展示说明和脱敏预览；取消或关闭仅移除 URL 参数，提交或等近期 TOTP 时弹窗保持打开。工具携带 `confirmation_id` 重提相同参数，服务端复核权限、摘要、版本及近期验证后原子消费；已消费、过期、参数/目录/令牌配置变化均拒绝。
+- 批准边界与状态查询：确认 URL 本身无权限，MCP 内部身份及管理 API Key 不能代浏览器批准；需直输 TOTP 的审计清空接续到原操作日志页。拥有 `mcp.confirmations.get` 且仍有所确认操作权限的令牌可查自己发起的确认状态（同管理员其他令牌不可读），仅返脱敏预览，不返会话标识或参数摘要。
 
 <a id="files_and_interaction"></a>
 ## 文件与交互流程
 
-普通 JSON 输出保留原 DTO 的脱敏。开启工具结果脱敏后，MCP 再遮蔽敏感键。已登记的 token 数量、限制、价格、配置开关、凭据存在标记及 API Key 管理元数据按明确的字段名和 JSON 类型保留。`null` 保留为空值，例如定价区间的 `max_tokens:null` 仍表示无上限。元数据对象和数组继续递归检查内部凭据，异常类型不会通过元数据规则放行。
+### 字段脱敏规则
 
-字段归一化兼容大小写和分隔符差异；不同协议共用归一化名称时，明确登记各自允许的结构。例如 OpenAI 的 `prompt_tokens_details` 对象和 Gemini 的 `promptTokensDetails` 对象数组都保持可读，内部凭据仍被遮蔽。审计的 `extra.mcp_token_id` 保留数字类型，提供商的 `session_token_present` 和 `antigravity_force_token_refresh` 保留布尔类型。
+普通 JSON 保留原 DTO 脱敏；开启 `redact_tool_results` 后，MCP 追加遮蔽敏感键：
 
-`key`、`code` 和 `authorization` 等歧义名称还需匹配操作和字段路径：默认价格项标识、用户属性键、运维锁名称和协议授权类别保持可读，HTTP 错误代码和 SSE 错误事件代码也保留。相同名称在凭据或其他嵌套位置继续遮蔽，真实凭据不会因其值是数字或布尔值而放行。字段处理不修改原响应或确认参数，也不将数字字符串转换成数值。
+- 明确保留字段：已登记的 token 数量、限制、价格、配置开关、凭据存在标记及 API Key 管理元数据按明确字段名和 JSON 类型保留；`null` 保留为空值（如定价区间 `max_tokens:null` 表无上限）。元数据对象和数组继续递归检查内部凭据，异常类型不放行。
+- 跨协议归一化：字段归一化兼容大小写和分隔符，多协议同名时分别登记允许结构（如 OpenAI `prompt_tokens_details` 对象与 Gemini `promptTokensDetails` 数组均保持可读，内部凭据仍遮蔽）。
+- 特定保留类型：审计 `extra.mcp_token_id` 保留数字类型，提供商 `session_token_present` 和 `antigravity_force_token_refresh` 保留布尔类型。
+- 歧义名称路径约束：`key`、`code`、`authorization` 另须匹配操作和字段路径，默认价格项标识、用户属性键、运维锁名、协议授权类别、HTTP 错误码和 SSE 错误事件码可读，凭据或其他嵌套位置继续遮蔽。真实凭据不因值为数字或布尔放行；处理不改原响应或确认参数，不将数字字符串转数值。
 
-原始凭据导出、新签发的 MCP 令牌、兑换码和包含优惠码的结果、独立刷新得到的上游凭据、用量导出 CSV、二进制结果和较大的 JSON 以受保护文件交付，不展开到模型上下文。`usage.export_tasks.download.get` 在单次响应捕获上限内返回受保护文件；体积更大的导出可通过 `usage.export_tasks.download_ticket.create` 签发短期下载链接后在浏览器流式下载。
+### 受保护文件与上传
 
-临时文件绑定管理员、令牌和目标操作，有效期十分钟；Redis 中的文件内容及元数据使用部署已有的 AES 密钥加密。每次下载重新检查所属管理员和当前令牌权限。大型备份保存受保护的下载请求，在浏览器下载时进入原流式 handler，不把归档整体放入 Redis。
+- 文件交付范围：原始凭据导出、新签发 MCP 令牌、兑换码与含优惠码结果、独立刷新得到的上游凭据、用量导出 CSV、二进制结果和较大 JSON 均以受保护文件交付，不展开到模型上下文。
+- 大导出分流：`usage.export_tasks.download.get` 在响应捕获上限内返回受保护文件；更大导出经 `usage.export_tasks.download_ticket.create` 签短期下载链接由浏览器流式下载。
+- 加密与流式备份：临时文件绑定管理员、令牌和目标操作（10 分钟有效），Redis 内容及元数据用部署 AES 密钥加密，每次下载复查管理员与令牌权限。大型备份保存受保护下载请求，浏览器下载进原流式 handler，不将归档整体放入 Redis。
+- 下载文件名与跨域：文件名沿用原响应（无名 JSON 用 `<operation_id>.json`）；页面读 `Content-Disposition` 保留普通或 UTF-8 文件名与扩展名，已允许跨域响应暴露该头以支持前后端分离。
+- 上传约束：上传仅接受编码 JSON，禁止服务器文件路径或远程 URL。MCP 调用默认绑定当前授权（省略 `token_id`、`source`），浏览器调用提交所属 ID 及来源；工具引用时复检操作和归属。
 
-下载沿用原响应的文件名；没有文件名的 JSON 结果使用操作 ID 加 `.json`。页面读取 `Content-Disposition`，保留普通或 UTF-8 文件名和扩展名；已允许的跨域响应也暴露该响应头，支持前后端分开部署。
+### 特殊交互流程
 
-上传只接受编码的 JSON 数据，不能用服务器文件路径或任意远程 URL 作为文件来源。MCP 调用默认绑定当前授权，省略 `token_id` 和 `source` 即可上传；浏览器调用提交所属令牌或应用的 ID 及来源。工具引用上传文件时再次校验操作和归属。
-
-提供商连接测试复用原测试入口，有限 SSE 需要成功终态，流中错误不会因 HTTP 200 被当成成功。OAuth、PAT、SSO 等交互授权操作接续到已有提供商管理页，通过“添加提供商”或“重新授权”完成；保存后可用 `providers.list` 查询并继续配置。实时 QPS/TPS 的 MCP 操作使用现有查询接口，返回相应时间窗口的数据。
+提供商连接测试复用原测试入口，有限 SSE 需成功终态，流中错误不因 HTTP 200 视作成功。OAuth、PAT、SSO 等交互授权接续到原提供商管理页（「添加提供商」或「重新授权」），保存后可用 `providers.list` 查询并续配。实时 QPS/TPS 使用现有查询接口返回对应时间窗口数据。
 
 <a id="client_setup"></a>
 ## 客户端接入与部署
 
-嵌入前端资源的发行构建将 `/mcp` 保留为后端入口，GET、POST 和 DELETE 均跳过 SPA 页面回退。反向代理也需要把这个路径转发给主 HTTP 服务。
+### 反向代理与客户端配置
 
-同机反向代理可以连接 `127.0.0.1:8080` 并保留公开域名的 `Host`。`/mcp` 在 SDK 分发前执行专用 Bearer 认证和下述 Origin 检查，并关闭 SDK 面向本地 MCP 服务的回环 Host 限制。直接运行二进制和使用 Docker 端口映射时，都可以沿用这一代理配置。
+嵌入前端资源的发行构建将 `/mcp` 保留为后端入口，GET、POST 和 DELETE 均跳过 SPA 回退；反向代理须将该路径转发给主 HTTP 服务。
 
-客户端配置 Streamable HTTP 地址及专用 Bearer 令牌。支持读取环境变量的客户端应把凭据留在其密钥配置中。例如 Codex：
+同机反向代理可连接 `127.0.0.1:8080` 并保留公开域名 `Host`：`/mcp` 在 SDK 分发前执行专用 Bearer 认证和 Origin 检查，并关闭 SDK 面向本地 MCP 的回环 Host 限制（直接运行二进制与 Docker 端口映射均可沿用）。
+
+手工令牌客户端配置 Streamable HTTP 地址与专用 Bearer 令牌，支持环境变量的客户端应将凭据留在密钥配置中（例如 Codex，参见[官方文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)）：
 
 ```toml
 [mcp_servers.tokenrouter]
@@ -163,10 +163,21 @@ url = "https://gateway.example.com/mcp"
 bearer_token_env_var = "TOKENROUTER_MCP_TOKEN"
 ```
 
-这是手工令牌接入。OAuth 客户端填写同一个 `/mcp` 地址，通过下文的发现和浏览器授权流程连接。Codex 的 HTTP Bearer 配置见[官方文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)。
+OAuth 客户端填写同一个 `/mcp` 地址，走上文的发现和浏览器授权流程。
 
-浏览器 Origin 必须命中明确配置的 CORS origin 或站点公共 URL；`*` 不作为 MCP 允许来源。原生客户端可以省略 Origin。配置 `frontend_url` 后，浏览器接续返回对应公开站点的完整链接；未配置时返回同站路径，客户端按 MCP 服务来源解析。
+浏览器 Origin 须命中明确配置的 CORS origin 或站点公共 URL，`*` 不作为允许来源；原生客户端可省略 Origin。配置 `frontend_url` 后，浏览器接续返回对应公开站点完整链接；未配置时返回同站路径，由客户端按 MCP 来源解析。
 
-每个令牌每分钟最多 300 个 MCP HTTP 请求，Redis 计数不可用时拒绝准入。后端最多同时处理八个 MCP HTTP 请求；外层入口与 SDK 的请求体限制均为 16 MiB，内部有限响应捕获上限也为 16 MiB，单次执行使用两分钟超时。大 JSON 使用文件交付，备份下载按原接口流式传输。限制与推理网关流量分别处理。
+### 限流、配额与迁移
 
-迁移 300 增加令牌表，迁移 301 增加默认关闭的跳过确认设置。迁移 310 给令牌和 OAuth 应用授权增加工具结果脱敏设置，已有行取默认值 `false`。回退到支持 MCP 但早于此开关的版本时，可以保留新增列，旧后端会对工具结果执行额外脱敏。既有管理员、网关 Key 和登录凭据不转换。部署沿用现有 PostgreSQL、Redis 和持久加密密钥。临时确认和文件按 TTL 过期。完整数据备份包含令牌摘要与密文，恢复完整令牌还需要对应的固定加密密钥。迁移与回退遵循[部署与数据库迁移](../operations/deployment_and_migrations.md)。
+MCP 限制与推理网关流量独立计算：
+
+| 限制项 | 阈值与行为 |
+| --- | --- |
+| 单令牌请求频率 | 每分钟最多 300 次 MCP HTTP 请求，Redis 不可用时拒绝准入 |
+| 后端并发数 | 最多同时处理 8 个 MCP HTTP 请求 |
+| 请求体上限 | 外层入口与 SDK 均为 16 MiB |
+| 响应捕获上限 | 内部有限响应捕获 16 MiB（大 JSON 走文件交付，备份按原接口流式传输） |
+| 单次执行超时 | 2 分钟 |
+
+- 数据库迁移与回退：迁移 300 新增令牌表，迁移 301 新增默认关闭的跳过确认设置，迁移 310 为令牌和 OAuth 应用授权新增工具结果脱敏设置（已有行默认 `false`）。回退到支持 MCP 但早于此开关的版本时可保留新增列，旧后端会对工具结果执行额外脱敏。
+- 兼容与备份：既有管理员、网关 Key 和登录凭据不转换；沿用 PostgreSQL、Redis 和持久加密密钥；临时确认与文件按 TTL 过期。完整数据备份包含令牌摘要与密文，恢复完整令牌另需对应固定加密密钥。迁移与回退见[部署与数据库迁移](../operations/deployment_and_migrations.md)。

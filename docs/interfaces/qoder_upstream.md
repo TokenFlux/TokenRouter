@@ -1,143 +1,119 @@
 # Qoder 原生上游
 
-TokenRouter 通过 Qoder COSY 网关路径，支持 Qoder 原生的上游提供商。对外公开的别名会映射到 Qoder 的路由键，原始路由键也可以直接作为请求模型，用于兼容和运维。
-
-本文说明 Qoder 的提供商、站点、模型能力、请求适配、定价、配额和失败处理。TokenRouter 共用的调度和账本规则见其他文档；代码里还没有实现的 Qoder 企业登录变体，不在支持范围内。
+本文记录 Qoder（COSY 网关）提供商的站点凭据、协议路由、模型目录与映射、思考与上下文控制、平台执行边界、计费、上游 Credits 配额及运维规则。未实现的 Qoder 企业登录变体不在支持范围内；完整分类见[上游提供商能力矩阵](upstream_provider_matrix.md)。
 
 ## 章节导航
 
-- [提供商类型](#提供商类型)：修改凭据导入、OAuth、刷新或站点选择时读取。
-- [客户端协议](#客户端协议)：修改 Messages、Responses 或 Chat 的准入时读取。
-- [模型别名与映射](#模型别名与映射)：修改模型目录、路由键或限制时读取。
-- [站点思考控制](#站点思考控制)：修改协议原生的推理控制时读取。
-- [上下文窗口](#上下文窗口)：修改各站点的上下文能力或请求载荷时读取。
-- [平台执行与输出](#qoder_execution_boundary)：修改执行器、流输出、凭据缓存或授权时读取。
-- [计费范围](#计费范围)：修改 Qoder 的价格查找或零费用行为时读取。
-- [上游提供商用量](#上游提供商用量)：修改配额探测或调度冷却时读取。
-- [运维](#运维)：修改故障转移、错误分类或导入导出时读取。
+- [提供商与认证](#qoder_account_contract)：`cosy` 凭据约束、国际/中国站点、`refresh_mode` 与各模式刷新路径。
+- [客户端协议](#客户端协议)：`qoder_chat` 选路、`protocol_fallbacks` 与 Responses 边界。
+- [模型别名与映射](#模型别名与映射)：账号目录同步、快照失效、白名单草稿与映射顺序。
+- [站点思考与上下文窗口](#站点思考与上下文窗口)：桌面协议基线、推理档位提升及输入上限注入。
+- [平台执行与输出](#qoder_execution_boundary)：无状态历史、报文格式、工具门禁、部分结算与凭据缓存。
+- [计费、上游配额与运维](#计费上游配额与运维)：价格解析、Credits 视图、错误码 `112`/`115` 与导入导出。
 
 <a id="qoder_account_contract"></a>
-## 提供商类型
+## 提供商与认证
 
-- `cosy` 提供商可以在国际站（`global`）或中国站（`cn`）使用 PAT 引导或设备 OAuth 凭据。
-- 创建和导入时，要求 `platform=qoder` 和 `type=cosy` 互相对应；OAuth、API Key、Upstream、Bedrock 和 Service Account 都不能保存为 Qoder 提供商。
-- 创建和编辑时的凭据校验，由 provider 的规则和 `provider/provider.CreateCredentialHooks` 组合完成；站点的 PAT 交换和机器身份准备使用原生的提供商记录，保留 CN 和 Global 的差异，并在调用时执行。
-- `credentials.site` 选择站点。为了兼容已有的提供商，没有这个字段时按 `global` 处理。
-- `credentials.refresh_mode` 记录令牌的来源。没有时按 `cosy` 处理；新版桌面授权在两个站点都使用 `device_token`；旧中国站 OAuth 的 `qodercn20` 继续保留。
-- 手工导入可以只提供 `pat`，也可以提供一组现有的 COSY 令牌。
-- 现有的 COSY 令牌凭据包括 `security_oauth_token`、`refresh_token`、`machine_id`、`machine_token`、`machine_type`、`uid` 或 `aid`，以及可选的组织元数据。
-- 新版桌面 OAuth 使用所选站点的 OpenAPI `deviceToken/refresh`。轮换沿用已授权账号和组织，响应中携带的用户 ID 必须与绑定身份一致；首次授权从 userinfo 的顶层或嵌套 `organization` 读取组织 ID。需要补齐组织名称时，用该组织 ID 查询 tags。个人账号跳过 tags 请求。account plan 提供账号类型。轮询返回有效访问令牌即可完成授权；未返回刷新令牌时，到期后需要重新授权。旧国际站 COSY 凭据继续通过 Center 刷新，旧中国站 `qodercn20` 保留 OpenAPI 与 status 完成流程，手工 COSY 凭据保留 Gateway 刷新路径。PAT 会话根据原始 PAT 重建。
-- 中国站支持标准 QODER_PAT 和新版桌面设备授权，旧 QoderCN20 凭据仍可刷新。企业专属域名的 `PERSONAL_TOKEN`、组织选择、AK/SK 和区域发现都不支持。
+创建与导入时强制 `platform=qoder` 与 `type=cosy` 一一对应；OAuth、API Key、Upstream、Bedrock 与 Service Account 均不可保存为 Qoder 提供商。
+
+| 字段 / 模式 | 说明与刷新路径 |
+| --- | --- |
+| `credentials.site` | `global`（国际站，缺失时默认）或 `cn`（中国站）；站点 PAT 交换与机器身份准备在调用时保留站点差异 |
+| `refresh_mode=device_token` | 新版桌面 OAuth（两站通用），走所选站 OpenAPI `deviceToken/refresh`；轮换沿用账号与组织且响应 user ID 须与绑定一致 |
+| `refresh_mode=cosy`（缺省） | 旧国际站 COSY 经 Center 刷新；手工导入的 COSY 令牌（`security_oauth_token`、`refresh_token`、`machine_id`、`machine_token`、`machine_type`、`uid`/`aid` 及可选组织元数据）经 Gateway 刷新 |
+| `refresh_mode=qodercn20` | 旧中国站 OAuth，保留 OpenAPI 与 status 完成流程 |
+| `pat` 引导 | 手工导入可仅提供 `pat`，会话按原始 PAT 重建 |
+
+认证与站点边界：
+
+- 新版桌面授权元数据：首次授权从 userinfo 顶层或嵌套 `organization` 读组织 ID，需补组织名时按组织 ID 查 tags（个人账号跳过），`account plan` 提供账号类型。轮询拿到有效访问令牌即完成授权；未返回刷新令牌时到期须重新授权。
+- 中国站支持范围：支持标准 `QODER_PAT`、新版桌面设备授权与旧 `QoderCN20` 刷新；不支持企业专属域名 `PERSONAL_TOKEN`、组织选择、AK/SK 与区域发现。
 
 ## 客户端协议
 
-Qoder Cosy 的原生协议是 `qoder_chat`。分组开放 Messages、Responses 或 Chat 入口，且提供商启用了 `qoder_chat` 时，网关按分组的 `protocol_fallbacks` 选路。映射表里没有该入口时，网关自动匹配 `qoder_chat`。显式列出转换目标时，列表须包含 `qoder_chat` 才能选择 Qoder。将该入口设为 `[]` 时，只允许原生协议，Qoder 不参与该入口的调度。
-
-分组可以开放哪些入口，见[统一协议能力](protocol_capabilities.md#group_protocol_routes)。管理员关闭全部文本协议时，用户"使用 Key"的界面显示没有可用的文本协议，网关在提供商选择和计费之前，返回对应协议的 `403`。
-
-协议开关不影响 Qoder 的站点、模型路由、思考控制和提供商资格。Responses 子路径和 WebSocket 不属于 Qoder 的能力，启用 Responses 协议也不会开放它们。
+- 原生协议与选路：Qoder Cosy 原生协议为 `qoder_chat`。分组开放 Messages、Responses 或 Chat 且提供商启用 `qoder_chat` 时，按分组 `protocol_fallbacks` 选路：映射表缺项自动匹配 `qoder_chat`；显式列出目标时须包含 `qoder_chat`；设为 `[]` 仅允许原生协议，Qoder 不参与该入口调度。
+- 门禁与不支持子能力：分组协议开关见[统一协议能力](protocol_capabilities.md#group_protocol_routes)；关闭全部文本协议时「使用 Key」提示无可用协议，并在选号和计费前返回对应协议 `403`。协议开关不影响站点、模型路由、思考控制或资格；Responses 子路径与 WebSocket 不属于 Qoder 能力。
 
 <a id="qoder_account_catalog"></a>
 ## 模型别名与映射
 
-模型来自所选账号的 Gateway `/api/v2/model/list`，只读取桌面客户端的 `app` 场景。响应中的 `enable` 决定该路由是否进入账号候选，推理时上游还会检查权益；BYOK 模型不进入 COSY 账号目录。
+- 目录来源：模型来自所选账号 Gateway `/api/v2/model/list` 的桌面 `app` 场景。响应 `enable` 决定候选资格（推理时上游仍校验权益），BYOK 模型不入 COSY 目录。
+- 展示别名与路由键：每个启用模型分配一个请求 ID，优先取显示名生成的唯一别名（如 `cantus`），缺显示名或冲突时回退原始路由键。快照同步保存服务端路由键供推理使用；已保存的原始键仍可用于显式映射。显示名与公共型号身份分开保存，动态档位不按别名推算价格。
+- 手动同步与缓存：管理员在已保存提供商的「模型」页点击「同步上游支持的模型」后，结果存入 `provider.extra.qoder_model_catalog`（最多 4 并发、同账号合并并发、单次查询预算 15 秒），跨重启保留直至下次成功同步或账号身份变化。
+- 失效与一致性：有效空目录清空自动候选；网络错误、认证失败与非法响应保留上次成功目录。快照记录站点、账号与组织，变更站点、账号、组织或 PAT 后失效；同一已识别账号轮换令牌仍有效（无账号标识时按凭据摘要区分）。写入前比对查询前的完整提供商配置以拒绝迟到结果，通过正常快照与 outbox 传播。
+- 管理端模型页：模型页把可用展示 ID 去重写入白名单草稿，并将对应内部键收敛为展示 ID（保留自定义与通配项，点「更新」生效），同时展示含禁用项、推理档位、输入输出限制与上下文选项的全部模型（`qoder_model_catalog_status` 与 `sync_status` 均含 `model_details`）。
+- 移除模型与手动映射：上游移除模型后自动候选与旧别名移除，但保留已存白名单项并提示缺失；手动映射可指向可用自定义路由，但无法解禁已被账号禁用的路由。
+- 映射与白名单顺序：`model_mapping` 键为本层接受名、值为最终 Qoder 路由或上游名，本身不限制范围；用 `model_whitelist` 限制最终路由（先映射后查白名单，空表不限）。分组映射为单步改写，应直接配置 `模型 -> 上游路由键`，不要串联 `custom -> 公共别名 -> 路由键`。
 
-手动同步和默认模型清单为每个启用模型提供一个请求 ID。优先使用由显示名生成的唯一别名，例如 `cantus`；缺少可用显示名或名称冲突时使用原始路由键。账号快照同时记录服务端路由键，网关用它发出推理请求。已保存的原始键继续可用于显式映射。显示名和可确认的公共型号身份分别保存，动态档位不会由别名推算价格。
+## 站点思考与上下文窗口
 
-管理员在已保存提供商的「模型」页点击「同步上游支持的模型」时，网关会查询该账号，把成功结果存入 `provider.extra.qoder_model_catalog`。查询最多四个并发，同账号的并发请求合并，单次上游查询预算十五秒。快照跨重启保留，持续使用至下一次手动同步成功或账号身份改变。
+### 协议基线与思考控制
 
-有效空目录会清空自动候选；网络错误、认证失败和非法响应不会清空最近成功目录。快照记录站点、已知账号和组织。更换站点、账号、组织或 PAT 后旧观察失效。同一已识别账号轮换访问令牌时仍可使用有效快照；缺少账号标识时以凭据摘要区分。写入还比较查询前的完整提供商配置，拒绝迟到结果。正常提供商快照和 outbox 传播已接受的目录更新。
+- 协议基线：桌面客户端 `0.5.14` 内嵌运行时 `1.1.86-hotfix.5.3`。模型查询与推理使用 `Cosy-ClientType: 10`，场景和业务产品为 `app`；运行时版本填入 OpenAPI User-Agent、`Cosy-Version`、签名 `cosyVersion` 与推理 `business.version`（桌面外壳版本不替代）。
+- 档位映射规则：控制能力取自账号模型的 `thinking_config`、`efforts`、`supports_disabled` 与默认值，保留 `low`、`medium`、`high`、`xhigh`、`max`。缺省用模型默认；明确关闭优先于启用，不支持关闭的模型收到关闭请求返回 HTTP `400`（不触发上游故障转移或监控）。
+- 档位提升：支持的强度原样发送，缺失中间档位提升至最近更高可用档位，超范围或正数 budget 取最高可用档位；仅开关型模型只发开关。
+- 入口字段读取：Chat 优先 `reasoning_effort`，Responses 优先 `reasoning.effort`，Messages 读 `output_config.effort`、`thinking.type` 与 `thinking.budget_tokens`。
+- 无效值与默认回退：无效强度不构成明确控制（其余有效字段仍生效，否则用模型默认）；`enabled`/`adaptive` 无 budget 时用模型默认，分组属性可缩小可用档位。
 
-模型页将可用展示 ID 去重后加入白名单草稿，并把已有的对应内部键收敛为展示 ID，保留自定义项和通配项；点击「更新」后白名单生效。下方展示上游返回的所有模型，包括禁用项、推理档位、输入输出限制及上下文选项。管理端、公开目录、调度与请求转换共用账号快照。管理接口的 `qoder_model_catalog_status` 和同步接口的 `sync_status` 都包含 `model_details`。
+### 上下文窗口
 
-已移除模型不再提供自动候选或旧别名，管理员保存的配置不被自动改写。白名单筛选账号可用的路由。上游移除路由或别名后，已保存的白名单项保留并提示缺失。管理员可以通过显式提供商映射指定自定义上游路由。手动映射到当前可用路由仍然有效；已观察到但被账号禁用的路由不会被手动映射解禁。
-
-Qoder 提供商的 `model_mapping` 和其他平台使用相同的改写规则：
-
-- 键：这一层路由接受的模型名。
-- 值：最终的 Qoder 路由或上游模型名。
-- 映射本身不限制可以请求的模型范围。
-
-需要把提供商限制在特定的最终路由或上游模型上时，使用 `model_whitelist`。网关先应用映射，再检查白名单；没有配置白名单的提供商不受限制。分组级的映射同样只改写一步，所以不要配置 `custom -> 公共别名 -> 路由键` 这样的别名链，直接配置 `模型 -> 上游路由键`。
-
-## 站点思考控制
-
-协议基线是桌面客户端 `0.5.14` 内嵌的 `1.1.86-hotfix.5.3` 运行时。模型查询和推理均使用桌面应用身份 `Cosy-ClientType: 10`，场景和业务产品均为 `app`。运行时版本用于 OpenAPI User-Agent、`Cosy-Version`、签名载荷中的 `cosyVersion` 和推理报文的 `business.version`；桌面外壳版本不替代这些协议版本。
-
-推理控制来自所选账号模型的 `thinking_config`、`efforts`、`supports_disabled` 和默认值。`low`、`medium`、`high`、`xhigh`、`max` 分别保留。缺省请求使用模型默认值；明确关闭优先于启用，不能关闭推理的模型收到关闭请求时返回参数错误。已支持的强度原样发送，缺失的中间档位提升到最近的更高可用档位，超出范围取最高档位；正数 budget 使用最高可用档位。只有开关的模型只发送开关。
-
-各入口读取原生字段：Chat 优先 `reasoning_effort`，Responses 优先 `reasoning.effort`，Messages 读取 `output_config.effort`、`thinking.type` 和 `thinking.budget_tokens`。无效强度不构成明确控制；其余有效字段仍可生效，否则继承模型默认值。`enabled` 或 `adaptive` 没有 budget 时使用模型默认强度。分组属性可缩小可用档位。原生模型必须开启推理时，显式关闭请求返回 HTTP 400；上游的故障转移和监控只处理实际发生的上游故障。
-
-## 上下文窗口
-
-输入上限来自账号目录的 `max_input_tokens` 和 `context_config`，选择已声明的最大可用窗口，再应用管理员覆盖。目录的原始默认窗口仍保留在快照中。模型属性和请求报文使用同一观察；已退役型号不再继承曾经绑定到该路由键的上下文。
-
-有上下文选项的路由将输入上限写入 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 和 `parameters.context_length`。没有选项的路由只写模型上限。分组配置、账号观察和统一目录都缺少输入上限时，编码器使用 200,000；属性预览仍显示未知。
-
-TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Responses 和 Anthropic Messages 里的输出 Token 字段只控制输出。客户端自己维护模型目录、压缩阈值和截断行为；`/v1/models` 和 `/models` 不公开非标准的上下文元数据。
+- 上限解析：输入上限取账号目录 `max_input_tokens` 与 `context_config` 声明的最大可用窗口，再叠加管理员覆盖（快照保留原默认窗口；退役型号不继承该路由键的历史上下文）。
+- 字段注入：带上下文选项的路由将输入上限同时写入 `model_config.max_input_tokens`、`chat_context.extra.ideModelConfigOverride.max_input_tokens` 与 `parameters.context_length`；无选项路由只写模型上限。
+- 缺失兜底：分组、账号观察与统一目录均缺输入上限时，编码器使用 `200,000`，属性预览仍显示未知。
+- 客户端边界：TokenRouter 不读取客户端声明的上下文上限，三个入口的输出 token 字段只控制输出；`/v1/models` 与 `/models` 不公开非标准上下文元数据。
 
 <a id="qoder_execution_boundary"></a>
 ## 平台执行与输出
 
-`provider/qodermodel` 保存每个账号的模型索引和原生能力约束。预览、探测和推理按最终路由键、客户端协议和原生上游协议 `qoder_chat` 匹配分组属性。属性引用可以借用其他型号的字段，出站使用原模型的路由键、默认设置和协议限制。`upstream/qoder` 实现桌面协议、站点、签名、报文转换和会话历史。`Executor.Execute` 接收本次的协议、整理好的目标和同步输出接口；平台代码不读取 Gin、旧的提供商实体或配置对象。`gateway/provider.QoderRuntime` 持有平台执行器和会话存储（各只有一个），app 为 Chat 和其他入口绑定同一个实例；目标使用原生的提供商记录，令牌和客户端在调用时取得。主 Chat 链路直接使用 gateway 的执行器，Messages、Responses 和兼容的 Chat 尝试，通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，共用同一个运行时，没有另外的尝试循环。
+### 执行边界与无状态历史
 
-三个入口均由客户端提交完整历史。Qoder Responses 支持省略 `store` 或传 `store:false`。请求使用 `store:true`、`previous_response_id`、`conversation` 或 `item_reference` 时返回 HTTP 400。多轮工具调用需在本轮 `input` 中同时提供原始消息、函数调用及其结果。响应 ID 用于标识本次输出和使用记录；Redis 粘性路由只绑定实际请求的会话键。网关只为原生会话匹配保留指纹和用量。
+- 模块归属：`provider/qodermodel` 维护单账号模型索引与原生能力约束（预览、探测与推理按最终路由键、客户端协议与 `qoder_chat` 匹配分组属性；属性引用可借用他型号字段，出站仍用原路由键与限制）；`upstream/qoder` 实现桌面协议、站点、签名、转换与会话历史，不依赖 Gin 或旧实体。
+- 本机凭据导入隔离：本机凭据读取隔离在 `upstream/qoder/localauth`（仅用于手动导入与 opt-in 测试，macOS 读站点 `auth.v1.dat`、`auth.machine-id` 与 Keychain 并校验版本与站点，旧 CLI 文件可显式导入；仅在内存中解密，正常服务不读本机登录资料）。
+- 完整历史与 Responses 限制：三个入口均由客户端提交完整历史。Qoder Responses 仅接受省略 `store` 或 `store:false`；传入 `store:true`、`previous_response_id`、`conversation` 或 `item_reference` 返回 HTTP `400`。
+- 会话键与工具轮次：多轮工具调用须在当轮 `input` 中同时提交原始消息、函数调用与结果。响应 ID 标识当次输出与使用记录，Redis 粘性仅绑定实际请求会话键，网关只为原生会话匹配保留指纹与用量。
+- 规范报文：推理用新版规范 `content`（用户文本放 `content` 数组，工具结果保留字符串或文本块，文本请求不生成旧 `contents` 副本）；`chat_context.text` 与 `originalContent` 用字符串，`aliyun_user_type` 留空，显示名与视觉标记取自账号观察。
+- 缓存标记与流式写出：自动缓存标记写到输出副本以防污染后续指纹；转换器逐段写出并 Flush，不聚合整条 SSE。
 
-只用于手动导入和 opt-in 测试的本地凭据读取隔离在 `upstream/qoder/localauth`。macOS 桌面导入读取对应站点的 `auth.v1.dat`、`auth.machine-id` 和系统 Keychain，验证存储版本与站点；旧 CLI 文件仍可显式导入。凭据只在内存中解密，正常服务不会读取本机客户端登录资料。
+### 工具、用量与取消策略
 
-推理报文使用新版客户端的规范 `content`：用户文本块放在 `content` 数组，工具结果保留字符串或文本块，文本请求不再生成旧的 `contents` 副本。`chat_context.text` 和 `originalContent` 使用字符串，旧 `aliyun_user_type` 提示保持空值；模型显示名及视觉标记来自本次账号观察。自动缓存标记写到输出副本，避免改变后续会话指纹使用的输入。
-
-实际的写入和 Flush 由 HTTP 适配器负责，转换器逐段输出，整条 SSE 不会被聚合。`gateway/httpapi.QoderRequestMetadata` 复制本次的请求头，并整理出原来的 Key ID 和客户端标记，平台的会话键计算只在 upstream 执行。HTTP 测试连接同一个输出 Writer 和平台流实现。
-
-工具能力取本轮实际生效的推理开关和档位。分组禁用工具调用时，三个文本入口都会移除可选工具声明并保留历史调用和结果；要求调用工具或指定函数会在联系上游前返回 HTTP 400。`allowed_tools` 指定的函数子集会按原声明顺序发往上游，`required` 也遵循同一检查。这些本地拒绝不参与提供商的成功率统计。
-
-客户端输出按[统一用量口径](protocol_capabilities.md#client_usage_cache)呈现已观察到的缓存读取与写入。OpenAI 输入总量包含全部输入桶，Messages 保持普通输入与缓存分离；`cacheable_tokens` 只表示可缓存量，不当作缓存写入。当前 Qoder 解析没有生成非零写入桶，序列化器仅保留调用方已经提供的真实计数。
-
-流里已经开始服务、并且收到了 usage 之后，上游如果继续报错，会同时返回部分结果和错误：完成入口用这些已经观测到的用量结算一次，同时返回失败响应、失败反馈并回滚会话；这个失败不会被记成成功的会话，系统也不会重新推理或估算缺失的用量。还没有开始服务、或者没有观测到用量的失败，不做这种部分结算。
-
-解析器补上的工具类型 `function`，不作为工具调用的身份。并行工具流里，缺少 ID、索引和名称的参数片段，不会被写进任意一个工具；单个工具的参数片段，继续写入已有的调用，不会因为默认类型被拆成新的块。
-
-准备和取得凭据之后、发起推理之前，检查原请求是否已经取消，取消后不再启动新的推理。已经进入上游的流式请求，和客户端的取消脱钩，在十五分钟的执行预算内收集尾部的 usage；非流式请求按取消传播。响应体由平台执行关闭，提供商和用户的 Lease 由请求编排负责释放。
+- 工具门禁：能力取本轮生效的推理开关和档位。分组禁用工具调用时，三个入口移除可选工具声明并保留历史调用与结果；强制调用或指定函数在联系上游前返回 HTTP `400`（`allowed_tools` 按原顺序转发子集，`required` 遵循同一校验），本地拒绝不计入提供商成功率。
+- 缓存用量口径：遵循[客户端用量与缓存](protocol_capabilities.md#client_usage_cache)（OpenAI 总输入含全部输入桶，Messages 分离普通输入与缓存；`cacheable_tokens` 非缓存写入，Qoder 当前不生成非零写入桶，序列化器仅保留调用方提供的真实计数）。
+- 流内报错部分结算：流式已开始服务且观测到 usage 后上游再报错，返回部分结果与错误：按已观测用量结算一次、返回失败反馈并回滚会话（不标成功，不估算缺失用量）；未开始服务或无用量观测不做部分结算。
+- 并行工具解析：解析器补全的默认类型 `function` 不作为工具调用身份；并行工具流中缺少 ID、索引和名称的参数片段不写入任意工具，单工具参数片段继续追加而不拆块。
+- 取消与超时：拿到凭据后、发起推理前检查客户端是否已取消。已进入上游的流式请求与客户端取消脱钩，在 15 分钟执行预算内收集尾部 usage；非流式正常传播取消。响应体由平台执行关闭，提供商与用户租约由编排层释放。
 
 ### 授权与凭据缓存
 
-提供商授权的十分钟会话、完成认领、pending 和成功重放，由 `provider.QoderAuthorization` 持有，`provider/provider` 只整理交换的结果。刷新资格和新旧凭据的合并在 provider，实际的站点交换在 upstream；持久化经过已有的刷新协调和身份 CAS。请求失败后，凭据身份的判断和刷新锁的等待也由 provider 负责：立即回读一次，之后每 100ms 轮询，总预算 3 秒；只有凭据确实轮换了才重试，旧凭据不会被当作刷新成功返回。供应商错误导致的限流或过载写入，由 `provider/provider` 执行，使用和请求取消脱钩的 5 秒预算，尽力而为，失败时不影响请求。
+- 授权与刷新协调：授权保持 10 分钟会话、完成认领及 pending/成功重放，持久化走刷新协调与身份 CAS。请求失败后的刷新等待为「立即回读一次 + 每 100ms 轮询，总预算 3 秒」，仅凭据确实轮换才重试，旧凭据不当作刷新成功。供应商错误触发的限流或过载写入与请求取消脱钩，采用 5 秒尽力而为预算，写失败不影响请求。
+- 会话缓存与关停：运行时凭据缓存带身份世代与 90 秒共享构建预算，单个等待者取消不影响他人；应用停止时取消共享构建、等待在途操作并拒绝迟到回填。缓存失效时尽力同步清理备用键。
 
-运行时的凭据缓存由 `provider.QoderSessions` 持有（只有一个），带身份世代和 90 秒的共享构建预算。`provider/provider.QoderTokenProvider` 负责凭据整理和供应商构建，`QoderTokenRefresher` 组合站点交换和提供商凭据的合并，传输复用 HTTP 池和 TLS 策略。单个等待者取消不影响其他等待者；应用停止时，取消共享的构建，等待已经进入的操作，并拒绝迟到的回填。各平台令牌和 Qoder 会话的失效，统一由 `provider.CompositeTokenCacheInvalidator` 调用各自的缓存接口，同时清理备用键，删除失败时只尽力而为。授权的 HTTP 实现在 `provider/httpapi`。
+## 计费、上游配额与运维
 
-## 计费范围
+### 计费范围
 
-Qoder 和其他平台使用同一套价格解析规则，有明确报价的公共模型名可以使用统一目录价格，原始路由键和动态档位没有目录价格时保持未定价。先按价格配置的 `billing_model_source`，选定请求模型、分组映射模型或上游模型，再为这个模型解析价格；三者之间不会互相查找另一个模型的价格。
+Qoder 共用统一价格解析规则（有目录价的公开别名正常计价，无目录价的原始路由键与动态档位保持未定价）。按 `billing_model_source` 选定请求模型、分组映射模型或上游模型后独立查价，三者间不互查：
 
-1. 共享价格配置里手动填写的单价或有效区间优先。
-2. 分组没有关联价格配置时，使用统一的目录价格。
-3. 价卡只填了 Fast/Flex、Max 推理或分时倍率时，保留继承来的全部基础价格，只覆盖对应的倍率。
-4. 手动价卡里没填的字段，按通用的回退规则处理，填 `0` 表示免费。空的价卡不会遮住目录价格。
+1. 共享价格配置中的手动单价或有效区间优先。
+2. 分组未关联价格配置时使用统一目录价。
+3. 价卡仅填 Fast/Flex、Max 推理或分时倍率时，保留继承基础价并只覆盖对应倍率。
+4. 手动价卡未填字段按通用规则回退，填 `0` 表示免费；空价卡不遮挡目录价。
 
-模型市场、管理界面的默认价格填充和实际结算，都使用上面的规则。有目录价格的公开别名，可以正常展示和扣费；没有任何 token 基础价的路由键，显示为未定价。图片请求和其他平台一样，使用同一型号手动配置的目录图片报价。分组的模型白名单单独保存，模型权限和共享价格配置无关。
+模型市场、管理界面默认价与结算共用上述规则；图片使用同型号目录图片报价；分组模型白名单与价格配置无关。提供商统计优先用独立成本规则，未命中时按上游模型查目录价（不用用户自定义价，不因别名禁止回退）；Qoder 自定义统计按「请求名 -> 分组映射名 -> 上游名」匹配。零费用成功请求同样写入完整使用记录并走零金额结算。
 
-提供商统计优先使用独立的成本规则，没有命中时，和其他平台一样查询上游模型的目录价格，不使用用户的自定义价格，也不会因为 Qoder 的请求别名而禁止回退。Qoder 自定义统计规则按请求名、分组映射名、上游名的顺序匹配。
+### 上游提供商用量
 
-成功的零费用请求，同样写入完整的使用记录，并以零金额走完正常的订阅和余额结算流程。
+Qoder 上游月度 Credits 仅作提供商容量参考，与 TokenRouter 用户余额、订阅独立：
 
-## 上游提供商用量
+- 新版查询协议：`device_token` 用 Bearer 查所选站 OpenAPI `/sash/api/v2/me/usage`。`displayMode=qoder` 为 Credits 视图，要求显式布尔值 `isQuotaExceeded` 与 `isPlanQuotaProrated`（有效期与范围标签兼容蛇形与驼峰，缺必填或结构非法保留旧快照与冷却）。
+- 企业页与旧查询：`displayMode=enterprise` 为外部托管用量页，不判零余额或耗尽，浏览器仅展示 HTTPS 校验地址。旧提供商查 Gateway `/api/v2/quota/usage`（国际站、CN PAT、旧 `qodercn20` 用 COSY 签名，导入的 CN COSY 用 Bearer；CN 可附带组织 ID）。
+- 余额汇总与停调：通用 Credits 仅合计 `userQuota`、`addOnQuota` 与 `orgResourcePackage`；`dedicatedResourcePackages` 单独保存名称、余额、有效期与范围标签，存在可用专属 Credits 时不因通用余额耗尽而停调整个提供商（具体路由资格仍由目录与实际错误决定）。
+- 快照降级：成功查询将额度与账号身份写入 `provider.extra.qoder_quota_snapshot`；查询失败时仅在站点、账号与组织匹配时展示上次快照（同账号刷新令牌仍有效；升级前缺身份快照在首次成功查询后恢复降级展示）。
+- 额度冷却：通用额度确已耗尽时沿用至 `expiresAt` 的调度冷却（`personal_standard` 零配额占位不据此停调）；请求错误码 `115`、`agentLimitResetTime` 或 HTTP `429` 走正常限流处理。
 
-Qoder 有独立的上游月度 Credits 配额。TokenRouter 只把它当作提供商的用量和容量信息，它和 TokenRouter 的用户余额、订阅相互独立。
+### 运维与故障转移
 
-新版 `device_token` 提供商用 Bearer 访问所选站点的 OpenAPI `/sash/api/v2/me/usage`。`displayMode=qoder` 表示 Credits 观察；`displayMode=enterprise` 表示由上游管理的外部用量页，不生成零余额或额度耗尽判断。浏览器只提供经过 HTTPS 校验的详情地址或回退地址。
+- 平台键 `qoder` 参与调度快照、错误透传、故障转移与管理端平台用量视图。
+- 可重试上游故障（权益拒绝 `112`、Agent 限制、`429`、`5xx`）在写出首个流式分块前换号；流式输出开始后只返回流协议错误，不换号。错误码 `112` 属于模型或提供商权益拒绝，与令牌无关，不触发令牌刷新。
+- 管理端提供商导入导出完整保留 `qoder`/`cosy` 提供商及其凭据用于备份和迁移。
 
-旧提供商继续使用 Gateway `/api/v2/quota/usage`：国际站、CN PAT 和旧 `qodercn20` 使用 COSY 签名，导入的 CN COSY 会话使用 Bearer；CN 可附带已保存的组织 ID。
-
-通用 Credits 余额只合计 `userQuota`、`addOnQuota` 和 `orgResourcePackage`。`dedicatedResourcePackages` 单独保留名称、余额、有效期和适用范围标签，不加入通用余额。存在仍可使用的专属 Credits 时，不因通用余额耗尽而停调整个提供商；具体路由资格继续由模型目录和实际请求错误决定。
-
-新接口的 Credits 视图要求显式提供布尔字段 `isQuotaExceeded` 和 `isPlanQuotaProrated`。额度包有效期和范围标签同时支持蛇形与驼峰拼写。缺失必填字段或结构无效时，服务保留已有快照和调度冷却。
-
-成功查询将额度及账号身份保存到 `provider.extra.qoder_quota_snapshot`。查询失败时，管理端仅在站点、账号与组织匹配时显示上次额度。同一已识别账号刷新令牌后仍可使用快照。升级前保存的额度缺少身份标记，首次成功查询后恢复降级展示。通用额度确已耗尽时沿用到 `expiresAt` 的调度冷却；`personal_standard` 的零配额占位结构不据此停调。请求错误码 `115`、`agentLimitResetTime` 或 HTTP 429 继续走正常限流处理。
-
-## 运维
-
-Qoder 以 `qoder` 平台键参与调度快照、错误透传、故障转移和管理端的平台用量视图。对于可以重试的上游故障，例如 Qoder 权益拒绝错误码 `112`、Agent 限制、429 或 5xx，网关可以在写出任何流式分块之前换到另一个提供商；流式输出开始后，只返回符合流协议的错误，不再换提供商。错误码 `112` 视为模型或提供商的权益拒绝，和认证令牌无关，所以不会触发令牌刷新。
-
-管理端的提供商数据导出和导入，会保留 `qoder`、`cosy` 提供商和它们的凭据，用于备份和迁移。
-
-相关文档：[上游提供商能力矩阵](upstream_provider_matrix.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[路由与结算](../domains/routing_and_billing.md)、[HTTP 接口](http_api.md)和[接口目录](index.md)。
+相关文档：[上游提供商能力矩阵](upstream_provider_matrix.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[路由与结算](../domains/routing_and_billing.md)、[HTTP 接口](http_api.md)、[接口目录](index.md)。

@@ -18,7 +18,7 @@ INTEGRATION_PKGS = $(shell cd backend && grep -rlE '^//go:build integration$$' -
 .PHONY: build build-frontend build-backend generate \
 	fmt fmt-check fmt-go fmt-go-check fmt-frontend fmt-frontend-check lint lint-go lint-frontend \
 	test test-go test-frontend test-frontend-tools test-integration test-embed test-scripts test-installer test-tools test-e2e \
-	check verify security security-go security-frontend hooks
+	check check-docs verify security security-go security-frontend hooks
 
 .PHONY: prepare-plugin-sdk-web lint-plugin-sdk test-plugin-sdk plugin-proto-check fmt-plugin-sdk fmt-plugin-sdk-check
 
@@ -170,6 +170,10 @@ test-e2e:
 # BASE defaults to the upstream common ancestor, matching the hook entry point.
 check:
 	python3 tools/check_changed.py $(if $(BASE),--base "$(BASE)")
+
+# check-docs validates Project Doc indexes, Markdown links, and @project-doc code anchors.
+check-docs:
+	python3 tools/check_docs.py
 
 # verify runs the CI acceptance targets locally and requires Docker services.
 verify: lint test-tools test test-integration build test-embed test-scripts test-installer

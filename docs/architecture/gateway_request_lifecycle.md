@@ -1,42 +1,43 @@
 # 网关请求生命周期
 
-本文描述一个 AI 网关请求从 Gin 路由进入，经过认证、模型名称处理、提供商调度、上游转发、故障转移，到用量结算的各个共同阶段。修改跨协议的热路径时，用本文核对阶段顺序和失败处理。具体端点、供应商字段和各平台的模型能力见接口分类的平台文档。
+本文描述 AI 网关请求从 Gin 路由进入，经过认证、模型名称处理、提供商调度、上游转发、故障转移，到用量结算的共同阶段。修改跨协议热路径时，用本文核对阶段顺序和失败语义；具体端点、供应商字段和模型能力见接口分类的平台文档。
 
 ## 章节导航
 
 - [入口族与处理器](#入口族与处理器)：请求由哪个协议分支处理。
-- [共同处理管线](#共同处理管线)：各阶段的顺序和不能调换的约束。
-- [认证与准入](#认证与准入)：修改 API Key、权益或请求上下文时读取。
-- [模型名称链](#模型名称链)：修改模型映射、列表或响应模型恢复时读取。
-- [提供商选择与故障转移](#提供商选择与故障转移)：修改调度、并发、粘性或重试时读取。
-- [转发与流式输出](#转发与流式输出)：修改上游调用和错误返回时读取。
-- [SSE 保活](#sse_keepalive)：修改下游空闲心跳、上游心跳消费或重试字节计数时读取。
-- [用量与结算](#用量与结算)：修改用量记录、价格或扣费时读取。
-- [审核与搜索协作](#moderation_search_boundaries)：修改审核裁决、搜索额度和工具模拟时读取。
+- [共同处理管线](#gateway_pipeline)：阶段顺序、计时观测边界与模块不变量。
+- [认证与准入](#apikey_authentication)：API Key 认证、协议门禁、WS 复核与分组回退。
+- [模型名称链](#模型名称链)：模型映射、范围过滤、协议回退与响应模型恢复。
+- [提供商选择与故障转移](#account_selection_and_failover)：调度输入、辅助入口、会话哈希与重试退避。
+- [转发与流式输出](#protocol_conversion_boundary)：平台转发、流式不可逆点与错误分类。
+- [SSE 保活](#sse_keepalive)：下游空闲心跳、上游心跳消费与字节计数。
+- [用量与结算](#用量与结算)：中断保留、完成器与幂等扣费步骤。
+- [审核与搜索协作](#moderation_search_boundaries)：审核裁决、搜索额度与工具模拟边界。
+- [SystemOne 决策请求](#systemone-决策请求)：SystemOne 同步尝试与冷却规则。
 - [新增入口检查清单](#新增入口检查清单)：新增入口或平台时逐项核对。
-- [Qoder Chat 请求编排](#qoder_gateway_execution)：修改 Qoder Chat 的准入、尝试和完成顺序时读取。
-- [平台执行与资源归属](#upstream_attempt_ownership)：修改单次执行、流输出和关闭顺序时读取。
+- [Qoder Chat 请求编排](#qoder_gateway_execution)：Qoder Chat 准入、刷新重试与排空顺序。
+- [平台执行与资源归属](#upstream_attempt_ownership)：单次执行、流输出、图片聚合与关闭顺序。
 
 ## 入口族与处理器
 
-`RegisterGatewayRoutes` 在面板 `/api/v1` 之外注册客户端协议入口。主要入口族：
+`RegisterGatewayRoutes` 在面板 `/api/v1` 之外注册客户端协议入口：
 
 | 入口族 | 主要用途 | 处理器分派 |
 | --- | --- | --- |
-| `/v1`，以及裸 `/models`、`/responses` 等兼容别名 | Anthropic Messages、OpenAI Responses/Chat/Embeddings、图片、视频、模型列表和用量 | 进入 app 绑定的统一文本、媒体和模型入口，选号后按实际提供商执行 |
-| `/v1beta` | Gemini 原生的模型、生成、流式生成和 token 统计 | 按 Google 的方式认证后进入 `GeminiNativeHandler` 或 `ModelsHandler` |
+| `/v1`，以及裸 `/models`、`/responses` 等兼容别名 | Anthropic Messages、OpenAI Responses/Chat/Embeddings、图片、视频、模型列表和用量 | 进入统一文本、媒体和模型入口，选号后按实际提供商执行 |
+| `/v1beta` | Gemini 原生模型、生成、流式生成和 token 统计 | 按 Google 方式认证后进入 `GeminiNativeHandler` 或 `ModelsHandler` |
 | `/antigravity/v1`、`/antigravity/v1beta` | 限定 Antigravity 平台的 Claude 和 Gemini 专用入口 | 在上下文写入强制平台，再走通用 handler 和调度 |
-| `/backend-api/codex` | Codex/ChatGPT 风格的 Responses、Realtime 和 sideband | `OpenAITextHandler`、`ResponsesWSHandler` 和 `LiveHandler`；部分路径有专门的认证和路由限制 |
-| 批量图片管理 | 提交、查询、下载、取消和清理任务 | 专用 handler 和 service；查询类入口按任务归属认证，沿用任务已有的提供商 |
+| `/backend-api/codex` | Codex/ChatGPT 风格的 Responses、Realtime 和 sideband | `OpenAITextHandler`、`ResponsesWSHandler` 和 `LiveHandler`，部分路径有专用认证与路由限制 |
+| 批量图片管理 | 提交、查询、下载、取消和清理任务 | 专用 handler 和 service；查询入口按任务归属认证并沿用任务既有提供商 |
 
-普通的 `/v1/messages`、`/v1/responses` 和 `/v1/chat/completions` 共用文本提供商循环。HTTP 路由层不看分组平台；`UnifiedTextExecutor` 在选号后调用实际提供商所属平台的单次执行器。媒体、WS 和 Live 各自管理资源的生命周期。`/antigravity/*` 入口额外加上强制平台过滤，分组回退后这个过滤仍然生效。
-
-`/v1/sub2api/billing` 已从公开入口移除，访问时返回普通的 `404`，请求在路由层就结束，也不会进入 API Key 的非消费请求分支。
+- `/v1/messages`、`/v1/responses` 和 `/v1/chat/completions` 共用文本提供商循环；HTTP 路由层不看分组平台，选号后按实际提供商所属平台执行单次调用。媒体、WS 和 Live 各自管理资源生命周期。
+- `/antigravity/*` 附加的强制平台过滤在分组回退后仍然生效。
+- `/v1/sub2api/billing` 返回普通 `404`，请求在路由层结束，不进入 API Key 的非消费请求分支。
 
 <a id="gateway_pipeline"></a>
 ## 共同处理管线
 
-网关路由在请求体限制和鉴权之前设置英文响应语言，内置错误使用英文。网站语言由面板路由和 HTML 请求处理。
+网关路由在请求体限制和鉴权之前固定英文响应语言，内置错误返回英文；网站语言由面板路由和 HTML 请求处理。
 
 ```text
 请求体/连接限制、request ID、Ops 采集
@@ -66,72 +67,78 @@
       响应模型元数据恢复与 Ops 完成采集
 ```
 
-HTTP 文本请求在鉴权之前安装请求级计时，覆盖复合 Key 提前读取正文。计时之后紧接统一 SSE writer，位于 Ops 输出采集和响应模型改写的内侧，所有正文写入与心跳在这一层串行化，规则见 [SSE 保活](#sse_keepalive)。首次提供商准入前的正文读取、前置处理和两类槽位排队分别统计；首次准入后发生的提供商排队独立记录。事件时间线保留从入口起算的时刻。各平台流式响应通过共享 HTTP 观察边界记录上游事件、成功交付的有效内容和首次响应数据 Flush，计时判断与计费、重试的语义输出标志分开。上游输出通过 `NewResponseSink` 绑定计时来源；最终 HTTP writer 在成功写入后记录，保留中间的模型恢复和响应采集。网关本地错误直接使用普通 writer，不继承上游输出来源。详见 [HTTP 接口](../interfaces/http_api.md#response_errors)。
+### 计时与响应观测边界
 
-管线里有几条顺序约束：
+- 计时与保活层级：HTTP 文本请求在鉴权前安装请求级计时（覆盖复合 Key 预读正文），其后紧接统一 SSE writer，位于 Ops 输出采集和响应模型改写内侧，串行化所有正文写入与心跳，见 [SSE 保活](#sse_keepalive)。
+- 排队耗时拆分：首次提供商准入前的正文读取、前置处理和两类槽位排队分别计时，首次准入后的提供商排队独立记录；事件时间线按入口起算。
+- 输出观测边界：流式响应经共享 HTTP 观察边界记录上游事件、有效内容交付和首次 Flush，计时口径与计费、重试输出标志分离。
+- 上游与本地 writer 分离：上游输出经 `NewResponseSink` 绑定计时来源，最终 HTTP writer 写入成功后记录；网关本地错误直接走普通 writer，不继承上游来源，见 [HTTP 接口](../interfaces/http_api.md#response_errors)。
 
-- 复合 Key 先用客户端传来的完整 `前缀/模型` 选出分组，Key 级模型重定向再处理去掉前缀后的模型。
-- 客户端协议准入使用普通 Key 绑定的分组，或者复合 Key 最终选中的分组。被拒绝的请求在协议 handler、提供商选择和计费之前就结束。
-- 等待用户并发槽的过程中，余额、订阅或额度可能变化，所以拿到用户槽后要通过 BillingCache 再检查一次权益。
-- 模型权限、分组白名单和提供商资格，都用逐层解析后对应那一层的模型名判断；客户端别名和最终路由模型是两个不同的名字。
-- 统一文本入口和 Gemini 的生成动作在提供商确定后检查计费模型是否有价格，每次换号都重新检查。Responses WebSocket 每轮执行相同检查。缺价时返回本地错误，手动零价可以放行；适用范围和配置方式见[缺价处理](../domains/routing_and_billing.md#missing_model_pricing)。
-- 上游成功后才增加 RPM 软计数，并安排正常的用量结算。本地拦截、内容拒绝和上游失败分别写各自的审计和运维记录。
-- HTTP 200 里出现的失败事件，按事件表达的实际状态执行提供商策略。HTTP 转换和 WS 桥已执行健康策略时，将状态码和停调结果通过 `httpapi.AppliedOpenAIResponseEffects` 显式传给输出端，输出端复用这些结果；未传入证据时，输出端执行终态健康策略。HTTP 提交、重试窗口和实际输出三者分开记录。
-- 响应里的模型别名恢复只修改协议的元数据字段，正文里恰好相同的字符串保持原样。工具恢复状态由 `requeststate.ResponseTools` 按请求和 turn 持有，WS 会话更新时，还在输出的 turn 保持自己的状态。协议算法在 `protocol/bridge`，HTTP 输出适配在 `gateway/httpapi`。
+### 阶段顺序不变量
 
-### 执行器装配
+1. 复合 Key 先按完整 `前缀/模型` 选组，Key 级模型重定向处理去掉前缀后的模型。
+2. 客户端协议准入基于普通 Key 绑定分组或复合 Key 最终选中分组；被拒请求在协议 handler、选号和计费之前终止。
+3. 等待用户并发槽期间余额、订阅或额度可能变化，拿到用户槽后须经 BillingCache 二次检查权益。
+4. 模型权限、分组白名单和提供商资格按逐层解析后的对应层模型名判断，客户端别名与最终路由模型区分处理。
+5. 统一文本入口与 Gemini 生成动作在选定提供商后检查计费模型价格（每次换号重检），Responses WS 每轮执行同检；缺价返回本地错误，手动零价放行，见[缺价处理](../domains/routing_and_billing.md#missing_model_pricing)。
+6. 上游成功后才递增 RPM 软计数并安排用量结算；本地拦截、内容拒绝和上游失败分记各自审计与运维记录。
+7. HTTP 200 内的失败事件按实际状态执行提供商策略；HTTP 转换或 WS 桥已执行的健康策略经 `AppliedOpenAIResponseEffects` 传给输出端复用，未传入时由输出端执行终态策略；HTTP 提交、重试窗口与实际输出分开记录。
+8. 响应模型别名恢复仅修改协议元数据，正文原样保留；工具恢复状态按请求与 turn 持有（WS 会话更新时，在途 turn 保持自身状态）。
 
-HTTP 入口由 app 构造，执行器、会话和资源都由 app 提供，路由直接拿到需要的接口实现。
+### 模块边界与运行不变量
 
-- 文本：OpenAI Responses、Chat 和 Messages 的 HTTP 绑定直接接收用户槽和图片槽资源（各一份）、Cyber、审核、归属读取和资金接口。`gateway/httpapi/openaiattempt.Runtime` 绑定平台单次执行能力、调度反馈、槽位和完成器，每次 `Open` 创建一份独立的尝试状态。三个文本入口通过 `UnifiedTextExecutor` 调用所选提供商的单次执行器。强制 Antigravity 和 Gemini 原生入口使用 `textattempt.Runtime`，同样是 app 绑定平台调用、选择反馈和资源，每次 `Open` 只创建请求和尝试状态。
-- WS：入站和每轮单步执行的接口由 `gateway/ws/httpapi` 装配，和文本运行时共用同一套尝试绑定。
-- 媒体：图片、视频、音频、Embeddings 和 Alpha Search 的请求适配和完成捕获由 `gateway/httpapi/mediaentry` 装配，失败输出和资源释放与文本共用。
-- Wire 手动绑定执行器和完成器，接口测试使用相同的绑定和函数句柄夹具。平台单次交换和 WS relay 直接绑定执行器。
-- 图片：单次执行绑定 `OpenAIImagesExecutor`，和文本共用 `OpenAIRequests`、`OpenAIResponseOutput` 和应用活动屏障；图片工具冷却通过提供商接口写入。图片意图提示由 HTTP 按每次尝试保存，分组改写后重新判断，所以上一次尝试的提示不会带到下一个提供商。
-- `gateway/text` 负责文本提供商循环和计数预检，预算各自独立。`gateway/requeststate` 保存报文副本、引导规范化结果和请求内的模型替换缓存。`gateway/modeltrace` 维护响应模型的恢复链。
-- `forward` 组织通用的请求准备和转换步骤，技术层的 provider 和 HTTP 适配负责交换、读写和 Flush。平台单次执行由 upstream 和 gateway/provider 提供，提供商切换循环只有一个。
-- Responses：执行器负责请求准备、转换和 HTTP 单次执行，复用已有的 `OpenAIRequests`、`OpenAITextExecutor` 和输出实例。协议转换和 Compact 错误恢复在当前提供商内完成，不重新跑提供商循环。失效密文的读写在 HTTP 和 WS 之间共用会话存储和 TTL；请求转入 WS 时，模型映射和请求变换沿用 HTTP 阶段的结果。
-- 文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 作为参数传给执行器。前者携带客户端识别、图片意图、粘性预取等执行提示，后者携带分组、路由计划和客户端协议。分组在写入和读取时都复制一份，后续 attempt 绑定变更后的分组，之前的请求快照保持不变。各执行适配层读取同一份状态，telemetry 只保存观测用的关联信息。
-- Messages 在选号前解析 Claude Code、版本和 Thinking 身份；选号后才执行平台专有策略、warmup 拦截和串行队列。
-- 提供商循环和完成规则由 text 和 completion 包负责，app 只绑定平台单次执行接口。执行入口使用 `gateway/provider.SelectionResult`，其中包含实际的提供商目标、等待计划和本次反馈参数；调度核心只读取去掉凭据的候选。
-- OpenAI HTTP 的并发辅助和本地图片限制器由 app 构造成一个 `OpenAIHTTPResources`，文本、媒体、WS 和其余兼容入口共用。这个资源对象只接收静态的图片限制参数；用户槽绑定进入等待前的请求 context，context 取消时释放；图片的等待、拒绝和独立作用域各自保留。
-- `gateway/searchtools` 组织工具模拟，`gateway/moderationflow` 准备审核完成所需的输入，`completion.Recorder` 读取资金和用量的独立快照。`ws` 和 `live` 各自管理连接和 turn 状态；摘要、隔离和归属值由 `session` 提供，Redis 协议由 `rediscache` 适配。错误规则和发布后不可变的快照在 `errorpolicy`，调度健康和重试由其他模块决定。
+| 模块 | 职责边界 |
+| --- | --- |
+| `gateway/httpapi`、`gateway/ws`、`gateway/live` | HTTP/WS/Live 协议适配、同步写入与 Flush、连接与 turn 生命周期 |
+| `gateway/text`、`gateway/forward` | 文本提供商切换循环、计数预检、通用请求准备与转换策略 |
+| `gateway/requeststate`、`gateway/modeltrace` | 报文副本、规范化结果、执行提示、路由状态与响应模型恢复链 |
+| `gateway/provider`、`upstream`、`protocol/bridge` | 平台凭据与出站策略、上游单次交换、纯协议转换算法 |
+| `gateway/completion`、`gateway/searchtools`、`gateway/moderationflow` | 幂等完成结算、工具模拟与审核完成编排 |
+| `gateway/session`、`errorpolicy`、`scheduler` | 会话摘要与归属、不可变错误策略快照、无凭据候选调度 |
 
-WS 每轮读取在线参数快照，并通过请求、输出、会话和选择接口执行。部署默认值由 app 提供，管理端可以覆盖。连接池在第一次使用时启动，关闭屏障保证退出后连接池无法重建。Grok、Live 和 WS 共用拨号器，Agent Identity 凭据失效也作用于这个池。入站、池化、透传和 HTTP 桥接各有自己的恢复和取消规则，测试直接验证帧执行和共享状态。
+运行时关键不变量：
+
+- 单一故障转移循环：跨协议文本共用唯一提供商切换循环；平台单次交换、单步协议转换和 Compact 错误恢复在当前提供商内完成，不重入外层切换循环。
+- 尝试级状态隔离：每次 attempt 创建独立状态（如图片意图提示在分组改写后重判，不跨尝试残留）。分组在读写时均复制，后续 attempt 绑定新分组而不改写先前快照；telemetry 只保存关联观测信息。
+- Messages 身份解析时机：选号前解析 Claude Code、版本和 Thinking 身份，选号后再执行平台专有策略、warmup 拦截和串行队列。
+- 共享资源与释放：用户槽绑定等待前请求 context（取消即释放），图片本地限流保留独立等待、拒绝和作用域；Responses 失效密文在 HTTP 与 WS 间共享会话存储和 TTL，HTTP 转 WS 时沿用已解析的模型映射与请求变换。
+- WS 连接池与停机屏障：WS 连接池首次使用时懒启动，关闭屏障保证退出后无法重建；Grok、Live 与 WS 共用拨号器，Agent Identity 凭据失效同步作用于该池；WS 每轮读取在线参数快照（管理端可覆盖进程默认值）。
 
 <a id="apikey_authentication"></a>
 ## 认证与准入
 
-凭据提取和认证错误展示由 `apikey/httpapi` 处理。Key、用户、团队和 IP 校验在 `apikey.Authenticate` 里完成，返回的 `AccessSnapshot` 区分 owner、payer、actor 和 team。`gateway/httpapi` 的通用认证入口和 Google 认证入口组合了复合 Key 选组、模型改写和 `gateway/admission` 的资金准入，HTTP 适配层负责请求上下文和观测数据。普通协议门禁在读取请求体之前执行；Google 入口和通用入口各自的错误检查顺序不同。
+凭据提取与认证错误展示归 `apikey/httpapi`，Key、用户、团队和 IP 校验归 `apikey.Authenticate`（`AccessSnapshot` 区分 owner、payer、actor 和 team）。网关认证入口在此之上组合复合 Key 选组、模型改写与资金准入。
 
-认证缓存版本为 48。来源数据和请求里的嵌套 map、slice、指针都会复制，复合 Key 选组改动的是副本，共享快照保持不变；分组手动设置的 Fast 策略和 Key 的 `force_claude_1h_cache` 开关在缓存读写中完整保存。
+认证缓存版本号、深拷贝隔离与失效机制见[认证快照](provider_scheduling_and_cache.md#认证快照)。
 
-通用认证入口和 Google 认证入口在最终选组授权后绑定 `AccessSnapshot`、Fast 策略和 `force_claude_1h_cache`，付款用户取这个请求的付款主体，跨协议回退后仍可读取该 Key 的策略。认证失败时，供 Ops 使用的已加载 Key 信息和认证成功的快照分开存放，Key 能加载出来并不代表授权成功。
+- 策略绑定与失败隔离：最终选组授权后绑定 `AccessSnapshot`、分组手动 Fast 策略与 Key 的 `force_claude_1h_cache`（跨协议回退后仍可读取），付款用户取本次请求付款主体。认证失败时，供 Ops 使用的已加载 Key 信息与认证成功快照分开存放，能加载出 Key 不代表授权通过。
 
-通用 API Key 认证的步骤：
+通用 API Key 认证步骤：
 
-1. 对无效认证的滥用和过大的 header 做入口限制。通用网关拒绝放在 query 里的 API Key，接受 `Authorization: Bearer` 和 `x-api-key`，Gemini 兼容入口还接受 `x-goog-api-key`。
-2. 从认证缓存或仓储加载 Key，以及需要的 User、Group、Team 和复合映射。加载失败时区分不存在、过载、团队生命周期问题和内部错误。
-3. 每次都检查 Key 是否禁用、团队 Key 的生命周期、成员限额、IP 规则、用户是否存在和启用。
-4. 普通 Key 需要绑定分组，历史上没有绑定分组的 Key 调用模型时返回 `GROUP_REQUIRED`。复合 Key 根据请求模型选中一个映射，得到本次请求对应的普通 Key 视图。然后检查最终分组是否可用、用户是否有权限，并应用 Key 级模型重定向。
-5. 鉴权要求分组和提供商成员关系都已明确。按 Key 的 `auto`、`subscription` 或 `balance` 策略确定资金来源，消费类入口还要检查 Key 的过期和配额、订阅窗口限额或余额。指定的订阅不可用、额度不足或不覆盖最终分组时，直接拒绝。
-6. 写入 API Key、认证主体、角色、分组和可选的订阅上下文。路由随后按最终分组的 `allowed_protocols` 做协议准入，再进入 handler。`last_used_at` 更新失败时，已认证的请求照常继续。
+1. 入口防滥用与大 Header 限制：通用网关拒收 query 中的 Key，接受 `Authorization: Bearer` 和 `x-api-key`，Gemini 兼容入口额外接受 `x-goog-api-key`。
+2. 从认证缓存或仓储加载 Key、User、Group、Team 及复合映射；加载失败区分不存在、过载、团队生命周期异常和内部错误。
+3. 每次检查 Key 禁用状态、团队 Key 生命周期、成员限额、IP 规则，以及用户是否存在和启用。
+4. 普通 Key 须绑定分组（历史未绑定返回 `GROUP_REQUIRED`）；复合 Key 按请求模型匹配映射生成普通 Key 视图；随后校验最终分组可用性、用户权限并执行 Key 级模型重定向。
+5. 确认分组与提供商成员关系明确；按 `auto`、`subscription` 或 `balance` 确定资金来源，消费入口检查 Key 过期与配额、订阅窗口限额或余额；指定订阅不可用、额度不足或不覆盖最终分组时直接拒绝。
+6. 写入认证上下文，路由按最终分组 `allowed_protocols` 执行协议门禁后进入 handler；`last_used_at` 更新失败不阻断已认证请求。
 
-Responses WebSocket 的后续轮次，在拿到用户槽之后、转发上游之前，直接回源复核 Key、用户、团队、成员限额、IP 规则和分组的 WS 协议许可，检查 Key 是否过期和总配额，并重新解析当前订阅、检查余额和滚动限额。回源失败或资格失效时，释放用户槽并关闭连接；旧的认证缓存和 Fast 策略刷新失败时的默认值都不能用来放行。连接固定原来的 Key ID、所有者、付款主体、团队和结算来源；同一凭据重建、付款主体或结算来源变化时要求客户端重连。复核使用独立快照，已放行轮次的计费归属保持不变；已经产生用量的轮次照常完成结算。
+特殊入口与准入边界：
 
-`/v1/usage` 和部分批量任务管理接口跳过消费准入，这样额度用完或 Key 过期后，用户仍能取回或清理自己的数据；身份、用户、团队、IP 和资源归属检查照常执行。用量查询对指定订阅保留它的失效状态，显示来源仍是该订阅。模型列表对复合 Key 无需选中某个分组，但仍要做适用的 Key 额度、余额和订阅检查。
+| 场景 | 准入与复核规则 |
+| --- | --- |
+| 协议门禁 | 普通 Key 不读请求体；复合 Key 在认证阶段预读正文放回并按前缀选组后走同一门禁。被禁协议按客户端协议返回 `403`（记 `LocalPolicyDenied`），在选号、重试、回退和结算前结束；Google 入口与通用入口错误检查顺序各自独立 |
+| Responses WS 后续轮次 | 拿到用户槽后、转发前直接回源复核 Key、用户、团队、成员限额、IP、WS 协议许可、Key 过期/总配额、当前订阅、余额和滚动限额。失败或资格失效时释槽并关闭连接，不用旧认证缓存或 Fast 刷新失败默认值放行。连接固定原 Key ID、owner、payer、team 和结算来源，凭据重建或付款/结算来源变更时要求重连；独立快照保证已放行轮次归属不变，已产生用量照常结算 |
+| 非消费与管理入口 | `/v1/usage` 和部分批量任务管理跳过消费准入（额度耗尽或过期仍可取回/清理数据），身份、用户、团队、IP 与归属校验照常执行；用量查询保留指定订阅的失效状态。模型列表对复合 Key 无需选定单个分组，仍执行适用的 Key 额度、余额和订阅检查 |
+| 分组回退 | 无自动默认分组；分组不可用、客户端受限和无效请求仅回退至管理员显式配置目标，目标须重过用户、团队、协议、模型、订阅和资金检查。运行时重发有效 Key、分组、`RoutePlan` 和粘性预取，不改认证缓存；单请求回退次数有上限，已开始输出或已取消不重放 |
 
-系统里没有自动默认分组。分组不可用、客户端受限和无效请求，只能回退到管理员明确配置的目标，目标分组要重新通过用户、团队、协议、模型、订阅和资金检查。运行时回退会重新发布有效的 Key、分组、`RoutePlan` 和粘性预取，认证缓存保持原样。每个请求的回退次数有固定上限，已经开始输出或已经取消的请求不再重放。
+进入协议 handler 后的预处理顺序：
 
-身份读取使用 authctx 里的记录。已认证的 Key 和供 Ops 使用的加载失败数据，由 apikey HTTP 层分开读取；加载失败的数据不代表任何授权状态。
-
-普通 Key 的协议门禁不读取请求体。复合 Key 在认证阶段先读取请求体并放回原处，用模型前缀确定最终分组，然后执行同一个门禁。被禁用的协议返回该客户端协议自己的 `403`，记录为 `LocalPolicyDenied`，请求在提供商选择、重试、fallback 和结算之前结束。
-
-进入协议 handler 后，请求体按端点的限制读取，JSON 和 Multipart 按宽容模式解析，然后依次做用户提示词替换、协议解析、客户端识别、内容审查和 Ops 元数据设置。HTTP 和 WS 使用 app 注入的同一个 promptpolicy 实例，规则回源和替换在这些调用点执行。用户并发槽在提供商选择之前获取，已经超过用户并发的请求不会占用调度资源。Key 的并发和 RPM 在认证、资金检查之后预占，具体计数和释放规则见 [API Key 请求上限](../domains/routing_and_billing.md#api_key_request_limits)。
+- 按端点限额读取请求体并宽容解析 JSON/Multipart，依次执行用户提示词替换（HTTP 与 WS 共用同一套策略引擎，调用点回源规则并替换）、协议解析、客户端识别、内容审查和 Ops 元数据设置。
+- 用户并发槽在选号前获取；Key 并发和 RPM 在认证与资金检查后预占，规则见 [API Key 请求上限](../domains/routing_and_billing.md#api_key_request_limits)。
 
 ## 模型名称链
 
-一个请求可能同时有以下几个模型名：
+一个请求沿链路依次经过五个模型名：
 
 ```text
 client_model
@@ -141,214 +148,226 @@ client_model
   -> provider/upstream_model
 ```
 
-- `client_model` 是客户端传来的原始模型名；复合 Key 的情况下带分组前缀。
-- `composite_actual_model` 是选组后去掉前缀的模型名。
-- Key 级重定向只匹配一跳，发生在选组之后、分组映射和提供商映射之前。
-- 分组映射产生白名单检查、计费和用量映射链要用的模型候选，白名单检查和计费各自配置模型来源；提供商映射得到最终发给供应商的路由键。
-- `requested_model`、`upstream_model` 和去重后的 `model_mapping_chain` 分别保存客户端意图、实际发送的模型和变换路径。
+- `client_model`：客户端传入的原始模型名（复合 Key 含分组前缀）。
+- `composite_actual_model`：复合 Key 选组后去掉前缀的模型名。
+- `api_key_redirected_model`：Key 级一跳重定向结果，位于选组之后、分组与提供商映射之前。
+- `group_mapped_model`：分组映射结果，用于白名单检查、计费和用量映射链（白名单与计费各自配置模型来源）。
+- `provider/upstream_model`：提供商映射得到的最终路由键；`requested_model`、`upstream_model` 和去重后的 `model_mapping_chain` 分别记录客户端意图、实际发送模型和变换路径。
 
-模型名只在配置了映射，或者同一型号需要平台编码转换时才会改变。拼写、版本分隔符、日期和 effort 后缀都保持客户端原样；请求之后的价格、缓存和健康状态使用各自已确定的完整模型 ID。管理员配置的失败回退也会记录模型链，回退前后的模型价格互不借用。
+### 名称变换、范围与协议回退
 
-协议 handler 可以在每次 failover attempt 时根据所选提供商重新构造请求，已经解析过的一跳映射只用一次。模型列表要从当前可请求的目标反推可展示的别名。保存映射时允许目标暂时不可路由，实际请求时返回标准的无提供商或无模型错误。
+- 保留客户端形态：仅在配置映射或同型号跨平台编码转换时改名，拼写、版本分隔符、日期和 effort 后缀保持原样；后续价格、缓存和健康状态使用各阶段确定的完整模型 ID。失败回退同步记录模型链，回退前后价格互不借用。
+- 每次尝试重构造：failover attempt 可按新提供商重构造请求，已解析的单跳映射只执行一次。模型列表从当前可路由目标反推别名；保存映射允许目标暂不可路由，实际请求时返回标准无提供商或无模型错误。
+- 路由与尝试隔离：`routing.RoutePlan` 保存最终分组、入口协议、Key 到分组模型链及白名单（`RestrictModels`、`RestrictionModelSource`）与计费模型来源；`AttemptRoute` 仅存请求内并在 fresh 或数据库复核后重算，提供商映射按调用时读取，不写回共享缓存。
+- 模型范围与通配符：提供商未配置模型范围或为空时，使用平台与认证类型默认目录；非空清单以清单为准，精确映射可引入自定义模型。末尾通配符参与匹配但不展示；手动 `*` 仍受协议、认证和端点硬能力约束。
+- 协议回退与冷却顺序：候选准入与模型冷却按"协议 -> 提供商状态 -> 模型窗口"顺序判断（窗口原始冷却、overages 可调度性与剩余时间分别计算）。`protocol_fallbacks` 为每个入口存有序目标数组：未配置自动匹配，空数组仅原生协议，非空数组限定转换目标；每个候选先试原生协议，再试已有单步转换。
+- 计费与平台特性解析：计费模型与实际上游模型分开解析；OpenAI 普通/Compact 映射与 Bedrock 区域路由复用 `ModelPolicy`；确认 Lite 标记后，OAuth 提供商做完整工具规范化，API Key 提供商限制并行工具。
+- 调用点延迟读取：协议地址（含 Kimi/Zhipu/DeepSeek 适配）、RPM/会话/串行/窗口配置、Codex 图片桥接/工具/指纹模式及 Header 覆写均在调用点读取最新提供商字段。
+- Codex 请求内状态：Codex 身份和指纹的请求内状态仅归 HTTP 适配层，Header 与正文共用同次生成 ID，failover 按固定顺序覆盖，异步完成不持有 HTTP 状态。
 
-`routing.RoutePlan` 保存本次的最终分组、入口协议和从 Key 到分组的模型链，handler 把它传给后续的候选解析。模型链快照还保存分组白名单的 `RestrictModels`、`RestrictionModelSource` 和单独的计费模型来源，转换为 `GroupMappingResult` 时全部带上。候选仍然按当前提供商快照和最终分组复核协议；提供商映射在使用时才读取，attempt 的结果只属于当前请求。分组发生回退时要重新授权，平台请求改写和响应模型恢复仍由执行链负责。
+### 响应模型采集
 
-`requeststate.AttemptRoute` 记录本次的候选结果和协议，`RoutingState.ResolveAttempt` 在 fresh 复核或数据库复核后重新解析。这个状态只存在于请求中，提供商的持久记录不保存它。协议相关的地址和 Kimi、Zhipu、DeepSeek 的适配规则由 `provider.ProtocolTarget` 根据协议和提供商记录计算。执行适配层使用的 `ExecutionProvider` 由提供商记录和本次路线组成；模型映射在调用时读取，上一次尝试的结果不会写回共享的提供商缓存。
+`ResponseModelObserver` 仅从上游响应元数据采集模型名（正文、工具参数与转换器生成值不参与），按值随结果和完成快照传递，不影响失败记录与结算资格。每次出站尝试独立观察，重试或恢复时清空上次值，WS 按 turn 和 response ID 区分：
 
-候选协议快照、协议准入和模型冷却判断，都由 `gateway/provider.ModelPolicy` 根据提供商记录和本次 `AttemptRoute` 计算。选择和诊断按"协议、提供商状态、模型窗口"的顺序检查。原始窗口是否在冷却、允许 overages 时是否可调度、剩余时间，这三项分别计算。模型目录和候选协议复核使用同一份快照，动态模型映射在需要时才读取。
-
-提供商没有配置模型范围或范围为空时，使用平台和认证类型对应的默认目录；配置了非空清单时，以清单为准，精确映射可以引入自定义模型。末尾的通配符参与匹配，但不会作为模型名展示；手动配置的 `*` 同样受协议、认证和端点硬能力的限制。`protocol_fallbacks` 为每个入口保存一个有序的目标数组：不配置时自动匹配，空数组表示只走原生协议，非空数组限定可以转换到的目标。每个候选先尝试原生协议，再尝试已有的单步转换。
-
-计费模型和实际上游模型分开解析；OpenAI 普通和 Compact 映射、Bedrock 区域路由直接使用 `ModelPolicy`。入口确认 Lite 标记后，平台适配层按提供商类型选择：OAuth 提供商做完整的工具规范化，API Key 提供商限制并行工具，适用的入口范围保持不变。
-
-协议地址通过 `provider.ProtocolTarget` 读取。RPM、会话数量、串行队列和窗口配置通过 `provider.RuntimeConfig` 读取，执行时按调用时点读取字段。Codex 图片桥接覆盖、工具策略和指纹模式由 provider 模块管理，平台资格、顶层和嵌套设置的优先级、旧值兼容都在这里处理。提供商的 Header 覆写由 `provider/provider` 在调用点应用 egress 策略；即使绑定成方法回调，也是在执行时读取提供商的最新字段，凭据和覆写表在调用时才取用。
-
-Codex 身份和指纹的请求内状态只由 HTTP 适配层持有。提供商模块负责组合输入，平台库只做纯计算和报文修改。状态同步发布，Header 和请求体使用同一组本次生成的 ID，failover 时按固定顺序覆盖；异步的完成处理不持有这份 HTTP 状态。
-
-上游响应里的模型名通过协议层的 `ResponseModelObserver` 采集，随执行结果和完成快照按值传递。每次实际出站的尝试单独观察；恢复或重试时清空上一次尝试的模型，WebSocket 按 turn 和 response ID 区分。Responses 优先采用终态里声明的模型，Chat 和 Messages 采用第一次有效的声明，Gemini 采用最后一次有效的版本。采集只读元数据，正文、工具参数和转换器生成的模型名都不参与；失败记录和结算资格不受采集影响。
+| 协议 | 采集规则 |
+| --- | --- |
+| Responses | 优先采用终态中声明的模型 |
+| Chat / Messages | 采用第一次有效声明 |
+| Gemini | 采用最后一次有效版本 |
 
 <a id="account_selection_and_failover"></a>
 ## 提供商选择与故障转移
 
-提供商选择的输入有：本次的分组、请求模型、分组映射结果、会话 hash、已失败的提供商集合、端点能力和可选的强制平台。先处理客户端限制等需要回退的情况，再按最终分组的 `scheduler_type` 选择基础调度器或高级调度器。候选覆盖组内所有平台的提供商，组外的提供商不参与。选择器综合考虑：
+选择输入包括分组、请求模型、分组映射结果、会话 hash、已失败提供商集合、端点能力和可选强制平台。先处理客户端限制等分组回退，再按最终分组的 `scheduler_type` 选择 `basic` 或 `advanced`；候选覆盖组内所有平台，组外不参与。
 
-- 组内成员关系、专用入口的强制平台、分组和提供商的模型范围，以及一跳映射。
-- 提供商是否启用、是否过期、代理、凭据、上游资格、临时不可调度、模型和提供商的限流、配额状态。
-- 调度快照的可用性、粘性会话、优先级和负载、最近使用时间、并发槽和可等待队列。
-- 特殊端点能力，例如图片、Realtime/WS、Grok 付费媒体资格，或站点特有的模型能力。
+选择器综合评估：
 
-候选排序和高级评分只看调度信号；上游声明倍率、`upstream_cost` 权重和 OAuth 参考倍率都不在评分里。提供商本地的 `rate_multiplier` 和价格配置里的上游计费模型来源，在选定提供商、完成模型映射之后用于结算，不影响候选资格和排序。
+- 组内成员关系、专用入口强制平台、分组和提供商模型范围及一跳映射。
+- 提供商启用状态、有效期、代理、凭据、上游资格、临时不可调度、模型与提供商限流及配额状态。
+- 调度快照可用性、粘性会话、优先级与负载、最近使用时间、并发槽和可等待队列。
+- 特殊端点能力（图片、Realtime/WS、Grok 付费媒体资格或站点特有模型能力）。
 
-`basic` 走历史的选择路径。`advanced` 在上面的硬约束都通过后调用通用评分核心，按 Top-K 加权顺序尝试候选，每次尝试前复核并发槽。Top-K、权重和粘性开关按字段合并：分组的 `advanced_scheduler_overrides` 优先，缺的字段使用网关运行时设置里的全局值，空对象表示全部继承。OpenAI 和 Grok 在评分核心上加入 previous response、订阅、transport、Compact 和额度能力；其他平台提供各自的候选和硬过滤。
+模式与租约规则：
 
-运行时只在本次实际使用高级模式时回写错误率、TTFT 和切换统计，基础模式的请求不影响高级评分。`count_tokens`、可用性探测等只需选出提供商的入口，同样按最终分组决定模式；它们使用无槽选择，提供商并发槽和会话数量保持不变。
-
-提供商选择由 `scheduler` 里的通用选择器、兼容平台选择器和 Gemini 选择器执行，`gateway/provider/selection` 提供平台资格和带凭据的执行目标。Messages、文本、媒体、WS/Live、计数和任务等使用方，由 app 绑定到对应的选择实例；平台执行通过已绑定的单次执行接口完成。`SelectionInput` 使用最终的 `RoutePlan` 和独立的提供商候选；每次 attempt、fresh 复核和数据库复核都重新解析候选，模型和协议的解析结果只留在当前请求里。
-
-`AcquireUser` 返回请求的 Lease 和带计数归属的 WaitResult；`Lease.Select` 返回本次的 AttemptLease。选择结果可能带一个 WaitPlan，由 scheduler 执行等待循环，HTTP 同步观察并输出心跳。等待计数只释放确实拿到的那部分；提供商信息补全失败等后续准备错误，会立即归还已登记的槽位。请求和尝试的组合释放可以重复调用，结果相同；成功或部分成功时会话是否保留，由 `Finish` 决定。用户等待结束后，在同一位置复查权益。
+- 排序与计费解耦：候选排序和高级评分只看调度信号，上游声明倍率、`upstream_cost` 权重和 OAuth 参考倍率不参与评分；提供商本地 `rate_multiplier` 与上游计费模型来源在选号与映射完成后用于结算。
+- 调度模式：`basic` 走历史路径；`advanced` 在硬过滤后调用通用评分核心按 Top-K 加权尝试并复核并发槽，参数按分组覆盖 -> 全局运行时设置合并（详见[调度器模式](provider_scheduling_and_cache.md#advanced_scheduler_selection)）。
+- 反馈与无槽入口：仅本次实际使用 `advanced` 时回写错误率、TTFT 和切换统计；`count_tokens` 与可用性探测等无槽入口同样按最终分组选模式，不占并发槽与会话数。
+- 租约与等待协议：`AcquireUser` 返回请求 `Lease` 和带计数归属的 `WaitResult`；`Lease.Select` 返回 `AttemptLease` 及可选 `WaitPlan`（scheduler 执行等待循环，HTTP 同步发心跳）。
+- 槽位回滚与复查：仅释放确认拿到的等待计数，提供商补全失败等后续错误立即归还槽位，重复释放幂等；会话是否保留由 `Finish` 裁决；用户等待结束后原位复查权益。
 
 ### 计数与辅助入口
 
-Messages 的 `count_tokens` 由 app 直接构造 HTTP Handler。HTTP 只持有受控的计数目标和去掉凭据的提供商快照，选择和平台执行由 app 连接。流程是先做资金预检，再无槽选择，按实际提供商的平台执行计数，每次尝试都从原始报文重新做分组映射。Anthropic 和 OpenAI 使用已有的执行器，Gemini 在 OAuth scope 不足时回退，Grok、Kimi、Zhipu、DeepSeek 在本地计数；Qoder、Antigravity 和 Bedrock 返回不支持。Responses 的 `input_tokens` 同样不占提供商槽。计数既不提交费用，也不完成任务。文本入口和计数入口共用兼容指标的采样计数器。
-
-OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检，由 app 单独构造的 `OpenAITokensHandler` 处理，绑定同一个请求生命周期屏障。计数先做分组路由规划，再检查资金，然后做一次无槽选择。Responses 预检先检查资金，再做分组路由规划，选择器交来的每个提供商槽都会释放。Grok 本地估算完全在本地完成，跳过资金检查、选号和上游请求。这些入口不生成请求，所以也没有完成提交接口。计数执行绑定 `OpenAIAuxiliary`，路由计划和选择分别使用 `RoutePlanner` 和 `Compatible`；提供商目标只在受控的转发方法内部携带凭据。
-
-AlphaSearch 和 Embeddings 也复用固定的请求实例和响应实例，搜索授权的元数据由 `provider.OpenAIAuthorization` 提供。
-
-Live 和 sideband 的 HTTP 入口由 app 直接构造，`LivePorts` 共用审核、资金准入和并发服务。分组的协议和功能门禁在读取请求体之前执行；先审核，再检查资金，然后立即拿用户槽。会话创建、身份归属和 relay 绑定 `OpenAILiveExecutor`；纯会话编排在 `gateway/live`，存储、租约和拨号器与其他入口共用。observer 的取消表和等待计数由 `gateway/live.ObserverManager` 持有，`OpenAILiveExecutor` 和它创建的运行时引用同一个管理器；app 把执行器登记在对应的关闭阶段。Live 记录的用量费用为零。报文之外的模型重定向由 HTTP 适配层的一个函数统一提供，Live 和 WS 使用同样的一跳映射和追踪规则。
+| 入口 | 执行顺序与资源边界 |
+| --- | --- |
+| Messages `count_tokens` | 先资金预检，再无槽选择，每次尝试从原报文重做分组映射；Anthropic/OpenAI 走上游，Gemini 在 OAuth scope 不足时回退，Grok/Kimi/Zhipu/DeepSeek 本地计数，Qoder/Antigravity/Bedrock 返回不支持；不计费不完成，与文本共用兼容指标采样器 |
+| OpenAI 兼容计数 / Responses `input_tokens` / Grok 估算 | OpenAI 兼容计数先路由规划、资金检查再无槽选择；Responses 预检先资金检查再规划并归还选号槽位；Grok 本地估算完全本地完成（跳过资金、选号和上游）；均无完成提交 |
+| AlphaSearch / Embeddings | 复用固定请求与响应处理，搜索授权元数据由 provider 模块提供 |
+| Live / sideband | 读体前执行分组协议与功能门禁，顺序为审核 -> 资金 -> 立即取用户槽；会话、observer 取消与等待计数独立管理并在关闭阶段按序释放，用量费用为零；报文外模型重定向与 WS 共用单跳映射和追踪规则 |
 
 ### 会话哈希
 
-客户端会话 Header、Grok 实际选号、强制平台、手动 Header 的判断，以及 OpenAI 会话哈希的请求绑定，由 `gateway/httpapi` 负责。内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 `gateway/session` 提供。手动信号、内容回退、无状态的图片入口和用量日志各有自己的优先级，只用于日志的 Header 不参与通用选号。新旧两种哈希从同一个种子派生，旧哈希通过 requeststate 交给现有的粘性读取逻辑。
+客户端会话 Header、Grok 选号、强制平台、手动信号、内容回退、无状态图片入口与用量日志各有优先级，仅用于日志的 Header 不参与通用选号。内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 `gateway/session` 提供；新旧两种哈希从同一种子派生，旧哈希通过请求状态交给粘性读取。
 
 ### 故障转移
 
-故障转移只处理适配器包装成 `forward.UpstreamFailoverError` 的可切换错误。这个值保存错误阶段、归属、原始响应和重试相关信息。OpenAI 特有的容量错误和请求过大错误在 gateway/provider 里识别，通用代码不导入具体平台。`failover.FailoverState` 记录切换次数、失败的提供商和最后一个错误，根据提供商 pool-mode 的重试次数决定：在同一个提供商上重试、排除它后选下一个、短暂等待，或者放弃。
+故障转移只处理包装为 `forward.UpstreamFailoverError` 的可切换错误（含错误阶段、归属、原始响应和重试信息）；OpenAI 特有的容量与请求过大错误在 provider 层识别。`FailoverState` 按提供商 pool-mode 重试预算决定同提供商重试、排除换号、短暂等待或放弃。
 
-普通的同提供商重试固定等待 500ms。被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，之后每次最多等 8s；客户端取消会立即打断等待。提供商健康模块按错误分类写入临时不可调度标记。Messages 重试用尽后的冷却会跳过请求级瞬时故障和池模式提供商；HTTP 返回非 2xx 本身不会让提供商停止调度。
-
-粘性会话已经绑定提供商时，换提供商可能需要把普通输入按缓存读取计费，反映缓存没有命中的实际成本。选择耗尽后的单提供商重试和等待都有固定上限；客户端 Context 取消时，选号和等待立即停止。
+- 退避策略：普通同提供商重试固定等待 500ms；标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，上限 8s；客户端取消立即打断等待。
+- 冷却与停调：提供商健康模块按错误分类写入临时不可调度；Messages 重试用尽后的冷却跳过请求级瞬时故障和池模式提供商；HTTP 非 2xx 本身不直接停调提供商。
+- 粘性换号与上限：已绑定粘性的请求换提供商时，可能把普通输入按缓存读取计费以反映缓存未命中成本；选号耗尽后的单提供商重试与等待有固定上限，客户端取消立即停止选号和等待。
 
 <a id="protocol_conversion_boundary"></a>
 ## 转发与流式输出
 
 ### 平台转发
 
-Messages、Claude 的 Chat/Responses 转换和 `count_tokens` 使用 `gateway/provider/messageforward.Runtime`。app 绑定凭据来源、HTTP 池、健康反馈、TLS、分组策略和搜索实例；普通、API Key 透传、Vertex 和 Bedrock 分支调用各自的 upstream 执行器。每次尝试单独保存 Beta 过滤结果、工具名映射和错误诊断，HTTP 适配层负责响应提交、Header、Flush 和错误报文。
+每次 attempt 用原始或规范化请求结合本次提供商重建供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置与上游模型。
 
-Anthropic 上游承接 Chat Completions 或 Responses 时，单独的转换读取器在改写客户端模型之前，先采集原始 `message_start` 里声明的模型。流式和缓冲两条路径都把这个声明写入转发结果，再进入完成快照；上游没有声明时，这个字段保持为空。
+通用报文与转换算法在 `protocol/{anthropic,openai,gemini,google,bridge}`，采样与 Max effort 策略在 `gateway/forward`，每次请求或 attempt 创建独立转换状态。HTTP 层负责同步写入与 Flush，upstream 负责首次输出判定、取消、失败排水和提供商内重试，外层网关决定换号。
 
-Messages、统一文本和计数入口的路由计划由 `gateway/provider.RoutePlanner` 读取分组策略并调用 routing，摘要和隔离使用 `gateway/session`。重试用尽后的兼容冷却由 `provider.RetryCooldown` 读取最新的池模式后决定。完成器绑定 app 构造的记录器。调试输出的文件句柄由一个 `requestdebug.Trace` 持有，请求和后台工作都结束后才关闭。
-
-Gemini 和 Antigravity 的凭据来源、传输和动态读取接口由 app 注入 `gateway/provider/googleforward`。平台准备器不接触 Gin 和完整配置；`gateway/httpapi` 负责三种客户端协议各自的错误格式、规则覆盖和 Ops 写入顺序。图片计数和工具名恢复状态按 attempt 创建；图片数取单个响应片段里内联图片数的最大值，没有观测到图片时才回退到原模型名。
-
-OpenAI 和 Grok 共用的响应回合状态头由 `gateway/httpapi.CodexTurnStateHeaders` 处理。首次输出还在暂存时不登记来源，实际提交后才写入会话组件的提供商来源表。请求带回的值，只有确认来自另一个提供商时才移除；来源未知、来自同一提供商或已过期时继续透传。来源按 API Key 和客户端原始会话区分。配额头和回合状态的强制透传也在 HTTP 适配层，调用时机由流读取器决定。
-
-上游非流式响应的有界读取由 infra/httpclient 执行，默认上限 128 MiB，多读一个字节来判断是否超限，并保留原始错误链。gateway/httpapi 记录 Ops 并输出 Anthropic 或 OpenAI 格式的 502；读取函数不负责关闭响应体，重试和取消由执行链决定。
-
-每次 attempt 都用原始或规范化后的请求，结合本次的提供商重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking 和工具配置以及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 用客户端协议返回最终结果。
-
-通用的报文和转换算法在 `protocol/{anthropic,openai,gemini,google,bridge}`。采样和 Max effort 选项由 `gateway/forward` 的型号策略提供；平台适配层选择 schema、thinking、签名和工具选项，并注入时间和 ID 生成器；每个请求或 attempt 创建独立的转换状态。Gemini 的 Messages 流和 OpenAI 兼容流按各自的 thinking、index 和 usage 观测顺序逐事件返回输出。HTTP 适配层提供同步写入和 Flush；upstream 执行器负责首次输出判定、取消、失败后的排水和提供商内重试；换号由外层网关决定。流式输出保持逐事件转发，实际输出开始后的重试规则保持不变。
+- Anthropic / Claude（普通、API Key 透传、Vertex、Bedrock）：每次 attempt 单独保存 Beta 过滤、工具名映射和错误诊断；重试用尽后的兼容冷却按最新池模式判定；调试追踪句柄待请求和后台工作全部结束后关闭。
+- Anthropic 跨协议模型采集：承接 Chat Completions 或 Responses 时，转换读取器先在改写模型前采集原始 `message_start` 声明的模型（流式与缓冲一致，未声明留空）。
+- Gemini / Antigravity：按 attempt 创建图片计数和工具名恢复状态；图片数取单个响应片段内联图片最大值，未观测到图片才回退原模型名；HTTP 层负责三种客户端协议错误格式、规则覆盖和 Ops 写入顺序。
+- OpenAI / Grok 回合状态头：首次输出暂存时不登记来源，实际提交后写入按 API Key 与客户端原始会话区分的来源表；请求带回的值仅在确认来自另一提供商时移除（来源未知、同提供商或过期继续透传）；配额头和回合状态强制透传时机由流读取器触发。
+- 非流式有界读取：`infra/httpclient` 默认上限 128 MiB（多读 1 字节判超限并保留原错误链），超限时记录 Ops 并输出对应协议 502；读取函数不关响应体，重试和取消由执行链决定。
 
 ### 流式输出与重试窗口
 
-流式响应有一个不可逆的时间点。调用上游前通过 `HeartbeatAdjustedWrittenSize` 记录扣除全部心跳后的写出字节数；如果本次 attempt 已经向客户端写出实际业务内容，就不能再换提供商，否则两个上游的响应会拼成一条损坏的流。已记录的心跳不算业务输出。以下事件可以留在 attempt 缓冲里，为输出前的 failover 留出空间：Responses 的 `response.created` 和 `response.in_progress` 前导事件、等待终态判定的可重试 `error` 帧。不可重试的错误按事件及时转发。实际输出开始后，错误只能按当前协议追加允许的流错误事件，或者直接结束连接。非流式请求在还没写响应时，才能进入下一次 failover。
-
-错误分为五类：本地准入、业务能力不足、调度容量不足、可切换的上游错误、不可切换的转发错误。协议准入拒绝时，Anthropic 返回 `permission_error`，OpenAI 返回 `protocol_not_allowed`，Google 返回 `PERMISSION_DENIED`，此时还没有选中提供商。Ops 采集记录归属、endpoint、实际提供商平台、模型和所选提供商；没有选中提供商时平台记为 unknown。返回给客户端的错误隐去凭据、内部代理和数据库错误。
-
-Qoder 流式请求进入上游后采用完成后释放：客户端断开时停止下游输出，在预算内收集完尾部 usage 后再释放槽位。等待中的请求和非流式请求按各自的取消策略释放。WS 入站连接和 Live 租约各自续租，租约丢失时各自取消，两者与请求 Lease 互相独立。
+- 不可逆点：调用上游前通过 `HeartbeatAdjustedWrittenSize` 记录扣除全部心跳后的写出字节数；一旦写出实际业务内容，不可换提供商（防止拼出损坏流），已记录的心跳不算业务输出。
+- 暂存窗口：Responses 前导事件（`response.created`、`response.in_progress`）与等待终态判定的可重试 `error` 帧可留在 attempt 缓冲以保留 failover 窗口；不可重试错误及时转发。实际输出开始后只能追加协议允许的流错误事件或断开连接；非流式仅在未写响应前可 failover。
+- 错误分类与协议拒绝：错误分为本地准入、业务能力不足、调度容量不足、可切换上游错误、不可切换转发错误五类。协议准入拒绝（选号前）错误码：Anthropic 返回 `permission_error`，OpenAI 返回 `protocol_not_allowed`，Google 返回 `PERMISSION_DENIED`。
+- 观测与脱敏：Ops 记录归属、endpoint、实际平台（未选号记 `unknown`）、模型与提供商；对外错误隐去凭据、内部代理和数据库细节。
+- 特殊释放与独立租约：Qoder 流式请求进入上游后采用完成后释放（客户端断开停写下游，在预算内收完尾部 usage 后释放槽位）；等待中和非流式按各自取消策略释放。WS 入站连接与 Live 租约各自续租、失租自取消，与请求 Lease 独立。
 
 <a id="sse_keepalive"></a>
 ## SSE 保活
 
-保活按连接分别处理。上游心跳只表示 TokenRouter 与提供商之间仍有数据到达；客户端经过的反向代理和 CDN，由 TokenRouter 自己维护下游活跃。文本请求在 `TextRequestTiming` 后安装 `DownstreamSSEKeepalive`，覆盖 Messages、Chat Completions、Responses、Gemini 及 Qoder 的文本输出。协议转换和同协议直通共用这一层，文本读取器只保留上游空闲超时与断开后的用量收集。
+保活按连接分别维护：上游心跳只说明 TokenRouter 与提供商之间有数据到达，下游反向代理与 CDN 活跃由装在 `TextRequestTiming` 后的统一组件 `DownstreamSSEKeepalive` 负责。
 
-统一组件按最近一次下游字节写入计时，间隔使用 `gateway.streaming.keepalive_interval_seconds`，默认 10 秒，允许 5 至 30 秒，0 关闭该组件。它有两个可写入阶段：
+该组件覆盖 Messages、Chat Completions、Responses、Gemini 和 Qoder 的文本输出（直通与转换共用），文本读取器只保留上游空闲超时与断连后用量收集。
 
-- 上游等待：流式文本请求经 `timing.Do` 发起 HTTP 交换后，响应尚未提交且空闲满一个间隔时，提交 `200` 和 `text/event-stream`，发送心跳并 Flush。handler 获取可修改 Header 或开始输出时关闭这个等待窗口。读取器初始化的只读 Header 快照不会关闭窗口，因此上游已经返回响应头、首个业务事件仍在等待或暂存时也能保活。非流式请求、明确的非 200 状态或非 SSE 内容类型不会提前提交。
-- 已提交 SSE：状态为 2xx、内容类型为 `text/event-stream`，且输出停在完整帧边界时，按下游空闲时间发送心跳。半帧期间不插入字节；LF 和 CRLF 分隔符可以跨多次 Write。普通正文和排队心跳都会重置下游时钟，上游心跳不会重置它。
+### 配置与阶段
 
-Messages 默认发送 `event: ping` 加 `data: {"type": "ping"}`。Claude Code UA 版本至少为 2.1.193 且存在打开的受支持内容块时，发送对应的空 delta；工具块使用空的 `input_json_delta.partial_json`，块关闭后恢复 ping。Gemini 原生协议发送 `\n\n` 空事件，避免 Google SDK 将注释当作 JSON；其他文本协议发送 `: keepalive` 注释。识别到 `[DONE]`、`message_stop`、`error`、`response.completed`、`response.failed` 或 `response.incomplete` 终止帧后停止心跳。读取器也通过 `OutputEvent.Terminal` 提交整条响应的完成信息，终态字节经过现有 writer 链完整写入后才停止心跳；这段写入与终态发布共同排除定时器写入，短写返回 `io.ErrShortWrite`。文本前缀识别仍只保留每帧前 4096 字节，较大的帧继续跟踪边界；结构化终态通知不受此前缀限制。LF 与 CRLF 可以混用。
+| 配置项 | 默认值 | 生效范围与边界 |
+| --- | --- | --- |
+| `gateway.streaming.keepalive_interval_seconds` | 10 秒（允许 5-30 秒，0 关闭） | 按下游最近一次字节写入计时发送心跳 |
+| `gateway.streaming.data_idle_timeout_seconds` | 180 秒（0 不限） | 仅限制已提交 SSE 正文停滞，不作用于上游响应头等待期（后者由传输层响应头超时和首输出保护限制） |
 
-等待上游响应头期间不应用 `gateway.streaming.data_idle_timeout_seconds`：传输层的响应头超时和请求的首输出保护负责限制这段等待。`timing.Do` 单独记录尚未返回响应头或错误的请求数，所以心跳提前提交下游 200 不会被误当成上游响应头已经返回；并发交换也分别结束各自的等待。
+两个可写入阶段：
 
-已提交 SSE 的正文停滞上限使用 `gateway.streaming.data_idle_timeout_seconds`，默认 180 秒，0 不限制。发起上游请求、收到响应头和实际读到字节都会更新上游活动时间，注释和 ping 字节也算上游活动。停滞判断取上游活动与最近一次 handler 字节写入中较晚的时间；中央组件自己写出的心跳不更新这两个时钟。这样，绕过传输观察的输出路径也能以实际写入维持保活。超过正文停滞上限后，组件不再补发心跳，读取器自己的上游超时仍按原规则处理。下游写失败或连接 Hijack 后停止心跳；请求结束时等待心跳 goroutine 退出。
+1. 上游等待：流式文本经 `timing.Do` 发起交换后，响应未提交且空闲满间隔时提前提交 `200` 与 `text/event-stream` 并写心跳 Flush；handler 取可写 Header 或开始输出时关窗（只读快照不关窗，已返头但首事件暂存时仍保活）。非流式、明确非 200 或非 SSE 不提前提交；`timing.Do` 独立计数未返头交换，不误判上游已返头。
+2. 已提交 SSE：状态 2xx、内容类型 `text/event-stream` 且停在完整帧边界时按下游空闲发心跳（半帧不插字节；LF 与 CRLF 可跨多次 Write 混用）。普通正文和排队心跳重置下游时钟，上游心跳不重置。
 
-HTTP 提交与业务输出分别判断。`StreamHeartbeatBytes` 汇总排队、图片流读取器、Compact／图片 SSE、图片 JSON 空白和统一文本组件的心跳字节；`HeartbeatAdjustedWrittenSize` 对尝试前后的观测使用同一口径。只有心跳时返回 Gin 的未写出哨兵 `-1`，没有任何心跳记录时保留原始 Size，包括只提交 Header 后的零。读取异步计数时同时锁定对应 writer 的大小，避免把两次观测之间写入的心跳误判成正文。`OutputWriter.Written()` 表示实际 HTTP 已提交，`ContentWritten()` 表示已有成功交付且关闭重试窗口的正文；重试使用后者，响应头能否发送仍使用前者。
+### 心跳帧格式与停发条件
 
-心跳提前提交 200 后，后续错误用客户端协议的 SSE 错误结束，不能再改 HTTP 状态。后来才到达的上游响应头也无法发送，且不能上报为已经提交。响应头在读取器的私有 map 中准备，初始化和前导事件不会登记提供商归属。`ResponseSink.Begin` 应用响应头时先关闭提前提交窗口，再复查实际提交状态；只有仍可应用的响应头才触发归属登记，避免心跳在读取器检查之后抢先提交。HTTP writer 在已提交后返回 Header 副本，避免迟到的 Header 修改与心跳并发读取同一个 map。只有心跳的请求仍可在既有策略与预算内重试或切换提供商。
+| 协议 / 客户端 | 下游心跳内容 |
+| --- | --- |
+| Messages（默认） | `event: ping` + `data: {"type": "ping"}` |
+| Messages（Claude Code UA >= `2.1.193` 且存在打开的受支持内容块） | 对应空 delta（工具块发空 `input_json_delta.partial_json`），块关闭后恢复 ping |
+| Gemini 原生 | `\n\n` 空事件（避免 Google SDK 把注释当 JSON） |
+| 其他文本协议 | `: keepalive` 注释 |
 
-Gemini 成功响应的请求 ID 等元数据只在 `OutputContext` 的私有 Header 中准备，不能在读取首个业务事件之前调用 Gin Header。其原生与转换读取共用有界 SSE 消费、候选完成判断和错误分类；终态后的用量尾帧最多继续收集五秒，具体规则见 [Gemini 流生命周期](../interfaces/gemini_upstream.md#gemini_stream_lifecycle)。
+- 终止帧停发：识别 `[DONE]`、`message_stop`、`error`、`response.completed`、`response.failed`、`response.incomplete` 后停发；前缀识别仅查帧前 4096 字节（大帧继续跟踪边界）。
+- 结构化终态通知：读取器也可通过 `OutputEvent.Terminal` 通知终态（不受 4096 字节前缀限制），终态字节经完整 writer 链写完后停发，与定时器互斥，短写返回 `io.ErrShortWrite`。
+- 正文停滞上限：取上游活动（发请求、收响应头、实际读字节，含注释和 ping）与最近一次 handler 写入的较晚时间（中央心跳不刷新这两个时钟）；绕过传输观察的路径亦可以实际写入维持保活。超过上限后停发心跳，读取器按原上游超时处理。下游写失败或 Hijack 立即停发；请求结束等待心跳 goroutine 退出。
 
-上游的注释、`ping`／`heartbeat`／`keepalive` 和空 data 帧在读取侧消费，JSON `type` 优先于 event 名，所以 `event: ping` 搭配实际业务数据时保留该数据。逐行路径使用有界候选缓冲，最多 16 行、16 KiB；遇到未知字段、超过上限或在 EOF 留下不完整候选时，保守释放保留的非注释行。明确的错误事件继续按既有错误规则处理，不因 data 为空被忽略。上游活动计时发生在过滤之前。
+### 字节计数、提前提交与上游过滤
 
-排队心跳继续由 `WaitObserver` 在请求 goroutine 内写入；Gemini 流式排队使用与中央组件相同的空 SSE 事件。Compact 和图片保留专用控制器，统一组件不接管它们。图片错误根据已提交的 Content-Type 选择 SSE 或 JSON，JSON 空白心跳之后仍返回合法 JSON。注释、ping 和空文本、thinking、工具参数 delta 不建立 TTFT 数据事件。
+- 心跳字节口径：`StreamHeartbeatBytes` 汇总排队、图片流读取器、Compact/图片 SSE、图片 JSON 空白和统一文本心跳；`HeartbeatAdjustedWrittenSize` 同口径计算（仅心跳返回 Gin `-1`，无心跳保留原 Size 含仅提交 Header 后的 0，读取异步计数时锁定 writer 大小）。
+- 提交与重试口径：`OutputWriter.Written()` 判 HTTP 是否已提交（能否发头），`ContentWritten()` 判业务输出与重试窗口。
+- 提前提交 200 约束：后续错误以客户端协议的 SSE 错误结束，不可再改 HTTP 状态；迟到的上游响应头不可发送也不登记归属。响应头在读取器私有 map 中准备，`ResponseSink.Begin` 先关闭提前提交窗口再复查提交态，仅仍可应用的头才触发归属登记；已提交后 HTTP writer 返回 Header 副本防止并发冲突；只有心跳的请求仍可在预算内重试或换号。
+- Gemini 元数据与尾帧：成功请求 ID 等元数据仅在 `OutputContext` 私有 Header 准备，首个业务事件前不碰 Gin Header；原生与转换共用有界消费，终态后用量尾帧最多继续收集 5 秒，见 [Gemini 流生命周期](../interfaces/gemini_upstream.md#gemini_stream_lifecycle)。
+- 上游心跳过滤：读取侧消费注释、`ping`/`heartbeat`/`keepalive` 与空 data 帧；JSON `type` 优先于 event 名（`event: ping` 携带业务数据时保留）。逐行缓冲上限 16 行、16 KiB，遇未知字段、超限或 EOF 不完整候选时保守释放非注释行；明确错误事件不因 data 为空忽略；上游活动计时在过滤前。
+- 独立路径与 TTFT：排队心跳由 `WaitObserver` 在请求 goroutine 写入（Gemini 排队同发空 SSE 事件）；Compact 与图片保留专用控制器，图片错误按已提交 Content-Type 选 SSE 或 JSON（JSON 空白心跳后仍返合法 JSON）。注释、ping 与空文本、thinking、工具参数 delta 不建立 TTFT 数据事件。
 
 ## 用量与结算
 
-统一文本执行保留上游 usage 里缓存创建的 5 分钟和 1 小时分桶以及 Speed，完成器据此选择对应平台的计费方式，缓存读取只扣一次。用户售价和提供商成本分别计算；价卡缓存按分组和模型索引，继承顺序是分组价、共享价、内置价。使用记录里的平台在写入时取实际执行的提供商。
+### 采集与中断规则
 
-上游转发产生可计量的 usage 后，handler 把解析出的 token、图片和视频用量、客户端模型和上游模型、endpoint、提供商、订阅快照、请求标识和分组映射交给有界的 UsageRecord worker pool。Anthropic 网关和 OpenAI 兼容的 Messages、Responses、Chat 三条链，如果在终止事件之前中断，只要 service 随错误返回了部分结果，handler 仍然提交已经观测到的 usage；没有结果时不生成记录。`UpstreamFailoverError` 不携带部分结果，所以重试成功后只计费一次。
+- 计费桶与价卡继承：统一文本保留上游 usage 的 5 分钟和 1 小时缓存创建分桶及 Speed，缓存读取只扣一次；用户售价与提供商成本分算，价卡按"分组价 -> 共享价 -> 内置价"继承；记录平台取实际执行提供商。
+- 中断部分用量：Anthropic 网关与 OpenAI 兼容 Messages、Responses、Chat 在终止事件前中断时，只要随错返回部分结果，仍提交已观测 usage（无结果不记）；`UpstreamFailoverError` 不带部分结果，重试成功只计费一次。
+- 国产供应商转换流中断：原生 Anthropic 转 Responses 流在客户端写失败后停止下游输出，继续读完上游并推进状态机，直到末尾 `message_delta` 最终 token 或达有界读超时。
+- OpenAI OAuth 图片中断：HTTP 成功后若上游 body 传输中断，仅在未写出实际图片内容前（JSON keepalive 空白不算）按 502 进入提供商策略和 failover；客户端取消、deadline、响应体超限及首字节后中断不换号。
 
-国产供应商的原生 Anthropic 转 Responses 流，在客户端写失败后停止下游输出，但继续读完上游并推进状态机，直到读到末尾 `message_delta` 里的最终 token，或者达到有界读超时。OpenAI OAuth 图片响应在 HTTP 成功后，如果上游 body 传输中断，只有在还没向客户端写出实际图片内容时，才按 502 进入提供商策略和 failover。JSON keepalive 空白不算实际输出。客户端取消、deadline、响应体超限，以及首字节之后的中断，都不换号。
+### 完成器与任务边界
 
-worker 使用一个和已结束请求的取消信号脱钩、但有自己超时的 Context。队列满时可以同步执行或丢弃，并通过指标和日志反映压力；worker 数量有上限，请求和 goroutine 不一一对应。
-
-### 完成器
-
-完成执行器只在 `gateway/completion` 实现一份，配置由 app 传入。停止时既等待排队的任务，也等待已经接受的同步溢出任务；扩缩容和停止共用一个屏障，停止后无法重开。手动配置的 drop、sample、sync 和 mandatory 回退按各入口的设置执行，完成记录和结算编排都由 `gateway/completion.Recorder` 实现。同步提交时，用 `gateway/provider.CaptureMessages`、`CaptureOpenAI` 和 `CaptureCyber` 读取提供商、Key、付款主体和用量，再生成一份独立的 `completion.Input`。
-
-app 用价格、资金、用量和提交后处理接口构造 Forward 和 OpenAI 两个完成器，再把同一个实例绑定到各执行入口。两条链各有自己的倍率缓存，由 app 的一分钟时间轮任务清理；后台副作用由 `ApplicationBackgroundTasks` 统一管理。媒体请求和 WS turn 同样在入队前取得快照，计费时刻、请求 ID 和额度更新标记各自保持。creative 和 batchimage 自己管理任务完成资格、预占、捕获、释放和恢复，不进入网关完成队列。
-
-创作台的执行目标由 `gateway/provider.CreativeTargets` 按本次的提供商构造，复用凭据、传输和活动屏障；任务执行由 app 绑定具体的生成能力。任务生成阶段通过 `scheduler.Lease` 管理用户槽和提供商槽，供应商返回后立即释放，结果交付和结算不占槽。
+- 异步有界队列：完成执行器在 `gateway/completion` 实现，worker 使用与已结束请求取消脱钩但自带超时的 Context；队列满按各入口配置的 drop、sample、sync 或 mandatory 回退策略处理，并通过指标和日志暴露压力。
+- 停止与快照捕获：同步提交前捕获提供商、Key、付款主体、用量、计费时刻、请求 ID 和额度更新标记的独立快照（Forward 与 OpenAI 倍率缓存每分钟定期清理）；停止时等待排队任务与已接受同步溢出任务，扩缩容与停机共用屏障，停止后无法重开。
+- 创作台与批量图片：creative 和 batchimage 自行管理完成资格、预占、捕获、释放和恢复，不进入网关完成队列；创作台生成阶段经 `scheduler.Lease` 管理用户槽与提供商槽，上游返回即释放，交付和结算不占槽。
 
 ### 结算步骤
 
-1. 归一化不同协议的 token 分桶、媒体尺寸和时长、缓存和长上下文计费规则。
-2. 根据计费模型来源、共享价格配置、提供商成本、用户、分组和订阅倍率、高峰倍率，以及共享价格配置的分时倍率计算费用。WebSocket 多轮请求的时间相关价格，按当前 turn 开始的时刻计算。
-3. 用 `request_id + api_key_id` 认领结算幂等键，用请求指纹检测同一个 ID 被不同 payload 复用。
-4. 在一个 PostgreSQL 事务里锁定付款用户，按结算模式分配订阅或余额，同时累计团队成员、Key 的配额和速率，以及适用的上游提供商额度。已经通过准入、完成上游调用的普通请求，如果超过了指定订阅的剩余额度，订阅用量封顶，超出部分按余额倍率从付款主体的余额扣除，余额可以变成负数。这个回退只用于已放行或并发在途的请求；之后绑定已耗尽订阅的新请求仍然直接拒绝。批量图片提交前的额度预占，仍要求指定订阅能完整覆盖。
-5. 结算成功后尽量写入已结算的 Usage Log，并更新缓存和最后使用时间。结算失败时，仍然写入包含计算成本的待对账 Usage Log，`actual_cost` 记为零，随后返回 worker 错误，结算状态如实标为失败。Usage Log 写入失败不会导致同一请求重复扣费。
-
-热路径已经把响应交给客户端之后，后台结算失败也改变不了这个响应。这类错误需要在监控里能看到，并通过幂等重试和对账流程处理。
+1. 归一化不同协议的 token 分桶、媒体尺寸和时长、缓存与长上下文计费规则。
+2. 按计费模型来源、共享价格配置、提供商成本、用户/分组/订阅倍率、高峰倍率及分时倍率计算费用（WebSocket 多轮按当前 turn 开始时刻算时变价）。
+3. 用 `request_id + api_key_id` 认领结算幂等键，并用请求指纹防止同一 ID 被不同 payload 复用。
+4. 在单个 PostgreSQL 事务里锁定付款用户，按模式分配订阅或余额，并累计团队成员、Key 配额和速率及上游提供商额度。已放行普通请求超出指定订阅剩余额度时，订阅用量封顶，超出部分按余额倍率扣付款主体余额（允许为负）；该回退仅适用于已放行或并发在途请求，绑定已耗尽订阅的新请求仍直接拒绝，批量图片预占仍要求指定订阅完整覆盖。
+5. 结算成功则写已结算 Usage Log 并更新缓存与最后使用时间；失败则写含计算成本的待对账 Usage Log（`actual_cost` 记 0）并返回 worker 错误（状态如实标为失败）。Usage Log 写入失败不会导致重复扣费。后台结算失败无法改变已发给客户端的响应，通过监控、幂等重试和对账处理。
 
 <a id="moderation_search_boundaries"></a>
 ## 审核与搜索协作
 
-网关通过 `moderation.Check` 取得本地裁决，请求解析只提取当前轮的内容。实际行为用户和付款用户分开传入；供应商错误的识别由 upstream 提供，推理重试由网关负责。创作台选择不留存媒体。普通审核和 Cyber warning 的事务保证见[内容审核](../domains/content_moderation.md#content_moderation_decision_pipeline)。
-
-Brave 和 Tavily 搜索由 search 选择供应商并预占额度。失败时释放自己已确认的预占。请求取消后，既不尝试其他供应商，也不标记代理故障；额度回滚使用单独的最多三秒的清理预算。Redis 结果不确定时按故障放行处理，不去猜测计数是否已经取得。配置替换后，已经开始的请求使用旧版本的快照，停机时所有版本一起等待。额度窗口和故障处理见[搜索编排](../domains/search_orchestration.md)。
-
-`gateway/searchtools` 负责工具识别、提供商和分组的启用裁决、协议事件和合成 usage。app 通过 gateway/provider 绑定同一个 `search.ConfigService`、Registry 和分组策略读取实例，配置更换时发布到这个注册表。重试和完成处理由请求编排负责。Grok 原生搜索和 OpenAI AlphaSearch 由对应的 upstream 处理。资金是否提交以资金事务为准，通知成功、搜索配额和审核记录都不能作为证明。
-
-独立的 Web 和 X 搜索由 app 直接构造 `gateway/httpapi.SearchHandler` 和固定的 `SearchPorts`。HTTP 按解析、认证、资金、审核、选号的顺序执行；平台报文和单次交换由 `gateway/provider` 组合 Grok 的底层调用和共享传输完成。选择接口只返回当前请求的受控目标，完成前同步取得提供商快照，异步记录读取快照，Gin Context 留在请求内。相同查询的每次调用都生成独立的资金请求 ID，完成快照提交后才释放提供商资源。
+- 内容审核：网关经 `moderation.Check` 取得本地裁决（仅提取当前轮内容），行为用户与付款用户分传；供应商错误识别在 upstream，推理重试归网关；创作台不留存媒体；事务保证见[内容审核](../domains/content_moderation.md#content_moderation_decision_pipeline)。
+- Brave 与 Tavily 搜索：由 `search` 选商并预占额度，失败释放已确认预占；请求取消后不试他商、不标代理故障，额度回滚使用独立最多 3 秒清理预算；Redis 结果不确定按故障放行处理；配置替换后在途请求沿用旧快照，停机时全版本一起等待，见[搜索编排](../domains/search_orchestration.md)。
+- 工具模拟与原生搜索：`gateway/searchtools` 负责工具识别、提供商和分组启用裁决、协议事件及合成 usage，重试与完成归请求编排；Grok 原生搜索与 OpenAI AlphaSearch 归对应 upstream。资金是否提交只以资金事务为准，通知、搜索配额和审核记录均不能作证。
+- 独立 Web / X 搜索：按解析 -> 认证 -> 资金 -> 审核 -> 选号顺序执行，相同查询每次调用生成独立资金请求 ID；完成前同步取得提供商快照并提交后才释放提供商资源，异步记录仅读快照。
 
 ## SystemOne 决策请求
 
-`POST /v1/systemone` 使用共同鉴权和模型映射，`gateway/systemone` 管理同步请求的提供商尝试。每次尝试经过资金复查和价格预检，`upstream/jev` 完成单次交换。答案有效时按用量状态提交完成记录或用量告警，捕获完成快照后释放提供商槽。请求格式与告警规则见 [Jev 与 SystemOne](../interfaces/jev_upstream.md)。
+`POST /v1/systemone` 使用共同鉴权与模型映射，由 `gateway/systemone` 管理同步请求的提供商尝试，`upstream/jev` 完成单次交换。
 
-SystemOne 执行器由 app 独立构造，注入传输、地址策略、价格检查、响应头过滤和通用提供商健康组件。复合 Key 的端点识别和错误输出按 SystemOne 处理。429、529 的 Retry-After 由 Jev 解析器解释，通用健康组件按提供商配置应用冷却。
+- 每次尝试执行资金复查与价格预检；答案有效时按用量提交完成记录或用量告警，捕获完成快照后释放提供商槽。
+- 复合 Key 端点识别和错误输出按 SystemOne 规则处理；429、529 的 `Retry-After` 由 Jev 解析，通用健康组件按提供商配置应用冷却，见 [Jev 与 SystemOne](../interfaces/jev_upstream.md)。
 
 ## 新增入口检查清单
 
-新增网关入口或平台适配器时，至少逐项核对：
+新增网关入口或平台适配器时，逐项核对：
 
-- body 和 header 限制、request ID、Ops error logger 和 API Key 错误格式是否正确。
-- 是否支持普通 Key 和复合 Key，模型从哪里读取，哪些不涉及模型的管理入口只校验资源归属。
-- 选组、Key 重定向、分组映射和提供商映射是否保持一跳顺序，模型列表和响应模型恢复是否同步。
-- 用户和提供商并发、会话隔离、粘性和取消路径，是否都能完整释放槽位。
-- 哪些错误允许在同一提供商重试或换提供商，流开始后是否会误入 failover。
-- 用量能否拿到稳定的 request ID、请求指纹、requested/upstream model 和正确的平台归属。
-- HTTP 适配、业务用例、存储实现、前端调用方，以及 API 接口测试和协议测试是否一起更新。
+- body 和 header 限制、request ID、Ops error logger 和 API Key 错误格式。
+- 普通 Key 与复合 Key 支持、模型提取位置，以及非模型管理入口的资源归属校验。
+- 选组、Key 重定向、分组映射和提供商映射的一跳顺序，以及模型列表与响应模型恢复同步。
+- 用户和提供商并发、会话隔离、粘性和取消路径的完整槽位释放。
+- 允许同提供商重试或换号的错误边界，以及业务输出开始后不会误入 failover。
+- 稳定的 request ID、请求指纹、`requested_model`/`upstream_model` 和实际平台归属。
+- HTTP 适配、业务用例、存储、前端调用方，以及 API 接口测试与协议测试同步更新。
 
 <a id="qoder_gateway_execution"></a>
 ## Qoder Chat 请求编排
 
-Qoder 提供商参与普通文本入口的提供商循环，`UnifiedTextExecutor` 通过 `ForwardQoderAttempt` 和 `QoderRuntime` 执行单次尝试，并在尚未写出业务内容时支持一次同提供商凭据刷新重试。站点、模型和认证能力由 Qoder 适配器检查；已有的单步协议转换只覆盖既定的转换路线，任意会话恢复不在支持范围内。
+Qoder 提供商参与普通文本入口的提供商循环，在尚未写出业务内容前支持一次同提供商凭据刷新重试。站点、模型和认证能力由 Qoder 适配器检查；单步协议转换仅覆盖既定路线，不支持任意会话恢复。
 
-选号前做资金预检；等待结束后复查资金，RPM 只累计一次。已经提交实际输出的请求不会重放。Qoder 流式上游有自己的执行预算，客户端取消后，正在执行的提供商槽要等完成捕获后才释放。部分结果只进入一次完成处理，记录或结算失败时也不会重新调用供应商。
-
-平台尝试登记在 app 的 `QoderRequestsAndAttempts`，统一 HTTP 入口同时受网关请求屏障保护。停止时先拒绝新请求并等待在途请求，然后才停止完成队列和共享连接；超过退出预算时报告未完成。
+- 准入与重试：选号前做资金预检，等待后复查资金，RPM 只累计一次；已提交实际输出不重放。
+- 释放与完成：流式上游有独立执行预算，客户端取消后在途提供商槽待完成捕获结束再释放；部分结果只进入一次完成处理，记录或结算失败不重调供应商。
+- 排空顺序：平台尝试与统一 HTTP 入口均受网关请求屏障保护，停机时先拒新请求并等待在途请求，再停完成队列和共享连接，超退出预算时报告未完成。
 
 <a id="upstream_attempt_ownership"></a>
 ## 平台执行与资源归属
 
-各平台的供应商交换、请求构造和原生读取在 upstream。gateway/provider 在调用点把提供商、出站策略和错误观察整理成接口参数，平台执行只拿到这些参数，Gin 和完整配置都留在上层。OpenAI 的响应读取、图片和辅助查询各自有取消和终态处理，WS relay 和连接池与完整的入站 WS 编排相互独立。续接报文和失效密文剥离使用平台的纯函数。HTTP Responses 的归属校验由 `gateway/session` 执行，HTTP 只保存已认证的 user 和 key 标识。同一用户跨 Key 使用、历史上只按 Key 记录归属的数据，都按兼容规则处理；归属读取失败时拒绝授权。
+### 分层与会话归属
 
-app 构造一个 OpenAI 会话状态存储，供 HTTP 和 WS 共用，归属缓存只有这一份，连接在使用时才打开；每轮的价格快照由入站连接持有。缺失 usage 的低频诊断由 `gateway/telemetry` 持有一份采样状态，日志读取这份状态，Gin 和完整提供商信息不在其中。
+- 上下游隔离：供应商交换、请求构造与原生读取在 `upstream`；`gateway/provider` 在调用点组装提供商、出站策略和错误观察，Gin 与完整配置留在上层。OpenAI 响应读取、图片和辅助查询各自维护取消与终态，WS relay 和连接池独立于入站 WS 编排；续接报文和失效密文剥离为纯函数。
+- 会话归属校验：HTTP Responses 归属由 `gateway/session` 校验（HTTP 仅存已认证 user 和 key 标识），兼容同用户跨 Key 与历史仅按 Key 记录的归属，读取失败拒绝授权。OpenAI 会话归属存储在 HTTP 与 WS 间共享且按需建连；WS 每轮价格快照由入站连接持有；缺失 usage 的低频诊断采样状态独立于 Gin 和完整提供商信息。
 
-OpenAI 和 Messages 的转发结果在 `gateway/forward`，WS ingress hook 和 turn capture 在 `gateway/ws`。WS 重放输入是私有字段，不会出现在结果 JSON 里；各协议的结果字段各不相同。每次 attempt 或 turn 的 `forward.ResponseObserver` 单独记录模型和实际服务档位，Gin 的读写由 HTTP 适配层负责。终态声明优先，冲突时按回退规则处理；出站档位在完成计费时才和观测值合并。
+### 观测、风控与平台特性
 
-Grok 的文本、图片、视频和 Voice 共用装配好的 `GrokExecutor`，使用相同的请求取消策略和应用活动屏障。Chat 转 Responses 不适用时，回到同一次派发的原生 Chat 路径；档位规则通过 `ExecutionFastPolicy` 在调用点读取设置和价格，WS 复用当前 turn 的设置快照。运行时只有一个提供商切换循环、一个资金记录器和一套缓存。
+- 响应观测：WS 重放输入为私有字段不进结果 JSON；每次 attempt 或 turn 的 `ResponseObserver` 独立记录模型与实际服务档位（终态声明优先，冲突按回退规则，出站档位在完成计费时与观测值合并）。
+- 上游风控警告：统一经 `forward.UpstreamWarning` 传递，收到警告不代表请求可结算。
+- OpenAI `cyber_policy`：在 provider 层识别，当前 HTTP 或 WS turn 首次标记与清除由 HTTP 层调 `moderationflow.Mark`（保留标记键、截断正文和已观测用量，清除后下一 turn 才接新证据）；已透传错误经哨兵通知收尾，不影响换号、写入和扣费资格。
+- Grok 执行边界：文本、图片、视频和 Voice 共用执行器、取消策略与活动屏障；Chat 转 Responses 不适用时回到同次派发的原生 Chat 路径；档位规则在调用点读取设置和价格（WS 复用当前 turn 快照）；运行时只有一个切换循环、一个资金记录器和一套缓存。
+- OpenAI 兼容文本：Raw Chat、原生 Anthropic、Messages 与 passthrough 共用提供商切换循环；CompatResponses 按提供商、Key 和提示缓存区分隔离键，并有独立 TTL 与续接禁用规则；Codex 额度观察按固定节流间隔执行并异步写回后台任务。
 
-OpenAI 兼容文本的单次执行由 `OpenAITextExecutor` 组合各协议执行器，目标、凭据头、TLS 和客户端策略通过 `OpenAIRequests` 按固定顺序取得。HTTP 适配层同步处理输出；Raw Chat、原生 Anthropic、Messages 和 passthrough 都使用这同一个提供商切换循环。CompatResponses 按提供商、Key 和提示缓存区分隔离键，并有自己的 TTL 和续接禁用规则；Codex 额度观察按固定的节流间隔执行，写回进入应用管理的后台任务。
+### 图片与 Compact 流控及性能快照
 
-上游风控警告统一用 `gateway/forward.UpstreamWarning` 传递，HTTP、WS 和 Grok 适配层共用这个值类型和错误链格式。收到警告不代表请求可以结算，完成资格、失败状态和通知按各入口的规则决定。
+- 保活与转换：流式图片拿到提供商槽后、HTTP 发送前启动保活；上游返 SSE 头后交读取器接续，普通 JSON 和 HTTP 错误继续保活至有界读体结束。OpenAI API Key 的客户端模式与提供商端点模式分别解析；标准图片 JSON 按 `data[]` 条目转完成事件（仅 URL 时先下载为 Base64），SSE 也可聚合为非流式 JSON。
+- 计费与错误边界：图片和 usage 从原始响应观察一次，总 usage 随最后一张图片输出；转换失败后已观测完成的图片仍参与完成处理；跨尝试保留的注释字节不算实际输出。首次心跳提交 200 后，流式图片错误改写 SSE 错误事件，非流式图片仍返合法 JSON。
+- 性能与写入互斥：TTFT 由统一性能快照按全局首事件或首有效内容设置派生，与 HTTP 提交、重试窗口分开判断；完成任务一次写入完整性能和 usage（请求摘要留生命周期与失败诊断，详情按请求 ID 关联 usage）。写入包装器仅在 HTTP 内部使用，停止与写入互斥。
 
-Compact、图片的前置 SSE 注释心跳、非流式图片 JSON 的空白心跳，以及扣除心跳字节后的输出判定，由 `gateway/httpapi` 管理。流式图片取得提供商槽后，在实际 HTTP 发送前开始保活；上游 SSE 在返回响应头后交给流读取器接续，普通 JSON 和 HTTP 错误则继续保活到有大小限制的读体结束。OpenAI API Key 的客户端模式与提供商端点模式分别解析。标准图片 JSON 的每个 `data[]` 条目转换成相应的完成事件，只有 URL 时先下载为 Base64；SSE 也能聚合为非流式 JSON。图片和 usage 从原始响应观察一次，总 usage 只随最后一张图片输出，转换失败后已经观测到的完成图片仍参与完成处理。跨尝试保留的注释字节不算实际输出。首次心跳提交 200 后，流式图片错误以 SSE 错误事件写回，非流式图片仍以合法 JSON 写回。TTFT 由统一性能快照按全局首事件／首有效内容设置派生，它与 HTTP 提交、重试窗口分别判断。完成任务把完整性能和 usage 一次写入；请求摘要保留生命周期和失败诊断，详情按请求 ID 关联 usage。写入包装器只在 HTTP 内部使用，停止和写入之间互斥。
+### 停机排空顺序
 
-OpenAI `cyber_policy` 事件的识别在 gateway/provider，当前 HTTP 或 WS turn 的第一个标记和清除由 `gateway/httpapi` 管理，直接调用 `moderationflow.Mark`。标记键、正文截断和已观测的用量照原样记录；清除之后，下一个 turn 才能接受新的证据。已经透传的错误通过 forward 的哨兵错误通知收尾，换号、响应写入和扣费资格都不受影响。
+`GatewayRequestsAndAttempts` 与 `HTTPRequests` 是两个并列的等待屏障，停机按固定顺序排空：
 
-`GatewayRequestsAndAttempts` 由 app 构造一次，HTTP 入口和平台尝试引用同一个进入屏障。停止后拒绝新的进入，等待请求尾部的完成快照入队、在途尝试结束，这一步早于完成队列和共享存储的关闭。它和 `HTTPRequests` 是两个并列的等待屏障；额度恢复操作先取消，再等待请求结束，`HTTPRequests` 的完成时间和停止监听的时间是两回事。之后停止提供商授权会话和底层配额服务；按需创建的 Live 和 WS 资源在应用构造时并不打开。
+1. 先取消额度恢复操作。
+2. 拒绝新的请求和平台尝试进入，等待请求尾部的完成快照入队以及在途尝试结束（`HTTPRequests` 完成时间与停止监听时间独立）。
+3. 关闭完成队列和共享存储。
+4. 停止提供商授权会话和底层配额服务。按需创建的 Live 和 WS 资源在应用启动时不提前打开。
 
 相关文档：[系统架构](system_architecture.md)、[提供商调度与缓存一致性](provider_scheduling_and_cache.md)、[网关策略控制](../domains/gateway_policy_controls.md)、[上游提供商能力矩阵](../interfaces/upstream_provider_matrix.md)、[网关错误响应策略](../interfaces/gateway_error_policy.md)、[领域目录](../domains/index.md)、[接口目录](../interfaces/index.md)。
