@@ -25,8 +25,9 @@ import {
 
 // providerFormModel.spec.ts verifies shared provider draft factories, platform
 // resets, hydration, and create/edit credential and Extra serializers. Tests
-// protect clearing sentinels, Antigravity RT batch policies, Codex image-tool
-// serialization, Grok cache preferences, and per-provider scheduling thresholds.
+// protect the edit request shape and clearing sentinels, Antigravity RT batch
+// policies, Codex image-tool serialization, Grok cache preferences, and
+// per-provider scheduling thresholds.
 
 // provider creates a minimal administration response for draft and patch tests.
 function provider(overrides: Partial<Provider> = {}): Provider {
@@ -75,6 +76,35 @@ describe('provider form model representations', () => {
     expect(second.editAdaptiveBaseUrls.value.anthropic).toBe('')
     expect(second.allowedModels.value).toEqual([])
     expect(second.form.group_ids).toEqual([])
+  })
+
+  // The shared form contains the provider platform after edit hydration. The
+  // update request must include only editable fields because the server rejects
+  // unknown keys during JSON decoding.
+  it('serializes only fields accepted by the provider update API', () => {
+    const draft = createProviderEditDraft()
+    hydrateProviderEditDraft(draft, provider(), { loadFromExtra: vi.fn(), reset: vi.fn() })
+    draft.form.name = 'Renamed provider'
+    draft.form.proxy_id = 6
+    draft.form.expires_at = 1_900_000_000
+    draft.autoPauseOnExpired.value = false
+
+    expect(draft.form.platform).toBe('openai')
+    expect(buildProviderBasePatch(draft)).toEqual({
+      name: 'Renamed provider',
+      notes: '',
+      type: 'apikey',
+      credentials: {},
+      proxy_id: 6,
+      concurrency: 1,
+      load_factor: 0,
+      priority: 1,
+      rate_multiplier: 1,
+      status: 'active',
+      group_ids: [],
+      expires_at: 1_900_000_000,
+      auto_pause_on_expired: false,
+    })
   })
 
   // Null clearing values and invalid load factors need numeric API sentinels.

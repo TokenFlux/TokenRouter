@@ -1,4 +1,4 @@
-import type { Provider, ProviderPlatform } from '@/api/admin/providers.types'
+import type { Provider, ProviderPlatform, UpdateProviderRequest } from '@/api/admin/providers.types'
 import type { ProtocolID } from '@/api/protocols.types'
 import type { TempUnschedRuleForm } from '@/components/provider/TempUnschedRulesEditor.vue'
 import {
@@ -33,30 +33,33 @@ import { normalizeProviderSchedulingThresholdOverride } from './providerFormHydr
 // per-provider scheduling threshold writes null so backend credential merging
 // removes the stored override.
 
-// ProviderEditPatch stores optional JSON objects alongside provider update fields.
-export interface ProviderEditPatch extends Record<string, unknown> {
-  // Credential fields are attached after authentication-specific validation; the
-  // serializers extend this mutable copy before the API request is sent.
-  credentials?: Record<string, unknown> // Editable provider credential fields.
-  // Extra settings are copied from the provider before form-owned values replace
-  // them; absent patches leave that provider configuration outside this update.
-  extra?: Record<string, unknown> // Persisted provider option fields.
-}
+// ProviderEditPatch is the API request populated by the edit dialog's serializers.
+export type ProviderEditPatch = UpdateProviderRequest
 
-// buildProviderBasePatch converts form clearing values into API update sentinels.
-// Null proxy and expiry values become zero to request removal, and invalid or
-// nonpositive load factors use the same clearing representation without mutating
-// the reactive form draft.
+// buildProviderBasePatch maps the shared draft to the fields accepted by the
+// provider update endpoint. Platform belongs to the creation request. The edit
+// dialog can add credentials and settings to the returned request before submission.
 export function buildProviderBasePatch(draft: ProviderFormDraft): ProviderEditPatch {
-  const patch: ProviderEditPatch = { ...draft.form }
-  // The administration API uses zero to clear nullable proxy, expiry, and load-factor
-  // settings; preserve those sentinels when building the common update.
-  if (patch.proxy_id === null) patch.proxy_id = 0
-  if (draft.form.expires_at === null) patch.expires_at = 0
-  const factor = draft.form.load_factor
-  if (factor == null || Number.isNaN(factor) || factor <= 0) patch.load_factor = 0
-  patch.auto_pause_on_expired = draft.autoPauseOnExpired.value
-  return patch
+  const { form } = draft
+  const factor = form.load_factor
+
+  // The API preserves stored proxy, expiry, and load factor values when omitted
+  // or null. Send zero to clear them when the corresponding form control is empty.
+  return {
+    name: form.name,
+    notes: form.notes,
+    type: form.type,
+    credentials: form.credentials,
+    proxy_id: form.proxy_id ?? 0,
+    concurrency: form.concurrency,
+    load_factor: factor == null || Number.isNaN(factor) || factor <= 0 ? 0 : factor,
+    priority: form.priority,
+    rate_multiplier: form.rate_multiplier,
+    status: form.status,
+    group_ids: form.group_ids,
+    expires_at: form.expires_at ?? 0,
+    auto_pause_on_expired: draft.autoPauseOnExpired.value,
+  }
 }
 
 // applyProviderProtocolPatch writes the editable protocol set into a prepared patch.
