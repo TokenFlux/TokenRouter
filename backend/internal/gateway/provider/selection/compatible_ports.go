@@ -28,17 +28,27 @@ import (
 // result conversion use the same lookup, carrying release handles and wait
 // plans back to the gateway after selection.
 
-// platformSelector builds a compatible scheduler adapter with a new per-call
-// target lookup. Callers supply a picker with its constructed Compatible
-// service; optional repository, cache, and snapshot flags describe which reads
-// the core can perform.
+// platformSelector builds a compatible scheduler adapter using a background
+// context when no request context is supplied.
+func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, *projectionScope) {
+	return s.platformSelectorForContext(context.Background())
+}
+
+// platformSelectorForContext builds a compatible scheduler adapter with a new
+// per-call target lookup bound to reqCtx. Callers supply a picker with its
+// constructed Compatible service; optional repository, cache, and snapshot
+// flags describe which reads the core can perform.
 //
 // Callbacks convert target records through the returned scope before invoking
-// platform eligibility and hydration. Statistics, metrics, concurrency, and the
-// picker's published free-quota gate remain shared across invocations. The
-// scope distinguishes repeated persisted IDs so a selected database record
-// resolves to that record when the gateway restores the result.
-func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, *projectionScope) {
+// platform eligibility and hydration, carrying reqCtx into sticky invalidation,
+// canonical model resolution, and runtime cooldown lookups. Statistics, metrics,
+// concurrency, and the picker's published free-quota gate remain shared across
+// invocations. The scope distinguishes repeated persisted IDs so a selected
+// database record resolves to that record when the gateway restores the result.
+func (s *compatiblePicker) platformSelectorForContext(reqCtx context.Context) (*schedulercore.PlatformSelector, *projectionScope) {
+	if reqCtx == nil {
+		reqCtx = context.Background()
+	}
 	scope := &projectionScope{providers: map[uint64]*gatewayprovider.ExecutionProvider{}, groups: map[uint64]*routing.Group{}}
 	available := s != nil && s.service != nil
 	diagnostics := schedulercore.Diagnostics{
@@ -124,7 +134,7 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 			return scope.provider(v), err
 		},
 		ClearSticky: func(a *schedulercore.FlowProvider, model string) bool {
-			return shouldClearStickySession(scope.oldProvider(a), model)
+			return shouldClearStickySession(reqCtx, scope.oldProvider(a), model)
 		},
 		IsCompatible:  func(a *schedulercore.FlowProvider) bool { return scope.oldProvider(a) != nil },
 		IsSchedulable: func(a *schedulercore.FlowProvider) bool { return scope.oldProvider(a).View().IsSchedulable() },
@@ -138,7 +148,7 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 			return scope.values(s.filterGrokFreeQuotaProviders(ctx, scope.oldValues(values)))
 		},
 		CanonicalModel: func(a *schedulercore.FlowProvider, model string) string {
-			return gatewayprovider.ExecutionModelPolicy(scope.oldProvider(a)).CanonicalSchedulingModel(model)
+			return gatewayprovider.ExecutionModelPolicy(scope.oldProvider(a)).WithContext(reqCtx).CanonicalSchedulingModel(model)
 		},
 		TeamLimited: func(a *schedulercore.FlowProvider, model string, now time.Time) bool {
 			return isGrokTeamModelRateLimited(scope.oldProvider(a), model, now)
@@ -149,7 +159,7 @@ func (s *compatiblePicker) platformSelector() (*schedulercore.PlatformSelector, 
 			return scope.values(v), err
 		},
 		RuntimeBlocked: func(a *schedulercore.FlowProvider, model string) bool {
-			return s.service.isOpenAIProviderRequestRuntimeBlocked(scope.oldProvider(a), model)
+			return s.service.isOpenAIProviderRequestRuntimeBlocked(reqCtx, scope.oldProvider(a), model)
 		},
 		FilterTeamLimited: func(values []schedulercore.FlowProvider, model string, now time.Time) []schedulercore.FlowProvider {
 			return scope.values(filterGrokTeamModelRateLimitedProviders(scope.oldValues(values), model, now))

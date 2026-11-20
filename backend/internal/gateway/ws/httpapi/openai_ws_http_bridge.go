@@ -27,6 +27,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
@@ -673,13 +674,18 @@ func (s *OpenAIWebSocketExecutor) proxyOpenAIWSHTTPBridgeTurn(
 			body = liteBody
 		}
 	}
+	effort := requeststate.ExtractRoutingReasoningEffort(body, protocolcore.ProtocolResponsesWebSocket)
+	if effort != "" {
+		ctx = requeststate.WithRoutingReasoningEffort(ctx, effort)
+	}
 	billingModel := ""
 	mappedModel := ""
 	if provider.Record.Platform == capability.PlatformGrok {
 		billingModel, mappedModel = resolveGrokWSModels(provider, body, routingModel)
 	} else if routingModel != "" {
-		billingModel = gatewayprovider.ExecutionModelPolicy(provider).Mapped(routingModel)
-		mappedModel = gatewayprovider.ExecutionModelPolicy(provider).NormalizeOpenAI(billingModel)
+		policy := gatewayprovider.ExecutionModelPolicy(provider).WithEffort(effort)
+		billingModel = policy.Mapped(routingModel)
+		mappedModel = policy.NormalizeOpenAI(billingModel)
 	}
 	// Track model restoration separately from billing choice; later body preparation
 	// supplies the actual wire model before the response metadata rewrite is enabled.
@@ -709,7 +715,7 @@ func (s *OpenAIWebSocketExecutor) proxyOpenAIWSHTTPBridgeTurn(
 	// When prepared bytes omit model, retain the canonical original-model key for
 	// diagnostics and health; this fallback leaves the outgoing body bytes unchanged.
 	if actualModel == "" {
-		actualModel = gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(originalModel)
+		actualModel = gatewayprovider.ExecutionModelPolicy(provider).WithEffort(effort).CanonicalSchedulingModel(originalModel)
 	}
 	if actualModel != "" {
 		mappedModel = actualModel
@@ -1354,8 +1360,9 @@ func resolveGrokWSModels(provider *gatewayprovider.ExecutionProvider, body []byt
 		requestedModel = strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	}
 	billingModel := requestedModel
+	effort := requeststate.ExtractRoutingReasoningEffort(body, protocolcore.ProtocolResponsesWebSocket)
 	if provider != nil {
-		billingModel = providercore.ResolveForwardMappedModel(gatewayprovider.ExecutionRecord(provider), requestedModel, provideradapter.ModelDefaults())
+		billingModel = providercore.ResolveForwardMappedModelForEffort(gatewayprovider.ExecutionRecord(provider), requestedModel, effort, provideradapter.ModelDefaults())
 	}
 	upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).NormalizeOpenAI(billingModel)
 	// An empty normalized model needs a wire model for Grok preparation. Use the

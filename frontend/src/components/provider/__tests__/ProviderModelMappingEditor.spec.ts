@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 
+import Select from '@/components/common/Select.vue'
 import ProviderModelMappingEditor from '../ProviderModelMappingEditor.vue'
 import type { ModelMappingRow } from '@/utils/modelMappingRules'
 
@@ -89,5 +90,86 @@ describe('ProviderModelMappingEditor', () => {
 
     expect(wrapper!.emitted('add')).toHaveLength(1)
     expect(wrapper!.emitted('remove')?.[0]?.[1]).toBe(0)
+  })
+
+  // The editor enables supportEffort with an initial row and stripEffort prop. Selecting an
+  // effort through the shared Select control, previewing and applying batch suffix rules,
+  // and toggling wire-effort stripping must emit the expected composite mapping rows and
+  // strip state without rendering native select elements or duplicating pairs.
+  it('supports effort-scoped rows, batch suffix generation, and strip-effort toggle', async () => {
+    const rows: ModelMappingRow[] = [
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+    ]
+    mountEditor(rows, { supportEffort: true, stripEffort: false, wildcardValidation: true })
+
+    expect(wrapper!.find('select').exists()).toBe(false)
+    const effortSelect = wrapper!.getComponent(Select)
+    expect(effortSelect.props('modelValue')).toBe('high')
+    expect(wrapper!.find('[data-testid="mapping-strip-effort"]').exists()).toBe(true)
+
+    effortSelect.vm.$emit('update:modelValue', '')
+    await wrapper!.vm.$nextTick()
+    expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toEqual([
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high' },
+    ])
+
+    effortSelect.vm.$emit('update:modelValue', 'high')
+    await wrapper!.vm.$nextTick()
+
+    await wrapper!.get('[data-testid="mapping-batch-toggle"]').trigger('click')
+    expect(wrapper!.get('[data-testid="mapping-batch-preview"]').text()).toContain(
+      'admin.providers.batchAddEffortPreviewEmpty',
+    )
+
+    await wrapper!.get('[data-testid="mapping-batch-base"]').setValue('claude-opus-5-5')
+    expect(wrapper!.get('[data-testid="mapping-batch-preview"]').text()).toContain(
+      'claude-opus-5-5-low',
+    )
+
+    await wrapper!.get('[data-testid="mapping-batch-pattern"]').setValue('{model}-*')
+    expect(wrapper!.get('[data-testid="mapping-batch-preview"]').text()).toContain(
+      'admin.providers.targetNoWildcard',
+    )
+    expect(wrapper!.get('[data-testid="mapping-batch-apply"]').attributes('disabled')).toBeDefined()
+
+    await wrapper!.get('[data-testid="mapping-batch-pattern"]').setValue('{model}-{effort}')
+    await wrapper!.get('[data-testid="mapping-batch-preset-all"]').trigger('click')
+    expect(wrapper!.get('[data-testid="mapping-batch-preview"]').text()).toContain(
+      'claude-opus-5-5-none',
+    )
+
+    await wrapper!.get('[data-testid="mapping-batch-preset-common"]').trigger('click')
+    await wrapper!.get('[data-testid="mapping-batch-apply"]').trigger('click')
+
+    const emittedRows = wrapper!.emitted('update:modelValue')?.at(-1)?.[0] as ModelMappingRow[]
+    expect(emittedRows).toEqual([
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-medium', effort: 'medium' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-max', effort: 'max' },
+    ])
+
+    await wrapper!.get('[data-testid="mapping-strip-effort"]').trigger('click')
+    expect(wrapper!.emitted('update:stripEffort')?.[0]).toEqual([true])
+  })
+
+  // Duplicate (source, effort) rows are supplied while distinct efforts share the same source.
+  // The effort-enabled editor must flag only the duplicate pair and leave distinct effort rows
+  // clear of errors.
+  it('flags duplicate (source, effort) pairs without rejecting distinct efforts for one source', () => {
+    mountEditor(
+      [
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high-v2', effort: 'high' },
+      ],
+      { supportEffort: true, wildcardValidation: true },
+    )
+
+    const alerts = wrapper!.findAll('[role="alert"]').map((alert) => alert.text())
+    expect(alerts).toEqual([
+      'admin.providers.effortMappingDuplicate',
+      'admin.providers.effortMappingDuplicate',
+    ])
   })
 })

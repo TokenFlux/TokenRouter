@@ -60,7 +60,7 @@ func CheckTextModelPricing(ctx context.Context, prices *admission.ModelPricing, 
 		mapping = plan.Mapping()
 		requested = plan.Models().RequestedModel
 	}
-	policy := gatewayprovider.ExecutionModelPolicy(target)
+	policy := gatewayprovider.ExecutionModelPolicy(target).WithContext(ctx)
 	result := &completion.Result{Model: mapped}
 	if target.View().IsOpenAICompatible() {
 		result.BillingModel, result.UpstreamModel = policy.ForwardMappedModels(mapped, compact != nil)

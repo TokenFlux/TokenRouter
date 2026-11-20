@@ -157,6 +157,12 @@ func (h *OpenAITextHandler) Messages(c *gin.Context) {
 		return
 	}
 
+	// Capture request effort before planning so provider effort_model_mapping
+	// rules participate in route resolution and selection.
+	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
+		c.Request.Context(),
+		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolAnthropicMessages),
+	))
 	// Plan from admitted canonical input after moderation. Retain the group
 	// model for provider rules while the original model remains available for client attribution.
 	groupMappingMsgRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)

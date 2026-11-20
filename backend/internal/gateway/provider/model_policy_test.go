@@ -839,3 +839,59 @@ func TestCapturedOrdinaryEmptyMappingRetainsRequestModel(t *testing.T) {
 		})
 	}
 }
+
+// TestModelPolicyEffortModelMapping exercises Antigravity reverse-proxy style
+// effort-suffixed upstream models across support, upstream resolution,
+// per-target rate-limit isolation, listing enumeration, and wire-strip gating.
+func TestModelPolicyEffortModelMapping(t *testing.T) {
+	future := time.Now().Add(10 * time.Minute).UTC().Format(time.RFC3339)
+	record := &providercore.Record{
+		ID:       31,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.ProviderTypeAPIKey,
+		Now:      time.Now,
+		Credentials: map[string]any{
+			"api_key":         "agy-proxy-key",
+			"model_whitelist": []string{"claude-opus-5-5-low", "claude-opus-5-5-high"},
+			providercore.EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"low":    "claude-opus-5-5-low",
+					"high":   "claude-opus-5-5-high",
+					"medium": "claude-opus-5-5-medium",
+				},
+			},
+			providercore.EffortModelMappingStripEffortCredentialKey: true,
+		},
+		Extra: map[string]any{
+			"model_rate_limits": map[string]any{
+				"claude-opus-5-5-high": map[string]any{
+					"rate_limit_reset_at": future,
+				},
+			},
+		},
+	}
+
+	policy := (ModelPolicy{Record: record}).Prepared()
+	highCtx := requeststate.WithRoutingReasoningEffort(t.Context(), "high")
+	lowCtx := requeststate.WithRoutingReasoningEffort(t.Context(), "low")
+	mediumCtx := requeststate.WithRoutingReasoningEffort(t.Context(), "medium")
+	emptyCtx := t.Context()
+
+	require.True(t, policy.Supports(highCtx, "claude-opus-5-5"))
+	require.True(t, policy.Supports(lowCtx, "claude-opus-5-5"))
+	require.False(t, policy.Supports(mediumCtx, "claude-opus-5-5"))
+	require.False(t, policy.Supports(emptyCtx, "claude-opus-5-5"))
+	require.True(t, policy.SupportsAnyEffort(emptyCtx, "claude-opus-5-5"))
+
+	require.Equal(t, "claude-opus-5-5-high", policy.UpstreamModel(highCtx, "claude-opus-5-5"))
+	require.Equal(t, "claude-opus-5-5-low", policy.UpstreamModel(lowCtx, "claude-opus-5-5"))
+
+	// Cooldown on claude-opus-5-5-high must block high without blocking low.
+	require.Equal(t, []string{"claude-opus-5-5-high"}, policy.LimitKeys(highCtx, "claude-opus-5-5"))
+	require.False(t, policy.AllowsModel(highCtx, "claude-opus-5-5"))
+	require.True(t, policy.AllowsModel(lowCtx, "claude-opus-5-5"))
+	require.Equal(t, []string{"claude-opus-5-5-low"}, policy.ListingModels(emptyCtx, "claude-opus-5-5"))
+
+	require.True(t, policy.ShouldStripWireEffort(highCtx, "claude-opus-5-5"))
+	require.False(t, policy.ShouldStripWireEffort(emptyCtx, "claude-opus-5-5"))
+}

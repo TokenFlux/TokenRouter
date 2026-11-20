@@ -394,6 +394,7 @@
             :models="isQoderCosyProvider ? (qoderCatalogStatus?.models ?? []) : undefined"
             :known-route-keys="qoderEnabledKeys"
             v-model:mappings="modelMappings"
+            v-model:strip-effort="stripEffortOnEffortModelMapping"
             :platform="provider.type === 'bedrock' ? 'anthropic' : provider.platform"
             :provider-id="
               provider.type === 'bedrock' || connectionChanged ? undefined : provider.id
@@ -428,6 +429,7 @@
             v-model:mode="antigravityModelRestrictionMode"
             v-model:allowed-models="antigravityWhitelistModels"
             v-model:mappings="antigravityModelMappings"
+            v-model:strip-effort="antigravityStripEffortOnEffortModelMapping"
             platform="antigravity"
             :provider-id="provider.id"
             wildcard-validation
@@ -1160,6 +1162,7 @@ const {
   editVertexClientEmail,
   editVertexLocation,
   modelMappings,
+  stripEffortOnEffortModelMapping,
   openAICompactModelMappings,
   modelRestrictionMode,
   allowedModels,
@@ -1188,6 +1191,7 @@ const {
   antigravityModelRestrictionMode,
   antigravityWhitelistModels,
   antigravityModelMappings,
+  antigravityStripEffortOnEffortModelMapping,
   tempUnschedEnabled,
   providerSchedulingThresholdOverrideEnabled,
   providerSchedulingThresholdOverrideValue,

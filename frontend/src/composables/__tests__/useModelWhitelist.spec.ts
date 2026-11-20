@@ -6,8 +6,11 @@ vi.mock('@/api/admin/providers', () => ({
 
 import {
   buildCombinedModelMappingObject,
+  buildEffortModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  splitEffortModelMappingObject,
+  splitPersistedModelRestriction,
   splitQoderPersistedModelRestriction,
   splitModelMappingObject,
 } from '../useModelWhitelist'
@@ -158,6 +161,48 @@ describe('useModelWhitelist', () => {
         'gpt-5.4': 'gpt-5.4',
       },
       modelWhitelist: [],
+    })
+  })
+
+  // Effort-scoped mapping rows are mixed alongside ordinary fallback rows and invalid
+  // patterns. Builders must route effort rows exclusively into effort_model_mapping,
+  // keep ordinary rows in model_mapping, and round-trip through split helpers cleanly.
+  it('separates and round-trips effort_model_mapping alongside model_mapping', () => {
+    const rows = [
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-medium' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'HIGH' },
+      { from: 'bad*mid', to: 'target', effort: 'max' },
+      { from: 'claude-opus-5-5', to: 'bad*', effort: 'max' },
+    ]
+
+    expect(buildModelMappingObject('mapping', [], rows)).toEqual({
+      'claude-opus-5-5': 'claude-opus-5-5-medium',
+    })
+    const effortObj = buildEffortModelMappingObject(rows)
+    expect(effortObj).toEqual({
+      'claude-opus-5-5': {
+        low: 'claude-opus-5-5-low',
+        high: 'claude-opus-5-5-high',
+      },
+    })
+    expect(splitEffortModelMappingObject(effortObj)).toEqual([
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+      { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+    ])
+    expect(
+      splitPersistedModelRestriction(
+        { 'claude-opus-5-5': 'claude-opus-5-5-medium' },
+        ['claude-opus-5-5-low', 'claude-opus-5-5-high'],
+        effortObj,
+      ),
+    ).toEqual({
+      allowedModels: ['claude-opus-5-5-low', 'claude-opus-5-5-high'],
+      modelMappings: [
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-medium' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+      ],
     })
   })
 })

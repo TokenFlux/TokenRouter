@@ -54,6 +54,11 @@ func (s *Admin) CreateProvider(ctx context.Context, input *CreateProviderInput) 
 	if err := egress.NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
 		return nil, err
 	}
+	// Validate and canonicalize effort-scoped model overrides before storing
+	// credentials so unknown effort labels or malformed wildcards fail fast.
+	if err := NormalizeEffortModelMappingCredentials(input.Credentials); err != nil {
+		return nil, err
+	}
 	// Strip exchange-only passwords and SSO values before storing OAuth
 	// credentials, preventing temporary login material from surviving alongside
 	// the resulting tokens.

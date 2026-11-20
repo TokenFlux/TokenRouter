@@ -38,6 +38,9 @@ import { readCodexImageToolMode, readCodexImageResponsesModel } from '@/utils/co
 import { RESPONSES_WS_POOLED, readResponsesWSConnectionMode } from '@/utils/responsesWsConnection'
 import { normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
 import {
+  EFFORT_MODEL_MAPPING_CREDENTIAL_KEY,
+  EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY,
+  splitEffortModelMappingObject,
   splitPersistedModelRestriction,
   splitQoderPersistedModelRestriction,
 } from '@/composables/useModelWhitelist'
@@ -136,14 +139,17 @@ function toPositiveOrSpecialID(value: unknown) {
   return Math.trunc(num)
 }
 
-// hasConfiguredModelRestriction reports whether Qoder has stored mappings or an explicit whitelist.
+// hasConfiguredModelRestriction reports whether Qoder has stored mappings,
+// effort-scoped overrides, or an explicit whitelist.
 const hasConfiguredModelRestriction = (
   existingMappings?: Record<string, string>,
   rawWhitelist?: unknown,
+  rawEffortMapping?: unknown,
 ) =>
   (!!existingMappings &&
     typeof existingMappings === 'object' &&
     Object.keys(existingMappings).length > 0) ||
+  splitEffortModelMappingObject(rawEffortMapping).length > 0 ||
   Array.isArray(rawWhitelist)
 
 // hydrateProviderFormDraft restores one provider into existing form refs. The caller
@@ -182,6 +188,7 @@ export function hydrateProviderFormDraft(
     editVertexClientEmail,
     editVertexLocation,
     modelMappings,
+    stripEffortOnEffortModelMapping,
     openAICompactModelMappings,
     modelRestrictionMode,
     allowedModels,
@@ -212,6 +219,7 @@ export function hydrateProviderFormDraft(
     antigravityModelRestrictionMode,
     antigravityWhitelistModels,
     antigravityModelMappings,
+    antigravityStripEffortOnEffortModelMapping,
     tempUnschedEnabled,
     providerSchedulingThresholdOverrideEnabled,
     providerSchedulingThresholdOverrideValue,
@@ -273,10 +281,13 @@ export function hydrateProviderFormDraft(
   const hydrateModelRestrictionFromMapping = (
     existingMappings?: Record<string, string>,
     rawWhitelist?: unknown,
+    rawEffortMapping?: unknown,
+    rawStripEffort?: unknown,
   ) => {
-    const parsed = splitPersistedModelRestriction(existingMappings, rawWhitelist)
+    const parsed = splitPersistedModelRestriction(existingMappings, rawWhitelist, rawEffortMapping)
     allowedModels.value = parsed.allowedModels
     modelMappings.value = parsed.modelMappings
+    stripEffortOnEffortModelMapping.value = rawStripEffort === true
     modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
   }
 
@@ -284,14 +295,18 @@ export function hydrateProviderFormDraft(
   const hydrateQoderModelRestrictionFromMapping = (
     existingMappings?: Record<string, string>,
     rawWhitelist?: unknown,
+    rawEffortMapping?: unknown,
+    rawStripEffort?: unknown,
   ) => {
     qoderModelRestrictionConfigured.value = hasConfiguredModelRestriction(
       existingMappings,
       rawWhitelist,
+      rawEffortMapping,
     )
     qoderModelWhitelistConfigured.value = Array.isArray(rawWhitelist)
     qoderModelRestrictionTouched.value = false
     qoderModelWhitelistTouched.value = false
+    stripEffortOnEffortModelMapping.value = rawStripEffort === true
     if (!qoderModelRestrictionConfigured.value) {
       allowedModels.value = []
       modelMappings.value = []
@@ -299,7 +314,11 @@ export function hydrateProviderFormDraft(
       return
     }
 
-    const parsed = splitQoderPersistedModelRestriction(existingMappings, rawWhitelist)
+    const parsed = splitQoderPersistedModelRestriction(
+      existingMappings,
+      rawWhitelist,
+      rawEffortMapping,
+    )
     allowedModels.value = parsed.allowedModels
     modelMappings.value = parsed.modelMappings
     modelRestrictionMode.value = modelMappings.value.length > 0 ? 'mapping' : 'whitelist'
@@ -614,12 +633,16 @@ export function hydrateProviderFormDraft(
       ? [...(credentials.model_whitelist as string[])]
       : []
     const rawAgMapping = credentials?.model_mapping as Record<string, string> | undefined
-    if (rawAgMapping && typeof rawAgMapping === 'object') {
-      const entries = Object.entries(rawAgMapping)
-      antigravityModelMappings.value = entries.map(([from, to]) => ({ from, to }))
-    } else {
-      antigravityModelMappings.value = []
-    }
+    const agPlainRows =
+      rawAgMapping && typeof rawAgMapping === 'object'
+        ? Object.entries(rawAgMapping).map(([from, to]) => ({ from, to }))
+        : []
+    const agEffortRows = splitEffortModelMappingObject(
+      credentials?.[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+    )
+    antigravityModelMappings.value = [...agPlainRows, ...agEffortRows]
+    antigravityStripEffortOnEffortModelMapping.value =
+      credentials?.[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY] === true
     antigravityModelRestrictionMode.value =
       antigravityModelMappings.value.length > 0 ? 'mapping' : 'whitelist'
   } else {
@@ -627,6 +650,7 @@ export function hydrateProviderFormDraft(
     antigravityModelRestrictionMode.value = 'mapping'
     antigravityWhitelistModels.value = []
     antigravityModelMappings.value = []
+    antigravityStripEffortOnEffortModelMapping.value = false
   }
   loadQuotaControlSettings(newProvider)
 
@@ -759,7 +783,12 @@ export function hydrateProviderFormDraft(
         ? editAdaptiveBaseUrls.value.chat_completions
         : (apiCreds.base_url as string) || platformDefaultUrl
     const existingMappings = apiCreds.model_mapping as Record<string, string> | undefined
-    hydrateModelRestrictionFromMapping(existingMappings, apiCreds.model_whitelist)
+    hydrateModelRestrictionFromMapping(
+      existingMappings,
+      apiCreds.model_whitelist,
+      apiCreds[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+      apiCreds[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY],
+    )
     poolModeEnabled.value = apiCreds.pool_mode === true
     poolModeRetryCount.value = normalizePoolModeRetryCount(
       Number(apiCreds.pool_mode_retry_count ?? DEFAULT_POOL_MODE_RETRY_COUNT),
@@ -805,7 +834,12 @@ export function hydrateProviderFormDraft(
       typeof bedrockExtra.quota_monthly_limit === 'number' ? bedrockExtra.quota_monthly_limit : null
     loadQuotaNotifyFromExtra(bedrockExtra)
     const existingMappings = bedrockCreds.model_mapping as Record<string, string> | undefined
-    hydrateModelRestrictionFromMapping(existingMappings, bedrockCreds.model_whitelist)
+    hydrateModelRestrictionFromMapping(
+      existingMappings,
+      bedrockCreds.model_whitelist,
+      bedrockCreds[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+      bedrockCreds[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY],
+    )
   } else if (
     (newProvider.platform === 'gemini' || newProvider.platform === 'anthropic') &&
     newProvider.type === 'service_account' &&
@@ -819,6 +853,8 @@ export function hydrateProviderFormDraft(
     hydrateModelRestrictionFromMapping(
       saCreds.model_mapping as Record<string, string> | undefined,
       saCreds.model_whitelist,
+      saCreds[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+      saCreds[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY],
     )
   } else {
     const platformDefaultUrl =
@@ -840,9 +876,19 @@ export function hydrateProviderFormDraft(
       const oauthCredentials = newProvider.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
       if (newProvider.platform === 'qoder') {
-        hydrateQoderModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
+        hydrateQoderModelRestrictionFromMapping(
+          existingMappings,
+          oauthCredentials.model_whitelist,
+          oauthCredentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+          oauthCredentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY],
+        )
       } else {
-        hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
+        hydrateModelRestrictionFromMapping(
+          existingMappings,
+          oauthCredentials.model_whitelist,
+          oauthCredentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
+          oauthCredentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY],
+        )
       }
     } else {
       hydrateModelRestrictionFromMapping()

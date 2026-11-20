@@ -34,22 +34,28 @@ type ModelHealth struct {
 	Health      *provider.HealthService // provider health rule service
 }
 
-// LimitKey resolves the model identity used by provider cooldown state. A nil
-// record or empty trimmed input returns that trimmed input immediately. OpenAI
-// and Grok callers supply already mapped upstream names, with Grok applying its
-// platform normalization.
-//
-// Antigravity resolution includes the attempt's thinking setting, and remaining
-// platforms resolve one provider mapping. If either resolution yields an empty
-// result, the original trimmed name remains the key, so model health does not
-// lose the identity that the caller observed.
+// LimitKey resolves the model identity used by provider cooldown state without
+// an explicit effort override, delegating to LimitKeyForEffort.
 func (s *ModelHealth) LimitKey(value *provider.Record, requested string, thinking *bool) string {
+	return s.LimitKeyForEffort(value, requested, "", thinking)
+}
+
+// LimitKeyForEffort resolves the model identity used by provider cooldown state
+// with an optional reasoning effort. A nil record or empty trimmed input returns
+// that trimmed input immediately. OpenAI and Grok callers supply already mapped
+// upstream names, with Grok applying its platform normalization.
+//
+// Antigravity resolution includes the attempt's effort and thinking settings,
+// and remaining platforms resolve one effort-aware provider mapping. If
+// resolution yields an empty result, the original trimmed name remains the key,
+// so model health does not lose the identity that the caller observed.
+func (s *ModelHealth) LimitKeyForEffort(value *provider.Record, requested, effort string, thinking *bool) string {
 	key := strings.TrimSpace(requested)
 	if value == nil || key == "" {
 		return key
 	}
 	if value.Platform == provider.PlatformAntigravity {
-		mapped := FinalAntigravityModel(value, key, thinking)
+		mapped := FinalAntigravityModelForEffort(value, key, effort, thinking)
 		if mapped = strings.TrimSpace(mapped); mapped != "" {
 			return mapped
 		}
@@ -72,7 +78,12 @@ func (s *ModelHealth) LimitKey(value *provider.Record, requested string, thinkin
 		// that input for health state associated with this attempt's model.
 		return key
 	}
-	mapped, _ := provider.ResolveMappedModel(provider.ResolveModelMapping(value, ModelDefaults()), key)
+	mapped, _, _ := provider.ResolveMappedModelForEffort(
+		provider.ResolveModelMapping(value, ModelDefaults()),
+		provider.ResolveEffortModelMapping(value),
+		key,
+		effort,
+	)
 	if mapped = strings.TrimSpace(mapped); mapped != "" {
 		return mapped
 	}

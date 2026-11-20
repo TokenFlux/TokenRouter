@@ -272,6 +272,12 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 		return
 	}
 
+	// Capture the post-policy request effort before planning so provider
+	// effort_model_mapping rules participate in route resolution and selection.
+	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
+		c.Request.Context(),
+		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolOpenAIResponses),
+	))
 	// Group model G controls image concurrency and endpoint capability; client model R identifies logs and
 	// sessions.
 	// Store the group and mapped model in the execution plan.

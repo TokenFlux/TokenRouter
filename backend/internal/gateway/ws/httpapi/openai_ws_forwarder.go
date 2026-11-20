@@ -13,8 +13,10 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -89,7 +91,10 @@ func resolveOpenAIWSTurnModels(provider *gatewayprovider.ExecutionProvider, hook
 		)
 	}
 
-	upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).NormalizeOpenAI(providercore.ResolveForwardMappedModel(gatewayprovider.ExecutionRecord(provider), routingModel, provideradapter.ModelDefaults()))
+	effort := requeststate.ExtractRoutingReasoningEffort(payload, protocol.ProtocolResponsesWebSocket)
+	upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).WithEffort(effort).NormalizeOpenAI(
+		providercore.ResolveForwardMappedModelForEffort(gatewayprovider.ExecutionRecord(provider), routingModel, effort, provideradapter.ModelDefaults()),
+	)
 	// A provider mapping can normalize to no model; retain the eligible routing
 	// name so upstream execution does not lose the client's accepted model choice.
 	if upstreamModel == "" {

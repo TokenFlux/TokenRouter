@@ -111,7 +111,7 @@ func (s *Gemini) tryStickySessionHit(
 		return nil
 	}
 
-	if shouldClearStickySession(provider, requestedModel) {
+	if shouldClearStickySession(ctx, provider, requestedModel) {
 		// An unusable provider or active model cooldown invalidates this affinity.
 		// Delete it best-effort so cache failure does not prevent ordinary pool selection.
 		_ = s.cache.DeleteSessionProviderID(ctx, derefGroupID(groupID), cacheKey)

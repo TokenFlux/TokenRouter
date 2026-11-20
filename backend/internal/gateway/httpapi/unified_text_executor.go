@@ -136,16 +136,16 @@ func (e *UnifiedTextExecutor) Chat(ctx context.Context, c *gin.Context, target *
 	return e.native(ctx, c, target, body, protocol.ProtocolOpenAIChatCompletions)
 }
 
-// prepare resolves the attempt route and records actual selected-provider
-// attribution before checking price and platform reasoning policy. It returns
-// the routed target, whose upstream protocol selects the executor. Anthropic
-// and OpenAI policy failures write local permission output in the inbound
-// format; other platforms retain the supplied bytes after pricing, and caller
+// prepare records actual selected-provider attribution, applies platform
+// reasoning policy, resolves the attempt route, and checks price before
+// dispatch. Applying platform effort policy ahead of attempt-route resolution
+// ensures group downgrades or rewrites update the routing effort seen by
+// provider effort_model_mapping and pricing preflight. Anthropic and OpenAI
+// policy failures write local permission output in the inbound format; caller
 // context changes remain in Gin.
 func (e *UnifiedTextExecutor) prepare(c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte, source protocol.ProtocolID) (*gatewayadapter.ExecutionProvider, []byte, error) {
-	target, err := gatewayadapter.ProviderForProtocolAttempt(c.Request.Context(), target)
-	if err != nil {
-		return nil, nil, err
+	if target == nil {
+		return nil, nil, fmt.Errorf("provider is nil")
 	}
 	// Failover can move to a provider served by the other executor family.
 	// Clear both observation slots so a failed attempt cannot attribute its
@@ -153,29 +153,44 @@ func (e *UnifiedTextExecutor) prepare(c *gin.Context, target *gatewayadapter.Exe
 	ClearActualOpenAIUpstreamEndpoint(c)
 	SetActualUpstreamEndpoint(c, "")
 	SetOpsSelectedProvider(c, target.Record.RoutingSnapshot())
-	if err := e.checkPricing(c, target, body, source); err != nil {
-		return nil, nil, err
-	}
 	key, _ := EffectiveAPIKey(c)
-	var result []byte
+	result := body
+	var policyChanged bool
+	var policyErr error
 	switch target.Record.Platform {
 	case provider.PlatformAnthropic:
-		result, _, err = ApplyAnthropicReasoningEffortPolicyForRequest(c, key, body)
+		result, policyChanged, policyErr = ApplyAnthropicReasoningEffortPolicyForRequest(c, key, body)
 	case provider.PlatformOpenAI:
-		result, _, err = ApplyOpenAIReasoningEffortPolicyForRequest(c, key, body)
-	default:
-		return target, body, nil
+		result, policyChanged, policyErr = ApplyOpenAIReasoningEffortPolicyForRequest(c, key, body)
 	}
-	if err != nil {
+	if policyErr != nil {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		MarkResponseCommitted(c)
 		if source == protocol.ProtocolAnthropicMessages {
-			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusForbidden, "permission_error", err.Error(), CommittedSSE(c))
+			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusForbidden, "permission_error", policyErr.Error(), CommittedSSE(c))
 		} else {
-			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusForbidden, "permission_error", "reasoning_effort_limit", err.Error(), CommittedSSE(c), false)
+			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusForbidden, "permission_error", "reasoning_effort_limit", policyErr.Error(), CommittedSSE(c), false)
 		}
+		return nil, nil, policyErr
 	}
-	return target, result, err
+	// Synchronize routing effort and route plan after a platform effort policy
+	// rewrite so attempt resolution and pricing evaluate the effective effort.
+	if policyChanged {
+		effectiveEffort := requeststate.ExtractRoutingReasoningEffort(result, source)
+		updatedCtx := requeststate.WithRoutingReasoningEffort(c.Request.Context(), effectiveEffort)
+		if plan, ok := requeststate.RoutePlanFromContext(updatedCtx); ok {
+			updatedCtx = requeststate.WithRoutePlan(updatedCtx, plan.WithReasoningEffort(effectiveEffort))
+		}
+		c.Request = c.Request.WithContext(updatedCtx)
+	}
+	target, err := gatewayadapter.ProviderForProtocolAttempt(c.Request.Context(), target)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := e.checkPricing(c, target, result, source); err != nil {
+		return nil, nil, err
+	}
+	return target, result, nil
 }
 
 // usesOpenAIExecutor reports whether the OpenAI-compatible executor serves the

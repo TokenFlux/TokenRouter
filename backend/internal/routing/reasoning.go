@@ -84,29 +84,14 @@ func (e *ReasoningEffortOverLimitError) Error() string {
 }
 
 // NormalizeMaxReasoningEffort trims, lowercases, and removes separators from
-// recognized ranked effort labels. Unknown and empty values return empty,
-// representing no group ceiling when used as configuration.
+// recognized ranked effort labels. Unknown, empty, and noncomparable none
+// values return empty, representing no group ceiling when used as configuration.
 func NormalizeMaxReasoningEffort(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
-	switch value {
-	case "":
-		return ""
-	case "minimal":
-		return "minimal"
-	case "low":
-		return "low"
-	case "medium":
-		return "medium"
-	case "high":
-		return "high"
-	case "xhigh", "extrahigh":
-		return "xhigh"
-	case "max":
-		return "max"
-	default:
+	value := protocol.NormalizeReasoningEffort(raw)
+	if value == protocol.ReasoningNone {
 		return ""
 	}
+	return value
 }
 
 // NormalizeReasoningEffortMappingValue normalizes mapping labels and
@@ -114,12 +99,7 @@ func NormalizeMaxReasoningEffort(raw string) string {
 // ReasoningEffortRank leaves it outside the ordering used for group ceiling
 // comparisons.
 func NormalizeReasoningEffortMappingValue(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
-	if value == "none" {
-		return "none"
-	}
-	return NormalizeMaxReasoningEffort(value)
+	return protocol.NormalizeReasoningEffort(raw)
 }
 
 // NormalizeRequestedOpenAIReasoningEffort applies mapping-value normalization

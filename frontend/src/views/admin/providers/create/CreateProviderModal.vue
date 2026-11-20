@@ -916,6 +916,7 @@
             v-model:mode="modelRestrictionMode"
             :allowed-models="allowedModels"
             v-model:mappings="modelMappings"
+            v-model:strip-effort="stripEffortOnEffortModelMapping"
             :platform="isBedrockCategory ? 'anthropic' : form.platform"
             :models="form.platform === 'qoder' ? [] : undefined"
             :sync-credentials="form.platform === 'qoder' ? undefined : syncPreviewCredentials"
@@ -940,6 +941,7 @@
             v-model:mode="antigravityModelRestrictionMode"
             v-model:allowed-models="antigravityWhitelistModels"
             v-model:mappings="antigravityModelMappings"
+            v-model:strip-effort="antigravityStripEffortOnEffortModelMapping"
             platform="antigravity"
             wildcard-validation
           />
@@ -1957,6 +1959,7 @@ const {
   editVertexClientEmail: vertexClientEmail,
   editVertexLocation: vertexLocation,
   modelMappings,
+  stripEffortOnEffortModelMapping,
   openAICompactModelMappings,
   modelRestrictionMode,
   allowedModels,
@@ -1985,6 +1988,7 @@ const {
   antigravityModelRestrictionMode,
   antigravityWhitelistModels,
   antigravityModelMappings,
+  antigravityStripEffortOnEffortModelMapping,
   tempUnschedEnabled,
   providerSchedulingThresholdOverrideEnabled,
   providerSchedulingThresholdOverrideValue,

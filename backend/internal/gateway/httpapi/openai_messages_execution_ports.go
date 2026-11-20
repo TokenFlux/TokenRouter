@@ -174,10 +174,14 @@ func (p *openAIMessagesExecutionAdapter) Error(status int, kind, message string)
 	WriteAnthropicError(p.c, status, kind, "", message)
 }
 
-// BillingModel applies provider model policy to the requested and
+// BillingModel applies effort-aware provider model policy to the requested and
 // group-fallback model.
 func (p *openAIMessagesExecutionAdapter) BillingModel(model, fallback string) string {
-	return gatewayprovider.ExecutionModelPolicy(p.provider).ForwardModel(model, fallback)
+	policy := gatewayprovider.ExecutionModelPolicy(p.provider)
+	if p.c != nil && p.c.Request != nil {
+		policy = policy.WithContext(p.c.Request.Context())
+	}
+	return policy.ForwardModel(model, fallback)
 }
 
 // UpstreamModel normalizes the billing model for this provider's

@@ -201,7 +201,46 @@ func TestShouldClearStickySession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, shouldClearStickySession(tt.provider, tt.requestedModel))
+			require.Equal(t, tt.want, shouldClearStickySession(t.Context(), tt.provider, tt.requestedModel))
 		})
 	}
+}
+
+// TestShouldClearStickySession_RespectsEffortMappedCooldown cools only the
+// high-effort mapped model on a provider. Sticky invalidation must clear a
+// high-effort request context while keeping a low-effort request sticky.
+func TestShouldClearStickySession_RespectsEffortMappedCooldown(t *testing.T) {
+	future := time.Now().Add(10 * time.Minute).UTC().Format(time.RFC3339)
+	provider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{
+			ID:           77,
+			Platform:     capability.PlatformAnthropic,
+			Type:         capability.ProviderTypeAPIKey,
+			Status:       billing.StatusActive,
+			Schedulable:  true,
+			Now:          time.Now,
+			LoadLocation: time.LoadLocation,
+			Credentials: map[string]any{
+				"model_whitelist": []string{"claude-opus-5-5-low", "claude-opus-5-5-high"},
+				providercore.EffortModelMappingCredentialKey: map[string]any{
+					"claude-opus-5-5": map[string]any{
+						"low":  "claude-opus-5-5-low",
+						"high": "claude-opus-5-5-high",
+					},
+				},
+			},
+			Extra: map[string]any{
+				"model_rate_limits": map[string]any{
+					"claude-opus-5-5-high": map[string]any{
+						"rate_limit_reset_at": future,
+					},
+				},
+			},
+		},
+	}
+
+	highCtx := requeststate.WithRoutingReasoningEffort(t.Context(), "high")
+	lowCtx := requeststate.WithRoutingReasoningEffort(t.Context(), "low")
+	require.True(t, shouldClearStickySession(highCtx, provider, "claude-opus-5-5"))
+	require.False(t, shouldClearStickySession(lowCtx, provider, "claude-opus-5-5"))
 }

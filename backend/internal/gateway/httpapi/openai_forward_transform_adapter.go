@@ -122,9 +122,13 @@ func (p openAIForwardTransformAdapter) ImageIntentHint(model string, body []byte
 }
 
 // Models delegates requested/billing upstream model selection using the
-// selected provider and Compact flag.
+// selected provider, active request context effort, and Compact flag.
 func (p openAIForwardTransformAdapter) Models(model string, compact bool) (string, string) {
-	return gatewayadapter.ExecutionModelPolicy(p.provider).ForwardMappedModels(model, compact)
+	policy := gatewayadapter.ExecutionModelPolicy(p.provider)
+	if p.c != nil && p.c.Request != nil {
+		policy = policy.WithContext(p.c.Request.Context())
+	}
+	return policy.ForwardMappedModels(model, compact)
 }
 
 // CompactModel resolves the selected provider's configured Compact model

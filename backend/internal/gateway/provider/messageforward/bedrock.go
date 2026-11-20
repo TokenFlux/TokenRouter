@@ -51,7 +51,7 @@ func (r *Runtime) bedrock(
 	reqStream := parsed.Stream
 	body := parsed.Body.Bytes()
 
-	route, err := gatewayprovider.ExecutionModelPolicy(provider).BedrockRoute(reqModel)
+	route, err := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).BedrockRoute(reqModel)
 	if err != nil {
 		logging.LegacyPrintf("service.gateway", "[Bedrock] %s", bedrock.BedrockRoutingDiagnostic(err))
 		return nil, err
@@ -65,6 +65,7 @@ func (r *Runtime) bedrock(
 	if err != nil {
 		return nil, err
 	}
+	body = stripAnthropicWireEffortIfMatched(ctx, provider, body, reqModel)
 	// Rewrite ephemeral cache lifetimes before Bedrock sanitization so Claude 4.5+
 	// routes retain 1h while older non-TTL Bedrock models strip unsupported TTL fields.
 	if gatewayprovider.ShouldForceClaude1hCache(ctx, provider, mappedModel, reqModel) {

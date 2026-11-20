@@ -223,6 +223,9 @@ func (s *Gemini) forwardClaudeBodyAsOpenAICompat(
 	if err != nil {
 		return nil, c.GeminiOpenAICompatError(protocol, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
+	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel) {
+		geminiReq = requeststate.StripWireReasoningEffort(geminiReq, protocolcore.ProtocolGeminiGenerateContent)
+	}
 
 	proxyURL := ""
 	if provider.Record.ProxyID != nil && provider.Record.Proxy != nil {

@@ -362,6 +362,8 @@ describe('BulkEditProviderModal', () => {
     expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       credentials: {
         model_mapping: {},
+        effort_model_mapping: {},
+        effort_model_mapping_strip_effort: false,
         model_whitelist: [],
       },
     })
@@ -386,6 +388,8 @@ describe('BulkEditProviderModal', () => {
     expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       credentials: {
         model_mapping: {},
+        effort_model_mapping: {},
+        effort_model_mapping_strip_effort: false,
         model_whitelist: ['claude-sonnet-4-5'],
       },
     })
@@ -440,6 +444,8 @@ describe('BulkEditProviderModal', () => {
         model_mapping: {
           ultimate: 'ultimate',
         },
+        effort_model_mapping: {},
+        effort_model_mapping_strip_effort: false,
         model_whitelist: [],
       },
     })
@@ -459,7 +465,69 @@ describe('BulkEditProviderModal', () => {
     await flushPromises()
 
     expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { model_mapping: {}, model_whitelist: [] },
+      credentials: {
+        model_mapping: {},
+        effort_model_mapping: {},
+        effort_model_mapping_strip_effort: false,
+        model_whitelist: [],
+      },
+    })
+  })
+
+  // Both selected Anthropic API-key providers share identical effort_model_mapping
+  // rules and wire-effort stripping settings. Bulk editing must hydrate those rules
+  // and submit both effort_model_mapping and effort_model_mapping_strip_effort intact.
+  it('hydrates and submits shared effort_model_mapping rules in bulk edit', async () => {
+    const sharedCredentials = {
+      model_whitelist: ['claude-opus-5-5-high'],
+      effort_model_mapping: {
+        'claude-opus-5-5': {
+          high: 'claude-opus-5-5-high',
+        },
+      },
+      effort_model_mapping_strip_effort: true,
+    }
+    vi.mocked(adminAPI.providers.getById)
+      .mockResolvedValueOnce(
+        createProvider({
+          id: 1,
+          platform: 'anthropic',
+          type: 'apikey',
+          credentials: sharedCredentials,
+        }),
+      )
+      .mockResolvedValueOnce(
+        createProvider({
+          id: 2,
+          platform: 'anthropic',
+          type: 'apikey',
+          credentials: sharedCredentials,
+        }),
+      )
+
+    const wrapper = mountModal({
+      show: false,
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['apikey'],
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.get('#bulk-edit-model-restriction-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-provider-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        model_mapping: {},
+        effort_model_mapping: {
+          'claude-opus-5-5': {
+            high: 'claude-opus-5-5-high',
+          },
+        },
+        effort_model_mapping_strip_effort: true,
+        model_whitelist: ['claude-opus-5-5-high'],
+      },
     })
   })
 
@@ -1201,7 +1269,12 @@ describe('BulkEditProviderModal', () => {
 
     expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledTimes(1)
     expect(adminAPI.providers.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { model_mapping: {}, model_whitelist: [] },
+      credentials: {
+        model_mapping: {},
+        effort_model_mapping: {},
+        effort_model_mapping_strip_effort: false,
+        model_whitelist: [],
+      },
       extra: {
         openai_passthrough: true,
       },

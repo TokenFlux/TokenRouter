@@ -115,7 +115,12 @@
                 }}</span>
               </p>
             </div>
-            <ProviderModelMappingEditor v-else v-model="modelMappings" />
+            <ProviderModelMappingEditor
+              v-else
+              v-model="modelMappings"
+              v-model:strip-effort="stripEffortOnEffortModelMapping"
+              support-effort
+            />
           </BulkApplyField>
         </template>
 
@@ -774,11 +779,15 @@ import {
   type RpmStrategy,
 } from '@/components/provider/form/providerFormOptions'
 import ProviderModelMappingEditor from '@/components/provider/ProviderModelMappingEditor.vue'
-import type { ModelMappingRow } from '@/utils/modelMappingRules'
+import { normalizeReasoningEffortValue, type ModelMappingRow } from '@/utils/modelMappingRules'
 import {
+  EFFORT_MODEL_MAPPING_CREDENTIAL_KEY,
+  EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY,
+  buildEffortModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
   normalizeModelWhitelist,
+  splitEffortModelMappingObject,
   splitQoderPersistedModelRestriction,
   splitModelMappingObject,
   splitPersistedModelRestriction,
@@ -1067,6 +1076,7 @@ interface ParsedModelRestrictionState {
   mode: 'whitelist' | 'mapping' // whitelist or mapping editor mode
   allowedModels: string[] // normalized allowed model identifiers
   modelMappings: ModelMappingRow[] // normalized source-target mapping rows
+  stripEffort: boolean // wire-effort stripping switch for effort overrides
 }
 
 /**
@@ -1139,6 +1149,7 @@ const baseUrl = ref('')
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const modelMappings = ref<ModelMappingRow[]>([])
+const stripEffortOnEffortModelMapping = ref(false)
 const customErrorCodesEnabled = ref(false)
 const selectedErrorCodes = ref<number[]>([])
 const interceptWarmupRequests = ref(false)
@@ -1261,46 +1272,54 @@ const openAIAPIKeyWSModeConcurrencyHintKey = computed(() =>
  * defaults.
  */
 const cloneModelMappings = (mappings: ModelMappingRow[]) =>
-  mappings.map(({ from, to }) => ({ from, to }))
+  mappings.map(({ from, to, effort }) => (effort ? { from, to, effort } : { from, to }))
 
 /**
  * normalizeModelMappings copies, trims, filters, and sorts mapping rows for stable comparison.
- * Rows missing either side are discarded, and source then target ordering makes equivalent
- * model restrictions comparable across providers.
+ * Rows missing either side are discarded, and source, effort, then target ordering makes
+ * equivalent model restrictions comparable across providers.
  */
 const normalizeModelMappings = (mappings: ModelMappingRow[]) => {
   return cloneModelMappings(mappings)
-    .map(({ from, to }) => ({
-      from: from.trim(),
-      to: to.trim(),
-    }))
+    .map(({ from, to, effort }) => {
+      const normalizedEffort = normalizeReasoningEffortValue(effort)
+      return normalizedEffort
+        ? { from: from.trim(), to: to.trim(), effort: normalizedEffort }
+        : { from: from.trim(), to: to.trim() }
+    })
     .filter(({ from, to }) => from.length > 0 && to.length > 0)
     .sort((a, b) => {
       const fromCmp = a.from.localeCompare(b.from)
       if (fromCmp !== 0) {
         return fromCmp
       }
+      const effortCmp = (a.effort ?? '').localeCompare(b.effort ?? '')
+      if (effortCmp !== 0) {
+        return effortCmp
+      }
       return a.to.localeCompare(b.to)
     })
 }
 
 /**
- * resetModelRestrictionDraft clears both model lists and restores whitelist editing mode.
+ * resetModelRestrictionDraft clears both model lists, effort stripping, and restores whitelist editing mode.
  */
 const resetModelRestrictionDraft = () => {
   modelRestrictionMode.value = 'whitelist'
   allowedModels.value = []
   modelMappings.value = []
+  stripEffortOnEffortModelMapping.value = false
 }
 
 /**
- * isModelRestrictionDraftPristine reports whether model mode and lists retain their empty
+ * isModelRestrictionDraftPristine reports whether model mode, lists, and effort switch retain their empty
  * initial state.
  */
 const isModelRestrictionDraftPristine = () =>
   modelRestrictionMode.value === 'whitelist' &&
   allowedModels.value.length === 0 &&
-  modelMappings.value.length === 0
+  modelMappings.value.length === 0 &&
+  !stripEffortOnEffortModelMapping.value
 
 /**
  * getModelRestrictionSignature serializes normalized restriction state for equality comparison
@@ -1311,6 +1330,7 @@ const getModelRestrictionSignature = (state: ParsedModelRestrictionState) => {
     mode: state.mode,
     allowedModels: state.allowedModels,
     modelMappings: state.modelMappings,
+    stripEffort: state.stripEffort,
   })
 }
 
@@ -1340,10 +1360,15 @@ const parseProviderModelRestriction = (provider: Provider): ParsedModelRestricti
     } else {
       allowedModels = normalizeModelWhitelist(credentials.model_whitelist)
     }
+    modelMappings = [
+      ...modelMappings,
+      ...splitEffortModelMappingObject(credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY]),
+    ]
   } else if (provider.platform === 'qoder') {
     const parsed = splitQoderPersistedModelRestriction(
       credentials.model_mapping as Record<string, string> | undefined,
       credentials.model_whitelist,
+      credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
     )
     allowedModels = parsed.allowedModels
     modelMappings = parsed.modelMappings
@@ -1351,6 +1376,7 @@ const parseProviderModelRestriction = (provider: Provider): ParsedModelRestricti
     const parsed = splitPersistedModelRestriction(
       credentials.model_mapping as Record<string, string> | undefined,
       credentials.model_whitelist,
+      credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY],
     )
     allowedModels = parsed.allowedModels
     modelMappings = parsed.modelMappings
@@ -1365,6 +1391,7 @@ const parseProviderModelRestriction = (provider: Provider): ParsedModelRestricti
     mode: normalizedModelMappings.length > 0 ? 'mapping' : 'whitelist',
     allowedModels: normalizedAllowedModels,
     modelMappings: normalizedModelMappings,
+    stripEffort: credentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY] === true,
   }
 }
 
@@ -1400,6 +1427,7 @@ const hydrateModelRestrictionDraftFromProviders = (providers: Provider[]) => {
   modelRestrictionMode.value = firstState.mode
   allowedModels.value = [...firstState.allowedModels]
   modelMappings.value = cloneModelMappings(firstState.modelMappings)
+  stripEffortOnEffortModelMapping.value = firstState.stripEffort
 }
 
 /**
@@ -1630,10 +1658,14 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (enableModelRestriction.value) {
-    // Write both model representations together so clearing the whitelist or mapping replaces
-    // saved restrictions and allows the default catalog behavior.
+    // Write ordinary mappings, effort overrides, strip flag, and final whitelist
+    // together so clearing any restriction replaces saved provider rules.
     const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
+    const effortMapping = buildEffortModelMappingObject(modelMappings.value)
     credentials.model_mapping = persisted.modelMapping ?? {}
+    credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY] = effortMapping ?? {}
+    credentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY] =
+      Boolean(effortMapping) && stripEffortOnEffortModelMapping.value
     credentials.model_whitelist = persisted.modelWhitelist
     credentialsChanged = true
   }

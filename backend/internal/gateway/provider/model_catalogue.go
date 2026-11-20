@@ -66,9 +66,10 @@ func (v catalogueRules) Mapping() map[string]string {
 }
 
 // Supports delegates catalogue model eligibility to the prepared execution
-// model policy.
+// model policy, admitting models exposed directly or through effort-scoped
+// mappings.
 func (v catalogueRules) Supports(ctx context.Context, model string) bool {
-	return v.policy.Supports(ctx, model)
+	return v.policy.SupportsAnyEffort(ctx, model)
 }
 
 // UpstreamModels returns the upstream model variants exposed by the prepared

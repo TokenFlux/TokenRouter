@@ -85,7 +85,8 @@
 
 - 普通 Key 必须绑定分组（历史未绑定 Key 保留凭据但新调用需先选分组）；系统无自动默认分组，也无不经分组的调度路径；未加入任何分组的提供商不参加调度。
 - 分组可为「客户端受限」「无效请求」「分组不可用」配置回退目标，Key 的 `fallback_when_group_unavailable` 使用管理员配置的不可用回退分组（未配置则结束请求）。每次换组重验用户、团队、复合 Key、订阅范围、模型和协议权限并检测循环，跨平台回退须在新分组上重验授权。
-- 提供商模型范围由非空 `model_whitelist` 限定（支持末尾通配符和单独 `*`）；字段缺失或为空时允许目录未知型号（默认目录对应平台和认证类型，映射可增加自定义名）。`model_mapping` 执行一跳改写，最终型号仍须满足原生协议、端点、认证和媒体资格。统一目录只提供候选、属性和价格，不作为模型权限依据；模型前缀不代表提供商平台，协议透传也不代表支持所有模型。
+- 提供商模型范围由非空 `model_whitelist` 限定（支持末尾通配符和单独 `*`）；字段缺失或为空时允许目录未知型号（默认目录对应平台和认证类型，映射可增加自定义名）。`model_mapping` 与 `effort_model_mapping` 共同执行单跳改写，最终型号仍须满足原生协议、端点、认证和媒体资格。统一目录只提供候选、属性和价格，不作为模型权限依据；模型前缀不代表提供商平台，协议透传也不代表支持所有模型。
+- <a id="provider_effort_model_mapping"></a>提供商组合映射（`Credentials["effort_model_mapping"]`，`sourceModel -> canonicalEffort -> targetModel`）：当请求显式携带 `output_config.effort`、`reasoning.effort`、`reasoning_effort` 或 Gemini `thinkingLevel`（规范化为 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`）时，先在对应档位表内按精确键与最长末尾 `*` 前缀单跳匹配，未命中或无 effort 时回退到普通 `model_mapping`；命中后与普通映射一样进入 `model_whitelist`、协议能力、模型冷却键、计费与 `model_mapping_chain`。开启 `Credentials["effort_model_mapping_strip_effort"]` 且本次命中组合映射时，出站请求体移除对应 wire effort 字段，同时在 Usage Log 保留原始与生效档位。
 - OpenAI 兼容 Messages 请求在响应尚未提交给客户端前，若提供商错误命中管理员配置的临时不可调度规则，即使该状态码通常不触发换号也会提升为 failover；命中模型范围规则时先写入模型级临时排除再换号。请求内容或 Grok 内容策略拒绝走各自处理，不进入此路径。
 
 ### Fast、推理档位与提供商观测

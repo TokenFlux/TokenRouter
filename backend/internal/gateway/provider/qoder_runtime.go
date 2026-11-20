@@ -197,10 +197,10 @@ func qoderRuntimeSite(value *provider.Record) (qoder.Site, error) {
 	return qoder.ParseSite(value.GetCredential("site"))
 }
 
-// mapQoderRequestModel applies one nonempty provider mapping to a Qoder
-// request model. Nil or non-Qoder records, empty bodies/models, and unchanged
-// mappings return the supplied bytes; successful mapping uses the protocol
-// byte replacement helper.
+// mapQoderRequestModel applies one nonempty effort-aware provider mapping to a
+// Qoder request model. Nil or non-Qoder records, empty bodies/models, and
+// unchanged mappings return the supplied bytes; successful mapping uses the
+// protocol byte replacement helper.
 func mapQoderRequestModel(value *provider.Record, body []byte) []byte {
 	if value == nil || !value.IsQoder() || len(body) == 0 {
 		return body
@@ -209,7 +209,13 @@ func mapQoderRequestModel(value *provider.Record, body []byte) []byte {
 	if model == "" {
 		return body
 	}
-	mapped, matched := provider.ResolveMappedModel(provider.ResolveModelMapping(value, provideradapter.ModelDefaults()), model)
+	effort := requeststate.ExtractRoutingReasoningEffort(body, "")
+	mapped, matched, _ := provider.ResolveMappedModelForEffort(
+		provider.ResolveModelMapping(value, provideradapter.ModelDefaults()),
+		provider.ResolveEffortModelMapping(value),
+		model,
+		effort,
+	)
 	if !matched || mapped == "" || mapped == model {
 		return body
 	}

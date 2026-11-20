@@ -117,6 +117,10 @@ func cloneValue(value any, state *valueCopyState) any {
 		return out
 	case map[string]string:
 		return maps.Clone(v)
+	case map[string]map[string]string:
+		return CloneEffortModelMapping(v)
+	case EffortModelMapping:
+		return CloneEffortModelMapping(v)
 	case map[string]bool:
 		return maps.Clone(v)
 	case []protocol.ProtocolID:

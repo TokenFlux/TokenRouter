@@ -8,7 +8,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
-	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
@@ -113,7 +112,7 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 	requestedModel := strings.TrimSpace(request.RequestedModel)
 	routingModel := s.resolveDiagnosticRoutingModel(ctx, provider, group, requestedModel)
 
-	if !diagnosticSupportsGroupProtocols(provider, group, "") {
+	if !diagnosticSupportsGroupProtocols(ctx, provider, group, "") {
 		return "protocol_unavailable"
 	}
 	// ModelPolicy.Schedulable rejects IsQuotaExceeded through IsSchedulable;
@@ -143,11 +142,11 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 		if !gatewayprovider.ExecutionModelPolicy(provider).SupportsCompatibleRouting(ctx, routingModel) {
 			return "model_unsupported"
 		}
-		if routingModel != "" && !diagnosticSupportsGroupProtocols(provider, group, routingModel) {
+		if routingModel != "" && !diagnosticSupportsGroupProtocols(ctx, provider, group, routingModel) {
 			return "protocol_unavailable"
 		}
 		if routingModel != "" && provider.View().IsGrokOAuth() {
-			upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(routingModel)
+			upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(routingModel)
 			if isGrokTeamModelRateLimited(provider, upstreamModel, now) {
 				return "model_runtime_blocked"
 			}
@@ -156,7 +155,7 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 			return "grok_free_quota_exceeded"
 		}
 		if s != nil && s.openAIGateway != nil {
-			if s.openAIGateway.isOpenAIProviderRequestRuntimeBlocked(provider, routingModel) {
+			if s.openAIGateway.isOpenAIProviderRequestRuntimeBlocked(ctx, provider, routingModel) {
 				return "runtime_blocked"
 			}
 			if s.openAIGateway.isOpenAIProxyStreamQuarantined(ctx, provider) {
@@ -192,7 +191,7 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 		if routingModel != "" && !s.gatewayService.isRoutingModelSupportedByProviderWithContext(ctx, provider, routingModel) {
 			return "model_unsupported"
 		}
-		if routingModel != "" && !diagnosticSupportsGroupProtocols(provider, group, routingModel) {
+		if routingModel != "" && !diagnosticSupportsGroupProtocols(ctx, provider, group, routingModel) {
 			return "protocol_unavailable"
 		}
 		if !gatewayprovider.ExecutionModelPolicy(provider).Schedulable(ctx, routingModel) {
@@ -218,10 +217,10 @@ func (s *Diagnostics) diagnosticPlatformFilterReason(
 		return ""
 	}
 
-	if routingModel != "" && !gatewayprovider.ExecutionProtocolRecord(provider).IsModelSupported(routingModel, provideradapter.ModelDefaults(), provideradapter.ModelRules(gatewayprovider.ExecutionProtocolRecord(provider))) {
+	if routingModel != "" && !gatewayprovider.ExecutionModelPolicy(provider).Supports(ctx, routingModel) {
 		return "model_unsupported"
 	}
-	if routingModel != "" && !diagnosticSupportsGroupProtocols(provider, group, routingModel) {
+	if routingModel != "" && !diagnosticSupportsGroupProtocols(ctx, provider, group, routingModel) {
 		return "protocol_unavailable"
 	}
 	if !gatewayprovider.ExecutionModelPolicy(provider).Schedulable(ctx, routingModel) {
@@ -260,18 +259,19 @@ func (s *Diagnostics) resolveDiagnosticRoutingModel(ctx context.Context, provide
 // one client protocol in group.AllowedProtocols. Unhydrated groups with a nil
 // AllowedProtocols slice admit candidates, while an explicit empty selection
 // rejects every candidate.
-func diagnosticSupportsGroupProtocols(provider *gatewayprovider.ExecutionProvider, group *routing.Group, routingModel string) bool {
+func diagnosticSupportsGroupProtocols(ctx context.Context, provider *gatewayprovider.ExecutionProvider, group *routing.Group, routingModel string) bool {
 	if provider == nil || group == nil || group.AllowedProtocols == nil {
 		return true
 	}
 	if len(group.AllowedProtocols) == 0 {
 		return false
 	}
-	modelPolicy := gatewayprovider.ExecutionModelPolicy(provider)
+	modelPolicy := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx)
 	snapshot := modelPolicy.CandidateSnapshot()
+	effort := requeststate.RoutingReasoningEffortFromContext(ctx)
 	for _, entry := range group.AllowedProtocols {
 		if routingModel != "" && snapshot.ModelProtocols != nil {
-			if _, ok := snapshot.ResolveModelRoute(routingModel, entry, group.ProtocolFallbacks); ok {
+			if _, ok := snapshot.ResolveModelRouteForEffort(routingModel, effort, entry, group.ProtocolFallbacks); ok {
 				return true
 			}
 			continue

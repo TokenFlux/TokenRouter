@@ -18,6 +18,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -171,6 +172,9 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 	geminiReq, err = applyGeminiModelParameters(geminiReq, body, attributes, true)
 	if err != nil {
 		return nil, c.ClaudeError(http.StatusBadRequest, "invalid_request_error", err.Error())
+	}
+	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel) {
+		geminiReq = requeststate.StripWireReasoningEffort(geminiReq, protocolcore.ProtocolGeminiGenerateContent)
 	}
 	originalClaudeBody := body
 
@@ -383,6 +387,9 @@ func (s *Gemini) ForwardNative(ctx context.Context, output Output, provider *gat
 	body, err = applyGeminiModelParameters(body, body, attributes, false)
 	if err != nil {
 		return nil, err
+	}
+	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel) {
+		body = requeststate.StripWireReasoningEffort(body, protocolcore.ProtocolGeminiGenerateContent)
 	}
 
 	proxyURL := ""

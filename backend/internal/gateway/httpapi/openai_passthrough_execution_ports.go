@@ -77,7 +77,11 @@ func (p *openAIPassthroughExecutionAdapter) ForwardModel(model string, compact b
 	// An absent executor override still leaves the provider's own Compact mapping
 	// applicable. Resolve through its model policy to retain dedicated mapping
 	// and raw-Chat normalization order.
-	return gatewayadapter.ExecutionModelPolicy(p.provider).OpenAIUpstream(model, compact)
+	policy := gatewayadapter.ExecutionModelPolicy(p.provider)
+	if p.c != nil && p.c.Request != nil {
+		policy = policy.WithContext(p.c.Request.Context())
+	}
+	return policy.OpenAIUpstream(model, compact)
 }
 
 // PolicyDenied marks this request as locally limited by provider admission

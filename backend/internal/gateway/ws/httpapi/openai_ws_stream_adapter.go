@@ -109,10 +109,16 @@ func (p *wsStreamAdapter) HasToolOutput(body []byte) bool {
 	return openai.OpenAIWSRawPayloadHasToolCallOutput(body)
 }
 
-// MappedModel returns the provider-mapped and normalized OpenAI model for
-// pooled execution.
+// MappedModel returns the effort-aware provider-mapped and normalized OpenAI
+// model for pooled execution.
 func (p *wsStreamAdapter) MappedModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(p.provider).NormalizeOpenAI(providercore.ResolveForwardMappedModel(gatewayprovider.ExecutionRecord(p.provider), model, provideradapter.ModelDefaults()))
+	effort := ""
+	if p.request != nil && p.request.Request != nil {
+		effort = requeststate.RoutingReasoningEffortFromContext(p.request.Request.Context())
+	}
+	return gatewayprovider.ExecutionModelPolicy(p.provider).WithEffort(effort).NormalizeOpenAI(
+		providercore.ResolveForwardMappedModelForEffort(gatewayprovider.ExecutionRecord(p.provider), model, effort, provideradapter.ModelDefaults()),
+	)
 }
 
 // Envelope returns event type and response ID parsed from the upstream
@@ -140,10 +146,14 @@ func (p *wsStreamAdapter) MarkCyber(body []byte, usage *wire.ForwardUsage) {
 	gatewayhttp.MarkOpenAICyberPolicyEvent(p.request, body, http.StatusOK, usage)
 }
 
-// SchedulingModel returns the provider's canonical model key used by scheduler
-// health feedback.
+// SchedulingModel returns the provider's effort-aware canonical model key used
+// by scheduler health feedback.
 func (p *wsStreamAdapter) SchedulingModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(p.provider).CanonicalSchedulingModel(model)
+	policy := gatewayprovider.ExecutionModelPolicy(p.provider)
+	if p.request != nil && p.request.Request != nil {
+		policy = policy.WithContext(p.request.Request.Context())
+	}
+	return policy.CanonicalSchedulingModel(model)
 }
 
 // ErrorDecision applies standalone-event provider policy and exposes generic,

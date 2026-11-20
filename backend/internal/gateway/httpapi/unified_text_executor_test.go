@@ -312,3 +312,66 @@ func TestUnifiedNativeUsageSurvivesCaptureAndRecord(t *testing.T) {
 
 // Current reports no external searcher for native dispatch fixture execution.
 func (unifiedSearchSource) Current() searchtools.Searcher { return nil }
+
+// TestUnifiedTextExecutorPrepareRefreshesEffortMappingAfterGroupDowngrade runs
+// prepare on a mixed-platform group that downgrades Anthropic effort from max
+// to high. Attempt route resolution must observe the downgraded effort so the
+// bound upstream model uses the high-effort override rather than max.
+func TestUnifiedTextExecutorPrepareRefreshesEffortMappingAfterGroupDowngrade(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	body := []byte(`{"model":"claude-opus-5-5","output_config":{"effort":"max"},"messages":[{"role":"user","content":"hi"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body)))
+	ctx := requeststate.WithClientProtocol(req.Context(), protocol.ProtocolAnthropicMessages)
+	ctx = requeststate.WithRoutingReasoningEffort(ctx, "max")
+	group := &routing.Group{
+		ID:                          11,
+		MaxReasoningEffort:          "high",
+		MaxReasoningEffortOverLimit: routing.ReasoningEffortOverLimitDowngrade,
+	}
+	plan := routing.Plan(routing.PlanInput{
+		Group:           group,
+		RequestedModel:  "claude-opus-5-5",
+		GroupMapping:    routing.GroupMappingResult{MappedModel: "claude-opus-5-5"},
+		ClientProtocol:  protocol.ProtocolAnthropicMessages,
+		ReasoningEffort: "max",
+	})
+	ctx = requeststate.WithGroup(ctx, group)
+	ctx = requeststate.WithRoutePlan(ctx, plan)
+	c.Request = req.WithContext(ctx)
+	c.Set("gateway_effective_key", &apikey.APIKey{ID: 5, GroupID: &group.ID, Group: group})
+
+	target := gatewayadapter.NewExecutionProvider(&provider.Record{
+		ID:       99,
+		Platform: provider.PlatformAnthropic,
+		Type:     provider.ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "agy-key",
+			provider.EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"high": "claude-opus-5-5-high",
+					"max":  "claude-opus-5-5-max",
+				},
+			},
+			provider.EffortModelMappingStripEffortCredentialKey: true,
+		},
+	})
+
+	exec := &UnifiedTextExecutor{}
+	routed, updatedBody, err := exec.prepare(c, target, body, protocol.ProtocolAnthropicMessages)
+	require.NoError(t, err)
+	require.Equal(t, "high", gjson.GetBytes(updatedBody, "output_config.effort").String())
+	require.Equal(t, "high", requeststate.RoutingReasoningEffortFromContext(c.Request.Context()))
+
+	candidate, planned := routed.Route.Candidate()
+	require.True(t, planned)
+	require.Equal(t, "claude-opus-5-5-high", candidate.Models.ProviderMappedModel)
+	require.True(t, candidate.EffortMappingMatched)
+	require.Equal(t, "claude-opus-5-5-high", gatewayadapter.ExecutionModelPolicy(routed).UpstreamModel(c.Request.Context(), "claude-opus-5-5"))
+	require.True(t, gatewayadapter.ExecutionModelPolicy(routed).ShouldStripWireEffort(c.Request.Context(), "claude-opus-5-5"))
+
+	// Outbound request builder must strip output_config.effort when strip flag is set.
+	stripped := stripOpenAIWireEffortIfMatched(c.Request.Context(), c, routed, updatedBody, protocol.ProtocolAnthropicMessages)
+	require.False(t, gjson.GetBytes(stripped, "output_config").Exists())
+}

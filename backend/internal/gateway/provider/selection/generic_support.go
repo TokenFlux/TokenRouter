@@ -70,15 +70,19 @@ func prefetchedStickyProviderIDFromContext(ctx context.Context, groupID *int64) 
 // shouldClearStickySession reports whether provider unschedulability or an
 // active model cooldown invalidates a binding. A nil provider returns false for
 // separate missing-record handling, and cooldown duration is checked against
-// the provider's model policy.
-func shouldClearStickySession(provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
+// the provider's model policy using ctx so effort- and thinking-scoped model
+// routes inspect the active route's cooldown window.
+func shouldClearStickySession(ctx context.Context, provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
 	if provider == nil {
 		return false
 	}
 	if !provider.View().IsSchedulable() {
 		return true
 	}
-	if remaining := gatewayprovider.ExecutionModelPolicy(provider).LimitRemaining(context.Background(), requestedModel); remaining > 0 {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if remaining := gatewayprovider.ExecutionModelPolicy(provider).LimitRemaining(ctx, requestedModel); remaining > 0 {
 		return true
 	}
 	return false

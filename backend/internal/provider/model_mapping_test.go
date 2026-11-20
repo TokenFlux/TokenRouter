@@ -66,3 +66,112 @@ func TestExplicitAntigravityMappingIsNotAugmented(t *testing.T) {
 	require.False(t, matched)
 	require.Equal(t, "gemini-3.1-pro-preview-customtools", model)
 }
+
+// TestResolveMappedModelForEffort exercises exact effort rules, trailing
+// wildcards, case and separator normalization, fallback to ordinary mappings,
+// and single-hop isolation. Effort-specific matches must take precedence over
+// ordinary mappings without remapping targets.
+func TestResolveMappedModelForEffort(t *testing.T) {
+	base := map[string]string{
+		"claude-opus-5-5":      "claude-opus-5-5-medium",
+		"claude-opus-5-5-high": "must-not-remap",
+		"claude-*":             "claude-default",
+	}
+	effortMap := EffortModelMapping{
+		"claude-opus-5-5": {
+			"low":   "claude-opus-5-5-low",
+			"high":  "claude-opus-5-5-high",
+			"xhigh": "claude-opus-5-5-xhigh",
+		},
+		"claude-*": {
+			"high": "claude-wildcard-high",
+		},
+		"claude-sonnet-*": {
+			"high": "claude-sonnet-high",
+		},
+	}
+
+	cases := []struct {
+		name          string // scenario description
+		model         string // requested model spelling
+		effort        string // raw request effort
+		wantModel     string // expected resolved model
+		wantMatched   bool   // expected overall match flag
+		wantEffortHit bool   // expected effort-rule match flag
+	}{
+		{name: "exact model and effort hit", model: "claude-opus-5-5", effort: "high", wantModel: "claude-opus-5-5-high", wantMatched: true, wantEffortHit: true},
+		{name: "effort normalization folds case and hyphens", model: "claude-opus-5-5", effort: "X-High", wantModel: "claude-opus-5-5-xhigh", wantMatched: true, wantEffortHit: true},
+		{name: "longest wildcard wins for effort", model: "claude-sonnet-5", effort: "HIGH", wantModel: "claude-sonnet-high", wantMatched: true, wantEffortHit: true},
+		{name: "unmatched effort falls back to ordinary mapping", model: "claude-opus-5-5", effort: "max", wantModel: "claude-opus-5-5-medium", wantMatched: true, wantEffortHit: false},
+		{name: "empty effort falls back to ordinary mapping", model: "claude-opus-5-5", effort: "", wantModel: "claude-opus-5-5-medium", wantMatched: true, wantEffortHit: false},
+		{name: "single hop prevents remapping effort target", model: "claude-opus-5-5", effort: "high", wantModel: "claude-opus-5-5-high", wantMatched: true, wantEffortHit: true},
+		{name: "miss retains original model", model: "gpt-5", effort: "high", wantModel: "gpt-5", wantMatched: false, wantEffortHit: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, matched, effortMatched := ResolveMappedModelForEffort(base, effortMap, tc.model, tc.effort)
+			require.Equal(t, tc.wantModel, got)
+			require.Equal(t, tc.wantMatched, matched)
+			require.Equal(t, tc.wantEffortHit, effortMatched)
+		})
+	}
+	require.Equal(t, []string{"low", "high", "xhigh"}, EffortMappingMatchedEfforts(effortMap, "claude-opus-5-5"))
+}
+
+// TestNormalizeEffortModelMappingCredentials validates valid normalization,
+// empty-map retention for bulk clears, nil cleanup, and rejection of invalid
+// wildcards, unknown effort labels, duplicate normalized keys, and nonboolean
+// strip flags.
+func TestNormalizeEffortModelMappingCredentials(t *testing.T) {
+	creds := map[string]any{
+		EffortModelMappingCredentialKey: map[string]any{
+			" claude-opus-5-5 ": map[string]any{
+				" HIGH ":  " claude-opus-5-5-high ",
+				"x-high":  "claude-opus-5-5-xhigh",
+				"minimal": "claude-opus-5-5-minimal",
+			},
+		},
+		EffortModelMappingStripEffortCredentialKey: true,
+	}
+	require.NoError(t, NormalizeEffortModelMappingCredentials(creds))
+	normalized, ok := creds[EffortModelMappingCredentialKey].(map[string]any)
+	require.True(t, ok)
+	entry, ok := normalized["claude-opus-5-5"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, map[string]any{
+		"high":    "claude-opus-5-5-high",
+		"xhigh":   "claude-opus-5-5-xhigh",
+		"minimal": "claude-opus-5-5-minimal",
+	}, entry)
+
+	emptyCreds := map[string]any{EffortModelMappingCredentialKey: map[string]any{}}
+	require.NoError(t, NormalizeEffortModelMappingCredentials(emptyCreds))
+	require.Contains(t, emptyCreds, EffortModelMappingCredentialKey)
+
+	nilCreds := map[string]any{
+		EffortModelMappingCredentialKey:            nil,
+		EffortModelMappingStripEffortCredentialKey: nil,
+	}
+	require.NoError(t, NormalizeEffortModelMappingCredentials(nilCreds))
+	require.NotContains(t, nilCreds, EffortModelMappingCredentialKey)
+	require.NotContains(t, nilCreds, EffortModelMappingStripEffortCredentialKey)
+
+	invalidCases := []struct {
+		name  string         // invalid payload description
+		creds map[string]any // credentials submitted for validation
+	}{
+		{name: "non-bool strip flag", creds: map[string]any{EffortModelMappingStripEffortCredentialKey: "true"}},
+		{name: "non-map mapping", creds: map[string]any{EffortModelMappingCredentialKey: []string{"bad"}}},
+		{name: "mid wildcard source", creds: map[string]any{EffortModelMappingCredentialKey: map[string]any{"claude-*-5": map[string]any{"high": "t"}}}},
+		{name: "wildcard target", creds: map[string]any{EffortModelMappingCredentialKey: map[string]any{"claude-opus-5-5": map[string]any{"high": "claude-*"}}}},
+		{name: "unsupported effort", creds: map[string]any{EffortModelMappingCredentialKey: map[string]any{"claude-opus-5-5": map[string]any{"ultra": "claude-opus-5-5-ultra"}}}},
+		{name: "duplicate normalized effort", creds: map[string]any{EffortModelMappingCredentialKey: map[string]any{"claude-opus-5-5": map[string]any{"high": "a", "HIGH": "b"}}}},
+		{name: "empty target", creds: map[string]any{EffortModelMappingCredentialKey: map[string]any{"claude-opus-5-5": map[string]any{"high": "   "}}}},
+	}
+	for _, tc := range invalidCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Error(t, NormalizeEffortModelMappingCredentials(tc.creds))
+		})
+	}
+}

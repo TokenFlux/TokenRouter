@@ -36,11 +36,14 @@ func (p ModelPolicy) CandidateSnapshot() provider.ProviderSnapshot {
 		return provider.ProviderSnapshot{}
 	}
 	snapshot := p.Record.RoutingSnapshot()
-	mapping := provider.ResolveModelMapping(p.Record, provideradapter.ModelDefaults())
 	if p.models != nil {
-		mapping = p.models.Mapping()
+		snapshot.ModelPolicy = p.models.RoutingSnapshot()
+	} else {
+		snapshot.ModelPolicy = provider.NewModelRoutingSnapshotWithEffort(
+			provider.ResolveModelMapping(p.Record, provideradapter.ModelDefaults()),
+			provider.ResolveEffortModelMapping(p.Record),
+		)
 	}
-	snapshot.ModelPolicy = provider.NewModelRoutingSnapshot(mapping)
 	snapshot.EnabledProtocols = slices.Clone(p.Record.UpstreamProtocolsForLegacy(p.protocolTarget().GetAPIProtocol()))
 	return snapshot
 }
@@ -84,11 +87,15 @@ func (p ModelPolicy) AllowsProtocol(ctx context.Context, model string) bool {
 		_, ok := p.ProtocolRoute(group, source)
 		return ok
 	}
-	plan := routing.Plan(routing.PlanInput{Group: group, ClientProtocol: source, RequestedModel: model})
+	effort := p.effectiveEffort(ctx)
+	plan := routing.Plan(routing.PlanInput{Group: group, ClientProtocol: source, RequestedModel: model, ReasoningEffort: effort})
 	if retained, planned := requeststate.RoutePlanFromContext(ctx); planned && (group == nil || retained.GroupID() == group.ID) {
 		models := retained.Models()
 		if model == models.RequestedModel || model == models.GroupMappedModel {
 			plan = retained.WithClientProtocol(source)
+			if effort != "" {
+				plan = plan.WithReasoningEffort(effort)
+			}
 		}
 	}
 	_, ok := plan.ResolveCandidate(snapshot)
@@ -135,8 +142,9 @@ func (p ModelPolicy) LimitRemaining(ctx context.Context, model string) time.Dura
 }
 
 // FinalAntigravityModel resolves the upstream model using the request's
-// optional thinking hint. It delegates directly to the provider adapter, which
-// owns platform mapping and unsupported-model handling.
+// optional routing reasoning effort and thinking hint. It delegates directly
+// to the provider adapter, which owns platform mapping and unsupported-model
+// handling.
 func (p ModelPolicy) FinalAntigravityModel(ctx context.Context, model string) string {
-	return provideradapter.FinalAntigravityModel(p.Record, model, modelThinking(ctx))
+	return provideradapter.FinalAntigravityModelForEffort(p.Record, model, p.effectiveEffort(ctx), modelThinking(ctx))
 }

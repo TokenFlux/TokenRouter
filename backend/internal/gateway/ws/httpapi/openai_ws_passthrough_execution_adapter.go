@@ -17,9 +17,11 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -79,7 +81,26 @@ func (p *wsPassthroughAdapter) ModelAttributes(ctx context.Context, turn int, mo
 		ctx = routing.WithModelAttributes(ctx, service)
 	}
 	p.attributeContext = ctx
-	return gatewayprovider.PrepareModelAttributeParameters(ctx, p.provider, model, body, service)
+	prepared, err := gatewayprovider.PrepareModelAttributeParameters(ctx, p.provider, model, body, service)
+	if err != nil {
+		return nil, err
+	}
+	effort := requeststate.ExtractRoutingReasoningEffort(prepared, protocol.ProtocolResponsesWebSocket)
+	sourceModel := strings.TrimSpace(gjson.GetBytes(prepared, "model").String())
+	if plan, ok := requeststate.RoutePlanFromContext(ctx); ok {
+		if planned := plan.Models().GroupMappedModel; planned != "" {
+			sourceModel = planned
+		} else if requested := plan.Models().RequestedModel; requested != "" {
+			sourceModel = requested
+		}
+	}
+	if sourceModel == "" {
+		sourceModel = model
+	}
+	if gatewayprovider.ExecutionModelPolicy(p.provider).WithEffort(effort).ShouldStripWireEffort(ctx, sourceModel) {
+		prepared = requeststate.StripWireReasoningEffort(prepared, protocol.ProtocolResponsesWebSocket)
+	}
+	return prepared, nil
 }
 
 // IsLite reports whether this client frame requests Responses Lite handling.

@@ -428,26 +428,25 @@ func (q *requestableQuery) resolve(ctx context.Context, requestedModel string) (
 	nativeByProtocol := map[capability.ProtocolID]bool{}
 	for i := range providers {
 		provider := &providers[i]
-		var candidateProtocols []capability.ProtocolID
-		var nativeCandidates []capability.ProtocolID
-		targetProtocols := map[capability.ProtocolID]capability.ProtocolID{}
-		if policy != nil && policy.AllowedProtocols != nil {
-			if policy.RequireOAuthOnly && provider.Type == capability.ProviderTypeAPIKey {
-				continue
-			}
+		if policy != nil && policy.AllowedProtocols != nil && policy.RequireOAuthOnly && provider.Type == capability.ProviderTypeAPIKey {
+			continue
+		}
+		var sharedProtocols []capability.ProtocolID
+		var sharedNative []capability.ProtocolID
+		sharedTargets := map[capability.ProtocolID]capability.ProtocolID{}
+		if policy != nil && policy.AllowedProtocols != nil && provider.ModelProtocols == nil {
 			for _, source := range policy.AllowedProtocols {
-				finalModel, _ := provider.ModelPolicy.Resolve(groupMappedModel)
-				target, ok := capability.ResolveRoute(provider.ProtocolsForModel(finalModel), source, policy.ProtocolFallbacks)
+				target, ok := capability.ResolveRoute(provider.Protocols(), source, policy.ProtocolFallbacks)
 				if !ok {
 					continue
 				}
-				candidateProtocols = append(candidateProtocols, source)
-				targetProtocols[source] = target
+				sharedProtocols = append(sharedProtocols, source)
+				sharedTargets[source] = target
 				if target == source {
-					nativeCandidates = append(nativeCandidates, source)
+					sharedNative = append(sharedNative, source)
 				}
 			}
-			if len(candidateProtocols) == 0 {
+			if len(sharedProtocols) == 0 {
 				continue
 			}
 		}
@@ -457,6 +456,31 @@ func (q *requestableQuery) resolve(ctx context.Context, requestedModel string) (
 		for _, upstreamModel := range provider.Rules.UpstreamModels(ctx, groupMappedModel) {
 			if policy != nil && policy.RestrictModels && policy.RestrictionSource() == BillingModelSourceUpstream && policy.IsModelRestricted(upstreamModel) {
 				continue
+			}
+			candidateProtocols := sharedProtocols
+			nativeCandidates := sharedNative
+			targetProtocols := sharedTargets
+			// Providers declaring per-model protocols (such as OpenCode) must check
+			// protocol eligibility against each resolved upstream model so effort
+			// overrides select their own declared protocol route.
+			if policy != nil && policy.AllowedProtocols != nil && provider.ModelProtocols != nil {
+				candidateProtocols = nil
+				nativeCandidates = nil
+				targetProtocols = map[capability.ProtocolID]capability.ProtocolID{}
+				for _, source := range policy.AllowedProtocols {
+					target, ok := capability.ResolveRoute(provider.ProtocolsForModel(upstreamModel), source, policy.ProtocolFallbacks)
+					if !ok {
+						continue
+					}
+					candidateProtocols = append(candidateProtocols, source)
+					targetProtocols[source] = target
+					if target == source {
+						nativeCandidates = append(nativeCandidates, source)
+					}
+				}
+				if len(candidateProtocols) == 0 {
+					continue
+				}
 			}
 			sources := candidateProtocols
 			if len(sources) == 0 {

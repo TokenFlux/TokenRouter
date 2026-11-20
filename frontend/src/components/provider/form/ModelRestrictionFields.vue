@@ -31,6 +31,8 @@
     <ProviderModelMappingEditor
       v-else
       v-model="mappings"
+      v-model:strip-effort="stripEffort"
+      support-effort
       :source-placeholder="sourcePlaceholder"
       :target-placeholder="targetPlaceholder"
       :wildcard-validation="wildcardValidation"
@@ -90,6 +92,8 @@ const allowedModels = defineModel<string[]>('allowedModels', { required: true })
 // mappings binds the parent-owned request-to-upstream model mapping rows to the shared
 // controls through its model update event.
 const mappings = defineModel<ModelMappingRow[]>('mappings', { required: true })
+// stripEffort binds the optional wire-effort stripping switch when effort mappings match.
+const stripEffort = defineModel<boolean | undefined>('stripEffort', { default: undefined })
 // emit publishes typed draft changes and actions to the parent that owns this component.
 const emit = defineEmits<{
   add: [] // Mapping row addition notification.

@@ -12,6 +12,7 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -102,6 +103,7 @@ func (s *OpenAIRequests) SendChat(
 	if err != nil {
 		return nil, err
 	}
+	body = stripOpenAIWireEffortIfMatched(ctx, c, provider, body, protocol.ProtocolOpenAIChatCompletions)
 	return openai.SendChatRequest(ctx, body, openai.CCRequestOptions{
 		URL: targetURL, Token: bearerToken, Stream: stream, Headers: c.Request.Header,
 		RequestContext:  gatewayprovider.DetachUpstreamContext,
@@ -164,6 +166,7 @@ func (s *OpenAIRequests) BuildAnthropic(ctx context.Context, c *gin.Context, pro
 	if err != nil {
 		return nil, nil, err
 	}
+	body = stripOpenAIWireEffortIfMatched(ctx, c, provider, body, protocol.ProtocolAnthropicMessages)
 	var headers http.Header
 	if c != nil && c.Request != nil {
 		headers = c.Request.Header

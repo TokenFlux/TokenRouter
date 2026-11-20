@@ -55,9 +55,10 @@ type ProviderSnapshot struct {
 // Consumers send Model directly and resolve a fresh result after selecting a
 // different provider or configuration, including retries that change service mode.
 type ResolvedModelRoute struct {
-	Model          string                // final upstream model identity
-	Protocol       capability.ProtocolID // selected upstream execution protocol
-	MappingMatched bool                  // provider alias match indicator
+	Model                string                // final upstream model identity
+	Protocol             capability.ProtocolID // selected upstream execution protocol
+	MappingMatched       bool                  // provider alias match indicator
+	EffortMappingMatched bool                  // effort-scoped override match indicator
 }
 
 // RoutingSnapshot copies selection fields with protocols resolved from the
@@ -77,7 +78,10 @@ func (r *Record) RoutingSnapshot() ProviderSnapshot {
 	}
 	// Core snapshots capture saved mappings; execution adapters install defaults
 	// for platforms such as Antigravity before resolving an executable attempt.
-	snapshot.ModelPolicy = NewModelRoutingSnapshot(ResolveModelMapping(r, ModelMappingDefaults{}))
+	snapshot.ModelPolicy = NewModelRoutingSnapshotWithEffort(
+		ResolveModelMapping(r, ModelMappingDefaults{}),
+		ResolveEffortModelMapping(r),
+	)
 	if r.ParentProviderID != nil {
 		id := *r.ParentProviderID
 		snapshot.ParentProviderID = &id
@@ -112,17 +116,26 @@ func (s ProviderSnapshot) ProtocolsForModel(model string) capability.ProviderPro
 	return result
 }
 
-// ResolveModelRoute selects the final model and protocol from this snapshot.
-// Mapping executes once, and a missing source selects the first enabled native
-// protocol for automatic model probes.
-//
-// Per-model declarations narrow native choices to the model's protocol before
-// client conversion policy applies. Unknown models and explicitly disabled
-// protocols then fail even when the provider supports the protocol generally.
-// Callers keep the returned values together during an attempt and resolve
-// again against a fresh snapshot when they retry another configuration.
+// ResolveModelRoute selects the final model and protocol from this snapshot
+// without a request reasoning effort. It delegates to ResolveModelRouteForEffort
+// with an empty effort so effort-free probes and legacy callers reuse the same
+// protocol selection path.
 func (s ProviderSnapshot) ResolveModelRoute(requested string, source capability.ProtocolID, fallbacks map[capability.ProtocolID][]capability.ProtocolID) (ResolvedModelRoute, bool) {
-	model, matched := s.ModelPolicy.Resolve(requested)
+	return s.ResolveModelRouteForEffort(requested, "", source, fallbacks)
+}
+
+// ResolveModelRouteForEffort selects the final model and protocol from this
+// snapshot using an optional request reasoning effort. Effort-scoped overrides
+// take precedence over ordinary mappings in a single hop, and a missing source
+// selects the first enabled native protocol for automatic model probes.
+//
+// Per-model declarations narrow native choices to the resolved model's protocol
+// before client conversion policy applies. Unknown models and explicitly
+// disabled protocols then fail even when the provider supports the protocol
+// generally. Callers keep the returned values together during an attempt and
+// resolve again against a fresh snapshot when retrying another configuration.
+func (s ProviderSnapshot) ResolveModelRouteForEffort(requested, effort string, source capability.ProtocolID, fallbacks map[capability.ProtocolID][]capability.ProtocolID) (ResolvedModelRoute, bool) {
+	model, matched, effortMatched := s.ModelPolicy.ResolveForEffort(requested, effort)
 	protocols := s.ProtocolsForModel(model)
 	if source == "" {
 		for _, target := range protocols.Enabled {
@@ -136,5 +149,10 @@ func (s ProviderSnapshot) ResolveModelRoute(requested string, source capability.
 	if !ok {
 		return ResolvedModelRoute{}, false
 	}
-	return ResolvedModelRoute{Model: model, Protocol: target, MappingMatched: matched}, true
+	return ResolvedModelRoute{
+		Model:                model,
+		Protocol:             target,
+		MappingMatched:       matched,
+		EffortMappingMatched: effortMatched,
+	}, true
 }

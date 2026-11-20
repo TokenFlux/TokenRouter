@@ -253,8 +253,12 @@ func (p openAIForwardPreludeAdapter) ObserveTransport(v forward.TransportDecisio
 	}
 }
 
-// MappedModel applies this selected provider's single-hop model mapping for
-// preparation.
+// MappedModel applies this selected provider's effort-aware single-hop model
+// mapping for preparation.
 func (p openAIForwardPreludeAdapter) MappedModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(p.provider).Mapped(model)
+	policy := gatewayprovider.ExecutionModelPolicy(p.provider)
+	if p.c != nil && p.c.Request != nil {
+		policy = policy.WithContext(p.c.Request.Context())
+	}
+	return policy.Mapped(model)
 }

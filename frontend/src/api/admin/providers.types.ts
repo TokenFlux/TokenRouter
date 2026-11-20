@@ -55,6 +55,8 @@ export interface GeminiCredentials {
   scope?: string // Granted OAuth permissions.
   expires_at?: string // Record expiration timestamp.
   model_mapping?: Record<string, string> // Requested-to-upstream model mappings.
+  effort_model_mapping?: Record<string, Record<string, string>> // Effort-scoped model overrides keyed by source model and canonical effort.
+  effort_model_mapping_strip_effort?: boolean // Strips wire effort fields when an effort-scoped model mapping matches.
 }
 
 // TempUnschedulableState records the rule and response that temporarily excluded a

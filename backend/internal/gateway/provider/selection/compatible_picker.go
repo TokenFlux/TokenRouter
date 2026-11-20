@@ -109,7 +109,7 @@ func newDefaultOpenAIProviderScheduler(service *Compatible, stats *schedulercore
 // exclusion map. A fresh scope restores the checked execution target and its
 // release or wait handles from the returned scheduler result.
 func (s *compatiblePicker) Select(ctx context.Context, req schedulercore.PlatformSelectionInput) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
-	core, scope := s.platformSelector()
+	core, scope := s.platformSelectorForContext(ctx)
 	v, decision, err := core.Select(ctx, cloneSelectionInput(req))
 	return scope.restore(v), decision, err
 }
@@ -208,7 +208,7 @@ func (s *compatiblePicker) isProviderRequestCompatibleReason(ctx context.Context
 	if req.RequirePrivacySet && !provider.View().IsPrivacySet() {
 		return false, "privacy_not_set"
 	}
-	if s != nil && s.service != nil && s.service.isOpenAIProviderRequestRuntimeBlocked(provider, requestRoutingModel(req)) {
+	if s != nil && s.service != nil && s.service.isOpenAIProviderRequestRuntimeBlocked(ctx, provider, requestRoutingModel(req)) {
 		return false, "runtime_blocked"
 	}
 	if s != nil && s.service != nil && s.service.isOpenAIProxyStreamQuarantined(ctx, provider) {
@@ -1046,7 +1046,7 @@ func (s *Compatible) SessionStickyTTL() time.Duration {
 // exclusion map. It restores the execution target through this call's scope and
 // returns the core's escape indicator and selection error.
 func (s *compatiblePicker) selectBySessionHash(ctx context.Context, req schedulercore.PlatformSelectionInput) (*gatewayprovider.SelectionResult, bool, error) {
-	core, scope := s.platformSelector()
+	core, scope := s.platformSelectorForContext(ctx)
 	value, escaped, err := core.SelectBySessionHash(ctx, cloneSelectionInput(req))
 	return scope.restore(value), escaped, err
 }

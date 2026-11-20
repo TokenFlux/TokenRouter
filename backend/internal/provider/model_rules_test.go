@@ -77,3 +77,42 @@ func TestPreparedModelRulesReadDefaultsOnce(t *testing.T) {
 	require.Equal(t, 1, modelsReads)
 	require.Equal(t, 1, mappingReads)
 }
+
+// TestPreparedModelRulesEffortMapping configures an Antigravity reverse-proxy
+// style API-key provider whose whitelist contains only effort-suffixed upstream
+// IDs. Prepared and per-call checks must admit matching (model, effort) pairs,
+// reject effort-free runtime calls, and still expose the base alias for
+// catalogue discovery.
+func TestPreparedModelRulesEffortMapping(t *testing.T) {
+	record := &Record{
+		Platform: PlatformAnthropic,
+		Type:     ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"model_whitelist": []string{"claude-opus-5-5-low", "claude-opus-5-5-high"},
+			EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"low":    "claude-opus-5-5-low",
+					"high":   "claude-opus-5-5-high",
+					"medium": "claude-opus-5-5-medium",
+				},
+			},
+		},
+	}
+	snapshot := PrepareModelRules(record, ModelMappingDefaults{}, ModelPlatformRules{})
+
+	require.True(t, snapshot.SupportsForEffort("claude-opus-5-5", "high"))
+	require.True(t, record.IsModelSupportedForEffort("claude-opus-5-5", "high", ModelMappingDefaults{}, ModelPlatformRules{}))
+	require.True(t, snapshot.SupportsForEffort("claude-opus-5-5", "low"))
+	require.False(t, snapshot.SupportsForEffort("claude-opus-5-5", "medium"))
+	require.False(t, snapshot.SupportsForEffort("claude-opus-5-5", ""))
+	require.False(t, record.IsModelSupported("claude-opus-5-5", ModelMappingDefaults{}, ModelPlatformRules{}))
+	require.True(t, snapshot.SupportsAnyEffort("claude-opus-5-5"))
+
+	target, matched, effortMatched := snapshot.ResolveMappedModelForEffort("claude-opus-5-5", "HIGH")
+	require.True(t, matched)
+	require.True(t, effortMatched)
+	require.Equal(t, "claude-opus-5-5-high", target)
+
+	require.Equal(t, record.GetConfiguredRequestModels(ModelMappingDefaults{}), snapshot.ConfiguredModels())
+	require.ElementsMatch(t, []string{"claude-opus-5-5", "claude-opus-5-5-high", "claude-opus-5-5-low"}, snapshot.ConfiguredModels())
+}

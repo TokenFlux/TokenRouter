@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
@@ -175,4 +177,107 @@ func ValidateOpenAIReasoningEffort(body []byte, requestedModel string) error {
 	}
 
 	return nil
+}
+
+// ExtractRoutingReasoningEffort reads the explicit protocol effort field from
+// request bytes and returns its canonical label for provider model mapping.
+// Each entry protocol inspects its primary wire location first before falling
+// back to compatible spellings; unrecognized or absent fields return empty,
+// and neither model names nor thinking budgets are inferred.
+func ExtractRoutingReasoningEffort(body []byte, clientProtocol protocol.ProtocolID) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var paths []string
+	switch clientProtocol {
+	case protocol.ProtocolAnthropicMessages:
+		paths = []string{"output_config.effort", "reasoning.effort"}
+	case protocol.ProtocolOpenAIChatCompletions:
+		paths = []string{"reasoning_effort", "reasoning.effort"}
+	case protocol.ProtocolOpenAIResponses, protocol.ProtocolResponsesWebSocket, protocol.ProtocolResponsesCompact:
+		paths = []string{"reasoning.effort", "reasoning_effort"}
+	case protocol.ProtocolGeminiGenerateContent:
+		paths = []string{
+			"generationConfig.thinkingConfig.thinkingLevel",
+			"generation_config.thinking_config.thinking_level",
+		}
+	default:
+		paths = []string{
+			"reasoning.effort",
+			"reasoning_effort",
+			"output_config.effort",
+			"generationConfig.thinkingConfig.thinkingLevel",
+			"generation_config.thinking_config.thinking_level",
+		}
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() || value.Type != gjson.String {
+			continue
+		}
+		if normalized := protocol.NormalizeReasoningEffort(value.String()); normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+// StripWireReasoningEffort removes wire effort fields for wireProtocol from a
+// JSON request body after an effort-scoped model mapping has encoded the level
+// into the upstream model ID. Empty parent objects left behind by removal are
+// also deleted so strict upstreams do not reject empty containers; empty input
+// or bodies without matching fields are returned unchanged.
+func StripWireReasoningEffort(body []byte, wireProtocol protocol.ProtocolID) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	deletePath := func(current []byte, path string) ([]byte, bool) {
+		if !gjson.GetBytes(current, path).Exists() {
+			return current, false
+		}
+		updated, err := sjson.DeleteBytes(current, path)
+		if err != nil {
+			// Skip byte mutation if sjson rejects the payload rather than corrupting
+			// the outgoing request; the caller still forwards the intact body.
+			return current, false
+		}
+		return updated, true
+	}
+	deleteIfEmptyObject := func(current []byte, path string) []byte {
+		node := gjson.GetBytes(current, path)
+		if !node.Exists() || !node.IsObject() || len(node.Map()) != 0 {
+			return current
+		}
+		updated, err := sjson.DeleteBytes(current, path)
+		if err != nil {
+			return current
+		}
+		return updated
+	}
+
+	out := body
+	switch wireProtocol {
+	case protocol.ProtocolAnthropicMessages:
+		if next, changed := deletePath(out, "output_config.effort"); changed {
+			out = deleteIfEmptyObject(next, "output_config")
+		}
+	case protocol.ProtocolOpenAIChatCompletions:
+		out, _ = deletePath(out, "reasoning_effort")
+		if next, changed := deletePath(out, "reasoning.effort"); changed {
+			out = deleteIfEmptyObject(next, "reasoning")
+		}
+	case protocol.ProtocolOpenAIResponses, protocol.ProtocolResponsesWebSocket, protocol.ProtocolResponsesCompact:
+		if next, changed := deletePath(out, "reasoning.effort"); changed {
+			out = deleteIfEmptyObject(next, "reasoning")
+		}
+		out, _ = deletePath(out, "reasoning_effort")
+	case protocol.ProtocolGeminiGenerateContent:
+		if next, changed := deletePath(out, "generationConfig.thinkingConfig.thinkingLevel"); changed {
+			out = deleteIfEmptyObject(next, "generationConfig.thinkingConfig")
+		}
+		if next, changed := deletePath(out, "generation_config.thinking_config.thinking_level"); changed {
+			out = deleteIfEmptyObject(next, "generation_config.thinking_config")
+		}
+	}
+	return out
 }

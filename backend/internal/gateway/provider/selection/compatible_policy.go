@@ -59,7 +59,7 @@ func (s *Compatible) UpstreamRoutingModelRestricted(ctx context.Context, groupID
 	}
 	upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).UpstreamModel(ctx, routingModel)
 	if requireCompact {
-		upstreamModel = gatewayprovider.ExecutionModelPolicy(provider).OpenAIUpstream(routingModel, true)
+		upstreamModel = gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).OpenAIUpstream(routingModel, true)
 	}
 	if upstreamModel == "" {
 		return false

@@ -96,7 +96,7 @@
 ## 推理与 Header
 
 - Reasoning effort：分组可设置最大 reasoning effort 和 effort 映射，由平台适配器转为 Anthropic thinking、OpenAI reasoning 或 Qoder、Gemini 原生字段。手动关闭、平台不支持和管理员上限三者优先级固定；无效字符串保持默认值或被拒绝，不会静默提高推理强度。
-- 档位快照：HTTP 在策略改写点记录客户端档位并固化请求策略快照；WS 共用报文规则和用量解码器，每轮区分客户端原始档位与最终发给上游的档位。桥接补出的默认档位不算客户端请求；任何阶段不从模型名后缀推断档位；异步完成只读取固化值。
+- 档位快照：HTTP 在策略改写点记录客户端档位并固化请求策略快照；WS 共用报文规则和用量解码器，每轮区分客户端原始档位与最终发给上游的档位。桥接补出的默认档位不算客户端请求；任何阶段不从模型名后缀推断档位；提供商组合映射消费策略后的有效档位，见[提供商组合映射](routing_and_billing.md#provider_effort_model_mapping)；异步完成只读取固化值。
 - Fast / Ultra Fast 判定：系统、分组和 Key 三层规则统一由 `gateway/tierpolicy.Resolve` 执行，HTTP 报文和 WS 帧共用结果。系统层短路或分组强制关闭即结束（不执行后续 Key 开启时的查价）；Key 强制开启产生的新档位须再经过一次系统策略。协议拒绝、HTTP/SSE 错误和 WS 错误帧由各协议适配层输出。
 - Header 策略：由平台默认值、全局设置和允许的提供商 override 组合，认证头、hop-by-hop 头、Host 和长度等受保护头不可随意覆盖。
 - 平台兼容与缓存：Anthropic beta/cache、OpenAI UA/客户端元数据、Claude Code 模拟、dateline 和 metadata 兼容在平台适配层处理并经出站安全校验。Key 级 `force_claude_1h_cache` 与全局 OAuth 1 小时缓存注入差异见 [Claude 缓存 TTL 策略](../interfaces/anthropic_upstream.md#claude_cache_ttl_policy)。

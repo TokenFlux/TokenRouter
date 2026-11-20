@@ -109,6 +109,8 @@ func buildCredentialFieldPolicyEntries() []credentialFieldPolicyEntry {
 		{key: "site", policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
 		{key: "base_url", policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
 		{key: "model_mapping", policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
+		{key: EffortModelMappingCredentialKey, policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
+		{key: EffortModelMappingStripEffortCredentialKey, policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
 		{key: "compact_model_mapping", policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
 		{key: "model_whitelist", policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},
 		{key: OpenAIAuthModeCredentialKey, policy: CredentialFieldPolicy{IncludeInSchedulerMeta: true}},

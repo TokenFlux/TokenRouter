@@ -344,7 +344,7 @@ func (s *Generic) isProviderSchedulableForModelSelection(ctx context.Context, pr
 // caller's separate cleanup case.
 func (s *Generic) shouldClearStickySessionForProviderLayer(ctx context.Context, provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
 	routingModel := s.groupMappedModelForProviderLayer(ctx, requestedModel)
-	return shouldClearStickySession(provider, routingModel)
+	return shouldClearStickySession(ctx, provider, routingModel)
 }
 
 // isProviderEligibleExceptModelSupport reports whether a candidate passes gates

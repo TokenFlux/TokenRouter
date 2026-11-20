@@ -62,3 +62,49 @@ func TestProviderWireReadsExistingNestedGroup(t *testing.T) {
 	require.NoError(t, json.Unmarshal(again, &stored))
 	require.Contains(t, string(stored["ProviderGroups"]), `"ProviderGroups":null`)
 }
+
+// TestProviderWireRoundTripsEffortModelMapping encodes a provider carrying
+// effort_model_mapping and effort_model_mapping_strip_effort in both full and
+// filtered scheduler-metadata forms. Decoding must restore identical rules for
+// ResolveEffortModelMapping and StripEffortOnEffortModelMapping.
+func TestProviderWireRoundTripsEffortModelMapping(t *testing.T) {
+	value := &provider.Record{
+		ID:       88,
+		Platform: provider.PlatformAnthropic,
+		Type:     provider.ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "secret-key",
+			provider.EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"low":  "claude-opus-5-5-low",
+					"high": "claude-opus-5-5-high",
+				},
+			},
+			provider.EffortModelMappingStripEffortCredentialKey: true,
+		},
+	}
+
+	raw, err := MarshalProviderRecord(value)
+	require.NoError(t, err)
+	decoded, err := UnmarshalProviderRecord(raw)
+	require.NoError(t, err)
+	require.Equal(t, provider.EffortModelMapping{
+		"claude-opus-5-5": {"low": "claude-opus-5-5-low", "high": "claude-opus-5-5-high"},
+	}, provider.ResolveEffortModelMapping(decoded))
+	require.True(t, provider.StripEffortOnEffortModelMapping(decoded))
+
+	meta := &provider.Record{
+		ID:          value.ID,
+		Platform:    value.Platform,
+		Type:        value.Type,
+		Credentials: provider.FilterSchedulerCredentials(value.Credentials),
+	}
+	rawMeta, err := MarshalProviderRecord(meta)
+	require.NoError(t, err)
+	decodedMeta, err := UnmarshalProviderRecord(rawMeta)
+	require.NoError(t, err)
+	require.Equal(t, provider.EffortModelMapping{
+		"claude-opus-5-5": {"low": "claude-opus-5-5-low", "high": "claude-opus-5-5-high"},
+	}, provider.ResolveEffortModelMapping(decodedMeta))
+	require.True(t, provider.StripEffortOnEffortModelMapping(decodedMeta))
+}

@@ -64,7 +64,7 @@ func (s *Compatible) ResolveOpenAIWSRoutingModelForProvider(
 		) {
 		return "", fmt.Errorf("model %s is not supported by the selected websocket provider", requestedModel)
 	}
-	if s.isOpenAIProviderRequestRuntimeBlocked(provider, routingModel) {
+	if s.isOpenAIProviderRequestRuntimeBlocked(ctx, provider, routingModel) {
 		return "", fmt.Errorf("model %s is temporarily unavailable on the selected websocket provider", requestedModel)
 	}
 	if groupID != nil && s.NeedsUpstreamGroupRestriction(ctx, groupID) &&

@@ -266,7 +266,7 @@ func (s *Compatible) basicCandidateEligibilityReason(ctx context.Context, value 
 	}) {
 		return "shadow_parent_unhealthy"
 	}
-	if s.isOpenAIProviderRequestRuntimeBlocked(value, model) {
+	if s.isOpenAIProviderRequestRuntimeBlocked(ctx, value, model) {
 		return "runtime_blocked"
 	}
 	if s.isOpenAIProxyStreamQuarantined(ctx, value) {

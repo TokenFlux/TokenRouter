@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
@@ -43,6 +45,7 @@ func (r *Runtime) buildRequest(ctx context.Context, output HTTPBoundary, state *
 	if err != nil {
 		return nil, nil, err
 	}
+	body = stripAnthropicWireEffortIfMatched(ctx, target, body, model)
 	// Apply one-hour ephemeral cache lifetimes after model attribute rules so
 	// existing markers, including those added by OAuth conversion mimicry, use 1h.
 	if r.injectTTL(ctx, target, model) {
@@ -112,6 +115,7 @@ func (r *Runtime) buildPassthroughRequest(ctx context.Context, output HTTPBounda
 	if err != nil {
 		return nil, nil, err
 	}
+	body = stripAnthropicWireEffortIfMatched(ctx, target, body, model)
 	// Enforce the API Key's forced Claude 1h cache policy for direct passthrough
 	// builders when not already applied by the outer passthrough flow.
 	if (state == nil || !state.CacheTTL1hApplied) && gatewayadapter.ShouldForceClaude1hCache(ctx, target, model) {
@@ -136,6 +140,27 @@ func (r *Runtime) buildPassthroughRequest(ctx context.Context, output HTTPBounda
 		return policy.FilterSet, nil
 	}
 	return anthropic.BuildRequestPassthrough(ctx, body, token, options)
+}
+
+// stripAnthropicWireEffortIfMatched removes output_config.effort from outbound
+// Messages bytes when the provider enables effort_model_mapping_strip_effort
+// and an effort-scoped model mapping matched the request.
+func stripAnthropicWireEffortIfMatched(ctx context.Context, target *gatewayadapter.ExecutionProvider, body []byte, fallbackModel string) []byte {
+	if target == nil || len(body) == 0 {
+		return body
+	}
+	model := fallbackModel
+	if plan, ok := requeststate.RoutePlanFromContext(ctx); ok {
+		if planned := plan.Models().GroupMappedModel; planned != "" {
+			model = planned
+		} else if requested := plan.Models().RequestedModel; requested != "" {
+			model = requested
+		}
+	}
+	if !gatewayadapter.ExecutionModelPolicy(target).ShouldStripWireEffort(ctx, model) {
+		return body
+	}
+	return requeststate.StripWireReasoningEffort(body, protocol.ProtocolAnthropicMessages)
 }
 
 // buildCountRequest builds counting with shared request options and the

@@ -139,6 +139,12 @@ func (h *OpenAITextHandler) ChatCompletions(c *gin.Context) {
 	if protocolopenai.ChatUsesFunctionTools(body) {
 		c.Request = c.Request.WithContext(requeststate.WithChatFunctionTools(c.Request.Context()))
 	}
+	// Capture the post-policy request effort before planning so provider
+	// effort_model_mapping rules participate in route resolution and selection.
+	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
+		c.Request.Context(),
+		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolOpenAIChatCompletions),
+	))
 	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
 	groupMapping := groupMappingRoutePlan.Mapping()
 	h.backend.BindPlan(c, groupMappingRoutePlan)

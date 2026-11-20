@@ -230,7 +230,7 @@ func (s *Compatible) selectProviderForModelWithExclusionsForRouting(ctx context.
 		platform = forced
 	}
 	ctx = s.withCandidatePolicy(ctx, groupID, sessionHash)
-	core, scope := (&compatiblePicker{service: s}).platformSelector()
+	core, scope := (&compatiblePicker{service: s}).platformSelectorForContext(ctx)
 	selected, err := core.SelectBasicOnly(ctx, schedulercore.PlatformSelectionInput{GroupID: groupID, Platform: platform, SessionHash: sessionHash, RequestedModel: requestedModel, RoutingModel: routingModel, ExcludedIDs: excludedIDs, RequireCompact: requireCompact, StickyProviderID: stickyProviderID, RequiredCapability: requiredCapability})
 	return scope.oldProvider(selected), err
 }
@@ -266,7 +266,7 @@ func (s *Compatible) selectProviderWithLoadAwarenessForRouting(ctx context.Conte
 		platform = forced
 	}
 	ctx = s.withCandidatePolicy(ctx, groupID, sessionHash)
-	core, scope := (&compatiblePicker{service: s}).platformSelector()
+	core, scope := (&compatiblePicker{service: s}).platformSelectorForContext(ctx)
 	selected, err := core.SelectBasic(ctx, schedulercore.PlatformSelectionInput{GroupID: groupID, Platform: platform, SessionHash: sessionHash, RequestedModel: requestedModel, RoutingModel: routingModel, ExcludedIDs: excludedIDs, RequireCompact: requireCompact, RequiredCapability: requiredCapability})
 	return scope.restore(selected), err
 }
@@ -345,7 +345,7 @@ func (s *Compatible) resolveFreshSchedulableOpenAIProvider(ctx context.Context, 
 	}) {
 		return nil
 	}
-	if s.isOpenAIProviderRequestRuntimeBlocked(fresh, requestedModel) {
+	if s.isOpenAIProviderRequestRuntimeBlocked(ctx, fresh, requestedModel) {
 		return nil
 	}
 	if s.isOpenAIProviderBlockedBySchedulingThreshold(ctx, fresh) {
@@ -440,7 +440,7 @@ func (s *Compatible) recheckSelectedOpenAIProviderFromDB(ctx context.Context, pr
 	}) {
 		return nil
 	}
-	if s.isOpenAIProviderRequestRuntimeBlocked(latest, requestedModel) {
+	if s.isOpenAIProviderRequestRuntimeBlocked(ctx, latest, requestedModel) {
 		return nil
 	}
 	if s.isOpenAIProviderBlockedBySchedulingThreshold(ctx, latest) {

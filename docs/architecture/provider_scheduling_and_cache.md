@@ -134,7 +134,7 @@ Codex 自动审查请求与父线程的关联，仅在同时满足三项条件�
 - EWMA 基线与缺测：TTFT 实测 `0ms` 参与延迟范围归一化，未观测或全部已知样本相等时使用中性值。错误率初始基线为 0%（无样本健康度为 1），首次失败即从零基线更新 EWMA，健康度立即低于未观测提供商，聚合值保存样本数和最近观测时间。
 - 缺测文案与参数来源：诊断将未观测错误率标为"0%（未观测）"，缺失的负载、TTFT、窗口重置或平台额度标为"未观测，使用中性值"且仍可调度。负载分母取 `EffectiveLoadFactor()`；参数逐字段标明来源（分组覆盖、全局运行时设置或进程默认值）。
 - 模型缺失诊断：直接读取持久配置的提供商池（忽略临时限流、过载和停调），复核分组、协议路线和模型范围，不以调度快照为空断定模型不存在。查询限定当前分组，无分组时不读池；未解析模型按 `PricingConfigService.ResolveRoutingModel` 解析。
-- 兼容路由一致性：OpenAI 兼容选择、诊断和 WS 复核共用 `ModelPolicy.SupportsCompatibleRouting`，透传提供商同样遵守白名单、映射和默认模型目录。
+- 兼容路由一致性：OpenAI 兼容选择、诊断和 WS 复核共用 `ModelPolicy.SupportsCompatibleRouting`，透传提供商同样遵守白名单、映射（含 `effort_model_mapping`，随精简调度元数据进入快照，规则见[提供商组合映射](../domains/routing_and_billing.md#provider_effort_model_mapping)）和默认模型目录。
 
 <a id="scheduler_snapshot_consistency"></a>
 ## 快照一致性

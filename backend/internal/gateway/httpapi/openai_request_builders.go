@@ -6,10 +6,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -106,6 +109,7 @@ func (s *OpenAIRequests) Build(ctx context.Context, c *gin.Context, provider *ga
 	if err != nil {
 		return nil, err
 	}
+	body = stripOpenAIWireEffortIfMatched(ctx, c, provider, body, protocol.ProtocolOpenAIResponses)
 	return forward.BuildResponsesRequest(ctx, body, promptCacheKey, s.Target(c, provider, false), func(path string) { SetActualOpenAIUpstreamEndpoint(c, path) }, func(b []byte) []byte {
 		return forward.NormalizeStatelessResponsesBody(provider != nil && gatewayprovider.ExecutionProtocolTarget(provider).UsesStatelessResponses(), b)
 	}, func(target string) openai.ResponsesRequestOptions {
@@ -131,6 +135,7 @@ func (s *OpenAIRequests) BuildPassthrough(
 	if err != nil {
 		return nil, err
 	}
+	body = stripOpenAIWireEffortIfMatched(ctx, c, provider, body, protocol.ProtocolOpenAIResponses)
 	return forward.BuildPassthroughRequest(ctx, body, s.Target(c, provider, true), func(b []byte) []byte {
 		return forward.NormalizeStatelessResponsesBody(provider != nil && gatewayprovider.ExecutionProtocolTarget(provider).UsesStatelessResponses(), b)
 	}, func(target string) openai.PassthroughRequestOptions {
@@ -160,6 +165,34 @@ func (s *OpenAIRequests) BuildPassthrough(
 			},
 		}
 	})
+}
+
+// stripOpenAIWireEffortIfMatched removes wire effort fields from outbound
+// OpenAI-family or native Anthropic request bytes when the provider enables
+// effort_model_mapping_strip_effort and an effort-scoped model rule matched
+// this request. Route plan models are consulted first so already-rewritten
+// bodies still evaluate against the pre-mapping request model.
+func stripOpenAIWireEffortIfMatched(ctx context.Context, c *gin.Context, provider *gatewayprovider.ExecutionProvider, body []byte, wireProtocol protocol.ProtocolID) []byte {
+	if provider == nil || len(body) == 0 {
+		return body
+	}
+	model := ""
+	if plan, ok := requeststate.RoutePlanFromContext(ctx); ok {
+		model = plan.Models().GroupMappedModel
+		if model == "" {
+			model = plan.Models().RequestedModel
+		}
+	}
+	if model == "" && c != nil {
+		model = ErrorRequestModel(c)
+	}
+	if model == "" {
+		model = gjson.GetBytes(body, "model").String()
+	}
+	if !gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, model) {
+		return body
+	}
+	return requeststate.StripWireReasoningEffort(body, wireProtocol)
 }
 
 // isOpenAIPassthroughAllowedRequestHeader reports whether a lowercase header

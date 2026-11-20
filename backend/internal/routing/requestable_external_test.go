@@ -264,3 +264,46 @@ func TestCatalogueRecognizesGeminiLiteImage(t *testing.T) {
 	require.Len(t, result.Models, 1)
 	require.Contains(t, result.Models[0].Protocols, protocol.ProtocolImageBatches)
 }
+
+// TestCatalogueExposesEffortMappedAliasWithSuffixedTargets configures an
+// API-key provider exposing effort-suffixed upstream IDs via
+// effort_model_mapping. The catalogue must list the base alias, retain both
+// whitelisted suffixed upstream models, and flag upstream pricing ambiguity.
+func TestCatalogueExposesEffortMappedAliasWithSuffixedTargets(t *testing.T) {
+	groupID := int64(7)
+	group := &routing.Group{ID: groupID, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages}}
+	policies := &countedCataloguePolicies{
+		PricingConfigService: routing.NewPricingConfigService(nil, nil, routing.PricingConfigOptions{
+			ReadGroup: func(context.Context, int64) (*routing.Group, error) { return group, nil },
+		}),
+	}
+	record := provider.Record{
+		Platform: "anthropic",
+		Type:     "apikey",
+		Credentials: map[string]any{
+			"model_whitelist": []string{"claude-opus-5-5-low", "claude-opus-5-5-high"},
+			provider.EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"low":    "claude-opus-5-5-low",
+					"high":   "claude-opus-5-5-high",
+					"medium": "claude-opus-5-5-medium",
+				},
+			},
+		},
+	}
+	resolver := routing.RequestableResolver{
+		GroupPolicies: policies,
+		Attributes:    &routing.ModelAttributeService{Catalog: routing.ModelAttributeCatalog{View: testkit.OfflineView}},
+	}
+	result := resolver.ResolveWithProviders(context.Background(), &groupID, "", nil, gatewayprovider.CatalogueProviders([]provider.Record{record}))
+	require.NoError(t, result.Err)
+	byID := map[string]routing.RequestableModel{}
+	for _, m := range result.Models {
+		byID[m.ID] = m
+	}
+	alias, ok := byID["claude-opus-5-5"]
+	require.True(t, ok, "base model exposed via effort_model_mapping must be requestable")
+	require.Equal(t, []string{"claude-opus-5-5-high", "claude-opus-5-5-low"}, alias.UpstreamModels)
+	require.True(t, alias.PricingAmbiguous)
+	require.Contains(t, alias.Protocols, protocol.ProtocolAnthropicMessages)
+}

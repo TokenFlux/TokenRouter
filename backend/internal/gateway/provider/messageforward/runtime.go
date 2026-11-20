@@ -7,6 +7,7 @@ import (
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // runtime.go starts Messages, counting, Chat, and Responses flows with fresh
@@ -22,9 +23,19 @@ import (
 // results; the outer gateway selects any replacement provider.
 // @project-doc docs/architecture/gateway_request_lifecycle.md#protocol_conversion_boundary
 func (r *Runtime) Execute(ctx context.Context, output HTTPBoundary, target *gatewayadapter.ExecutionProvider, parsed *requeststate.ParsedRequest) (*forward.MessagesResult, error) {
-	adapter := newAttempt(r, output, target)
+	var preStripEffort *string
+	if parsed != nil && gatewayadapter.ExecutionModelPolicy(target).ShouldStripWireEffort(ctx, parsed.Model) {
+		preStripEffort = protocol.NormalizeClaudeOutputEffort(parsed.OutputEffort)
+	}
+	adapter := newAttemptWithContext(ctx, r, output, target)
 	result, err := forward.Messages(ctx, adapter, adapter.input(), parsed)
-	return messagesResult(result), err
+	out := messagesResult(result)
+	// Preserve pre-strip Claude effort for usage recording when wire effort
+	// stripping cleared output_config.effort on the adopted outbound payload.
+	if out != nil && out.ReasoningEffort == nil && preStripEffort != nil {
+		out.ReasoningEffort = preStripEffort
+	}
+	return out, err
 }
 
 // Count runs token counting with fresh preparation state for the selected

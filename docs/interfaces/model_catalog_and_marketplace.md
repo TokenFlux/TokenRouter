@@ -24,7 +24,7 @@
 
 `routing.RequestableResolver` 从以下来源收集具体型号作为候选：
 
-- 提供商白名单、提供商映射和分组映射中的具体来源与具体目标（例如 `client-* -> gpt-5.6-sol` 会提供候选 `gpt-5.6-sol`）。
+- 提供商白名单、提供商映射（含 `effort_model_mapping` 的具体来源与目标，解析规则见[提供商组合映射](../domains/routing_and_billing.md#provider_effort_model_mapping)）和分组映射中的具体来源与具体目标（例如 `client-* -> gpt-5.6-sol` 会提供候选 `gpt-5.6-sol`）。目录查询在无请求 effort 时按普通路径与各匹配档位分支汇总通过白名单的 `UpstreamModels`，运行时无 effort 请求仍只按普通映射校验。
 - 分组策略和已启用自定义模型列表中的具体型号。
 - Qoder、Bedrock 等平台执行规则提供的有限型号集合。
 

@@ -49,8 +49,8 @@ type ModelChain struct {
 	BillingModelSource     string // selected billing identity stage
 }
 
-// PlanInput supplies the admitted group, completed group mapping, and client
-// entry for a request plan.
+// PlanInput supplies the admitted group, completed group mapping, optional
+// reasoning effort, and client entry for a request plan.
 type PlanInput struct {
 	// GroupID overrides Group.ID when supplied. Plan copies the pointed value, so
 	// changing the input pointer after construction leaves the captured identifier
@@ -63,15 +63,20 @@ type PlanInput struct {
 	// retained request use.
 	Group          *Group
 	ClientProtocol capability.ProtocolID // admitted client entry protocol
+	// ReasoningEffort carries the optional post-policy effort label used when
+	// resolving provider effort_model_mapping rules; blank values use ordinary
+	// model mappings only.
+	ReasoningEffort string // optional normalized reasoning effort
 }
 
-// RoutePlan retains group policy and model metadata for provider-attempt
-// resolution.
+// RoutePlan retains group policy, optional effort, and model metadata for
+// provider-attempt resolution.
 type RoutePlan struct {
-	models         ModelChain            // retained request identity stages
-	groupID        int64                 // captured final group identifier
-	schedulerType  GroupSchedulerType    // captured group scheduler selection
-	clientProtocol capability.ProtocolID // current plan client source
+	models          ModelChain            // retained request identity stages
+	groupID         int64                 // captured final group identifier
+	schedulerType   GroupSchedulerType    // captured group scheduler selection
+	clientProtocol  capability.ProtocolID // current plan client source
+	reasoningEffort string                // normalized effort for provider mapping
 	// allowed and fallbacks retain copied group protocol policy. Plan copies the
 	// admission selection and each conversion list; plan copies with a different
 	// client protocol share these collections as read-only values.
@@ -85,12 +90,13 @@ type RoutePlan struct {
 // CandidatePlan records the provider and protocol selected for one request
 // attempt.
 type CandidatePlan struct {
-	ModelMappingMatched bool                  // one-hop provider mapping match
-	Models              ModelChain            // attempt-specific model identity stages
-	ProviderID          int64                 // selected provider row identifier
-	GroupID             int64                 // authorized final group identifier
-	ClientProtocol      capability.ProtocolID // resolved client entry identity
-	UpstreamProtocol    capability.ProtocolID // selected provider execution protocol
+	ModelMappingMatched  bool                  // one-hop provider mapping match
+	EffortMappingMatched bool                  // effort-scoped provider mapping match
+	Models               ModelChain            // attempt-specific model identity stages
+	ProviderID           int64                 // selected provider row identifier
+	GroupID              int64                 // authorized final group identifier
+	ClientProtocol       capability.ProtocolID // resolved client entry identity
+	UpstreamProtocol     capability.ProtocolID // selected provider execution protocol
 }
 
 // Mapping returns the retained group mapping, restriction settings, and billing
@@ -116,7 +122,8 @@ func (p RoutePlan) Models() ModelChain { return p.models }
 // supplied GroupID overrides the ID from Group.
 func Plan(input PlanInput) RoutePlan {
 	plan := RoutePlan{
-		clientProtocol: input.ClientProtocol,
+		clientProtocol:  input.ClientProtocol,
+		reasoningEffort: protocol.NormalizeReasoningEffort(input.ReasoningEffort),
 		models: ModelChain{
 			RequestedModel:         input.RequestedModel,
 			ClientModel:            input.GroupMapping.ClientModel,
@@ -155,13 +162,21 @@ func (p RoutePlan) ResolveCandidate(candidate provider.ProviderSnapshot) (Candid
 	if model == "" {
 		model = p.models.RequestedModel
 	}
-	resolved, ok := candidate.ResolveModelRoute(model, p.clientProtocol, p.fallbacks)
+	resolved, ok := candidate.ResolveModelRouteForEffort(model, p.reasoningEffort, p.clientProtocol, p.fallbacks)
 	if !ok {
 		return CandidatePlan{}, false
 	}
 	models := p.models
 	models.ProviderMappedModel = resolved.Model
-	return CandidatePlan{Models: models, ModelMappingMatched: resolved.MappingMatched, ProviderID: candidate.ID, GroupID: p.groupID, ClientProtocol: p.clientProtocol, UpstreamProtocol: resolved.Protocol}, true
+	return CandidatePlan{
+		Models:               models,
+		ModelMappingMatched:  resolved.MappingMatched,
+		EffortMappingMatched: resolved.EffortMappingMatched,
+		ProviderID:           candidate.ID,
+		GroupID:              p.groupID,
+		ClientProtocol:       p.clientProtocol,
+		UpstreamProtocol:     resolved.Protocol,
+	}, true
 }
 
 // GroupID returns the captured final group identifier for this request.
@@ -170,6 +185,10 @@ func (p RoutePlan) GroupID() int64 { return p.groupID }
 // SchedulerType returns the group selection strategy captured when planning
 // began.
 func (p RoutePlan) SchedulerType() GroupSchedulerType { return p.schedulerType }
+
+// ReasoningEffort returns the normalized effort label captured for provider
+// model mapping, or empty when no effort was supplied.
+func (p RoutePlan) ReasoningEffort() string { return p.reasoningEffort }
 
 // AllowedProtocols returns a copy of the captured client admission selection.
 // Callers may modify the returned slice independently; a missing group produces
@@ -181,5 +200,14 @@ func (p RoutePlan) AllowedProtocols() []capability.ProtocolID { return slices.Cl
 // plan data, and candidate routing uses the replacement source.
 func (p RoutePlan) WithClientProtocol(source capability.ProtocolID) RoutePlan {
 	p.clientProtocol = source
+	return p
+}
+
+// WithReasoningEffort returns a plan copy carrying the normalized replacement
+// reasoning effort while sharing read-only group policy collections. Callers
+// use this after post-selection effort policy rewrites change the effective
+// effort for candidate resolution.
+func (p RoutePlan) WithReasoningEffort(effort string) RoutePlan {
+	p.reasoningEffort = protocol.NormalizeReasoningEffort(effort)
 	return p
 }

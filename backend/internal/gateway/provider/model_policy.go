@@ -33,8 +33,8 @@ import (
 // model-window eligibility. Successful outbound resolution records the final
 // stage in request model tracing for response and usage correlation.
 
-// ModelPolicy combines provider configuration, a request attempt route, and
-// optional prepared model rules.
+// ModelPolicy combines provider configuration, a request attempt route,
+// optional prepared model rules, and an optional reasoning effort for mapping.
 type ModelPolicy struct {
 	// Record supplies the borrowed provider configuration. Keep it stable while
 	// this policy resolves mappings, protocols, support, or model-limit observations.
@@ -43,6 +43,35 @@ type ModelPolicy struct {
 	// models captures mapping and support rules for repeated catalogue checks;
 	// an unset snapshot causes execution helpers to read the current provider configuration.
 	models *provider.ModelRulesSnapshot
+	// Effort carries the normalized effective reasoning effort used when
+	// resolving effort_model_mapping outside an already planned attempt route.
+	Effort string // optional canonical reasoning effort
+}
+
+// WithEffort returns a policy copy carrying the normalized reasoning effort for
+// subsequent effort-aware mapping and admission calls.
+func (p ModelPolicy) WithEffort(effort string) ModelPolicy {
+	p.Effort = protocol.NormalizeReasoningEffort(effort)
+	return p
+}
+
+// WithContext returns a policy copy populated with the request's routing
+// reasoning effort when p.Effort is unset. A policy with an explicit Effort
+// keeps its own selection so variant enumeration can override context state.
+func (p ModelPolicy) WithContext(ctx context.Context) ModelPolicy {
+	if p.Effort == "" {
+		p.Effort = requeststate.RoutingReasoningEffortFromContext(ctx)
+	}
+	return p
+}
+
+// effectiveEffort returns p.Effort when set, or falls back to the routing
+// reasoning effort captured in ctx.
+func (p ModelPolicy) effectiveEffort(ctx context.Context) string {
+	if p.Effort != "" {
+		return p.Effort
+	}
+	return requeststate.RoutingReasoningEffortFromContext(ctx)
 }
 
 // Prepared captures reusable provider model rules when the policy has no
@@ -62,15 +91,27 @@ func (p ModelPolicy) configuredModels() []string {
 	return p.models.ConfiguredModels()
 }
 
+// matchedEfforts returns canonical effort labels that match requested in
+// configured effort_model_mapping rules, using prepared rules when available.
+func (p ModelPolicy) matchedEfforts(requested string) []string {
+	if p.Record == nil || requested == "" {
+		return nil
+	}
+	if p.models != nil {
+		return p.models.MatchedEfforts(requested)
+	}
+	return provider.EffortMappingMatchedEfforts(provider.ResolveEffortModelMapping(p.Record), requested)
+}
+
 // supportsConfiguredModel checks model support through prepared rules when
 // available or current provider configuration otherwise. The uncaptured path
 // reads shared platform defaults and rules each time the caller validates a
 // model.
 func (p ModelPolicy) supportsConfiguredModel(model string) bool {
 	if p.models != nil {
-		return p.models.Supports(model)
+		return p.models.SupportsForEffort(model, p.Effort)
 	}
-	return p.Record.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(p.Record))
+	return p.Record.IsModelSupportedForEffort(model, p.Effort, provideradapter.ModelDefaults(), provideradapter.ModelRules(p.Record))
 }
 
 // finalModelWhitelisted checks final-model permission through the prepared
@@ -96,14 +137,15 @@ func (p ModelPolicy) forwardMappedModel(model string) string {
 	return provider.ForwardMappedTarget(model, mapped, matched)
 }
 
-// antigravityModel resolves Antigravity model and thinking variants through
-// prepared rules or current provider configuration. The optional thinking
-// pointer retains absent versus explicit state for the platform resolver.
+// antigravityModel resolves Antigravity model, effort, and thinking variants
+// through prepared rules or current provider configuration. The optional
+// thinking pointer retains absent versus explicit state for the platform
+// resolver.
 func (p ModelPolicy) antigravityModel(model string, thinking *bool) string {
 	if p.models != nil {
-		return provideradapter.FinalAntigravityModelWithRules(p.models, model, thinking)
+		return provideradapter.FinalAntigravityModelWithRulesForEffort(p.models, model, p.Effort, thinking)
 	}
-	return provideradapter.FinalAntigravityModel(p.Record, model, thinking)
+	return provideradapter.FinalAntigravityModelForEffort(p.Record, model, p.Effort, thinking)
 }
 
 // protocolTarget combines the policy record with the current attempt upstream
@@ -113,8 +155,8 @@ func (p ModelPolicy) protocolTarget() provider.ProtocolTarget {
 }
 
 // Mapped returns one provider-mapping hop for model, leaving it unchanged when
-// Record is nil. The attempt route and optional prepared rules determine the
-// map used by ResolveMapped.
+// Record is nil. The attempt route, optional Effort, and optional prepared
+// rules determine the mapping used by ResolveMapped.
 func (p ModelPolicy) Mapped(model string) string {
 	if p.Record == nil {
 		return model
@@ -123,20 +165,49 @@ func (p ModelPolicy) Mapped(model string) string {
 	return mapped
 }
 
-// ResolveMapped returns the admitted model or one provider mapping hop.
+// ResolveMapped returns the admitted model or one effort-aware provider mapping
+// hop, discarding whether an effort-specific rule produced the match.
+func (p ModelPolicy) ResolveMapped(model string) (string, bool) {
+	mapped, matched, _ := p.ResolveMappedWithEffort(model)
+	return mapped, matched
+}
+
+// ResolveMappedWithEffort returns the admitted model or one effort-aware
+// provider mapping hop together with ordinary and effort-specific match flags.
 // A prepared policy with no candidate uses its captured rules directly;
 // candidate-bound policies reuse their captured model for the admitted request.
-// Auxiliary model behavior is defined by AttemptRoute.ResolveModel.
-func (p ModelPolicy) ResolveMapped(model string) (string, bool) {
+func (p ModelPolicy) ResolveMappedWithEffort(model string) (string, bool, bool) {
+	if p.Record == nil {
+		return model, false, false
+	}
 	// Prepared catalogue queries use their captured resolver until an attempt
 	// binds a final identity; that retained identity prevents another provider alias hop.
 	if p.models != nil {
 		if _, planned := p.Route.Candidate(); !planned {
-			return p.models.ResolveMappedModel(model)
+			return p.models.ResolveMappedModelForEffort(model, p.Effort)
 		}
-		return p.Route.ResolveModel(p.Record.ID, p.models.Mapping(), model)
+		return p.Route.ResolveModelForEffort(p.Record.ID, p.models.RoutingSnapshot(), model, p.Effort)
 	}
-	return p.Route.ResolveModel(p.Record.ID, provider.ResolveModelMapping(p.Record, provideradapter.ModelDefaults()), model)
+	snapshot := provider.NewModelRoutingSnapshotWithEffort(
+		provider.ResolveModelMapping(p.Record, provideradapter.ModelDefaults()),
+		provider.ResolveEffortModelMapping(p.Record),
+	)
+	return p.Route.ResolveModelForEffort(p.Record.ID, snapshot, model, p.Effort)
+}
+
+// ShouldStripWireEffort reports whether outbound wire effort fields should be
+// removed for this provider and request. Stripping runs only when the provider
+// enables effort_model_mapping_strip_effort and an effort_model_mapping rule
+// matched the request model under its effective routing effort.
+func (p ModelPolicy) ShouldStripWireEffort(ctx context.Context, model string) bool {
+	if p.Record == nil || !provider.StripEffortOnEffortModelMapping(p.Record) {
+		return false
+	}
+	if p.Route.EffortMappingMatched() {
+		return true
+	}
+	_, _, effortMatched := p.WithContext(ctx).ResolveMappedWithEffort(model)
+	return effortMatched
 }
 
 // ForwardModel prefers a nonblank trimmed dispatchMapped value over requested,
@@ -302,10 +373,12 @@ func modelThinking(ctx context.Context) *bool {
 }
 
 // Supports checks execution support for a post-group-mapping model under
-// platform rules. Nil records fail; Antigravity resolves thinking variants,
-// Bedrock requires configured support and a valid route, and non-API-Key
-// Anthropic applies final-model whitelist checks after normalization.
+// platform rules and the active reasoning effort from p or ctx. Nil records
+// fail; Antigravity resolves effort and thinking variants, Bedrock requires
+// configured support and a valid route, and non-API-Key Anthropic applies
+// final-model whitelist checks after normalization.
 func (p ModelPolicy) Supports(ctx context.Context, model string) bool {
+	p = p.WithContext(ctx)
 	value := p.Record
 	if value == nil {
 		return false
@@ -330,17 +403,35 @@ func (p ModelPolicy) Supports(ctx context.Context, model string) bool {
 	return p.supportsConfiguredModel(model)
 }
 
+// SupportsAnyEffort reports whether model is supported for catalogue discovery
+// either directly under ctx or through at least one matching effort_model_mapping
+// rule. Runtime request selection uses Supports instead so effort-free requests
+// cannot borrow effort-only routes.
+func (p ModelPolicy) SupportsAnyEffort(ctx context.Context, model string) bool {
+	if p.Supports(ctx, model) {
+		return true
+	}
+	for _, effort := range p.matchedEfforts(model) {
+		variantCtx := requeststate.WithRoutingReasoningEffort(ctx, effort)
+		if p.WithEffort(effort).Supports(variantCtx, model) {
+			return true
+		}
+	}
+	return false
+}
+
 // UpstreamModel resolves and registers the final outbound identity for the
 // request model trace. Nil records and rejected Bedrock routes
 // return empty before registration.
 //
-// Platform handling uses Bedrock routing, Antigravity thinking state, ordinary
-// OpenAI/Grok outbound mapping, or provider mapping followed by Qoder account
-// aliases or Anthropic normalization. The result is trimmed before trace
-// registration. Callers keep the record stable and use this final identity for
-// execution while the earlier requested and billing names remain separate
-// observations.
+// Platform handling uses Bedrock routing, Antigravity effort/thinking state,
+// ordinary OpenAI/Grok outbound mapping, or effort-aware provider mapping
+// followed by Qoder account aliases or Anthropic normalization. The result is
+// trimmed before trace registration. Callers keep the record stable and use
+// this final identity for execution while the earlier requested and billing
+// names remain separate observations.
 func (p ModelPolicy) UpstreamModel(ctx context.Context, requested string) string {
+	p = p.WithContext(ctx)
 	value := p.Record
 	if value == nil {
 		return ""
@@ -376,12 +467,13 @@ func (p ModelPolicy) UpstreamModel(ctx context.Context, requested string) string
 // distinguish absent model evidence from a window on a known key.
 //
 // OpenAI and Grok use canonical scheduling names, while Antigravity includes
-// its thinking-specific route. Gemini Antigravity traffic also receives the
-// shared Gemini key, declared OpenAI image output or request intent receive the
-// shared image key, and Anthropic Fable names receive the shared Fable key.
-// These scopes supplement the model window, so either active window can
-// restrict that request.
+// its effort and thinking-specific route. Gemini Antigravity traffic also
+// receives the shared Gemini key, declared OpenAI image output or request
+// intent receive the shared image key, and Anthropic Fable names receive the
+// shared Fable key. These scopes supplement the model window, so either active
+// window can restrict that request.
 func (p ModelPolicy) LimitKeys(ctx context.Context, requested string) []string {
+	p = p.WithContext(ctx)
 	value := p.Record
 	if value == nil {
 		return nil
@@ -443,11 +535,10 @@ func (p ModelPolicy) AllowsModel(ctx context.Context, model string) bool {
 // window returns an allocated empty result.
 //
 // Antigravity evaluates plain and thinking contexts separately, checking both
-// window permission and support before resolving each route. Other platforms
-// check window permission and resolve one outbound model. Blank outputs are
-// omitted, and trace registration follows UpstreamModel on successful
-// resolution. The catalogue caller performs its surrounding support and
-// protocol checks before adopting these listing variants.
+// window permission and support before resolving each route. When
+// effort_model_mapping matches requested, listing evaluates the ordinary route
+// alongside each matched effort branch and includes only supported, permitted
+// targets so effort-only aliases do not emit unwhitelisted base spellings.
 func (p ModelPolicy) ListingModels(ctx context.Context, requested string) []string {
 	models := make([]string, 0, 2)
 	seen := make(map[string]struct{}, 2)
@@ -463,23 +554,46 @@ func (p ModelPolicy) ListingModels(ctx context.Context, requested string) []stri
 		seen[key] = struct{}{}
 		models = append(models, model)
 	}
-	if p.Record != nil && p.Record.Platform == capability.PlatformAntigravity {
-		// Plain and thinking routes can have different final names and limit windows.
-		// Evaluate both contexts before deduplication so one rejected variant cannot hide the other.
-		plain := requeststate.WithThinkingEnabled(ctx, false)
-		if p.AllowsModel(plain, requested) && p.Supports(plain, requested) {
-			add(p.UpstreamModel(plain, requested))
-		}
-		thinking := requeststate.WithThinkingEnabled(ctx, true)
-		if p.AllowsModel(thinking, requested) && p.Supports(thinking, requested) {
-			add(p.UpstreamModel(thinking, requested))
-		}
+	if p.Record == nil {
 		return models
 	}
-	if p.Record == nil || !p.AllowsModel(ctx, requested) {
+	addVariant := func(variantCtx context.Context, policy ModelPolicy, requireSupport bool) {
+		if policy.Record.Platform == capability.PlatformAntigravity {
+			// Plain and thinking routes can have different final names and limit windows.
+			// Evaluate both contexts before deduplication so one rejected variant cannot hide the other.
+			plain := requeststate.WithThinkingEnabled(variantCtx, false)
+			if policy.AllowsModel(plain, requested) && policy.Supports(plain, requested) {
+				add(policy.UpstreamModel(plain, requested))
+			}
+			thinking := requeststate.WithThinkingEnabled(variantCtx, true)
+			if policy.AllowsModel(thinking, requested) && policy.Supports(thinking, requested) {
+				add(policy.UpstreamModel(thinking, requested))
+			}
+			return
+		}
+		if !policy.AllowsModel(variantCtx, requested) {
+			return
+		}
+		if requireSupport && !policy.Supports(variantCtx, requested) {
+			return
+		}
+		add(policy.UpstreamModel(variantCtx, requested))
+	}
+
+	efforts := p.matchedEfforts(requested)
+	if len(efforts) == 0 {
+		addVariant(ctx, p, false)
 		return models
 	}
-	add(p.UpstreamModel(ctx, requested))
+	// Effort-scoped rules can expose a base alias whose unmapped spelling is not
+	// itself whitelisted. Require support on every branch so only eligible
+	// ordinary and effort-mapped targets appear in the listing.
+	plainCtx := requeststate.WithRoutingReasoningEffort(ctx, "")
+	addVariant(plainCtx, p.WithEffort(""), true)
+	for _, effort := range efforts {
+		effortCtx := requeststate.WithRoutingReasoningEffort(ctx, effort)
+		addVariant(effortCtx, p.WithEffort(effort), true)
+	}
 	return models
 }
 

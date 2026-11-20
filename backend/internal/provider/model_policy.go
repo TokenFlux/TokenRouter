@@ -32,20 +32,29 @@ type ModelPlatformRules struct {
 	OpenAIOAuthServable func(string) bool
 }
 
-// IsModelSupported reports whether a requested model passes provider admission.
-// Nil records are rejected. Mapping executes once before whitelist membership,
-// so an alias is tested through its target rather than its request spelling.
+// IsModelSupported reports whether a requested model passes provider admission
+// without a request reasoning effort. It delegates to IsModelSupportedForEffort
+// with an empty effort so ordinary admission evaluates model_mapping only.
+func (r *Record) IsModelSupported(requestedModel string, defaults ModelMappingDefaults, rules ModelPlatformRules) bool {
+	return r.IsModelSupportedForEffort(requestedModel, "", defaults, rules)
+}
+
+// IsModelSupportedForEffort reports whether a requested model and optional
+// reasoning effort pass provider admission. Nil records are rejected. Mapping
+// executes once (checking effort_model_mapping when effort is nonblank before
+// falling back to model_mapping), so an alias is tested through its final
+// target rather than its request spelling.
 //
 // The effective scope distinguishes ordinary explicit whitelists from finite
 // OpenAI shadow models. Qoder account eligibility and OpenAI OAuth eligibility
 // apply to the mapped target after membership succeeds. Supplied callbacks can
 // read live record state, so callers keep configuration stable during a check.
-func (r *Record) IsModelSupported(requestedModel string, defaults ModelMappingDefaults, rules ModelPlatformRules) bool {
+func (r *Record) IsModelSupportedForEffort(requestedModel, effort string, defaults ModelMappingDefaults, rules ModelPlatformRules) bool {
 	if r == nil {
 		return false
 	}
 	mapping := ResolveModelMapping(r, defaults)
-	model, _ := ResolveMappedModel(mapping, requestedModel)
+	model, _, _ := ResolveMappedModelForEffort(mapping, ResolveEffortModelMapping(r), requestedModel, effort)
 	scope := r.effectiveModelScope(defaults, mapping)
 	if !ModelInFinalWhitelist(r.Platform, model, scope, rules.NormalizeQoder) {
 		return false
@@ -134,12 +143,13 @@ func (r *Record) GetConfiguredRequestModels(defaults ModelMappingDefaults) []str
 		return nil
 	}
 	mapping := ResolveModelMapping(r, defaults)
+	effortMapping := ResolveEffortModelMapping(r)
 	scope := r.effectiveModelScope(defaults, mapping)
 	var platformModels []string
 	if defaults.Models != nil {
 		platformModels = defaults.Models(r)
 	}
-	return configuredRequestModels(mapping, scope, platformModels, func(model string) bool { return ModelInFinalWhitelist(r.Platform, model, scope, nil) })
+	return configuredRequestModels(mapping, effortMapping, scope, platformModels, func(model string) bool { return ModelInFinalWhitelist(r.Platform, model, scope, nil) })
 }
 
 // ResolveMappedModel returns one mapping target and whether a rule matched.

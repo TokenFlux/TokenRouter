@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // TestExtractGrokResponsesReasoningEffortSupportsOpenAICompatibleField supplies
@@ -375,4 +377,53 @@ func TestExtractOpenAIServiceTierFromBody(t *testing.T) {
 	require.Equal(t, "ultrafast", *ExtractOpenAIServiceTierFromBody([]byte(`{"service_tier":"ultrafast"}`)))
 	require.Nil(t, ExtractOpenAIServiceTierFromBody([]byte(`{"service_tier":"turbo"}`)))
 	require.Nil(t, ExtractOpenAIServiceTierFromBody(nil))
+}
+
+// TestExtractRoutingReasoningEffort supplies protocol-specific effort payloads
+// across Anthropic, OpenAI Responses, OpenAI Chat, and Gemini alongside
+// model-suffix and budget-only bodies. Extraction must normalize explicit
+// fields without inferring effort from suffixes or budgets.
+func TestExtractRoutingReasoningEffort(t *testing.T) {
+	tests := []struct {
+		name     string              // protocol extraction scenario
+		protocol protocol.ProtocolID // inbound protocol identifier
+		body     string              // JSON request payload
+		want     string              // expected canonical effort label
+	}{
+		{name: "anthropic output_config", protocol: protocol.ProtocolAnthropicMessages, body: `{"model":"claude-opus-5-5","output_config":{"effort":"HIGH"}}`, want: "high"},
+		{name: "openai responses reasoning", protocol: protocol.ProtocolOpenAIResponses, body: `{"model":"claude-opus-5-5","reasoning":{"effort":"x-high"}}`, want: "xhigh"},
+		{name: "openai chat flat field", protocol: protocol.ProtocolOpenAIChatCompletions, body: `{"model":"claude-opus-5-5","reasoning_effort":"medium"}`, want: "medium"},
+		{name: "openai chat nested fallback", protocol: protocol.ProtocolOpenAIChatCompletions, body: `{"model":"claude-opus-5-5","reasoning":{"effort":"low"}}`, want: "low"},
+		{name: "gemini camelCase thinkingLevel", protocol: protocol.ProtocolGeminiGenerateContent, body: `{"generationConfig":{"thinkingConfig":{"thinkingLevel":"HIGH"}}}`, want: "high"},
+		{name: "gemini snake_case thinking_level", protocol: protocol.ProtocolGeminiGenerateContent, body: `{"generation_config":{"thinking_config":{"thinking_level":"MINIMAL"}}}`, want: "minimal"},
+		{name: "does not infer from suffix or budget", protocol: protocol.ProtocolAnthropicMessages, body: `{"model":"claude-opus-5-5-high","thinking":{"type":"enabled","budget_tokens":8000}}`, want: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, ExtractRoutingReasoningEffort([]byte(tc.body), tc.protocol))
+		})
+	}
+}
+
+// TestStripWireReasoningEffort removes protocol effort fields and deletes
+// empty parent containers while preserving sibling parameters across all four
+// supported wire protocols.
+func TestStripWireReasoningEffort(t *testing.T) {
+	out := StripWireReasoningEffort([]byte(`{"model":"claude-opus-5-5-high","output_config":{"effort":"high"}}`), protocol.ProtocolAnthropicMessages)
+	require.JSONEq(t, `{"model":"claude-opus-5-5-high"}`, string(out))
+
+	outSibling := StripWireReasoningEffort([]byte(`{"model":"claude-opus-5-5-high","output_config":{"effort":"high","format":{"type":"json"}}}`), protocol.ProtocolAnthropicMessages)
+	require.JSONEq(t, `{"model":"claude-opus-5-5-high","output_config":{"format":{"type":"json"}}}`, string(outSibling))
+
+	outResponses := StripWireReasoningEffort([]byte(`{"model":"claude-opus-5-5-high","reasoning":{"effort":"high","summary":"auto"}}`), protocol.ProtocolOpenAIResponses)
+	require.JSONEq(t, `{"model":"claude-opus-5-5-high","reasoning":{"summary":"auto"}}`, string(outResponses))
+
+	outResponsesEmpty := StripWireReasoningEffort([]byte(`{"model":"claude-opus-5-5-high","reasoning":{"effort":"high"}}`), protocol.ProtocolOpenAIResponses)
+	require.JSONEq(t, `{"model":"claude-opus-5-5-high"}`, string(outResponsesEmpty))
+
+	outChat := StripWireReasoningEffort([]byte(`{"model":"claude-opus-5-5-high","reasoning_effort":"high","stream":true}`), protocol.ProtocolOpenAIChatCompletions)
+	require.JSONEq(t, `{"model":"claude-opus-5-5-high","stream":true}`, string(outChat))
+
+	outGemini := StripWireReasoningEffort([]byte(`{"generationConfig":{"thinkingConfig":{"thinkingLevel":"HIGH"},"temperature":0.2}}`), protocol.ProtocolGeminiGenerateContent)
+	require.JSONEq(t, `{"generationConfig":{"temperature":0.2}}`, string(outGemini))
 }

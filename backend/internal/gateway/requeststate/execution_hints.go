@@ -3,6 +3,8 @@ package requeststate
 import (
 	"context"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // execution_hints.go stores request execution observations in context values
@@ -64,6 +66,10 @@ type ExecutionHints struct {
 	OpenAIImagesEndpoint        bool       // dedicated Images entry flag
 	IsMaxTokensOneHaikuRequest  Hint[bool] // explicit Haiku probe classification
 	ThinkingEnabled             Hint[bool] // explicit thinking enabled observation
+	// RoutingReasoningEffort stores the normalized effective reasoning effort
+	// used for provider effort_model_mapping selection, kept separate from
+	// immutable client audit capture so group policy rewrites can update routing.
+	RoutingReasoningEffort string // effective effort for provider model mapping
 	// PrefetchedStickyProviderID and PrefetchedStickyGroupID describe the same
 	// prefetched sticky lookup. Their Set flags retain explicit zero results, and
 	// consumers compare the saved group before reusing the provider.
@@ -218,6 +224,14 @@ func WithThinkingEnabled(ctx context.Context, value bool) context.Context {
 	return updateHints(ctx, func(h *ExecutionHints) { h.ThinkingEnabled = Hint[bool]{value, true} })
 }
 
+// WithRoutingReasoningEffort stores the normalized effective reasoning effort
+// for provider model mapping in derived execution hints. Blank or unrecognized
+// input clears the routing effort; nil ctx yields nil through updateHints.
+func WithRoutingReasoningEffort(ctx context.Context, effort string) context.Context {
+	normalized := protocol.NormalizeReasoningEffort(effort)
+	return updateHints(ctx, func(h *ExecutionHints) { h.RoutingReasoningEffort = normalized })
+}
+
 // WithPrefetchedStickySession stores provider and group lookup results with
 // both presence bits set. Zero identifiers remain explicit results, and nil ctx
 // yields nil; selection validates group applicability before reusing this
@@ -257,6 +271,13 @@ func IsMaxTokensOneHaikuRequestFromContext(ctx context.Context) (bool, bool) {
 func ThinkingEnabledFromContext(ctx context.Context) (bool, bool) {
 	h := ExecutionHintsFromContext(ctx).ThinkingEnabled
 	return h.Value, h.Set
+}
+
+// RoutingReasoningEffortFromContext returns the normalized effective reasoning
+// effort stored in execution hints for provider model mapping, or empty when
+// absent or nil ctx is supplied.
+func RoutingReasoningEffortFromContext(ctx context.Context) string {
+	return ExecutionHintsFromContext(ctx).RoutingReasoningEffort
 }
 
 // PrefetchedStickyProviderIDFromContext returns the prefetched provider

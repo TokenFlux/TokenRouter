@@ -63,3 +63,18 @@ func TestFieldPolicyExtraUniquenessAndManagedIsolation(t *testing.T) {
 	require.True(t, ok)
 	require.Contains(t, srcLimits, "AICredits")
 }
+
+// TestFieldPolicyIncludesEffortModelMappingInSchedulerMeta verifies that
+// effort_model_mapping and its wire-stripping flag are nonsecret scheduler
+// metadata keys retained by FilterSchedulerCredentials.
+func TestFieldPolicyIncludesEffortModelMappingInSchedulerMeta(t *testing.T) {
+	filtered := FilterSchedulerCredentials(map[string]any{
+		"api_key":                       "secret",
+		"refresh_token":                 "hidden",
+		EffortModelMappingCredentialKey: map[string]any{"claude-opus-5-5": map[string]any{"high": "claude-opus-5-5-high"}},
+		EffortModelMappingStripEffortCredentialKey: true,
+	})
+	require.Contains(t, filtered, EffortModelMappingCredentialKey)
+	require.Contains(t, filtered, EffortModelMappingStripEffortCredentialKey)
+	require.NotContains(t, filtered, "refresh_token")
+}

@@ -6,15 +6,18 @@ import (
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
-// model_rules.go prepares indexed provider model rules for repeated mapping
-// and eligibility checks.
+// model_rules.go prepares indexed provider model rules for repeated mapping,
+// effort-override lookup, and eligibility checks.
 // Catalogue and batch queries test many names against the same provider rules.
-// Prepared rules copy mapping entries and index the effective whitelist once,
-// keeping raw mapping precedence separate from trimmed, case-insensitive
-// whitelist membership. Terminal mapping wildcards are sorted by specificity,
-// while exact whitelist keys retain Unicode EqualFold equivalence.
+// Prepared rules copy ordinary and effort-scoped mapping entries and index the
+// effective whitelist once, keeping raw mapping precedence separate from
+// trimmed, case-insensitive whitelist membership. Terminal mapping wildcards
+// are sorted by specificity per mapping table, while exact whitelist keys
+// retain Unicode EqualFold equivalence.
 //
 // Mapping factories and finite platform candidate factories are read during
 // preparation. Later checks reuse their captured values, but provider identity
@@ -22,6 +25,15 @@ import (
 // may read its live credentials. Callers keep those inputs stable for the query.
 // Returned maps and candidate slices are copied so editing a query result does
 // not change the prepared mapping or candidate names.
+
+// compiledModelMapping indexes one source-to-target alias map into exact
+// lookups and specificity-ordered terminal wildcard patterns.
+type compiledModelMapping struct {
+	// exact and patterns share case-sensitive source keys. resolve checks exact
+	// keys first, then patterns ordered by descending length and lexical ties.
+	exact    map[string]string // captured one-hop mapping targets
+	patterns []string          // sorted terminal wildcard sources
+}
 
 // ModelRulesSnapshot holds captured model configuration and matching indexes
 // together with the provider and eligibility callbacks used by a query.
@@ -31,10 +43,11 @@ type ModelRulesSnapshot struct {
 	// platform and account eligibility during each query check.
 	record *Record            // provider used for eligibility
 	rules  ModelPlatformRules // platform callbacks for eligibility
-	// mapping and mappingPatterns share case-sensitive source keys. resolve checks
-	// exact keys first, then patterns ordered by descending length and lexical ties.
-	mapping         map[string]string // captured one-hop mapping targets
-	mappingPatterns []string          // sorted terminal wildcard sources
+	// base and byEffort index ordinary and per-effort one-hop mappings;
+	// effortMapping retains the source-keyed copy exposed by EffortMapping.
+	base          compiledModelMapping            // indexed ordinary model mapping
+	effortMapping EffortModelMapping              // captured source -> effort -> target map
+	byEffort      map[string]compiledModelMapping // canonical effort -> indexed mapping
 	// exact indexes the trimmed effective whitelist using Unicode SimpleFold keys.
 	// whitelistMember constructs the same keys when checking each candidate model.
 	exact map[string]struct{} // folded exact whitelist keys
@@ -49,10 +62,11 @@ type ModelRulesSnapshot struct {
 	configured []string
 }
 
-// PrepareModelRules captures mappings, whitelist indexes, and finite configured
-// candidates for repeated model checks. A nil record produces a nonnil snapshot
-// that rejects admission and has empty configuration. Antigravity default
-// selection requires its mapping factory when no usable configured mapping exists.
+// PrepareModelRules captures ordinary mappings, effort-scoped overrides,
+// whitelist indexes, and finite configured candidates for repeated model
+// checks. A nil record produces a nonnil snapshot that rejects admission and
+// has empty configuration. Antigravity default selection requires its mapping
+// factory when no usable configured mapping exists.
 //
 // Each supplied factory is read at most once during preparation. Mapping and
 // whitelist collections become detached indexes, while record and eligibility
@@ -65,21 +79,15 @@ func PrepareModelRules(record *Record, defaults ModelMappingDefaults, rules Mode
 	if record == nil {
 		return result
 	}
-	result.mapping = ResolveModelMapping(record, defaults)
-	for pattern := range result.mapping {
-		if strings.HasSuffix(pattern, "*") {
-			result.mappingPatterns = append(result.mappingPatterns, pattern)
+	mapping := ResolveModelMapping(record, defaults)
+	result.base = compileModelMapping(mapping)
+	result.effortMapping = ResolveEffortModelMapping(record)
+	if grouped := groupEffortMappingByEffort(result.effortMapping); len(grouped) > 0 {
+		result.byEffort = make(map[string]compiledModelMapping, len(grouped))
+		for effort, subset := range grouped {
+			result.byEffort[effort] = compileModelMapping(subset)
 		}
 	}
-	// Match the per-call modelmap ordering: longer terminal patterns win, and
-	// lexical ties keep selection independent of the source map's iteration order.
-	sort.Slice(result.mappingPatterns, func(i, j int) bool {
-		left, right := result.mappingPatterns[i], result.mappingPatterns[j]
-		if len(left) != len(right) {
-			return len(left) > len(right)
-		}
-		return left < right
-	})
 	var platformModels []string
 	if defaults.Models != nil {
 		platformModels = defaults.Models(record)
@@ -87,7 +95,7 @@ func PrepareModelRules(record *Record, defaults ModelMappingDefaults, rules Mode
 		// its whitelist intersection and candidate enumeration see the same names.
 		defaults.Models = func(*Record) []string { return platformModels }
 	}
-	scope := record.effectiveModelScope(defaults, result.mapping)
+	scope := record.effectiveModelScope(defaults, mapping)
 	for pattern := range scope {
 		pattern = strings.TrimSpace(pattern)
 		result.exact[modelWhitelistKey(pattern)] = struct{}{}
@@ -101,36 +109,41 @@ func PrepareModelRules(record *Record, defaults ModelMappingDefaults, rules Mode
 			result.qoder[rules.NormalizeQoder(pattern)] = struct{}{}
 		}
 	}
-	result.configured = configuredRequestModels(result.mapping, scope, platformModels, result.whitelistMember)
+	result.configured = configuredRequestModels(mapping, result.effortMapping, scope, platformModels, result.whitelistMember)
 	return result
 }
 
-// Mapping returns a caller-owned copy of the captured string mapping.
-// A nonnil snapshot is required. Nil mappings remain nil, and changes to the
-// returned map do not change subsequent snapshot matches.
-func (s *ModelRulesSnapshot) Mapping() map[string]string { return maps.Clone(s.mapping) }
+// compileModelMapping captures one alias map and builds its specificity-ordered
+// terminal wildcard list so repeated matches avoid re-scanning the source map.
+func compileModelMapping(mapping map[string]string) compiledModelMapping {
+	compiled := compiledModelMapping{exact: mapping}
+	for pattern := range mapping {
+		if strings.HasSuffix(pattern, "*") {
+			compiled.patterns = append(compiled.patterns, pattern)
+		}
+	}
+	// Match the per-call modelmap ordering: longer terminal patterns win, and
+	// lexical ties keep selection independent of the source map's iteration order.
+	sort.Slice(compiled.patterns, func(i, j int) bool {
+		left, right := compiled.patterns[i], compiled.patterns[j]
+		if len(left) != len(right) {
+			return len(left) > len(right)
+		}
+		return left < right
+	})
+	return compiled
+}
 
-// ConfiguredModels returns a copied slice of sorted configured candidate names.
-// A nonnil snapshot is required. Nil and empty slice shapes are retained, and
-// callers can edit the returned elements independently of the snapshot.
-func (s *ModelRulesSnapshot) ConfiguredModels() []string { return slices.Clone(s.configured) }
-
-// ResolveMappedModel returns one captured target and whether its mapping matched.
-// A nonnil snapshot is required, and an empty model cannot match. Stored empty
-// or identity targets still report a match and are returned as stored.
-//
-// The raw spelling completes both exact and wildcard matching before a trimmed
-// spelling is retried. Thus a raw wildcard can outrank a trimmed exact key.
-// Missing rules return the original spelling with false, while matched targets
-// are never fed back through the mapping for another hop.
-func (s *ModelRulesSnapshot) ResolveMappedModel(model string) (string, bool) {
-	if mapped, found := s.resolve(model); found {
+// resolveRawOrTrimmed runs exact and terminal-wildcard matching on the raw
+// model spelling before retrying the trimmed spelling.
+func (c compiledModelMapping) resolveRawOrTrimmed(model string) (string, bool) {
+	if mapped, found := c.resolve(model); found {
 		return mapped, true
 	}
 	// Retry trimming only after raw exact and wildcard checks miss. This retains
 	// the supplied spelling's precedence when whitespace affects a configured key.
 	if trimmed := strings.TrimSpace(model); trimmed != model {
-		if mapped, found := s.resolve(trimmed); found {
+		if mapped, found := c.resolve(trimmed); found {
 			return mapped, true
 		}
 	}
@@ -138,41 +151,141 @@ func (s *ModelRulesSnapshot) ResolveMappedModel(model string) (string, bool) {
 }
 
 // resolve checks a raw model against exact keys and ordered terminal wildcards.
-// A nonnil snapshot is required. Empty input returns false even with an empty
-// key; stored targets are returned unchanged with true, including empty targets.
-func (s *ModelRulesSnapshot) resolve(model string) (string, bool) {
-	if model == "" {
+// Empty input returns false even with an empty key; stored targets are returned
+// unchanged with true, including empty targets.
+func (c compiledModelMapping) resolve(model string) (string, bool) {
+	if model == "" || len(c.exact) == 0 {
 		return "", false
 	}
-	if mapped, found := s.mapping[model]; found {
+	if mapped, found := c.exact[model]; found {
 		return mapped, true
 	}
-	for _, pattern := range s.mappingPatterns {
+	for _, pattern := range c.patterns {
 		if strings.HasPrefix(model, strings.TrimSuffix(pattern, "*")) {
-			return s.mapping[pattern], true
+			return c.exact[pattern], true
 		}
 	}
 	return model, false
 }
 
-// ForwardMappedModel returns a trimmed captured mapping target for forwarding.
-// A nonnil snapshot is required. When the mapping misses or its target is blank,
-// the model is returned exactly as supplied for downstream platform handling.
+// Mapping returns a caller-owned copy of the captured ordinary string mapping.
+// A nonnil snapshot is required. Nil mappings remain nil, and changes to the
+// returned map do not change subsequent snapshot matches.
+func (s *ModelRulesSnapshot) Mapping() map[string]string { return maps.Clone(s.base.exact) }
+
+// EffortMapping returns a caller-owned deep copy of the captured effort-scoped
+// model overrides. Nil or empty effort configuration returns nil.
+func (s *ModelRulesSnapshot) EffortMapping() EffortModelMapping {
+	return CloneEffortModelMapping(s.effortMapping)
+}
+
+// RoutingSnapshot constructs a detached ModelRoutingSnapshot combining this
+// snapshot's captured ordinary and effort-scoped mappings.
+func (s *ModelRulesSnapshot) RoutingSnapshot() ModelRoutingSnapshot {
+	return NewModelRoutingSnapshotWithEffort(s.base.exact, s.effortMapping)
+}
+
+// ConfiguredModels returns a copied slice of sorted configured candidate names.
+// A nonnil snapshot is required. Nil and empty slice shapes are retained, and
+// callers can edit the returned elements independently of the snapshot.
+func (s *ModelRulesSnapshot) ConfiguredModels() []string { return slices.Clone(s.configured) }
+
+// ResolveMappedModel returns one captured ordinary mapping target and whether a
+// rule matched. A nonnil snapshot is required, and an empty model cannot match.
+// Stored empty or identity targets still report a match and are returned as
+// stored.
+func (s *ModelRulesSnapshot) ResolveMappedModel(model string) (string, bool) {
+	mapped, matched, _ := s.ResolveMappedModelForEffort(model, "")
+	return mapped, matched
+}
+
+// ResolveMappedModelForEffort returns one captured target using effort-scoped
+// overrides before ordinary mappings. A recognized nonblank effort checks its
+// precompiled effort index first using raw-before-trimmed precedence; on miss
+// or empty effort, ordinary mapping runs. The third return reports whether an
+// effort-scoped rule matched.
+func (s *ModelRulesSnapshot) ResolveMappedModelForEffort(model, effort string) (string, bool, bool) {
+	if normalized := protocol.NormalizeReasoningEffort(effort); normalized != "" && len(s.byEffort) > 0 {
+		if compiled, ok := s.byEffort[normalized]; ok {
+			if mapped, found := compiled.resolveRawOrTrimmed(model); found {
+				return mapped, true, true
+			}
+		}
+	}
+	mapped, found := s.base.resolveRawOrTrimmed(model)
+	return mapped, found, false
+}
+
+// ForwardMappedModel returns a trimmed captured ordinary mapping target for
+// forwarding. When the mapping misses or its target is blank, the model is
+// returned exactly as supplied for downstream platform handling.
 func (s *ModelRulesSnapshot) ForwardMappedModel(model string) string {
-	mapped, matched := s.ResolveMappedModel(model)
+	return s.ForwardMappedModelForEffort(model, "")
+}
+
+// ForwardMappedModelForEffort returns a trimmed captured target for forwarding
+// under the supplied effort. When no rule matches or the target is blank, model
+// is returned unchanged for downstream platform handling.
+func (s *ModelRulesSnapshot) ForwardMappedModelForEffort(model, effort string) string {
+	mapped, matched, _ := s.ResolveMappedModelForEffort(model, effort)
 	return ForwardMappedTarget(model, mapped, matched)
 }
 
-// Supports reports whether one mapped model passes the captured whitelist and
-// current platform eligibility. Nil snapshots and nil records reject the model.
-// The captured mapping executes once; supplied callbacks can read the retained
-// record, so its platform and callback state must remain stable during use.
+// MatchedEfforts returns every canonical reasoning effort in deterministic
+// order whose precompiled override table matches model. Unmatched models or
+// absent effort mappings return nil.
+func (s *ModelRulesSnapshot) MatchedEfforts(model string) []string {
+	if s == nil || len(s.byEffort) == 0 || model == "" {
+		return nil
+	}
+	var matched []string
+	for _, effort := range protocol.AllReasoningEfforts() {
+		compiled, ok := s.byEffort[effort]
+		if !ok {
+			continue
+		}
+		if _, found := compiled.resolveRawOrTrimmed(model); found {
+			matched = append(matched, effort)
+		}
+	}
+	return matched
+}
+
+// Supports reports whether one ordinary mapped model passes the captured
+// whitelist and current platform eligibility. Nil snapshots and nil records
+// reject the model.
 func (s *ModelRulesSnapshot) Supports(model string) bool {
+	return s.SupportsForEffort(model, "")
+}
+
+// SupportsForEffort reports whether model under effort maps to an upstream
+// target passing the captured whitelist and current platform eligibility. Nil
+// snapshots and nil records reject the model; an empty effort checks ordinary
+// mapping only, keeping effort-free runtime requests from borrowing effort-only
+// rules.
+func (s *ModelRulesSnapshot) SupportsForEffort(model, effort string) bool {
 	if s == nil || s.record == nil {
 		return false
 	}
-	mapped, _ := s.ResolveMappedModel(model)
+	mapped, _, _ := s.ResolveMappedModelForEffort(model, effort)
 	return s.whitelisted(mapped) && s.record.modelPlatformAllows(mapped, s.rules)
+}
+
+// SupportsAnyEffort reports whether model passes captured admission either
+// directly (empty effort) or through at least one matching effort-scoped rule.
+// Catalogue enumeration uses this helper so models exposed only via
+// effort_model_mapping remain discoverable without admitting effort-free
+// runtime requests.
+func (s *ModelRulesSnapshot) SupportsAnyEffort(model string) bool {
+	if s.SupportsForEffort(model, "") {
+		return true
+	}
+	for _, effort := range s.MatchedEfforts(model) {
+		if s.SupportsForEffort(model, effort) {
+			return true
+		}
+	}
+	return false
 }
 
 // FinalModelWhitelisted checks captured scope membership and Qoder site
@@ -257,15 +370,16 @@ func modelWhitelistKey(value string) string {
 
 // configuredRequestModels returns sorted, distinct configured candidate names.
 // Concrete scope entries are included directly; platform names require allows,
-// and mapping sources qualify according to their target's membership. The allows
-// callback must be callable whenever supplied platform names or mappings need it.
+// and both ordinary and effort-scoped mapping sources qualify according to
+// their target's membership. The allows callback must be callable whenever
+// supplied platform names or mappings need it.
 //
 // Every name containing an asterisk is excluded as a concrete mapping endpoint
 // or scope name. Nonempty targets can themselves become candidates, while an
 // empty target can still admit its concrete source if allows accepts it. Spelling
 // and whitespace are retained, including empty concrete sources. Callers apply
 // platform and protocol admission after this finite candidate collection.
-func configuredRequestModels(mapping map[string]string, scope map[string]struct{}, platformModels []string, allows func(string) bool) []string {
+func configuredRequestModels(mapping map[string]string, effortMapping EffortModelMapping, scope map[string]struct{}, platformModels []string, allows func(string) bool) []string {
 	models := make(map[string]struct{})
 	for model := range scope {
 		if !strings.Contains(model, "*") {
@@ -283,6 +397,16 @@ func configuredRequestModels(mapping map[string]string, scope map[string]struct{
 		}
 		if !strings.Contains(source, "*") && allows(target) {
 			models[source] = struct{}{}
+		}
+	}
+	for source, efforts := range effortMapping {
+		for _, target := range efforts {
+			if target != "" && !strings.Contains(target, "*") && allows(target) {
+				models[target] = struct{}{}
+			}
+			if !strings.Contains(source, "*") && allows(target) {
+				models[source] = struct{}{}
+			}
 		}
 	}
 	out := make([]string, 0, len(models))

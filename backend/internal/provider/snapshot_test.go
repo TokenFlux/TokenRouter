@@ -39,3 +39,34 @@ func TestProviderRoutingSnapshotExcludesCredentialsAndCopies(t *testing.T) {
 	require.Equal(t, 0, expires.Hour())
 	require.Equal(t, []capability.ProtocolID{capability.ProtocolOpenAIResponses}, r.UpstreamProtocols())
 }
+
+// TestProviderSnapshotResolveModelRouteForEffort builds a snapshot with
+// effort_model_mapping and per-model protocols. Effort resolution must select
+// the suffixed upstream model, flag EffortMappingMatched, and honor per-model
+// protocol declarations while falling back to ordinary mapping on empty effort.
+func TestProviderSnapshotResolveModelRouteForEffort(t *testing.T) {
+	r := &Record{
+		ID: 42, Platform: PlatformAnthropic, Type: ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			UpstreamProtocolsKey: []string{"anthropic_messages"},
+			"model_mapping":      map[string]any{"claude-opus-5-5": "claude-opus-5-5-medium"},
+			EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"high": "claude-opus-5-5-high",
+				},
+			},
+		},
+	}
+	snapshot := r.RoutingSnapshot()
+	route, ok := snapshot.ResolveModelRouteForEffort("claude-opus-5-5", "high", capability.ProtocolAnthropicMessages, nil)
+	require.True(t, ok)
+	require.Equal(t, "claude-opus-5-5-high", route.Model)
+	require.True(t, route.MappingMatched)
+	require.True(t, route.EffortMappingMatched)
+
+	fallback, ok := snapshot.ResolveModelRouteForEffort("claude-opus-5-5", "", capability.ProtocolAnthropicMessages, nil)
+	require.True(t, ok)
+	require.Equal(t, "claude-opus-5-5-medium", fallback.Model)
+	require.True(t, fallback.MappingMatched)
+	require.False(t, fallback.EffortMappingMatched)
+}

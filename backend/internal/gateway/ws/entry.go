@@ -14,10 +14,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/requestcontext"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -153,6 +155,9 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 		return
 	}
 
+	// Capture first-turn reasoning effort before planning so provider
+	// effort_model_mapping rules participate in initial selection and routing.
+	ctx = requeststate.WithRoutingReasoningEffort(ctx, requeststate.ExtractRoutingReasoningEffort(firstMessage, protocol.ProtocolResponsesWebSocket))
 	// Save the group mapping before detecting image intent, so group-level model
 	// eligibility decides the permission check rather than a later provider alias.
 	ctx, groupMappingWS := p.Plan(ctx, reqModel)
@@ -500,6 +505,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 					requestedModel = clientReqModel
 				}
 				turnCtx, redirectedModel := p.Redirect(attemptRecords.context(ctx, turn), requestedModel)
+				turnCtx = requeststate.WithRoutingReasoningEffort(turnCtx, requeststate.ExtractRoutingReasoningEffort(payload, protocol.ProtocolResponsesWebSocket))
 				// Build this turn's route plan after Key redirection, so image intent and
 				// selected-provider eligibility use the current group model while the
 				// client identifier remains separate.
@@ -651,6 +657,7 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 					turnClientModel = clientReqModel
 				}
 				turnCtx, turnModel := p.Redirect(requestCtx, turnClientModel)
+				turnCtx = requeststate.WithRoutingReasoningEffort(turnCtx, requeststate.ExtractRoutingReasoningEffort(capture.RequestBody, protocol.ProtocolResponsesWebSocket))
 				// Resolve completion from this turn's client model and request context, so
 				// its group billing source and redirect trace do not borrow another turn's
 				// mapped identity.

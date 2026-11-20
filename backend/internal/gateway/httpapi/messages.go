@@ -342,6 +342,12 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 		}
 		body = parsedReq.Body.Bytes()
 	}
+	// Capture the post-policy request effort before planning so provider
+	// effort_model_mapping rules participate in route resolution and selection.
+	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
+		c.Request.Context(),
+		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolAnthropicMessages),
+	))
 	// Capture the group and model mapping in this request's route plan.
 	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, reqModel)
 	groupMapping := groupMappingRoutePlan.Mapping()

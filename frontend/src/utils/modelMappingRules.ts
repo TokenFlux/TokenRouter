@@ -12,11 +12,50 @@
  */
 
 /**
- * ModelMappingRow retains the original source and target text in an editor.
+ * REASONING_EFFORT_VALUES lists the canonical reasoning effort wire labels in
+ * ascending administrator order, starting with none followed by minimal through max.
+ */
+export const REASONING_EFFORT_VALUES = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+] as const
+
+/**
+ * ReasoningEffortValue names one canonical reasoning effort wire label.
+ */
+export type ReasoningEffortValue = (typeof REASONING_EFFORT_VALUES)[number]
+
+/**
+ * ModelMappingRow retains the original source, optional reasoning effort, and target
+ * text in an editor. An omitted or empty effort represents an ordinary effort-agnostic
+ * model mapping.
  */
 export interface ModelMappingRow {
   from: string // source model text
   to: string // target model text
+  effort?: string // optional canonical reasoning effort scope
+}
+
+/**
+ * normalizeReasoningEffortValue trims, lowercases, and strips hyphens, underscores,
+ * and spaces from a reasoning effort string, returning the canonical wire label or an
+ * empty string when blank or unrecognized.
+ */
+export function normalizeReasoningEffortValue(raw?: string | null): ReasoningEffortValue | '' {
+  if (!raw) return ''
+  const folded = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[-_\s]+/g, '')
+  if (folded === 'extrahigh') return 'xhigh'
+  return (REASONING_EFFORT_VALUES as readonly string[]).includes(folded)
+    ? (folded as ReasoningEffortValue)
+    : ''
 }
 
 /**
@@ -117,13 +156,14 @@ function sourceIssue(
   source: string,
   options: ModelMappingRuleOptions,
   sourceCounts: Map<string, number>,
+  countKey = source,
 ): ModelMappingIssue | undefined {
   if (!source) return options.required ? 'sourceRequired' : undefined
   if (exceedsLength(source, options.maxLength)) return 'nameTooLong'
   if (options.sourceWildcard === 'trailing' && !isValidWildcardPattern(source)) {
     return 'sourceWildcardInvalid'
   }
-  if (options.uniqueSource && (sourceCounts.get(source) ?? 0) > 1) {
+  if (options.uniqueSource && (sourceCounts.get(countKey) ?? 0) > 1) {
     return 'duplicateSource'
   }
   return undefined
@@ -166,20 +206,26 @@ export function validateModelMappingRows(
   options: ModelMappingRuleOptions = {},
 ): ModelMappingRowIssues[] {
   /**
-   * Count the complete trimmed source set before checking rows so duplicate errors are
-   * independent of which duplicate appears first.
+   * Count the complete trimmed (source, effort) key set before checking rows so
+   * duplicate errors are independent of which duplicate appears first while allowing
+   * distinct efforts for the same source model.
    */
   const sourceCounts = new Map<string, number>()
+  const keyFor = (source: string, effort?: string) =>
+    `${source}\u0000${normalizeReasoningEffortValue(effort)}`
   for (const row of rows) {
     const source = row.from.trim()
-    if (source) sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1)
+    if (source) {
+      const key = keyFor(source, row.effort)
+      sourceCounts.set(key, (sourceCounts.get(key) ?? 0) + 1)
+    }
   }
 
   return rows.map((row) => {
     const source = row.from.trim()
     const target = row.to.trim()
     const issues: ModelMappingRowIssues = {}
-    const fromIssue = sourceIssue(source, options, sourceCounts)
+    const fromIssue = sourceIssue(source, options, sourceCounts, keyFor(source, row.effort))
     const toIssue = targetIssue(source, target, options)
     if (fromIssue) issues.from = fromIssue
     if (toIssue) issues.to = toIssue

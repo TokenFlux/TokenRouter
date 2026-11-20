@@ -222,7 +222,7 @@ func (s *Compatible) resolveProviderByPreviousResponseIDForCapability(
 	if s.ResolveTransport(provider).Transport != egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !httpContinuation {
 		return 0, nil, "", nil
 	}
-	if shouldClearStickySession(provider, routingModel) || (!provider.View().IsOpenAI() && !httpContinuation) || !provider.View().IsSchedulable() {
+	if shouldClearStickySession(ctx, provider, routingModel) || (!provider.View().IsOpenAI() && !httpContinuation) || !provider.View().IsSchedulable() {
 		// Provider status, platform, or model cooldown invalidates this continuation.
 		// Remove its affinity so later requests cannot keep retrying that unusable target.
 		_ = store.DeleteResponseProvider(ctx, derefGroupID(groupID), responseID)
@@ -257,7 +257,7 @@ func (s *Compatible) resolveProviderByPreviousResponseIDForCapability(
 			_ = store.DeleteResponseProvider(ctx, derefGroupID(groupID), responseID)
 			return 0, nil, "", nil
 		}
-		if shouldClearStickySession(latest, routingModel) || (!latest.View().IsOpenAI() && !supportsHTTPResponseContinuation(ctx, latest)) || !latest.View().IsSchedulable() {
+		if shouldClearStickySession(ctx, latest, routingModel) || (!latest.View().IsOpenAI() && !supportsHTTPResponseContinuation(ctx, latest)) || !latest.View().IsSchedulable() {
 			// The database record revokes status, platform, or model eligibility that
 			// the snapshot supplied. Remove affinity so that stale observation cannot drive continuation.
 			_ = store.DeleteResponseProvider(ctx, derefGroupID(groupID), responseID)
@@ -283,7 +283,7 @@ func (s *Compatible) resolveProviderByPreviousResponseIDForCapability(
 		if paused, _ := gatewayprovider.OpenAIQuotaPause(ctx, latest); paused {
 			return 0, nil, "", nil
 		}
-		if s.isOpenAIProviderRequestRuntimeBlocked(latest, routingModel) {
+		if s.isOpenAIProviderRequestRuntimeBlocked(ctx, latest, routingModel) {
 			// Database continuation rechecks observe current credential and model blocks.
 			// Invalidate affinity when either prevents this latest target from accepting the request.
 			_ = store.DeleteResponseProvider(ctx, derefGroupID(groupID), responseID)

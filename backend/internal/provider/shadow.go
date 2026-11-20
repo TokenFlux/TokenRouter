@@ -28,11 +28,13 @@ import (
 // scheduling evaluates its own independent quota and scheduling switch.
 
 // sparkShadowAllowedCredentialKeys lists writable Spark shadow credential
-// fields: model mappings.
+// fields: ordinary, effort-scoped, and compact model mappings.
 // Validation and sanitization share this allowlist.
 var sparkShadowAllowedCredentialKeys = map[string]struct{}{
-	"model_mapping":         {},
-	"compact_model_mapping": {},
+	"model_mapping":                            {},
+	EffortModelMappingCredentialKey:            {},
+	EffortModelMappingStripEffortCredentialKey: {},
+	"compact_model_mapping":                    {},
 }
 
 // ResolveCredentialRecord returns the credential owner for a provider. Nil and

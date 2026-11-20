@@ -45,17 +45,30 @@ func (a AttemptRoute) Candidate() (routing.CandidatePlan, bool) {
 	return a.candidate, a.planned
 }
 
-// ResolveAttempt rechecks the current provider's enabled protocol route and
-// returns the resolved attempt with true when resolution occurs. A saved plan
-// whose group differs from the captured group is discarded for this decision.
+// EffortMappingMatched reports whether this attempt's admitted candidate
+// resolved its upstream model through a provider effort_model_mapping rule.
+func (a AttemptRoute) EffortMappingMatched() bool {
+	return a.planned && a.candidate.EffortMappingMatched
+}
+
+// ResolveAttempt rechecks the current provider's enabled protocol route without
+// an external effort override, delegating to ResolveAttemptForEffort.
+func (s RoutingState) ResolveAttempt(snapshot provider.ProviderSnapshot, previous AttemptRoute) (AttemptRoute, bool, error) {
+	return s.ResolveAttemptForEffort(snapshot, previous, "")
+}
+
+// ResolveAttemptForEffort rechecks the current provider's enabled protocol
+// route with an optional reasoning effort and returns the resolved attempt with
+// true when resolution occurs. A saved plan whose group differs from the
+// captured group is discarded for this decision.
 //
 // Without a usable saved plan, an already selected protocol is retained with
 // false, as is any attempt lacking a client protocol. Otherwise current group
-// policy supplies a fresh capability plan. Resolution failure returns an error
-// and an empty attempt; an unplanned success publishes its protocol alone,
-// while a planned success also captures its final model and canonical metadata
-// identity together with that protocol.
-func (s RoutingState) ResolveAttempt(snapshot provider.ProviderSnapshot, previous AttemptRoute) (AttemptRoute, bool, error) {
+// policy supplies a fresh capability plan carrying effort. When a saved plan
+// exists and effort is nonblank, effort overrides the plan's captured effort so
+// post-selection policy rewrites bind the updated upstream model. Resolution
+// failure returns an error and an empty attempt.
+func (s RoutingState) ResolveAttemptForEffort(snapshot provider.ProviderSnapshot, previous AttemptRoute, effort string) (AttemptRoute, bool, error) {
 	plan, planned := s.plan, s.planSet
 	// A derived group fallback can retain its predecessor's plan. Discard that
 	// plan here so the new group supplies capability rules for this selection.
@@ -71,9 +84,12 @@ func (s RoutingState) ResolveAttempt(snapshot provider.ProviderSnapshot, previou
 		return previous, false, nil
 	}
 	if !planned {
-		plan = routing.Plan(routing.PlanInput{Group: s.group, ClientProtocol: s.clientProtocol})
+		plan = routing.Plan(routing.PlanInput{Group: s.group, ClientProtocol: s.clientProtocol, ReasoningEffort: effort})
 	} else {
 		plan = plan.WithClientProtocol(s.clientProtocol)
+		if effort != "" {
+			plan = plan.WithReasoningEffort(effort)
+		}
 	}
 	candidate, ok := plan.ResolveCandidate(snapshot)
 	if !ok {
@@ -86,20 +102,29 @@ func (s RoutingState) ResolveAttempt(snapshot provider.ProviderSnapshot, previou
 	return result, true, nil
 }
 
-// ResolveModel returns the captured final identity for an admitted model attempt.
-// Requested, group-mapped, and final spellings all select that same result,
+// ResolveModel returns the captured final identity for an admitted model
+// attempt or resolves ordinary mapping without an effort override.
+func (a AttemptRoute) ResolveModel(id int64, mapping map[string]string, requested string) (string, bool) {
+	mapped, matched, _ := a.ResolveModelForEffort(id, provider.NewModelRoutingSnapshot(mapping), requested, "")
+	return mapped, matched
+}
+
+// ResolveModelForEffort returns the captured final identity for an admitted
+// model attempt, reporting ordinary and effort-scoped match flags. Requested,
+// group-mapped, and final spellings all select that same captured result,
 // preventing a mapped target from being interpreted as another alias hop.
 //
 // Unplanned calls, model-free legacy plans, and auxiliary models such as an
-// image-tool model inside a text attempt apply the supplied mapping instead.
-func (a AttemptRoute) ResolveModel(id int64, mapping map[string]string, requested string) (string, bool) {
+// image-tool model inside a text attempt apply snapshot.ResolveForEffort
+// instead.
+func (a AttemptRoute) ResolveModelForEffort(id int64, snapshot provider.ModelRoutingSnapshot, requested, effort string) (string, bool, bool) {
 	if a.planned && a.candidate.ProviderID == id {
 		models := a.candidate.Models
 		if models.RequestedModel != "" || models.GroupMappedModel != "" {
 			if requested == models.RequestedModel || requested == models.GroupMappedModel || requested == models.ProviderMappedModel {
-				return models.ProviderMappedModel, a.candidate.ModelMappingMatched
+				return models.ProviderMappedModel, a.candidate.ModelMappingMatched, a.candidate.EffortMappingMatched
 			}
 		}
 	}
-	return provider.ResolveMappedModel(mapping, requested)
+	return snapshot.ResolveForEffort(requested, effort)
 }

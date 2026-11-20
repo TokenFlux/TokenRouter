@@ -159,7 +159,7 @@ client_model
 
 - 保留客户端形态：仅在配置映射或同型号跨平台编码转换时改名，拼写、版本分隔符、日期和 effort 后缀保持原样；后续价格、缓存和健康状态使用各阶段确定的完整模型 ID。失败回退同步记录模型链，回退前后价格互不借用。
 - 每次尝试重构造：failover attempt 可按新提供商重构造请求，已解析的单跳映射只执行一次。模型列表从当前可路由目标反推别名；保存映射允许目标暂不可路由，实际请求时返回标准无提供商或无模型错误。
-- 路由与尝试隔离：`routing.RoutePlan` 保存最终分组、入口协议、Key 到分组模型链及白名单（`RestrictModels`、`RestrictionModelSource`）与计费模型来源；`AttemptRoute` 仅存请求内并在 fresh 或数据库复核后重算，提供商映射按调用时读取，不写回共享缓存。
+- 路由与尝试隔离：`routing.RoutePlan` 保存最终分组、入口协议、有效推理档位、Key 到分组模型链及白名单（`RestrictModels`、`RestrictionModelSource`）与计费模型来源；`AttemptRoute` 仅存请求内并在 fresh、数据库复核或混合分组平台 effort 策略改写后重算，提供商 `model_mapping` 与 `effort_model_mapping`（见[提供商组合映射](../domains/routing_and_billing.md#provider_effort_model_mapping)）按调用时读取，不写回共享缓存。
 - 模型范围与通配符：提供商未配置模型范围或为空时，使用平台与认证类型默认目录；非空清单以清单为准，精确映射可引入自定义模型。末尾通配符参与匹配但不展示；手动 `*` 仍受协议、认证和端点硬能力约束。
 - 协议回退与冷却顺序：候选准入与模型冷却按"协议 -> 提供商状态 -> 模型窗口"顺序判断（窗口原始冷却、overages 可调度性与剩余时间分别计算）。`protocol_fallbacks` 为每个入口存有序目标数组：未配置自动匹配，空数组仅原生协议，非空数组限定转换目标；每个候选先试原生协议，再试已有单步转换。
 - 计费与平台特性解析：计费模型与实际上游模型分开解析；OpenAI 普通/Compact 映射与 Bedrock 区域路由复用 `ModelPolicy`；确认 Lite 标记后，OAuth 提供商做完整工具规范化，API Key 提供商限制并行工具。

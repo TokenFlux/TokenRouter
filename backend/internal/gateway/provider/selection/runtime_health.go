@@ -1,6 +1,7 @@
 package selection
 
 import (
+	"context"
 	"time"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -52,10 +53,10 @@ func (s *Compatible) clearOpenAIProviderModelTransientState(providerID int64, mo
 }
 
 // isOpenAIProviderModelRuntimeBlocked checks the bound transient store using
-// the target's canonical scheduling model. Nil selectors, nil providers, or an
-// absent store return false; active cooldowns are evaluated at the current
-// time.
-func (s *Compatible) isOpenAIProviderModelRuntimeBlocked(provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
+// the target's effort-aware canonical scheduling model. Nil selectors, nil
+// providers, or an absent store return false; active cooldowns are evaluated
+// at the current time.
+func (s *Compatible) isOpenAIProviderModelRuntimeBlocked(ctx context.Context, provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
 	if s == nil || provider == nil {
 		return false
 	}
@@ -63,13 +64,13 @@ func (s *Compatible) isOpenAIProviderModelRuntimeBlocked(provider *gatewayprovid
 	if state == nil {
 		return false
 	}
-	canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(requestedModel)
+	canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(requestedModel)
 	return state.IsBlocked(provider.Record.ID, openAIProviderModelTransientModel(canonicalModel), time.Now())
 }
 
 // isOpenAIProviderRequestRuntimeBlocked reports either a credential block or a
 // mapped-model cooldown for this target. A nil selector returns false, and the
 // credential check short-circuits a later model lookup.
-func (s *Compatible) isOpenAIProviderRequestRuntimeBlocked(provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
-	return s != nil && (s.isOpenAIProviderRuntimeBlocked(provider) || s.isOpenAIProviderModelRuntimeBlocked(provider, requestedModel))
+func (s *Compatible) isOpenAIProviderRequestRuntimeBlocked(ctx context.Context, provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
+	return s != nil && (s.isOpenAIProviderRuntimeBlocked(provider) || s.isOpenAIProviderModelRuntimeBlocked(ctx, provider, requestedModel))
 }

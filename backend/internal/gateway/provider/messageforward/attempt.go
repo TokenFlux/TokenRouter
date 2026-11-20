@@ -55,6 +55,9 @@ type attempt struct {
 	c HTTPBoundary
 	// selected execution provider state
 	provider *gatewayprovider.ExecutionProvider
+	// ctx retains the attempt execution context for effort-aware model mapping
+	// callbacks invoked without a context parameter.
+	ctx context.Context
 	// Credential saves token and tokenType even with a resolution error;
 	// Transport then selects proxyURL, and Execute consumes those values
 	// after callers check the error.
@@ -89,7 +92,14 @@ type attempt struct {
 // synchronous forwarding; another provider attempt receives another state
 // instance.
 func newAttempt(s *Runtime, c HTTPBoundary, provider *gatewayprovider.ExecutionProvider) *attempt {
-	return &attempt{s: s, c: c, provider: provider, state: &AttemptState{PrepareStartedAt: time.Now()}}
+	return newAttemptWithContext(context.Background(), s, c, provider)
+}
+
+// newAttemptWithContext creates fresh preparation state bound to ctx alongside
+// the runtime, output, and selected provider so effort-aware mapping helpers
+// read the active routing effort even without a planned route.
+func newAttemptWithContext(ctx context.Context, s *Runtime, c HTTPBoundary, provider *gatewayprovider.ExecutionProvider) *attempt {
+	return &attempt{s: s, c: c, provider: provider, ctx: ctx, state: &AttemptState{PrepareStartedAt: time.Now()}}
 }
 
 // input captures provider presence and startup failure policy for the
@@ -126,10 +136,10 @@ func (a *attempt) Emulate(ctx context.Context, p *requeststate.ParsedRequest) (*
 	return a.s.emulate(ctx, a.c, a.provider, p)
 }
 
-// MappedModel returns the selected provider mapping for the supplied request
-// model.
+// MappedModel returns the selected effort-aware provider mapping for the
+// supplied request model.
 func (a *attempt) MappedModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(a.provider).Mapped(model)
+	return gatewayprovider.ExecutionModelPolicy(a.provider).WithContext(a.ctx).Mapped(model)
 }
 
 // ReplaceModel delegates rewriting the request model field in body bytes.
@@ -176,10 +186,10 @@ func (a *attempt) DebugOriginal(body []byte, model string, stream bool) {
 	}
 }
 
-// ProviderMappedModel returns the selected provider mapping for later
-// preparation decisions.
+// ProviderMappedModel returns the selected effort-aware provider mapping for
+// later preparation decisions.
 func (a *attempt) ProviderMappedModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(a.provider).Mapped(model)
+	return gatewayprovider.ExecutionModelPolicy(a.provider).WithContext(a.ctx).Mapped(model)
 }
 
 // IsClaudeCode recognizes direct or proxied Claude Code requests from available

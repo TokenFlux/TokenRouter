@@ -1,18 +1,31 @@
-import { isValidWildcardPattern } from '@/utils/modelMappingRules'
+import {
+  REASONING_EFFORT_VALUES,
+  isValidWildcardPattern,
+  normalizeReasoningEffortValue,
+  type ModelMappingRow,
+} from '@/utils/modelMappingRules'
 import { getAntigravityDefaultModelMapping } from '@/api/admin/providers'
 
 // useModelWhitelist.ts converts provider model restrictions between editor lists
-// and persisted mapping fields. Legacy mappings encode exact whitelist members as
-// self-mappings, while a separately supplied whitelist array makes every mapping
-// entry an explicit request rule. Even an empty separate array selects that newer
-// interpretation.
+// and persisted mapping fields, including effort-scoped model overrides. Legacy
+// mappings encode exact whitelist members as self-mappings, while a separately
+// supplied whitelist array makes every mapping entry an explicit request rule.
+// Even an empty separate array selects that newer interpretation.
 //
-// Mapping builders trim explicit rules, reject invalid source wildcards and
-// wildcard targets, and let later entries replace earlier sources. Whitelist
-// normalization keeps concrete model names and removes duplicates. Qoder reads its
-// whitelist independently, while the combined legacy builder lets explicit rules
-// override whitelist self-mappings. These distinctions keep self-mappings from
-// disappearing when editors reopen saved settings.
+// Mapping builders trim explicit rules, separate ordinary mappings from
+// effort-scoped overrides, reject invalid source wildcards and wildcard targets,
+// and let later entries replace earlier keys. Whitelist normalization keeps
+// concrete model names and removes duplicates. Qoder reads its whitelist
+// independently, while the combined legacy builder lets explicit rules override
+// whitelist self-mappings.
+
+// EFFORT_MODEL_MAPPING_CREDENTIAL_KEY identifies effort-scoped model overrides
+// stored inside provider credentials.
+export const EFFORT_MODEL_MAPPING_CREDENTIAL_KEY = 'effort_model_mapping'
+
+// EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY identifies the optional boolean
+// credential switch that strips wire effort fields on effort-mapping matches.
+export const EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY = 'effort_model_mapping_strip_effort'
 
 // QoderSite identifies the global or China Qoder service region.
 export type QoderSite = 'global' | 'cn'
@@ -76,10 +89,7 @@ export { isValidWildcardPattern }
 export function buildModelMappingObject(
   mode: 'whitelist' | 'mapping',
   allowedModels: string[],
-  modelMappings: {
-    from: string // Request model source pattern.
-    to: string // Concrete upstream model name.
-  }[],
+  modelMappings: ModelMappingRow[],
 ): Record<string, string> | null {
   const mapping: Record<string, string> = {}
 
@@ -93,6 +103,11 @@ export function buildModelMappingObject(
     }
   } else {
     for (const m of modelMappings) {
+      // Effort-scoped rules persist under effort_model_mapping rather than the
+      // effort-agnostic model_mapping table.
+      if (normalizeReasoningEffortValue(m.effort)) {
+        continue
+      }
       const from = m.from.trim()
       const to = m.to.trim()
       if (!from || !to) continue
@@ -117,6 +132,71 @@ export function buildModelMappingObject(
   }
 
   return Object.keys(mapping).length > 0 ? mapping : null
+}
+
+// buildEffortModelMappingObject serializes editor rows carrying a recognized
+// reasoning effort into the nested source -> effort -> target credential object.
+// Invalid source wildcards, wildcard targets, blank fields, and rows without an
+// effort are skipped; an empty result returns null.
+export function buildEffortModelMappingObject(
+  modelMappings: ModelMappingRow[],
+): Record<string, Record<string, string>> | null {
+  const result: Record<string, Record<string, string>> = {}
+  for (const row of modelMappings) {
+    const effort = normalizeReasoningEffortValue(row.effort)
+    if (!effort) {
+      continue
+    }
+    const from = row.from.trim()
+    const to = row.to.trim()
+    if (!from || !to) {
+      continue
+    }
+    if (!isValidWildcardPattern(from) || to.includes('*')) {
+      continue
+    }
+    if (!result[from]) {
+      result[from] = {}
+    }
+    result[from][effort] = to
+  }
+  return Object.keys(result).length > 0 ? result : null
+}
+
+// splitEffortModelMappingObject expands a persisted effort_model_mapping object
+// into editable rows ordered by canonical reasoning effort per source model.
+// Nonobject input, unknown efforts, and empty endpoints are ignored.
+export function splitEffortModelMappingObject(rawEffortMapping?: unknown): ModelMappingRow[] {
+  if (
+    !rawEffortMapping ||
+    typeof rawEffortMapping !== 'object' ||
+    Array.isArray(rawEffortMapping)
+  ) {
+    return []
+  }
+  const rows: ModelMappingRow[] = []
+  for (const [rawFrom, rawEfforts] of Object.entries(rawEffortMapping as Record<string, unknown>)) {
+    const from = rawFrom.trim()
+    if (!from || !rawEfforts || typeof rawEfforts !== 'object' || Array.isArray(rawEfforts)) {
+      continue
+    }
+    const normalizedTargets = new Map<string, string>()
+    for (const [rawEffort, rawTo] of Object.entries(rawEfforts as Record<string, unknown>)) {
+      const effort = normalizeReasoningEffortValue(rawEffort)
+      const to = typeof rawTo === 'string' ? rawTo.trim() : ''
+      if (!effort || !to) {
+        continue
+      }
+      normalizedTargets.set(effort, to)
+    }
+    for (const effort of REASONING_EFFORT_VALUES) {
+      const to = normalizedTargets.get(effort)
+      if (to) {
+        rows.push({ from, to, effort })
+      }
+    }
+  }
+  return rows
 }
 
 // splitModelMappingObject separates legacy persisted mappings into whitelist names
@@ -208,31 +288,35 @@ export function normalizeModelWhitelist(rawWhitelist?: unknown): string[] {
 export function splitPersistedModelRestriction(
   existingMappings?: Record<string, string>,
   rawWhitelist?: unknown,
+  rawEffortMapping?: unknown,
 ): {
   allowedModels: string[] // Concrete model whitelist members.
-  modelMappings: {
-    from: string // Request model source pattern.
-    to: string // Concrete upstream model name.
-  }[] // Request model rewrite rows.
+  modelMappings: ModelMappingRow[] // Request model rewrite rows.
 } {
   const parsedMapping = splitModelMappingObject(existingMappings)
+  const effortRows = splitEffortModelMappingObject(rawEffortMapping)
 
   if (Array.isArray(rawWhitelist)) {
     // An independently present whitelist makes self-mappings ordinary request rules, so
     // rebuilding this list preserves them through the editor round trip.
-    const modelMappings = Object.entries(existingMappings || {}).flatMap(([rawFrom, rawTo]) => {
-      const from = rawFrom.trim()
-      const to = String(rawTo).trim()
-      return from && to ? [{ from, to }] : []
-    })
+    const modelMappings: ModelMappingRow[] = Object.entries(existingMappings || {}).flatMap(
+      ([rawFrom, rawTo]) => {
+        const from = rawFrom.trim()
+        const to = String(rawTo).trim()
+        return from && to ? [{ from, to }] : []
+      },
+    )
 
     return {
       allowedModels: normalizeModelWhitelist(rawWhitelist),
-      modelMappings,
+      modelMappings: [...modelMappings, ...effortRows],
     }
   }
 
-  return parsedMapping
+  return {
+    allowedModels: parsedMapping.allowedModels,
+    modelMappings: [...parsedMapping.modelMappings, ...effortRows],
+  }
 }
 
 // buildPersistedModelRestriction creates separate persisted request mappings and
@@ -267,17 +351,12 @@ export function buildPersistedModelRestriction(
 export function splitQoderPersistedModelRestriction(
   existingMappings?: Record<string, string>,
   rawWhitelist?: unknown,
+  rawEffortMapping?: unknown,
 ): {
   allowedModels: string[] // Concrete model whitelist members.
-  modelMappings: {
-    from: string // Request model source pattern.
-    to: string // Concrete upstream model name.
-  }[] // Request model rewrite rows.
+  modelMappings: ModelMappingRow[] // Request model rewrite rows.
 } {
-  const modelMappings: {
-    from: string // Request model source pattern.
-    to: string // Concrete upstream model name.
-  }[] = []
+  const modelMappings: ModelMappingRow[] = []
 
   if (existingMappings && typeof existingMappings === 'object') {
     for (const [rawFrom, rawTo] of Object.entries(existingMappings)) {
@@ -292,7 +371,7 @@ export function splitQoderPersistedModelRestriction(
 
   return {
     allowedModels: normalizeModelWhitelist(rawWhitelist),
-    modelMappings,
+    modelMappings: [...modelMappings, ...splitEffortModelMappingObject(rawEffortMapping)],
   }
 }
 

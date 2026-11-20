@@ -288,6 +288,12 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 		}
 	}
 
+	// Capture Gemini thinkingLevel effort before planning so provider
+	// effort_model_mapping rules participate in route resolution and selection.
+	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
+		c.Request.Context(),
+		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolGeminiGenerateContent),
+	))
 	// Retain the URL model beside the group mapping, so execution can use the
 	// mapped Gemini target while completion still identifies the client's requested model.
 	groupMappingRoutePlan := h.backend.Plan(c.Request.Context(), apiKey, modelName)

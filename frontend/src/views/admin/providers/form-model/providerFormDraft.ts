@@ -123,6 +123,7 @@ export function createProviderFormDraft(mode: ProviderFormMode = 'edit') {
     editVertexClientEmail: ref(''), // Vertex service account email.
     editVertexLocation: ref(mode === 'create' ? 'global' : 'us-central1'), // Vertex request location identifier.
     modelMappings: ref<ModelMappingRow[]>([]), // Request model rewrite rows.
+    stripEffortOnEffortModelMapping: ref(false), // Strip wire effort on effort mapping matches.
     openAICompactModelMappings: ref<ModelMappingRow[]>([]), // Compact request rewrite rows.
     modelRestrictionMode: ref<'whitelist' | 'mapping'>('whitelist'), // Visible model restriction editor.
     allowedModels: ref<string[]>([]), // Final model whitelist entries.
@@ -155,6 +156,7 @@ export function createProviderFormDraft(mode: ProviderFormMode = 'edit') {
     antigravityModelRestrictionMode: ref<'whitelist' | 'mapping'>('whitelist'), // Antigravity restriction editor mode.
     antigravityWhitelistModels: ref<string[]>([]), // Antigravity final model whitelist.
     antigravityModelMappings: ref<ModelMappingRow[]>([]), // Antigravity request rewrite rows.
+    antigravityStripEffortOnEffortModelMapping: ref(false), // Antigravity wire-effort strip toggle.
     tempUnschedEnabled: ref(false), // Temporary scheduling suspension switch.
     providerSchedulingThresholdOverrideEnabled: ref(false), // Individual scheduling threshold override.
     providerSchedulingThresholdOverrideValue: ref(100), // Scheduling saturation threshold percent.
@@ -309,6 +311,7 @@ export function resetPlatformScopedDraft(
       : apiKeyPreset(newPlatform).defaultBaseUrl
   draft.allowedModels.value = []
   draft.modelMappings.value = []
+  draft.stripEffortOnEffortModelMapping.value = false
   draft.modelRestrictionMode.value =
     newPlatform === 'qoder' || newPlatform === 'grok' ? 'mapping' : 'whitelist'
   draft.qoderModelRestrictionConfigured.value = false
@@ -325,6 +328,7 @@ export function resetPlatformScopedDraft(
     draft.antigravityProjectId.value = ''
     draft.antigravityWhitelistModels.value = []
     draft.antigravityModelMappings.value = []
+    draft.antigravityStripEffortOnEffortModelMapping.value = false
     draft.antigravityModelRestrictionMode.value = 'mapping'
   }
   if (newPlatform === 'qoder') {
@@ -431,6 +435,7 @@ export function resetProviderFormDraft(
   draft.antigravityModelRestrictionMode.value = 'mapping'
   draft.antigravityWhitelistModels.value = []
   draft.antigravityModelMappings.value = []
+  draft.antigravityStripEffortOnEffortModelMapping.value = false
   draft.qoderSite.value = 'global'
   resetOpenAIScopedDraft(draft)
   draft.autoPause5hThreshold.value = null

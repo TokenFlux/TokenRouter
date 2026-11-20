@@ -5,7 +5,7 @@ import (
 )
 
 // reasoning.go defines ordered reasoning effort vocabularies and normalizes
-// supported Claude output-effort values.
+// supported effort labels across routing, provider mapping, and Claude requests.
 // Reasoning effort labels are exchanged as strings, but the comparable sets
 // differ between OpenAI and Messages requests. Claude normalization accepts
 // xhigh and max as separate levels; none is an administrator mapping value
@@ -22,6 +22,30 @@ const (
 	ReasoningXHigh   = "xhigh"   // extra-high reasoning effort
 	ReasoningMax     = "max"     // maximum comparable effort
 )
+
+// NormalizeReasoningEffort trims, lowercases, and strips hyphens, underscores,
+// and spaces from a reasoning effort label. Recognized values map to their
+// canonical wire label (none, minimal, low, medium, high, xhigh, or max, with
+// extrahigh folding to xhigh); blank or unrecognized text returns empty.
+func NormalizeReasoningEffort(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
+	switch value {
+	case ReasoningNone, ReasoningMinimal, ReasoningLow, ReasoningMedium, ReasoningHigh, ReasoningXHigh, ReasoningMax:
+		return value
+	case "extrahigh":
+		return ReasoningXHigh
+	default:
+		return ""
+	}
+}
+
+// AllReasoningEfforts returns every canonical reasoning effort label in a fresh
+// slice, starting with none followed by minimal through max. Callers may modify
+// the returned slice without affecting package state.
+func AllReasoningEfforts() []string {
+	return OpenAIReasoningMappingValues()
+}
 
 // NormalizeClaudeOutputEffort trims and lowercases recognized Messages output
 // efforts. Empty or unsupported input returns nil; low, medium, high, xhigh,

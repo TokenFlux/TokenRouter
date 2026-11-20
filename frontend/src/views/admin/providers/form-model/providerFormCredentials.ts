@@ -10,6 +10,9 @@ import {
   parsePoolModeRetryStatusCodes,
 } from '@/components/provider/form/poolMode'
 import {
+  EFFORT_MODEL_MAPPING_CREDENTIAL_KEY,
+  EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY,
+  buildEffortModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
 } from '@/composables/useModelWhitelist'
@@ -88,21 +91,43 @@ export function applyProviderProtocolPatch(
   if (patch.extra) delete patch.extra.openai_text_route_mode
 }
 
-// applyPersistedModelRestriction writes independent request mappings and final
-// model whitelists into mutable credentials. Absent mappings delete model_mapping,
-// while model_whitelist is always written so an explicit empty array prevents
-// backend whitelist derivation from self-mapping entries.
+// applyEffortModelMapping writes effort-scoped model overrides and the optional
+// wire-effort stripping switch into mutable credentials, deleting absent keys so
+// clearing rules removes persisted overrides.
+function applyEffortModelMapping(
+  modelMappings: ProviderFormDraft['modelMappings']['value'],
+  stripEffort: boolean,
+  credentials: Record<string, unknown>,
+) {
+  const effortModelMapping = buildEffortModelMappingObject(modelMappings)
+  if (effortModelMapping) {
+    credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY] = effortModelMapping
+  } else {
+    delete credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY]
+  }
+  if (stripEffort && effortModelMapping) {
+    credentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY] = true
+  } else {
+    delete credentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY]
+  }
+}
+
+// applyPersistedModelRestriction writes independent request mappings, effort
+// overrides, and final model whitelists into mutable credentials. Absent mappings
+// delete model_mapping, while model_whitelist is always written so an explicit
+// empty array prevents backend whitelist derivation from self-mapping entries.
 export function applyPersistedModelRestriction(
   draft: ProviderFormDraft,
   credentials: Record<string, unknown>,
 ) {
-  const { modelMappings, allowedModels } = draft
+  const { modelMappings, allowedModels, stripEffortOnEffortModelMapping } = draft
   const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
   if (persisted.modelMapping) {
     credentials.model_mapping = persisted.modelMapping
   } else {
     delete credentials.model_mapping
   }
+  applyEffortModelMapping(modelMappings.value, stripEffortOnEffortModelMapping.value, credentials)
   // Assign the normalized array even when empty so clearing the editor replaces
   // any whitelist copied from saved credentials or derived from self-mappings.
   credentials.model_whitelist = persisted.modelWhitelist
@@ -119,6 +144,7 @@ export function applyQoderModelRestriction(
   const {
     modelMappings,
     allowedModels,
+    stripEffortOnEffortModelMapping,
     qoderModelRestrictionConfigured,
     qoderModelRestrictionTouched,
     qoderModelWhitelistConfigured,
@@ -128,6 +154,8 @@ export function applyQoderModelRestriction(
   // so visiting the mapping panel cannot alter request eligibility.
   if (!qoderModelRestrictionConfigured.value && !qoderModelRestrictionTouched.value) {
     delete credentials.model_mapping
+    delete credentials[EFFORT_MODEL_MAPPING_CREDENTIAL_KEY]
+    delete credentials[EFFORT_MODEL_MAPPING_STRIP_EFFORT_CREDENTIAL_KEY]
     delete credentials.model_whitelist
     return
   }
@@ -143,6 +171,7 @@ export function applyQoderModelRestriction(
   } else {
     delete credentials.model_mapping
   }
+  applyEffortModelMapping(modelMappings.value, stripEffortOnEffortModelMapping.value, credentials)
   credentials.model_whitelist = persisted.modelWhitelist
 }
 
@@ -173,7 +202,8 @@ export function applyOpenAIModelMappingCredentials(
   credentials: Record<string, unknown>,
   provider: Provider,
 ) {
-  const { modelMappings, modelRestrictionMode, allowedModels } = draft
+  const { modelMappings, modelRestrictionMode, allowedModels, stripEffortOnEffortModelMapping } =
+    draft
   // Parent-owned Spark credentials accept request mappings only here; ordinary providers
   // additionally serialize the separate final whitelist with their credential update.
   if (provider.parent_provider_id != null) {
@@ -187,6 +217,7 @@ export function applyOpenAIModelMappingCredentials(
     } else {
       delete credentials.model_mapping
     }
+    applyEffortModelMapping(modelMappings.value, stripEffortOnEffortModelMapping.value, credentials)
   } else {
     applyPersistedModelRestriction(draft, credentials)
   }
@@ -254,6 +285,11 @@ export function applyAntigravityPolicyCredentials(
   if (antigravityModelMapping) {
     credentials.model_mapping = antigravityModelMapping
   }
+  applyEffortModelMapping(
+    draft.antigravityModelMappings.value,
+    draft.antigravityStripEffortOnEffortModelMapping.value,
+    credentials,
+  )
   applyInterceptWarmup(credentials, draft.interceptWarmupRequests.value, mode)
   if (includeProjectId) {
     applyAntigravityProjectID(credentials, draft.antigravityProjectId.value, mode)

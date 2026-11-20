@@ -20,12 +20,13 @@ import (
 // string. Callers use that empty result to reject the attempted route before
 // forwarding.
 
-// resolveAntigravityModel resolves one provider mapping after normalizing the
-// request.
+// resolveAntigravityModelForEffort resolves one provider mapping after
+// normalizing the request, consulting effort_model_mapping when effort is
+// nonblank before falling back to ordinary model_mapping.
 // Nil records and empty normalized names return an empty string. The returned
 // target still needs thinking selection and final whitelist admission by its
 // caller.
-func resolveAntigravityModel(value *provider.Record, requested string) string {
+func resolveAntigravityModelForEffort(value *provider.Record, requested, effort string) string {
 	if value == nil {
 		return ""
 	}
@@ -34,7 +35,7 @@ func resolveAntigravityModel(value *provider.Record, requested string) string {
 		return ""
 	}
 	mapping := provider.ResolveModelMapping(value, ModelDefaults())
-	mapped, _ := provider.ResolveMappedModel(mapping, requested)
+	mapped, _, _ := provider.ResolveMappedModelForEffort(mapping, provider.ResolveEffortModelMapping(value), requested, effort)
 	return mapped
 }
 
@@ -46,16 +47,23 @@ func MapAntigravityModel(value *provider.Record, requested string) string {
 }
 
 // FinalAntigravityModel resolves the upstream identity used for whitelist
-// admission.
-// It applies one provider mapping, then the supplied thinking choice, and checks
-// the resulting name against the effective final whitelist. Nil thinking keeps
-// the mapped spelling, and nil records or denied targets return an empty string.
+// admission without an explicit reasoning effort override.
+func FinalAntigravityModel(value *provider.Record, requested string, thinking *bool) string {
+	return FinalAntigravityModelForEffort(value, requested, "", thinking)
+}
+
+// FinalAntigravityModelForEffort resolves the upstream identity used for
+// whitelist admission under an optional reasoning effort.
+// It applies one effort-aware provider mapping, then the supplied thinking
+// choice, and checks the resulting name against the effective final whitelist.
+// Nil thinking keeps the mapped spelling, and nil records or denied targets
+// return an empty string.
 //
 // The whitelist sees the transformed target rather than the public alias. A
 // mapping for the thinking target is not applied again, so an alias chain cannot
 // redirect the identity after the admission check.
-func FinalAntigravityModel(value *provider.Record, requested string, thinking *bool) string {
-	mapped := resolveAntigravityModel(value, requested)
+func FinalAntigravityModelForEffort(value *provider.Record, requested, effort string, thinking *bool) string {
+	mapped := resolveAntigravityModelForEffort(value, requested, effort)
 	if mapped == "" {
 		return ""
 	}
@@ -65,21 +73,27 @@ func FinalAntigravityModel(value *provider.Record, requested string, thinking *b
 }
 
 // FinalAntigravityModelWithRules admits a target using an already captured
-// rule set.
-// It removes a leading models/ prefix, trims the request, resolves one mapping,
-// and applies the supplied thinking choice before checking final membership.
-// Blank requests return an empty string before consulting rules; other requests
-// require a nonnil snapshot.
+// rule set without an explicit reasoning effort override.
+func FinalAntigravityModelWithRules(rules *provider.ModelRulesSnapshot, requested string, thinking *bool) string {
+	return FinalAntigravityModelWithRulesForEffort(rules, requested, "", thinking)
+}
+
+// FinalAntigravityModelWithRulesForEffort admits a target using an already
+// captured rule set and an optional reasoning effort.
+// It removes a leading models/ prefix, trims the request, resolves one
+// effort-aware mapping, and applies the supplied thinking choice before
+// checking final membership. Blank requests return an empty string before
+// consulting rules; other requests require a nonnil snapshot.
 //
 // Using the same snapshot for mapping and membership keeps one admission decision
 // on one set of captured rules. A mapped target is checked directly and is not
 // fed back into the mapping as another request name.
-func FinalAntigravityModelWithRules(rules *provider.ModelRulesSnapshot, requested string, thinking *bool) string {
+func FinalAntigravityModelWithRulesForEffort(rules *provider.ModelRulesSnapshot, requested, effort string, thinking *bool) string {
 	requested = strings.TrimSpace(strings.TrimPrefix(requested, "models/"))
 	if requested == "" {
 		return ""
 	}
-	mapped, _ := rules.ResolveMappedModel(requested)
+	mapped, _, _ := rules.ResolveMappedModelForEffort(requested, effort)
 	return finalAntigravityModel(mapped, thinking, rules.FinalModelWhitelisted)
 }
 
