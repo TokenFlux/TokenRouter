@@ -154,6 +154,7 @@ describe('UserDashboardUsageChart', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     localStorage.clear()
   })
 
@@ -294,6 +295,10 @@ describe('UserDashboardUsageChart', () => {
   // protects four unstacked unfilled lines, the incomplete-bucket dashed segment, and both
   // drawing plugins.
   it('Token 画成四条不堆叠的折线，未结束的末段画虚线，并挂上竖线和描线插件', async () => {
+    // Use an afternoon clock so the partial last hour has an incoming segment
+    // even when the suite runs just after midnight.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 0, 15, 13, 30))
     const today = formatDayKey(new Date())
     vi.mocked(usageAPI.getDashboardTrend).mockResolvedValue(
       trendOf([{ date: `${today} 00:00`, requests: 3, actual_cost: 1 }]) as any,
