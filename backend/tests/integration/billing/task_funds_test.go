@@ -21,6 +21,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/team"
 	teampostgres "github.com/TokenFlux/TokenRouter/internal/team/postgres"
@@ -189,7 +190,9 @@ func TestUsageBillingRepositoryBatchImageAllowanceReserveCaptureAndRelease(t *te
 func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newTaskFundsFixture(integrationDB)
+	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	repo := billing.NewFunds(newSettlementFixtureWithCalendar(integrationDB, calendar))
 	user := mustCreateUser(t, client, &identity.User{
 		Email:   fmt.Sprintf("batch-subscription-%d@example.com", time.Now().UnixNano()),
 		Balance: 1,
@@ -205,8 +208,8 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 		WeeklyLimitUSD:  float64Ptr(1),
 		MonthlyLimitUSD: float64Ptr(1),
 	})
-	reservedAt := time.Now().UTC()
-	windowStart := reservedAt.Add(-time.Hour)
+	reservedAt := now.UTC()
+	windowStart := calendar.StartOfDay(reservedAt)
 	subscription := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
 		PlanID:             plan.ID,
@@ -280,9 +283,8 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1`, subscription.ID).Scan(&dailyUsage))
 	require.InDelta(t, 0.7, dailyUsage, 0.000001)
 
-	releaseReservedAt := time.Now().UTC()
 	releaseBatchID := "imgbatch_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	insertBatchImageAllowanceTestJob(t, releaseBatchID, user.ID, user.ID, apiKey.ID, nil, releaseReservedAt)
+	insertBatchImageAllowanceTestJob(t, releaseBatchID, user.ID, user.ID, apiKey.ID, nil, reservedAt)
 	releaseReserveCommand := &billing.TaskFundsCommand{
 		RequestID:   batchimage.BatchImageHoldRequestID(releaseBatchID),
 		APIKeyID:    apiKey.ID,
@@ -290,7 +292,7 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 		ActorUserID: user.ID,
 
 		HoldAmount: 0.5,
-		ReservedAt: releaseReservedAt, Task: batchimage.FundingReference(releaseBatchID),
+		ReservedAt: reservedAt, Task: batchimage.FundingReference(releaseBatchID),
 	}
 	releaseReserved, err := repo.Reserve(ctx, releaseReserveCommand)
 	require.NoError(t, err)
@@ -324,9 +326,8 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 
 	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET balance = 0.05 WHERE id = $1`, user.ID)
 	require.NoError(t, err)
-	failedReservedAt := time.Now().UTC()
 	failedBatchID := "imgbatch_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	insertBatchImageAllowanceTestJob(t, failedBatchID, user.ID, user.ID, apiKey.ID, nil, failedReservedAt)
+	insertBatchImageAllowanceTestJob(t, failedBatchID, user.ID, user.ID, apiKey.ID, nil, reservedAt)
 	_, err = repo.Reserve(ctx, &billing.TaskFundsCommand{
 		RequestID:   batchimage.BatchImageHoldRequestID(failedBatchID),
 		APIKeyID:    apiKey.ID,
@@ -334,7 +335,7 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 		ActorUserID: user.ID,
 
 		HoldAmount: 0.5,
-		ReservedAt: failedReservedAt, Task: batchimage.FundingReference(failedBatchID),
+		ReservedAt: reservedAt, Task: batchimage.FundingReference(failedBatchID),
 	})
 	require.ErrorIs(t, err, batchimage.ErrBatchImageInsufficientBalance)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT balance, frozen_balance FROM users WHERE id = $1`, user.ID).Scan(&balance, &frozen))
@@ -351,7 +352,9 @@ func TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture(t *t
 func TestUsageBillingRepositoryBatchImagePartialSubscriptionUsesBalanceRate(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newTaskFundsFixture(integrationDB)
+	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	repo := billing.NewFunds(newSettlementFixtureWithCalendar(integrationDB, calendar))
 	user := mustCreateUser(t, client, &identity.User{
 		Email:   fmt.Sprintf("batch-partial-rate-%d@example.com", time.Now().UnixNano()),
 		Balance: 5,
@@ -372,8 +375,8 @@ func TestUsageBillingRepositoryBatchImagePartialSubscriptionUsesBalanceRate(t *t
 		WeeklyLimitUSD:       float64Ptr(1),
 		MonthlyLimitUSD:      float64Ptr(1),
 	})
-	reservedAt := time.Now().UTC()
-	windowStart := reservedAt.Add(-time.Hour)
+	reservedAt := now.UTC()
+	windowStart := calendar.StartOfDay(reservedAt)
 	subscription := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
 		PlanID:             plan.ID,

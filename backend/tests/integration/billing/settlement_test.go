@@ -250,9 +250,10 @@ func TestUsageBillingRepositoryResolveUsableSubscriptionForGroup(t *testing.T) {
 func TestUsageBillingRepositoryResolveUsableSubscriptionForGroup_NormalizesTailWindows(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newSettlementFixture(integrationDB)
-	require.NotNil(t, repo, "原生结算存储已构造")
 	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	repo := newSettlementFixtureWithCalendar(integrationDB, calendar)
+	require.NotNil(t, repo, "原生结算存储已构造")
 
 	user := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("usage-billing-resolve-tail-user-%d@example.com", time.Now().UnixNano()),
@@ -285,7 +286,7 @@ func TestUsageBillingRepositoryResolveUsableSubscriptionForGroup_NormalizesTailW
 		MonthlyLimitUSD:      float64Ptr(1000),
 	})
 
-	blockedDailyWindowStart := now.Add(-time.Hour)
+	blockedDailyWindowStart := calendar.StartOfDay(now)
 	blockedMonthlyWindowStart := now.AddDate(0, 0, -1)
 	mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
@@ -299,7 +300,7 @@ func TestUsageBillingRepositoryResolveUsableSubscriptionForGroup_NormalizesTailW
 		DailyUsageUSD:      200,
 		MonthlyUsageUSD:    200,
 	})
-	targetDailyWindowStart := now.Add(-25 * time.Hour)
+	targetDailyWindowStart := calendar.StartOfDay(now.AddDate(0, 0, -1))
 	targetMonthlyWindowStart := now.AddDate(0, 0, -29)
 	target := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
@@ -405,7 +406,9 @@ func TestUsageBillingRepositoryApply_ResetsDailyTailWithinFiniteMonthlyLimit(t *
 func TestUsageBillingRepositoryApply_DeductsBalanceDeficitAfterPartialSubscription(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newSettlementFixture(integrationDB)
+	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	repo := newSettlementFixtureWithCalendar(integrationDB, calendar)
 
 	user := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("usage-billing-sub-deficit-user-%d@example.com", time.Now().UnixNano()),
@@ -428,7 +431,7 @@ func TestUsageBillingRepositoryApply_DeductsBalanceDeficitAfterPartialSubscripti
 		Key:    "sk-usage-billing-sub-deficit-" + uuid.NewString(),
 		Name:   "billing-sub-deficit",
 	})
-	windowStart := time.Now().Add(-time.Hour)
+	windowStart := calendar.StartOfDay(now)
 	subscription := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
 		PlanID:             plan.ID,
@@ -475,7 +478,9 @@ func TestUsageBillingRepositoryApply_DeductsBalanceDeficitAfterPartialSubscripti
 func TestUsageBillingRepositoryApply_PreferredSubscriptionChargesOverflowToBalance(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newSettlementFixture(integrationDB)
+	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	repo := newSettlementFixtureWithCalendar(integrationDB, calendar)
 
 	user := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("usage-billing-sub-overage-user-%d@example.com", time.Now().UnixNano()),
@@ -498,7 +503,7 @@ func TestUsageBillingRepositoryApply_PreferredSubscriptionChargesOverflowToBalan
 		Key:    "sk-usage-billing-sub-overage-" + uuid.NewString(),
 		Name:   "billing-sub-overage",
 	})
-	windowStart := time.Now().Add(-time.Hour)
+	windowStart := calendar.StartOfDay(now)
 	subscription := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             user.ID,
 		PlanID:             plan.ID,
@@ -597,7 +602,9 @@ func runUsageBillingConcurrentUsageLogInsert(t *testing.T, teamRequest bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	client := testEntClient(t)
-	billingRepo := newSettlementFixture(integrationDB)
+	now := time.Now()
+	calendar := timezone.NewCalendarWithClock(time.Local, func() time.Time { return now })
+	billingRepo := newSettlementFixtureWithCalendar(integrationDB, calendar)
 
 	owner := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("usage-billing-lock-order-%d@example.com", time.Now().UnixNano()),
@@ -641,7 +648,7 @@ func runUsageBillingConcurrentUsageLogInsert(t *testing.T, teamRequest bool) {
 		Name: "usage-billing-lock-order-provider-" + uuid.NewString(),
 		Type: capability.ProviderTypeAPIKey,
 	})
-	windowStart := time.Now().Add(-time.Hour)
+	windowStart := calendar.StartOfDay(now)
 	subscription := mustCreateSubscription(t, client, &billing.UserSubscription{
 		UserID:             owner.ID,
 		PlanID:             plan.ID,

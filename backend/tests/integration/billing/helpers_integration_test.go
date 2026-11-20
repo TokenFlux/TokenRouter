@@ -126,12 +126,17 @@ func (subscriptionContractEmptyGroups) GetByIDLite(context.Context, int64) (*bil
 	return nil, nil
 }
 
-// newSettlementFixture constructs settlement storage with the supplied SQL pool
-// and the process-local calendar. Creative and batch-image task writers share
-// each funding transaction, and provider quota changes use the PostgreSQL
-// outbox callback.
+// newSettlementFixture constructs settlement storage using the supplied SQL
+// pool and the live process-local calendar.
 func newSettlementFixture(db *sql.DB) *billingpostgres.SettlementStore {
-	store := billingpostgres.NewSettlementStore(db, timezone.NewCalendar(time.Local), schedulerpostgres.EnqueueProviderQuotaChangedInTx, billingpostgres.TaskProjectionFactories{
+	return newSettlementFixtureWithCalendar(db, timezone.NewCalendar(time.Local))
+}
+
+// newSettlementFixtureWithCalendar constructs settlement storage using the
+// supplied SQL pool and calendar. Tests can share the calendar with their
+// quota anchors so settlement evaluates both against the same date.
+func newSettlementFixtureWithCalendar(db *sql.DB, calendar timezone.Calendar) *billingpostgres.SettlementStore {
+	return billingpostgres.NewSettlementStore(db, calendar, schedulerpostgres.EnqueueProviderQuotaChangedInTx, billingpostgres.TaskProjectionFactories{
 		creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpostgres.TaskProjection {
 			return creativepostgres.NewFundingParticipant(tx, ref.ID)
 		},
@@ -139,7 +144,6 @@ func newSettlementFixture(db *sql.DB) *billingpostgres.SettlementStore {
 			return batchpostgres.NewFundingParticipant(tx, ref.ID)
 		},
 	})
-	return store
 }
 
 // testEntClient returns the package-shared Ent client after marking the caller
