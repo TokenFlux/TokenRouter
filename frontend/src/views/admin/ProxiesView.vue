@@ -59,7 +59,8 @@
                 <div
                   v-if="showMoreActionsDropdown"
                   :inert="!showMoreActionsDropdown || undefined"
-                  class="absolute right-0 top-full z-modal-nested mt-2 w-56 rounded-control border border-gray-200 bg-white p-1 shadow-xl dark:border-dark-600 dark:bg-dark-900"
+                  class="absolute top-full z-modal-nested mt-2 rounded-control border border-gray-200 bg-white p-1 shadow-xl dark:border-dark-600 dark:bg-dark-900"
+                  :style="moreActionsPanelStyle"
                   @click.stop
                 >
                   <button
@@ -894,6 +895,7 @@ import type { FilterOption } from '@/components/common/filterPanel'
 import Icon from '@/components/icons/Icon.vue'
 import ProxyProvidersModal from './proxies/ProxyProvidersModal.vue'
 import ProxyQualityReportModal from './proxies/ProxyQualityReportModal.vue'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useClipboard } from '@/composables/useClipboard'
 import { useSwipeSelect } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -1010,9 +1012,15 @@ const filters = reactive({
   status: '', // empty selects all statuses
 })
 // showMoreActionsDropdown and its element reference coordinate the batch-action menu and keep
-// clicks inside that menu from dismissing it prematurely.
+// clicks inside that menu from dismissing it prematurely, while moreActionsPanelStyle clamps
+// its horizontal placement inside the viewport on narrow toolbars.
 const showMoreActionsDropdown = ref(false)
 const moreActionsDropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle: moreActionsPanelStyle } = useAnchoredPanel(
+  moreActionsDropdownRef,
+  showMoreActionsDropdown,
+  { widthRem: 14 },
+)
 // pagination stores the current page, page size, and server totals used by the table controls.
 const pagination = reactive({
   page: 1, // requested page number

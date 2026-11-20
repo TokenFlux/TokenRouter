@@ -108,7 +108,8 @@
                 <div
                   v-if="showColumnDropdown"
                   :inert="!showColumnDropdown || undefined"
-                  class="dropdown right-0 z-50 mt-2 w-48 origin-top-right py-0"
+                  class="dropdown z-50 mt-2 origin-top-right py-0"
+                  :style="columnPanelStyle"
                 >
                   <div class="p-2">
                     <div class="mb-2 border-b border-gray-200 pb-2 dark:border-dark-600">
@@ -747,6 +748,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { UserSubscription } from '@/api/subscriptions.types'
 import type { SubscriptionPlan } from '@/api/payment.types'
@@ -986,10 +988,13 @@ const columns = computed<Column[]>(() =>
   ),
 )
 
-// Column-settings visibility and its DOM reference support closing the menu when a
-// document click occurs outside it.
+// Column-settings visibility, its DOM reference, and clamped horizontal placement support
+// closing the menu on outside clicks and keeping it inside narrow viewports.
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 12,
+})
 
 // Status choices include an unfiltered option and the supported subscription lifecycle
 // values used by server listing.

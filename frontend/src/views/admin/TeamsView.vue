@@ -577,7 +577,6 @@ const openActionMenu = (team: AdminTeam, event: MouseEvent) => {
     fixedHeight: 142,
     viewportPadding: 8,
     gap: 4,
-    pinLeftOnMobile: false,
   })
   // The fixed-height position normally provides top; retain viewport padding if the
   // helper returns no top coordinate for this panel.

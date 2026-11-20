@@ -234,7 +234,8 @@
                 <div
                   v-if="showColumnDropdown"
                   :inert="!showColumnDropdown || undefined"
-                  class="dropdown right-0 top-full z-50 mt-1 max-h-menu w-48 overflow-y-auto"
+                  class="dropdown top-full z-50 mt-1 max-h-menu overflow-y-auto"
+                  :style="columnPanelStyle"
                 >
                   <button
                     v-for="col in currentToggleableColumns"
@@ -369,6 +370,7 @@
 
 <script setup lang="ts">
 import RequestIdFilterField from '@/components/common/RequestIdFilterField.vue'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import { vContentReveal } from '@/directives/contentReveal'
@@ -1282,10 +1284,13 @@ const toggleCurrentColumn = (key: string) => {
   else toggleColumn(key)
 }
 
-// Column menu state owns the dropdown visibility and container used to recognize clicks
-// outside its controls.
+// Column menu state owns the dropdown visibility, container for outside-click dismissal,
+// and viewport-clamped horizontal style.
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 12,
+})
 // handleColumnClickOutside closes the column menu when a document click lands outside its
 // container. A missing container leaves visibility untouched, allowing the handler to run
 // during mount transitions.

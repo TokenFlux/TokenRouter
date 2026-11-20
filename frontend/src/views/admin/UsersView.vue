@@ -213,7 +213,8 @@
                   <div
                     v-if="showColumnDropdown"
                     :inert="!showColumnDropdown || undefined"
-                    class="dropdown right-0 top-full z-50 mt-1 max-h-menu w-48 overflow-y-auto"
+                    class="dropdown top-full z-50 mt-1 max-h-menu overflow-y-auto"
+                    :style="columnPanelStyle"
                   >
                     <button
                       v-for="col in toggleableColumns"
@@ -874,6 +875,7 @@ import MotionTransition from '@/components/common/MotionTransition.vue'
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
@@ -1283,6 +1285,10 @@ const showColumnDropdown = ref(false)
 
 const filterDropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+// columnPanelStyle clamps the twelve-rem column menu within viewport padding on narrow screens.
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 12,
+})
 
 // Browser storage keeps condition values and visible-control keys separately so both
 // can be restored when this page mounts.

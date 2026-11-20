@@ -15,7 +15,7 @@
       <button
         v-if="hiddenCount > 0"
         ref="moreButtonRef"
-        @click.stop="showPopover = !showPopover"
+        @click.stop="togglePopover"
         class="inline-flex items-center gap-0.5 rounded-compact px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600 transition-colors cursor-pointer whitespace-nowrap"
       >
         <span>+{{ hiddenCount }}</span>
@@ -27,7 +27,7 @@
       <MotionTransition name="dropdown-fade">
         <div
           v-if="showPopover"
-          class="fixed z-50 min-w-48 max-w-96 rounded-surface border border-gray-200 bg-white p-3 shadow-lg dark:border-dark-600 dark:bg-dark-900"
+          class="fixed z-50 min-w-48 rounded-surface border border-gray-200 bg-white p-3 shadow-lg dark:border-dark-600 dark:bg-dark-900"
           :style="popoverStyle"
         >
           <div class="mb-2 flex items-center justify-between">
@@ -69,6 +69,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import type { Group } from '@/api/groups.types'
+import { getFloatingPanelPosition, type FloatingPanelPosition } from '@/utils/floatingPanel'
 
 /**
  * ProviderGroupsCell.vue displays provider group badges and an overflow popover when the
@@ -105,6 +106,7 @@ const { t } = useI18n()
 
 const moreButtonRef = ref<HTMLElement | null>(null)
 const showPopover = ref(false)
+const popoverPosition = ref<FloatingPanelPosition | null>(null)
 
 /**
  * Visible group selection and hidden count share the same slot rule, reserving one slot for
@@ -126,33 +128,48 @@ const hiddenCount = computed(() => {
 })
 
 /**
- * popoverStyle positions the overflow beside its trigger, moving it above or left when the
- * estimated panel dimensions exceed the viewport.
+ * updatePopoverPosition measures the overflow trigger and delegates viewport clamping and
+ * upward flipping to getFloatingPanelPosition so narrow viewports cap panel width inside
+ * safe margins.
+ */
+const updatePopoverPosition = () => {
+  if (!moreButtonRef.value) return
+  popoverPosition.value = getFloatingPanelPosition(
+    moreButtonRef.value.getBoundingClientRect(),
+    window.innerWidth,
+    window.innerHeight,
+    {
+      maxWidth: 384,
+      align: 'left',
+      viewportPadding: 8,
+      gap: 8,
+      minComfortableHeight: 280,
+    },
+  )
+}
+
+/**
+ * togglePopover flips overflow popover visibility and measures placement before rendering
+ * when opening so the first frame uses clamped coordinates.
+ */
+const togglePopover = () => {
+  const next = !showPopover.value
+  if (next) updatePopoverPosition()
+  showPopover.value = next
+}
+
+/**
+ * popoverStyle maps the floating placement result to fixed CSS offsets and a viewport-bounded
+ * maximum width.
  */
 const popoverStyle = computed(() => {
-  if (!moreButtonRef.value) return {}
-  const rect = moreButtonRef.value.getBoundingClientRect()
-  const viewportHeight = window.innerHeight
-  const viewportWidth = window.innerWidth
-
-  let top = rect.bottom + 8
-  let left = rect.left
-
-  // Use the estimated panel height to keep overflow contents within the viewport when there is
-  // insufficient space below.
-  if (top + 280 > viewportHeight) {
-    top = Math.max(8, rect.top - 280)
-  }
-
-  // Shift the estimated panel width left while keeping a small viewport inset so the overflow
-  // list remains reachable.
-  if (left + 384 > viewportWidth) {
-    left = Math.max(8, viewportWidth - 392)
-  }
-
+  const position = popoverPosition.value
+  if (!position) return {}
   return {
-    top: `${top}px`,
-    left: `${left}px`,
+    top: position.top === null ? 'auto' : `${position.top}px`,
+    bottom: position.bottom === null ? 'auto' : `${position.bottom}px`,
+    left: `${position.left}px`,
+    maxWidth: `${position.width}px`,
   }
 })
 
@@ -171,7 +188,7 @@ useFloatingMotion(
   () => {
     showPopover.value = false
   },
-  () => {},
+  updatePopoverPosition,
 )
 
 onMounted(() => {

@@ -31,6 +31,10 @@ const options = [
   { value: 'claude', label: 'Claude' },
 ]
 
+// Mobile and narrow-tablet viewport widths exercise filter clamping below BREAKPOINT_MD.
+const MOBILE_VIEWPORT_WIDTH = 480
+const NARROW_TABLET_VIEWPORT_WIDTH = 700
+
 // openAt mounts a filter at a supplied horizontal position and opens it. It returns the
 // rendered panel for placement assertions, with stubbed motion rendering.
 const openAt = async (left: number) => {
@@ -97,6 +101,26 @@ describe('FilterDropdown', () => {
     window.innerWidth = BREAKPOINT_LG
     const panel = await openAt(900)
     expect(panel.attributes('style')).toContain('left: -180px')
+  })
+
+  // The filter button sits at the far right of a mobile viewport narrower than the
+  // desktop breakpoint. The panel must align its right edge with the trigger rather
+  // than drifting to the left viewport edge.
+  it('移动端右侧触发按钮展开时面板贴齐按钮右缘而不是飘移到左侧', async () => {
+    window.innerWidth = MOBILE_VIEWPORT_WIDTH
+    const panel = await openAt(428)
+    expect(panel.attributes('style')).toContain('left: -252px')
+    expect(panel.attributes('style')).toContain('width: 288px')
+  })
+
+  // The filter button sits beside a fixed-width search box on a small tablet viewport
+  // below the medium breakpoint. The panel has room to the right and must keep zero
+  // relative left offset instead of jumping left.
+  it('小屏平板触发按钮右侧空间充足时左缘直接对齐按钮', async () => {
+    window.innerWidth = NARROW_TABLET_VIEWPORT_WIDTH
+    const panel = await openAt(280)
+    expect(panel.attributes('style')).toContain('left: 0px')
+    expect(panel.attributes('style')).toContain('width: 288px')
   })
 
   // The filter starts with no active conditions, then receives a positive count. The

@@ -50,7 +50,7 @@ import { nextTick, onBeforeUnmount, onMounted, provide, readonly, ref } from 'vu
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
-import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { FILTER_PANEL_KEY } from './filterPanel'
 
 // FilterDropdown.vue presents a toolbar filter button and the narrow panel holding its
@@ -96,13 +96,18 @@ const { t } = useI18n()
 const PANEL_WIDTH_REM = 18
 
 // open controls visibility, rootRef supplies bounds and click ownership, triggerRef
-// restores keyboard focus, bodyRef locates the first field heading, and panelStyle
-// holds the clamped horizontal placement.
+// restores keyboard focus, and bodyRef locates the first field heading.
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLButtonElement | null>(null)
 const bodyRef = ref<HTMLElement | null>(null)
-const panelStyle = ref<Record<string, string>>({})
+
+// panelStyle keeps the eighteen-rem panel aligned to the trigger's left edge while
+// clamping horizontal placement inside the viewport on every screen width.
+const { panelStyle } = useAnchoredPanel(rootRef, open, {
+  widthRem: PANEL_WIDTH_REM,
+  align: 'left',
+})
 
 // openCount increases on every opening and fieldCount follows mounted FilterField
 // sections; fields read both through the provided panel context.
@@ -119,35 +124,14 @@ provide(FILTER_PANEL_KEY, {
   },
 })
 
-// updatePosition measures the wrapper and delegates viewport clamping to the shared
-// helper. It converts rem widths using the root font size and stores an offset
-// relative to the wrapper.
-function updatePosition() {
-  const rect = rootRef.value?.getBoundingClientRect()
-  if (!rect) return
-  // Use the root font size to convert the panel width into pixels; unavailable numeric
-  // font sizing uses sixteen so width calculations remain usable.
-  const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-  const viewportWidth = document.documentElement.clientWidth || window.innerWidth
-  const position = getFloatingPanelPosition(rect, viewportWidth, window.innerHeight, {
-    maxWidth: PANEL_WIDTH_REM * rem,
-    align: 'left',
-    viewportPadding: rem,
-  })
-  panelStyle.value = {
-    width: `${position.width}px`,
-    left: `${position.left - rect.left}px`,
-  }
-}
-
-// toggle changes panel visibility. Opening measures the position and advances
-// openCount so fields reset their expansion; closing keeps child state when keepMounted
-// is enabled, with the template applying hidden and inert states during exit.
+// toggle changes panel visibility. Opening advances openCount so fields reset their
+// expansion while useAnchoredPanel synchronously measures horizontal placement; closing
+// keeps child state when keepMounted is enabled, with the template applying hidden and
+// inert states during exit.
 function toggle() {
   open.value = !open.value
   if (!open.value) return
   openCount.value += 1
-  updatePosition()
 }
 
 // resetFilters asks the parent to clear its conditions. The reset row disappears once
@@ -177,25 +161,16 @@ function closeOutside(event: MouseEvent) {
   open.value = false
 }
 
-// handleResize refreshes panel placement when the open panel receives a viewport
-// resize. Closed panels defer measurement until their next opening, when their current
-// wrapper bounds are available.
-function handleResize() {
-  if (open.value) updatePosition()
-}
-
 // Capture document clicks before dialog handlers stop bubbling, allowing this panel to
 // dismiss when another region inside the dialog is clicked.
 onMounted(() => {
   document.addEventListener('click', closeOutside, true)
-  window.addEventListener('resize', handleResize)
 })
 
-// Release document and viewport listeners with the panel owner so removed filters
-// cannot receive clicks or schedule fresh position updates.
+// Release the document listener with the panel owner so removed filters cannot receive
+// clicks after unmount.
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeOutside, true)
-  window.removeEventListener('resize', handleResize)
 })
 
 defineExpose({

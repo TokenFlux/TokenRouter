@@ -15,7 +15,7 @@
 
     <!-- Each contact occupies one row; links open a new tab and text values can be copied. -->
     <MotionTransition name="dropdown-fade">
-      <div v-if="isOpen" class="dropdown right-0 z-50 mt-2 w-72 origin-top-right py-0">
+      <div v-if="isOpen" class="dropdown z-50 mt-2 origin-top-right py-0" :style="panelStyle">
         <div class="menu-section">
           <div class="menu-heading">{{ t('common.contactSupport') }}</div>
           <template v-for="(entry, idx) in contactEntries" :key="idx">
@@ -63,6 +63,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MotionTransition from '@/components/common/MotionTransition.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useClipboard } from '@/composables/useClipboard'
 import { useAppStore } from '@/stores'
 import { formatContactUrl, parseContactInfo } from '@/utils/contactInfo'
@@ -80,10 +81,12 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard } = useClipboard()
 
-// isOpen owns menu visibility, and dropdownRef identifies the root used to keep internal
-// clicks from triggering the document outside-click close handler.
+// isOpen owns menu visibility, dropdownRef identifies the root used to keep internal
+// clicks from triggering the document outside-click close handler, and panelStyle keeps
+// the eighteen-rem menu within viewport padding on narrow screens.
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle } = useAnchoredPanel(dropdownRef, isOpen, { widthRem: 18 })
 
 // contactEntries holds the parsed menu rows; an empty list hides the header control.
 const contactEntries = computed(() => parseContactInfo(appStore.contactInfo))

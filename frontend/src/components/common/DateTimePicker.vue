@@ -659,7 +659,6 @@ const updateDropdownPosition = () => {
       maxWidth: dropdownWidth.value,
       maxHeightRatio: 0.85,
       align: triggerCenter > window.innerWidth / 2 ? 'right' : 'left',
-      pinLeftOnMobile: false,
     },
   )
 }

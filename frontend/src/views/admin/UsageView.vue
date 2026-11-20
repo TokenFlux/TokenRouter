@@ -137,7 +137,8 @@
                 <div
                   v-if="showColumnDropdown"
                   :inert="!showColumnDropdown || undefined"
-                  class="dropdown right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto"
+                  class="dropdown top-full z-50 mt-1 max-h-80 overflow-y-auto"
+                  :style="columnPanelStyle"
                 >
                   <button
                     v-for="col in currentToggleableColumns"
@@ -279,6 +280,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useUsageExportIndicator } from '@/composables/useUsageExportIndicator'
 import { requestTypeToLegacyStream } from '@/utils/usageRequestType'
@@ -1304,10 +1306,13 @@ const openError = (id: number) => {
   showErrorModal.value = true
 }
 
-// Column menu state owns the dropdown visibility and container used to recognize clicks
-// outside its controls.
+// Column menu state owns the dropdown visibility, container for outside-click dismissal,
+// and viewport-clamped horizontal style.
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 12,
+})
 
 // handleColumnClickOutside closes the column menu when a document click lands outside its
 // container. A missing container leaves visibility untouched, allowing the handler to run

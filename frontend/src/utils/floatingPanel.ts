@@ -1,11 +1,10 @@
-import { BREAKPOINT_MD } from '@/constants/layout'
 import { MIN_COMFORTABLE_PANEL_HEIGHT } from '@/constants/overlay'
 
 /**
  * floatingPanel.ts calculates viewport coordinates for panels mounted outside
  * their trigger layout. Width and horizontal alignment account for viewport
- * padding, optional trigger sizing, and mobile pinning before the vertical
- * placement decision.
+ * padding and optional trigger sizing, clamping every viewport width into the
+ * padded bounds before the vertical placement decision.
  *
  * Flexible-height panels compare usable space above and below against a
  * comfortable-height threshold, then cap their height to the chosen side.
@@ -49,7 +48,6 @@ export interface FloatingPanelOptions {
   gap?: number // trigger gap pixels
   maxWidth?: number // preferred width pixels
   maxHeightRatio?: number // viewport height fraction
-  mobileBreakpoint?: number // mobile width threshold
   minComfortableHeight?: number // preferred minimum pixels
 
   /**
@@ -60,15 +58,9 @@ export interface FloatingPanelOptions {
 
   /**
    * Selects left or right trigger alignment; trigger-width matching also selects
-   * left alignment before mobile pinning.
+   * left alignment before viewport clamping.
    */
   align?: 'left' | 'right'
-
-  /**
-   * Defaults to true on narrow viewports; false preserves trigger alignment for
-   * fixed-width action menus.
-   */
-  pinLeftOnMobile?: boolean
 
   /**
    * When present, preserves this height and chooses a top anchor, without
@@ -79,8 +71,9 @@ export interface FloatingPanelOptions {
 
 /**
  * getFloatingPanelPosition calculates panel dimensions and viewport offsets
- * from trigger geometry and options. The default placement is right aligned
- * below the trigger, with narrow screens pinned to the padded left edge.
+ * from trigger geometry and options. The default placement aligns the panel's
+ * right edge with the trigger below it and clamps the horizontal coordinate
+ * within viewport padding on every screen width.
  *
  * Trigger-width matching also selects left alignment, and available viewport
  * width caps either width strategy. Fixed-height menus retain their height and
@@ -102,7 +95,6 @@ export const getFloatingPanelPosition = (
   const gap = options.gap ?? 8
   const maxWidth = options.maxWidth ?? 320
   const maxHeightRatio = options.maxHeightRatio ?? 0.7
-  const mobileBreakpoint = options.mobileBreakpoint ?? BREAKPOINT_MD
   const minComfortableHeight = options.minComfortableHeight ?? MIN_COMFORTABLE_PANEL_HEIGHT
 
   const availableWidth = Math.max(0, viewportWidth - viewportPadding * 2)
@@ -113,10 +105,7 @@ export const getFloatingPanelPosition = (
 
   const leftAligned = (options.matchTriggerWidth && triggerRect.width) || options.align === 'left'
   const rawLeft = leftAligned ? (triggerRect.left ?? viewportPadding) : triggerRect.right - width
-  const pinLeft = viewportWidth < mobileBreakpoint && (options.pinLeftOnMobile ?? true)
-  const left = pinLeft
-    ? viewportPadding
-    : Math.max(viewportPadding, Math.min(rawLeft, viewportWidth - width - viewportPadding))
+  const left = Math.max(viewportPadding, Math.min(rawLeft, viewportWidth - width - viewportPadding))
 
   /**
    * Fixed-height menus keep their requested height when moved above the trigger;

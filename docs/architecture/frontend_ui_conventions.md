@@ -144,7 +144,7 @@
 | 常规遮罩 | `--overlay-bg` | 浅色 `black/50`，深色 `black/70`；模板写 `bg-[var(--overlay-bg)]`，拦截 `bg-black/50` 字面值 |
 | 强遮罩 | `--overlay-bg-strong` | 浅色 `black/70`，深色 `black/85`（用于媒体灯箱等） |
 | 浮层最大高度 | `max-h-menu-sm` / `max-h-menu` / `max-h-panel` | 对应 `:root` 的 `15rem` / `20rem` / `26.25rem`；拦截 `max-h-[Npx]`（特例加 `check-ui-allow`），不拦截 `vh`/`dvh`/`calc` |
-| 浮层定位 | `utils/floatingPanel.ts` (`getFloatingPanelPosition`) | 挂载到 `body` 的浮层唯一实现，通过 `fixedHeight`、`align: 'left'`、`pinLeftOnMobile: false` 控制；JS 高度常量见 `constants/overlay.ts`（`SELECT_PANEL_MAX_HEIGHT`、`MIN_COMFORTABLE_PANEL_HEIGHT`） |
+| 浮层定位 | `utils/floatingPanel.ts` (`getFloatingPanelPosition`)、`composables/useAnchoredPanel.ts` | 浮层定位统一由 `getFloatingPanelPosition` 按触发器对齐并在各断点视口边距内夹取，通过 `fixedHeight`、`align: 'left'` 控制；相对定位下拉菜单用 `useAnchoredPanel` 复用该计算并响应窗口缩放；JS 高度常量见 `constants/overlay.ts`（`SELECT_PANEL_MAX_HEIGHT`、`MIN_COMFORTABLE_PANEL_HEIGHT`） |
 
 ### 日期与日期时间选择器
 

@@ -35,6 +35,49 @@ describe('getFloatingPanelPosition', () => {
   })
 
   /**
+   * A trigger sits near the right side of a narrow viewport. Right alignment
+   * must keep the panel flush with the trigger instead of drifting to the left
+   * viewport margin.
+   */
+  it('移动端靠右按钮保持与触发器右缘对齐而非飘移到左侧', () => {
+    const position = getFloatingPanelPosition(
+      { top: 160, left: 341, right: 377, bottom: 200 },
+      393,
+      844,
+    )
+
+    expect(position).toMatchObject({
+      top: 208,
+      bottom: null,
+      left: 57,
+      width: 320,
+    })
+    expect(position.left + position.width).toBe(377)
+  })
+
+  /**
+   * A left-aligned panel opens from a right-edge mobile trigger narrower than
+   * the viewport. Horizontal clamping must pull the panel inward only enough to
+   * preserve right viewport padding rather than pinning it to the left edge.
+   */
+  it('移动端左对齐浮层从右侧按钮展开时右缘贴齐按钮', () => {
+    const position = getFloatingPanelPosition(
+      { top: 120, left: 428, right: 464, bottom: 156 },
+      480,
+      844,
+      { maxWidth: 288, align: 'left', viewportPadding: 16 },
+    )
+
+    expect(position).toMatchObject({
+      top: 164,
+      bottom: null,
+      left: 176,
+      width: 288,
+    })
+    expect(position.left + position.width).toBe(464)
+  })
+
+  /**
    * A desktop trigger has room for the default panel below it. The panel width
    * and left coordinate must align its right edge with the trigger.
    */
@@ -213,7 +256,6 @@ describe('手写翻转站点迁移对照', () => {
       fixedHeight: 142,
       viewportPadding: 8,
       gap: 4,
-      pinLeftOnMobile: false,
     })
     expect(position.top).toBe(legacy.top)
     expect(position.left).toBe(legacy.left)
@@ -239,7 +281,6 @@ describe('手写翻转站点迁移对照', () => {
           fixedHeight: height,
           viewportPadding: 8,
           gap: 4,
-          pinLeftOnMobile: false,
         })
         expect(position.top).toBe(legacy.top)
         expect(position.left).toBe(legacy.left)
@@ -301,7 +342,6 @@ describe('手写翻转站点迁移对照', () => {
         gap: 4,
         maxHeightRatio: 1,
         minComfortableHeight: 272,
-        pinLeftOnMobile: false,
       })
 
       expect(position.left).toBe(Math.max(8, legacy.left))

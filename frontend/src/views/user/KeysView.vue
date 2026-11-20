@@ -63,7 +63,8 @@
                   <div
                     v-if="showColumnDropdown"
                     :inert="!showColumnDropdown || undefined"
-                    class="dropdown right-0 top-full z-50 mt-2 max-h-menu w-52 overflow-y-auto p-2"
+                    class="dropdown top-full z-50 mt-2 max-h-menu overflow-y-auto p-2"
+                    :style="columnPanelStyle"
                   >
                     <button
                       v-for="column in toggleableColumns"
@@ -1456,6 +1457,7 @@
 </template>
 
 <script setup lang="ts">
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useLocaleRefresh } from '@/composables/useLocaleRefresh'
 import Skeleton from '@/components/common/Skeleton.vue'
 import MotionTransition from '@/components/common/MotionTransition.vue'
@@ -1734,6 +1736,10 @@ const publicSettings = ref<PublicSettings | null>(null)
 const teamFeatureEnabled = computed(() => publicSettings.value?.team_enabled !== false)
 const groupSelectorDropdownRef = ref<InstanceType<typeof KeyGroupSelectorDropdown> | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+// columnPanelStyle keeps the thirteen-rem column menu inside viewport margins on narrow toolbars.
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 13,
+})
 const dropdownPosition = ref<{
   // top measures pixels from the viewport top; upward placement omits this
   // anchor and uses bottom to position the panel.
@@ -2558,7 +2564,6 @@ const openKeyActionMenu = (key: ApiKey, event: MouseEvent) => {
     fixedHeight: publicSettings.value?.hide_ccs_import_button ? 178 : 218,
     viewportPadding: 8,
     gap: 4,
-    pinLeftOnMobile: false,
   })
   // Fixed-height positioning supplies a top coordinate for the teleported menu.
   actionMenuPosition.value = { top: position.top ?? 8, left: position.left }

@@ -49,7 +49,8 @@
                 <div
                   v-if="showColumnDropdown"
                   :inert="!showColumnDropdown || undefined"
-                  class="dropdown right-0 top-full z-50 mt-1 max-h-menu w-48 overflow-y-auto"
+                  class="dropdown top-full z-50 mt-1 max-h-menu overflow-y-auto"
+                  :style="columnPanelStyle"
                 >
                   <button
                     v-for="col in toggleableColumns"
@@ -397,6 +398,7 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { loadProtocolCatalog } from '@/api/admin/protocolCapabilities'
 import type { AdminGroup } from '@/api/groups.types'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { usePersistedTableColumns } from '@/composables/usePersistedTableColumns'
@@ -471,6 +473,10 @@ const toggleableColumns = computed(() =>
 )
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+// columnPanelStyle clamps the twelve-rem column menu inside viewport padding on narrow screens.
+const { panelStyle: columnPanelStyle } = useAnchoredPanel(columnDropdownRef, showColumnDropdown, {
+  widthRem: 12,
+})
 
 // getValidHiddenColumnKeys returns the set of columns the administrator may hide.
 const getValidHiddenColumnKeys = () => new Set(toggleableColumns.value.map((col) => col.key))
@@ -618,7 +624,6 @@ const openGroupActionMenu = (group: AdminGroup, event: MouseEvent) => {
     fixedHeight: 162,
     viewportPadding: 8,
     gap: 4,
-    pinLeftOnMobile: false,
   })
   actionMenuPosition.value = { top: position.top ?? 8, left: position.left }
   actionMenuGroup.value = group

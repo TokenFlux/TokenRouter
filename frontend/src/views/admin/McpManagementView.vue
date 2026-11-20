@@ -886,7 +886,6 @@ function openActionMenu(token: MCPToken, event: MouseEvent) {
       fixedHeight: token.revoked_at ? 48 : 97,
       viewportPadding: 8,
       gap: 4,
-      pinLeftOnMobile: false,
     },
   )
   actionPosition.value = { top: position.top ?? 8, left: position.left }

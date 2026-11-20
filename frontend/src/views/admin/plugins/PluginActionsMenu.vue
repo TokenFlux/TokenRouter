@@ -58,7 +58,7 @@ function reposition(): void {
     trigger.value.getBoundingClientRect(),
     window.innerWidth,
     window.innerHeight,
-    { maxWidth: 208, pinLeftOnMobile: false, align: 'right' },
+    { maxWidth: 208, align: 'right' },
   )
 }
 

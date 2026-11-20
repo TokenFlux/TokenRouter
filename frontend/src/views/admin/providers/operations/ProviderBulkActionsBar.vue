@@ -228,7 +228,7 @@ const toggleMoreMenu = () => {
     moreButtonRef.value.getBoundingClientRect(),
     window.innerWidth,
     window.innerHeight,
-    { maxWidth: MORE_MENU_WIDTH, fixedHeight: MORE_MENU_HEIGHT, pinLeftOnMobile: false },
+    { maxWidth: MORE_MENU_WIDTH, fixedHeight: MORE_MENU_HEIGHT },
   )
   moreMenuOpen.value = true
 }

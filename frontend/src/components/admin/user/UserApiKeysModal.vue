@@ -319,7 +319,6 @@ const openGroupSelector = (key: ApiKey) => {
         gap: 4, // Trigger spacing in pixels.
         maxHeightRatio: 1, // Allowed viewport-height fraction.
         minComfortableHeight: 256 + 16, // Preferred height in pixels.
-        pinLeftOnMobile: false, // Mobile left-pinning flag.
       })
       dropdownPosition.value = {
         top: position.top ?? undefined, // Viewport top offset in pixels.

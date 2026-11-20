@@ -19,7 +19,8 @@
       <div
         v-if="open"
         :inert="!open || undefined"
-        class="dropdown right-0 top-full z-50 mt-2 w-48 p-2"
+        class="dropdown top-full z-50 mt-2 p-2"
+        :style="panelStyle"
         role="menu"
         data-test="scope-dropdown-menu"
       >
@@ -54,6 +55,7 @@ import MotionTransition from '@/components/common/MotionTransition.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { IconName } from '@/components/icons/registry'
+import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 
 // ScopeSelector.vue renders an icon dropdown for list scopes in the toolbar.
 // Desktop triggers show the current label, while narrow screens retain the icon
@@ -77,9 +79,11 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void // Newly selected list scope.
 }>()
 
-// Menu visibility and the root element belong to this mounted selector.
+// Menu visibility, the root element, and clamped horizontal placement belong to this
+// mounted selector.
 const open = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
+const { panelStyle } = useAnchoredPanel(dropdownRef, open, { widthRem: 12 })
 const scope = computed(() => props.modelValue)
 const currentOption = computed(() => props.options.find((option) => option.value === scope.value))
 const currentLabel = computed(() => currentOption.value?.label ?? '')
