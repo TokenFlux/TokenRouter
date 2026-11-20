@@ -77,11 +77,12 @@ func (p *OpenAIResponseOutput) BindResponseProvider(ctx context.Context, c *gin.
 // configuration after the reader has rejected the upstream representation.
 // Empty messages use the standard invalid-response explanation.
 //
-// The output format depends on prior Compact heartbeat commitment. Stopping a
-// committed Compact stream permits a response.failed terminal event under its
-// existing HTTP status; otherwise filtered upstream headers precede a JSON 502
-// envelope. The returned error retains the same diagnostic message for
-// execution logging.
+// The output format depends on prior Compact or downstream SSE heartbeat
+// commitment. Stopping a committed Compact stream emits a response.failed event
+// under its existing HTTP status, and another committed SSE stream uses
+// StreamError without mutating headers; otherwise filtered upstream headers
+// precede a JSON 502 envelope. The returned error retains the same diagnostic
+// message for execution logging.
 func (p *OpenAIResponseOutput) ProtocolError(resp *http.Response, c *gin.Context, message string) error {
 	message = logredact.SanitizeUpstreamQueries(strings.TrimSpace(message))
 	if message == "" {
@@ -92,6 +93,10 @@ func (p *OpenAIResponseOutput) ProtocolError(resp *http.Response, c *gin.Context
 	// stream needs a terminal Responses event because its HTTP status is already sent.
 	if OpenAICompactClientWantsStream(c) && StopOpenAICompactSSEKeepaliveCommitted(c) {
 		WriteOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", message, MarkOpsStreamError)
+		return fmt.Errorf("non-streaming openai protocol error: %s", message)
+	}
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, http.StatusBadGateway, "upstream_error", message, true)
 		return fmt.Errorf("non-streaming openai protocol error: %s", message)
 	}
 	egressadapter.WriteFilteredHeaders(c.Writer.Header(), resp.Header, p.Headers)

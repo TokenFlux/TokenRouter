@@ -108,8 +108,11 @@ func WriteResponsesFailedSSE(c *gin.Context, errType, code, message, requestID, 
 //
 // Setting Terminal on ResponseSink serializes the write and flush against
 // DownstreamSSEKeepalive and stops further idle beats atomically upon accepted
-// delivery. Delivery errors are attached to Gin and still return true because a
-// committed event stream cannot revert to a plain JSON status response.
+// delivery. Recording localTerminalSSEWrittenKey before emission also lets
+// TerminalSSEDelivered suppress duplicate fallback errors when keepalive
+// middleware is absent or the client write fails. Delivery errors are attached
+// to Gin and still return true because a committed event stream cannot revert
+// to a plain JSON status response.
 func emitLocalTerminalSSE(c *gin.Context, data []byte) bool {
 	if c == nil || c.Writer == nil {
 		return false
@@ -117,6 +120,7 @@ func emitLocalTerminalSSE(c *gin.Context, data []byte) bool {
 	if _, ok := c.Writer.(http.Flusher); !ok {
 		return false
 	}
+	c.Set(localTerminalSSEWrittenKey, true)
 	// Clear timing so local gateway errors never attribute upstream TTFT while
 	// still passing through Ops capture and the terminal keepalive barrier.
 	sink := NewResponseSink(c)

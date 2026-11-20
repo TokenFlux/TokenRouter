@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +40,15 @@ type keepaliveDelayedBody struct {
 	io.Reader         // remaining upstream payload bytes
 	beforeRead func() // first-read wait assertion
 }
+
+// failingSSEWriter simulates a client disconnect error while keeping http.Flusher.
+type failingSSEWriter struct {
+	gin.ResponseWriter       // embedded recorder response writer
+	err                error // error returned by every Write call
+}
+
+// Write returns the configured write failure without writing bytes to the client.
+func (w *failingSSEWriter) Write([]byte) (int, error) { return 0, w.err }
 
 // RoundTrip runs the fixture's synchronous transport without opening a network connection.
 func (f keepaliveTestTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -858,6 +868,84 @@ func TestDownstreamSSEKeepaliveHeaderWaitDirectHTTPErrorsEmitSSE(t *testing.T) {
 				_ = (&OpenAIRequests{}).EnforceClient(c.Request.Context(), c, codexProvider, nil, egress.TLSFingerprintRouterMatchResult{})
 			},
 		},
+		{
+			name:      "openAIMessagesExecutionAdapter.Error",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusForbidden,
+			emit: func(c *gin.Context) {
+				(&openAIMessagesExecutionAdapter{c: c}).Error(http.StatusForbidden, "forbidden_error", "reasoning limit exceeded")
+				require.True(t, IsResponseCommitted(c))
+			},
+		},
+		{
+			name:      "WriteGrokForwardInvalidRequest responses",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteGrokForwardInvalidRequest(c, "unsupported tool", "tools")
+				require.True(t, IsResponseCommitted(c))
+			},
+		},
+		{
+			name:      "WriteGrokForwardInvalidRequest messages",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteGrokForwardInvalidRequest(c, "unsupported tool", "tools")
+				require.True(t, IsResponseCommitted(c))
+			},
+		},
+		{
+			name:      "OpenAIResponseOutput.ProtocolError",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				resp := &http.Response{Header: http.Header{"Content-Type": []string{"application/json"}}}
+				_ = (&OpenAIResponseOutput{}).ProtocolError(resp, c, "malformed upstream payload")
+			},
+		},
+		{
+			name:      "CyberHandler.RejectSession anthropic",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusForbidden,
+			emit: func(c *gin.Context) {
+				p := &cyberTestPorts{enabled: true, scope: true, found: "blocked"}
+				require.True(t, newCyberTest(p).RejectSession(c, prefaceKey(), nil, "claude-sonnet-4-5", CyberBlockAnthropic))
+			},
+		},
+		{
+			name:      "CyberHandler.RejectSession responses",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusForbidden,
+			emit: func(c *gin.Context) {
+				p := &cyberTestPorts{enabled: true, scope: true, found: "blocked"}
+				require.True(t, newCyberTest(p).RejectSession(c, prefaceKey(), nil, "gpt-5.4", CyberBlockResponses))
+			},
+		},
+		{
+			name:      "UnifiedTextExecutor.prepareNativeMessages parse error",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				_, _, _, err := (&UnifiedTextExecutor{}).prepareNativeMessages(c, provider, []byte("{bad-json"))
+				require.Error(t, err)
+				require.True(t, IsResponseCommitted(c))
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -882,4 +970,50 @@ func TestDownstreamSSEKeepaliveHeaderWaitDirectHTTPErrorsEmitSSE(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestTerminalSSEDeliveredWithoutKeepaliveMiddlewareSuppressesDuplicateFallback
+// commits SSE without DownstreamSSEKeepalive and also exercises a failing client
+// write. Local terminal SSE emission must set TerminalSSEDelivered so outer
+// fallback helpers never append a second generic error frame.
+func TestTerminalSSEDeliveredWithoutKeepaliveMiddlewareSuppressesDuplicateFallback(t *testing.T) {
+	t.Run("queue heartbeat without keepalive middleware", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		req := httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = req.WithContext(requeststate.WithClientProtocol(req.Context(), protocol.ProtocolAnthropicMessages))
+		c.Header("Content-Type", "text/event-stream")
+		n, err := c.Writer.WriteString("event: ping\ndata: {\"type\": \"ping\"}\n\n")
+		require.NoError(t, err)
+		RecordStreamHeartbeat(c, n)
+		c.Writer.Flush()
+
+		require.True(t, CommittedSSE(c))
+		require.False(t, TerminalSSEDelivered(c))
+
+		WriteForwardFastPolicyBlocked(c, "fast tier denied", func(*gin.Context) bool { return false }, func(*gin.Context, int, string, string) {})
+
+		require.True(t, TerminalSSEDelivered(c))
+		require.False(t, DefaultOpenAIErrorOutput().EnsureFallback(c, true))
+		require.False(t, (MessagesErrorOutput{}).EnsureResponse(c, true))
+		require.Equal(t, 1, strings.Count(rec.Body.String(), "event: error\n"))
+		assertKeepaliveSSEBodyValid(t, rec.Body.String())
+	})
+
+	t.Run("failed terminal client write still deduplicates fallback", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+		c.Header("Content-Type", "text/event-stream")
+		_, err := c.Writer.WriteString(": keepalive\n\n")
+		require.NoError(t, err)
+		c.Writer.Flush()
+		c.Writer = &failingSSEWriter{ResponseWriter: c.Writer, err: errors.New("broken pipe")}
+
+		DefaultOpenAIErrorOutput().StreamError(c, http.StatusBadGateway, "upstream_error", "upstream failed", false)
+
+		require.True(t, TerminalSSEDelivered(c))
+		require.NotEmpty(t, c.Errors)
+		require.False(t, DefaultOpenAIErrorOutput().EnsureFallback(c, true))
+	})
 }

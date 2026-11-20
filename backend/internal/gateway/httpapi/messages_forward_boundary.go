@@ -184,16 +184,18 @@ func (b *MessageForwardBoundary) GenericError() {
 	WriteForwardMessageGenericError(b.context, b.Commit)
 }
 
-// MessageError writes the supplied Anthropic JSON error through this request.
-// It does not mark semantic commitment; runtime callers coordinate that marker
-// and any already-started stream before choosing this plain response.
+// MessageError writes the supplied Anthropic error through this request, using
+// JSON before stream commitment or an Anthropic SSE error frame when
+// event-stream framing is already committed. It does not mark semantic
+// commitment; runtime callers coordinate that marker separately.
 func (b *MessageForwardBoundary) MessageError(status int, kind, message string) {
 	(AnthropicForwardErrorOutput{Context: b.context}).Message(status, kind, message)
 }
 
-// RawError writes supplied bytes as application/json with the selected status.
-// It does not validate the bytes or mark semantic commitment; runtime callers
-// own stream handling and the commit decision.
+// RawError writes supplied bytes as application/json with the selected status,
+// or extracts safe error fields into an Anthropic SSE error frame when
+// event-stream framing is already committed. Uncommitted bytes pass through
+// unvalidated, and runtime callers own the semantic commit marker.
 func (b *MessageForwardBoundary) RawError(status int, body []byte) {
 	(AnthropicForwardErrorOutput{Context: b.context}).Raw(status, body)
 }

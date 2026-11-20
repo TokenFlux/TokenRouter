@@ -62,8 +62,9 @@ func (s *AntigravityOutput) ClaudeError(status int, errType, message string) err
 // A matching response rule determines status, type and message. Otherwise HTTP
 // status selects platform defaults; bad requests use Antigravity's safe
 // passthrough selector, while authentication, permission and other failures
-// use their respective messages. The returned error keeps the upstream status
-// and sanitized diagnostic message after presentation for the request owner.
+// use their respective messages. Committed event streams emit a terminal
+// Anthropic SSE error frame instead of JSON, and the returned error keeps the
+// upstream status and sanitized diagnostic message for the request owner.
 func (s *AntigravityOutput) MappedClaudeError(provider *gatewayprovider.ExecutionProvider, upstreamStatus int, upstreamRequestID string, body []byte) error {
 	c := s.Context
 

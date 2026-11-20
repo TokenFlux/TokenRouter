@@ -48,10 +48,16 @@ type grokForwardAdapter struct {
 	token, proxyURL string // token: provider credential; proxyURL: selected egress URL
 }
 
-// WriteGrokForwardInvalidRequest presents a rejected endpoint model or tool
-// parameter as OpenAI JSON. The caller supplies the offending param name, and
-// this helper writes HTTP 400 before any upstream exchange.
+// WriteGrokForwardInvalidRequest marks semantic commitment and presents a
+// rejected endpoint model or tool parameter as OpenAI JSON. When event-stream
+// framing is already committed after an earlier attempt's heartbeat, it emits a
+// terminal protocol SSE error frame instead of appending raw JSON.
 func WriteGrokForwardInvalidRequest(c *gin.Context, message, param string) {
+	MarkResponseCommitted(c)
+	if CommittedSSE(c) {
+		writeCommittedClientSSEError(c, http.StatusBadRequest, "invalid_request_error", "", message)
+		return
+	}
 	c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": message, "param": param}})
 }
 

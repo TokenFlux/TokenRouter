@@ -37,6 +37,10 @@ const (
 	// sseKeepaliveWriterKey retains the downstream writer for snapshots and byte
 	// accounting after outer wrappers replace the request's current response writer.
 	sseKeepaliveWriterKey = "downstream_sse_keepalive_writer"
+	// localTerminalSSEWrittenKey records that emitLocalTerminalSSE attempted a
+	// terminal error frame, allowing TerminalSSEDelivered to deduplicate fallback
+	// output even when DownstreamSSEKeepalive is disabled or a write fails.
+	localTerminalSSEWrittenKey = "gateway_local_terminal_sse_written"
 	// sseKeepaliveFrameLimit bounds metadata inspection without buffering response
 	// delivery; larger frames still retain their byte-level boundary tracking.
 	sseKeepaliveFrameLimit = 4096
@@ -114,13 +118,17 @@ func CommittedSSE(c *gin.Context) bool {
 	return status >= 200 && status < 300 && strings.Contains(strings.ToLower(c.Writer.Header().Get("Content-Type")), "text/event-stream")
 }
 
-// TerminalSSEDelivered reports whether the installed downstream SSE keepalive
-// writer has already accepted a terminal event frame. Missing contexts or
-// routes without that writer return false, allowing fallback error handlers to
-// suppress duplicate terminal events only when delivery was observed.
+// TerminalSSEDelivered reports whether this request has already emitted a
+// local terminal SSE error frame or accepted a terminal event through the
+// downstream SSE keepalive writer. Missing contexts return false; fallback
+// error handlers use this predicate to suppress duplicate terminal frames even
+// when DownstreamSSEKeepalive is absent or a terminal client write failed.
 func TerminalSSEDelivered(c *gin.Context) bool {
 	if c == nil {
 		return false
+	}
+	if c.GetBool(localTerminalSSEWrittenKey) {
+		return true
 	}
 	value, ok := c.Get(sseKeepaliveWriterKey)
 	if !ok {

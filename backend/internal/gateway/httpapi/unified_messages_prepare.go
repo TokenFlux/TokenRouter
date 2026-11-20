@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -92,7 +93,8 @@ func (e *UnifiedTextExecutor) prepareNativeMessages(c *gin.Context, target *gate
 		parsed, err = requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), "anthropic")
 	}
 	if err != nil {
-		WriteAnthropicError(c, 400, "invalid_request_error", "", "Failed to parse request body")
+		MarkResponseCommitted(c)
+		WriteAnthropicStreamError(c, http.StatusBadRequest, "invalid_request_error", "", "Failed to parse request body", CommittedSSE(c), MarkOpsStreamError)
 		return nil, nil, false, err
 	}
 	key, ok := EffectiveAPIKey(c)

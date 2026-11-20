@@ -131,11 +131,13 @@ func (h *CyberHandler) GroupInScope(c *gin.Context, key *apikey.APIKey) bool {
 // Missing dependencies, disabled runtime, absent group scope, or no matching key
 // returns false, allowing the caller's ordinary request preparation to continue.
 //
-// A found block stops heartbeats before choosing output. Started heartbeat
-// framing first attempts a Responses failure event with intended forbidden
-// status; an unclaimed event path proceeds to the requested local JSON shape.
-// Dedicated Ops submission follows either claimed rejection path. True reports
-// handling of that block response, leaving further forwarding to the caller to stop.
+// A found block stops heartbeats before choosing output. Started Compact
+// heartbeat framing first attempts a Responses failure event with intended
+// forbidden status; another already committed event stream emits a terminal SSE
+// error in the requested client format, while an uncommitted writer receives
+// the local JSON shape. Dedicated Ops submission follows every claimed
+// rejection path. True reports handling of that block response, leaving further
+// forwarding to the caller to stop.
 func (h *CyberHandler) RejectSession(c *gin.Context, key *apikey.APIKey, body []byte, model string, format CyberBlockFormat) bool {
 	if h == nil || !h.backend.Available() || key == nil || c == nil {
 		return false
@@ -156,6 +158,15 @@ func (h *CyberHandler) RejectSession(c *gin.Context, key *apikey.APIKey, body []
 			h.EnqueueBlocked(c, key, model, blockKey)
 			return true
 		}
+	}
+	if CommittedSSE(c) {
+		if format == CyberBlockAnthropic {
+			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusForbidden, "permission_error", message, true)
+		} else {
+			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusForbidden, "permission_error", "session_blocked_by_cyber_policy", message, true, false)
+		}
+		h.EnqueueBlocked(c, key, model, blockKey)
+		return true
 	}
 	if format == CyberBlockAnthropic {
 		c.JSON(http.StatusForbidden, gin.H{"type": "error", "error": gin.H{"type": "permission_error", "message": message}})

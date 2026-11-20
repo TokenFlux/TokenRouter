@@ -444,7 +444,7 @@ func (b *responsesAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bo
 	// Replay may remain safe after headers were committed. Mark the stream
 	// before another attempt so exhausted recovery uses the protocol's
 	// streaming terminal error path.
-	if b.c.Writer.Written() {
+	if b.streamStarted != nil && b.c.Writer.Written() {
 		*b.streamStarted = true
 	}
 	if failoverErr.ShouldReportProviderScheduleFailure() {

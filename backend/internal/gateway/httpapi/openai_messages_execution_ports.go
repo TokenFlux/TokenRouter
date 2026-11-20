@@ -161,9 +161,16 @@ func (p *openAIMessagesExecutionAdapter) Dispatch(ctx context.Context, route ope
 	return openaiexecution.FromForwardResult(r), err
 }
 
-// Error writes the current request's rejection using the Anthropic error
-// helper.
+// Error marks semantic commitment and writes the current request's rejection in
+// Anthropic format. When event-stream framing is already committed, it emits a
+// terminal Anthropic SSE error event and records Ops stream status instead of
+// appending raw JSON.
 func (p *openAIMessagesExecutionAdapter) Error(status int, kind, message string) {
+	MarkResponseCommitted(p.c)
+	if CommittedSSE(p.c) {
+		DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(p.c, status, kind, message, true)
+		return
+	}
 	WriteAnthropicError(p.c, status, kind, "", message)
 }
 

@@ -136,9 +136,9 @@ func (s *GeminiOutput) GeminiNativeUpstreamError(provider *gatewayprovider.Execu
 // Without a rule, recognized Google status fields supply an error type and
 // selected status overrides. HTTP-status defaults fill the remaining fields;
 // HTTP 400 can expose the sanitized upstream message, while authentication and
-// permission failures use configured generic text. The returned error retains
-// diagnostic status and message for the caller even after response
-// presentation.
+// permission failures use configured generic text. Committed event streams
+// receive a terminal Anthropic SSE error frame instead of JSON, and the
+// returned error retains diagnostic status and message for the caller.
 func (s *GeminiOutput) GeminiMappedError(provider *gatewayprovider.ExecutionProvider, upstreamStatus int, upstreamRequestID string, body []byte) error {
 	c := s.Context
 
