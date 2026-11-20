@@ -199,13 +199,19 @@ func (p *OpenAIResponseOutput) ResponseError(
 			UpstreamStatus: resp.StatusCode,
 		})
 		SetOpsUpstreamError(c, resp.StatusCode, cyberMsg, logredact.TruncateUTF8(string(body), 2048))
-		WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
-		}
 		MarkResponseCommitted(c)
-		c.Data(resp.StatusCode, contentType, body)
+		if CommittedSSE(c) {
+			errType, bodyCode, message := extractSSEErrorFields(resp.StatusCode, body, "invalid_request_error", "Request blocked by upstream cyber-security policy")
+			if code == "" {
+				code = bodyCode
+			}
+			if trimmed := strings.TrimSpace(cyberMsg); trimmed != "" {
+				message = trimmed
+			}
+			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, resp.StatusCode, errType, code, message, true, false)
+		} else {
+			p.writePassthroughBody(c, resp, resp.StatusCode, body)
+		}
 		if cyberMsg == "" {
 			return nil, fmt.Errorf("openai cyber_policy: %d", resp.StatusCode)
 		}
@@ -217,14 +223,11 @@ func (p *OpenAIResponseOutput) ResponseError(
 		clientMsg := gatewayprovider.GrokContentPolicyClientMessage(body)
 		// Keep the Grok rejection excerpt bounded at complete UTF-8 characters.
 		SetOpsUpstreamError(c, resp.StatusCode, clientMsg, logredact.TruncateUTF8(string(body), 2048))
-		WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
 		MarkResponseCommitted(c)
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": gin.H{
-				"type":    "invalid_request_error",
-				"message": clientMsg,
-			},
-		})
+		if !CommittedSSE(c) {
+			WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
+		}
+		writeOpenAIResponseJSONOrSSE(c, http.StatusForbidden, "invalid_request_error", clientMsg)
 		return nil, fmt.Errorf("grok content policy rejection: %s", clientMsg)
 	}
 
@@ -266,12 +269,7 @@ func (p *OpenAIResponseOutput) ResponseError(
 			Message:            errMsg,
 			Detail:             upstreamDetail,
 		}, telemetry.RequestAttemptFromResponse(resp))
-		c.JSON(resp.StatusCode, gin.H{
-			"error": gin.H{
-				"type":    "invalid_request_error",
-				"message": errMsg,
-			},
-		})
+		writeOpenAIResponseJSONOrSSE(c, resp.StatusCode, "invalid_request_error", errMsg)
 		return nil, gatewayprovider.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, body, errMsg, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, errMsg))
 	}
 
@@ -286,13 +284,8 @@ func (p *OpenAIResponseOutput) ResponseError(
 			Message:            upstreamMsg,
 			Detail:             upstreamDetail,
 		}, telemetry.RequestAttemptFromResponse(resp))
-		WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
-		}
 		MarkResponseCommitted(c)
-		c.Data(resp.StatusCode, contentType, body)
+		p.writePassthroughBodyOrSSE(c, resp, resp.StatusCode, body, "invalid_request_error", "Request body too large")
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("upstream request body too large: %d", resp.StatusCode)
 		}
@@ -312,13 +305,8 @@ func (p *OpenAIResponseOutput) ResponseError(
 			Message:            upstreamMsg,
 			Detail:             upstreamDetail,
 		}, telemetry.RequestAttemptFromResponse(resp))
-		WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
-		}
 		MarkResponseCommitted(c)
-		c.Data(http.StatusBadRequest, contentType, body)
+		p.writePassthroughBodyOrSSE(c, resp, http.StatusBadRequest, body, "invalid_request_error", "Invalid request")
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("upstream invalid request: %d", resp.StatusCode)
 		}
@@ -353,12 +341,7 @@ func (p *OpenAIResponseOutput) ResponseError(
 			Detail:             upstreamDetail,
 		}, telemetry.RequestAttemptFromResponse(resp))
 		MarkResponseCommitted(c)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": gin.H{
-				"type":    "upstream_error",
-				"message": "Upstream gateway error",
-			},
-		})
+		writeOpenAIResponseJSONOrSSE(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
 		}
@@ -403,12 +386,7 @@ func (p *OpenAIResponseOutput) ResponseError(
 		"Upstream request failed",
 	); matched {
 		MarkResponseCommitted(c)
-		c.JSON(status, gin.H{
-			"error": gin.H{
-				"type":    errType,
-				"message": errMsg,
-			},
-		})
+		writeOpenAIResponseJSONOrSSE(c, status, errType, errMsg)
 		if upstreamMsg == "" {
 			upstreamMsg = errMsg
 		}
@@ -462,12 +440,7 @@ func (p *OpenAIResponseOutput) ResponseError(
 		errMsg = upstreamMsg
 	}
 
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"type":    errType,
-			"message": errMsg,
-		},
-	})
+	writeOpenAIResponseJSONOrSSE(c, statusCode, errType, errMsg)
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
@@ -702,4 +675,46 @@ func (p *OpenAIResponseOutput) ReadReplayableError(resp *http.Response) ([]byte,
 	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(respBody))
 	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 	return respBody, upstreamMsg
+}
+
+// writeOpenAIResponseJSONOrSSE writes an OpenAI JSON error envelope, or emits a
+// terminal SSE failure event when event-stream framing is already committed.
+// Callers retain semantic commitment marking before invoking this presentation
+// helper.
+func writeOpenAIResponseJSONOrSSE(c *gin.Context, status int, errType, message string) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, true)
+		return
+	}
+	c.JSON(status, gin.H{
+		"error": gin.H{
+			"type":    errType,
+			"message": message,
+		},
+	})
+}
+
+// writePassthroughBody copies filtered passthrough response headers and writes
+// captured upstream bytes. Callers supply an uncommitted Gin writer and
+// response; an empty upstream Content-Type defaults to application/json.
+func (p *OpenAIResponseOutput) writePassthroughBody(c *gin.Context, resp *http.Response, status int, body []byte) {
+	WriteOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, p.Headers)
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	c.Data(status, contentType, body)
+}
+
+// writePassthroughBodyOrSSE writes captured upstream bytes with passthrough
+// headers on uncommitted responses. When event-stream framing is already
+// committed, it extracts safe error fields and emits a terminal SSE failure
+// event instead of mutating headers or appending raw JSON.
+func (p *OpenAIResponseOutput) writePassthroughBodyOrSSE(c *gin.Context, resp *http.Response, status int, body []byte, defaultType, defaultMsg string) {
+	if CommittedSSE(c) {
+		errType, code, message := extractSSEErrorFields(status, body, defaultType, defaultMsg)
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, errType, code, message, true, false)
+		return
+	}
+	p.writePassthroughBody(c, resp, status, body)
 }

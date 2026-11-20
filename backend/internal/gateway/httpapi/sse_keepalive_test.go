@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -480,4 +482,404 @@ func TestDownstreamSSEKeepaliveHandlerActivity(t *testing.T) {
 		require.Equal(t, before, StreamHeartbeatBytes(c))
 		require.Equal(t, 3, strings.Count(readKeepaliveBody(t, c, rec), `"active"`))
 	})
+}
+
+// runSSEKeepalivePathTest executes handle under TextRequestTiming and
+// DownstreamSSEKeepalive on the specified endpoint path inside synctest.
+// Callers use it when route path matching selects protocol-specific SSE error
+// envelopes such as Responses response.failed versus generic event: error.
+func runSSEKeepalivePathTest(t *testing.T, path string, p protocol.ProtocolID, handle func(*testing.T, *gin.Context, *httptest.ResponseRecorder)) {
+	t.Helper()
+	synctest.Test(t, func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		engine := gin.New()
+		engine.POST(path, TextRequestTiming(), DownstreamSSEKeepalive(10*time.Millisecond, 0), func(c *gin.Context) {
+			c.Request = c.Request.WithContext(requeststate.WithClientProtocol(c.Request.Context(), p))
+			timing.StagesFromContext(c.Request.Context()).SetStream(true)
+			handle(t, c, rec)
+		})
+		engine.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
+	})
+}
+
+// commitHeaderWaitHeartbeat opens the header-wait window and advances the
+// synctest clock until DownstreamSSEKeepalive commits HTTP 200 text/event-stream
+// and flushes at least one idle heartbeat frame.
+func commitHeaderWaitHeartbeat(t *testing.T, c *gin.Context) {
+	t.Helper()
+	w, ok := c.Writer.(*sseKeepaliveWriter)
+	require.True(t, ok)
+	require.False(t, CommittedSSE(c))
+	require.False(t, TerminalSSEDelivered(c))
+	w.openHeaderWait(c.Request.Context())
+	time.Sleep(15 * time.Millisecond)
+	synctest.Wait()
+	require.True(t, CommittedSSE(c))
+	require.False(t, TerminalSSEDelivered(c))
+	require.Positive(t, StreamHeartbeatBytes(c))
+}
+
+// assertKeepaliveSSEBodyValid verifies that every non-blank line in body is
+// valid SSE syntax with parseable JSON payloads, catching trailing raw JSON.
+func assertKeepaliveSSEBodyValid(t *testing.T, body string) {
+	t.Helper()
+	for line := range strings.SplitSeq(body, "\n") {
+		if line == "" || strings.HasPrefix(line, ":") || strings.HasPrefix(line, "event: ") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(line, "data: "), "expected SSE framing, found raw line %q in %q", line, body)
+		payload := strings.TrimPrefix(line, "data: ")
+		require.True(t, json.Valid([]byte(payload)), "SSE data line must hold valid JSON: %q", payload)
+	}
+}
+
+// TestDownstreamSSEKeepaliveHeaderWaitErrorStopsBeats lets header-wait
+// heartbeats commit HTTP 200 text/event-stream, then emits terminal errors with
+// streamStarted false. Each shared error writer must emit valid protocol SSE,
+// mark OpsStreamError, and stop subsequent idle beats atomically.
+func TestDownstreamSSEKeepaliveHeaderWaitErrorStopsBeats(t *testing.T) {
+	cases := []struct {
+		name      string              // error writer scenario label
+		path      string              // client request endpoint
+		proto     protocol.ProtocolID // client wire protocol
+		wantToken string              // expected terminal SSE marker
+		emit      func(*gin.Context)  // terminal error emitter
+	}{
+		{
+			name:      "anthropic streaming error",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			emit: func(c *gin.Context) {
+				DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusBadGateway, "upstream_error", "Upstream gateway error", false)
+			},
+		},
+		{
+			name:      "anthropic legacy stream error",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			emit: func(c *gin.Context) {
+				WriteAnthropicStreamError(c, http.StatusBadGateway, "upstream_error", "", "Upstream gateway error", false, MarkOpsStreamError)
+			},
+		},
+		{
+			name:      "chat streaming error",
+			path:      EndpointChatCompletions,
+			proto:     protocol.ProtocolOpenAIChatCompletions,
+			wantToken: "event: error\n",
+			emit: func(c *gin.Context) {
+				DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusBadGateway, "upstream_error", "", "Upstream gateway error", false, false)
+			},
+		},
+		{
+			name:      "responses streaming error",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			emit: func(c *gin.Context) {
+				DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusBadGateway, "upstream_error", "", "Upstream gateway error", false, false)
+			},
+		},
+		{
+			name:      "responses WriteError fallback",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			emit: func(c *gin.Context) {
+				DefaultOpenAIErrorOutput().WriteError(c, http.StatusBadGateway, "upstream_error", "Upstream gateway error")
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runSSEKeepalivePathTest(t, tc.path, tc.proto, func(t *testing.T, c *gin.Context, rec *httptest.ResponseRecorder) {
+				commitHeaderWaitHeartbeat(t, c)
+				tc.emit(c)
+
+				require.True(t, TerminalSSEDelivered(c))
+				beatsAfterTerminal := StreamHeartbeatBytes(c)
+				time.Sleep(40 * time.Millisecond)
+				synctest.Wait()
+				require.Equal(t, beatsAfterTerminal, StreamHeartbeatBytes(c), "terminal SSE error must stop subsequent keepalives")
+
+				body := readKeepaliveBody(t, c, rec)
+				require.Equal(t, http.StatusOK, rec.Code)
+				require.Contains(t, body, tc.wantToken)
+				assertKeepaliveSSEBodyValid(t, body)
+				streamErr, ok := GetOpsStreamError(c)
+				require.True(t, ok)
+				require.Equal(t, http.StatusBadGateway, streamErr.IntendedStatus)
+			})
+		})
+	}
+}
+
+// TestDownstreamSSEKeepaliveHeaderWaitDirectHTTPErrorsEmitSSE triggers direct
+// single-attempt error adapters after DownstreamSSEKeepalive commits an event
+// stream. Every adapter across Anthropic, OpenAI, Gemini, Antigravity, and
+// local policy checks must emit valid SSE error frames and stop further beats.
+func TestDownstreamSSEKeepaliveHeaderWaitDirectHTTPErrorsEmitSSE(t *testing.T) {
+	provider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{ID: 1, Name: "fixture", Platform: capability.PlatformOpenAI, Type: capability.ProviderTypeAPIKey},
+	}
+	geminiProvider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{ID: 2, Name: "gemini-fixture", Platform: capability.PlatformGemini, Type: capability.ProviderTypeAPIKey},
+	}
+	antigravityProvider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{ID: 3, Name: "ag-fixture", Platform: capability.PlatformAntigravity, Type: capability.ProviderTypeAPIKey},
+	}
+	badReqBody := []byte(`{"error":{"type":"invalid_request_error","code":"invalid_param","message":"bad input"}}`)
+
+	cases := []struct {
+		name      string              // adapter scenario label
+		path      string              // client request endpoint
+		proto     protocol.ProtocolID // client wire protocol
+		wantToken string              // expected terminal SSE marker
+		wantCode  int                 // expected recorded Ops status
+		emit      func(*gin.Context)  // direct error adapter invocation
+	}{
+		{
+			name:      "AnthropicForwardErrorOutput.Message",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				(AnthropicForwardErrorOutput{Context: c}).Message(http.StatusBadRequest, "invalid_request_error", "bad messages input")
+			},
+		},
+		{
+			name:      "AnthropicForwardErrorOutput.Raw",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `"type":"error"`,
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				(AnthropicForwardErrorOutput{Context: c}).Raw(http.StatusBadRequest, badReqBody)
+			},
+		},
+		{
+			name:      "WriteForwardAnthropicError",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteForwardAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "bad input")
+			},
+		},
+		{
+			name:      "WriteForwardAnthropicErrorBody",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteForwardAnthropicErrorBody(c, http.StatusBadRequest, badReqBody)
+			},
+		},
+		{
+			name:      "WriteForwardChatError",
+			path:      EndpointChatCompletions,
+			proto:     protocol.ProtocolOpenAIChatCompletions,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteForwardChatError(c, http.StatusBadRequest, "invalid_request_error", "bad chat input")
+			},
+		},
+		{
+			name:      "WriteForwardChatErrorBody",
+			path:      EndpointChatCompletions,
+			proto:     protocol.ProtocolOpenAIChatCompletions,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteForwardChatErrorBody(c, http.StatusBadRequest, badReqBody)
+			},
+		},
+		{
+			name:      "WriteForwardResponsesFallbackError",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				WriteForwardResponsesFallbackError(c, http.StatusBadGateway, "upstream_error", "fallback failed")
+			},
+		},
+		{
+			name:      "WriteForwardPassthroughErrorEnvelope",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				WriteForwardPassthroughErrorEnvelope(c, http.StatusBadGateway, nil, "Upstream request failed", func(*gin.Context, int, []byte) bool { return false })
+			},
+		},
+		{
+			name:      "WriteForwardFastPolicyBlocked messages",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusForbidden,
+			emit: func(c *gin.Context) {
+				WriteForwardFastPolicyBlocked(c, "fast tier denied", func(*gin.Context) bool { return false }, func(*gin.Context, int, string, string) {})
+			},
+		},
+		{
+			name:      "WriteOpenAIForwardRejection",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteOpenAIForwardRejection(c, http.StatusBadRequest, "invalid_request_error", "invalid tool", "tools")
+			},
+		},
+		{
+			name:      "OpenAIResponseOutput.ResponseError 400",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				out := &OpenAIResponseOutput{}
+				resp := &http.Response{
+					StatusCode: http.StatusBadRequest,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(string(badReqBody))),
+				}
+				_, _ = out.ResponseError(c.Request.Context(), resp, c, provider, []byte(`{"model":"gpt-5.4"}`), "gpt-5.4")
+			},
+		},
+		{
+			name:      "WriteOpenAIUpstreamClientError",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				WriteOpenAIUpstreamClientError(c, http.StatusBadRequest, badReqBody, "bad input")
+			},
+		},
+		{
+			name:      "GeminiOutput.GeminiMappedError",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				out := &GeminiOutput{GoogleOutput: GoogleOutput{Context: c}}
+				_ = out.GeminiMappedError(geminiProvider, http.StatusBadRequest, "req-1", []byte(`{"error":{"message":"invalid prompt"}}`))
+			},
+		},
+		{
+			name:      "AntigravityOutput.MappedClaudeError",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				out := &AntigravityOutput{GoogleOutput: GoogleOutput{Context: c}}
+				_ = out.MappedClaudeError(antigravityProvider, http.StatusBadRequest, "req-2", []byte(`{"error":{"message":"bad ag input"}}`))
+			},
+		},
+		{
+			name:      "AntigravityOutput.MappedAntigravityCompatError",
+			path:      EndpointChatCompletions,
+			proto:     protocol.ProtocolOpenAIChatCompletions,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadRequest,
+			emit: func(c *gin.Context) {
+				out := &AntigravityOutput{GoogleOutput: GoogleOutput{Context: c}}
+				_ = out.MappedAntigravityCompatError(antigravityProvider, http.StatusBadRequest, "req-3", []byte(`{"error":{"message":"bad compat input"}}`))
+			},
+		},
+		{
+			name:      "ForwardConversionOutput.Error responses",
+			path:      EndpointResponses,
+			proto:     protocol.ProtocolOpenAIResponses,
+			wantToken: "event: response.failed\n",
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				(ForwardConversionOutput{Context: c, Responses: true, Commit: func() {}}).Error(http.StatusBadGateway, "upstream_error", "conversion failed")
+			},
+		},
+		{
+			name:      "WriteForwardMessageGenericError",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusInternalServerError,
+			emit: func(c *gin.Context) {
+				WriteForwardMessageGenericError(c, func() {})
+			},
+		},
+		{
+			name:      "AnthropicResponseTooLarge",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: `data: {"type":"error"`,
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				AnthropicResponseTooLarge(c)
+			},
+		},
+		{
+			name:      "OpenAIResponseTooLarge",
+			path:      EndpointChatCompletions,
+			proto:     protocol.ProtocolOpenAIChatCompletions,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusBadGateway,
+			emit: func(c *gin.Context) {
+				OpenAIResponseTooLarge(c)
+			},
+		},
+		{
+			name:      "OpenAIRequests.EnforceClient messages",
+			path:      EndpointMessages,
+			proto:     protocol.ProtocolAnthropicMessages,
+			wantToken: "event: error\n",
+			wantCode:  http.StatusForbidden,
+			emit: func(c *gin.Context) {
+				codexProvider := &gatewayprovider.ExecutionProvider{
+					Record: providercore.Record{
+						ID:       4,
+						Name:     "codex-only",
+						Platform: capability.PlatformOpenAI,
+						Type:     capability.ProviderTypeOAuth,
+						Extra:    map[string]any{"codex_cli_only": true},
+					},
+				}
+				_ = (&OpenAIRequests{}).EnforceClient(c.Request.Context(), c, codexProvider, nil, egress.TLSFingerprintRouterMatchResult{})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runSSEKeepalivePathTest(t, tc.path, tc.proto, func(t *testing.T, c *gin.Context, rec *httptest.ResponseRecorder) {
+				commitHeaderWaitHeartbeat(t, c)
+				tc.emit(c)
+
+				require.True(t, TerminalSSEDelivered(c))
+				beatsAfterTerminal := StreamHeartbeatBytes(c)
+				time.Sleep(40 * time.Millisecond)
+				synctest.Wait()
+				require.Equal(t, beatsAfterTerminal, StreamHeartbeatBytes(c))
+
+				body := readKeepaliveBody(t, c, rec)
+				require.Equal(t, http.StatusOK, rec.Code)
+				require.Contains(t, body, tc.wantToken)
+				assertKeepaliveSSEBodyValid(t, body)
+				streamErr, ok := GetOpsStreamError(c)
+				require.True(t, ok)
+				require.Equal(t, tc.wantCode, streamErr.IntendedStatus)
+			})
+		})
+	}
 }

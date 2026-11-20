@@ -32,12 +32,12 @@ import (
 //
 // Heartbeat-adjusted bytes distinguish Images padding from response content,
 // and Compact content from keepalive-only commitment. Existing meaningful
-// committed output suppresses this fallback; padding can still receive JSON
-// and Compact keepalives can receive a terminal event. Cyber-warning evidence
-// supplies a request error and valid upstream status. Model-attribute failures
-// retain their structured status and reason; remaining errors receive the
-// generic 502 message. True reports attempted presentation,
-// not successful network delivery.
+// committed output or an already delivered terminal SSE frame suppresses this
+// fallback; padding can still receive JSON and Compact keepalives can receive a
+// terminal event. Cyber-warning evidence supplies a request error and valid
+// upstream status. Model-attribute failures retain their structured status and
+// reason; remaining errors receive the generic 502 message. True reports
+// attempted presentation, not successful network delivery.
 func (h OpenAIErrorOutput) EnsureResponse(c *gin.Context, streamStarted bool, err error) bool {
 	if c == nil || c.Writer == nil {
 		return false
@@ -58,9 +58,11 @@ func (h OpenAIErrorOutput) EnsureResponse(c *gin.Context, streamStarted bool, er
 		imageKeepaliveResponseWritten = adjustedSize >= 0
 	}
 	compactKeepaliveHasMeaningfulOutput := compactKeepaliveCommitted && HeartbeatAdjustedWrittenSize(c) > 0
-	// Dedicated commitment suppresses replacement after meaningful output, but
-	// a keepalive-only Compact commitment still needs its terminal Responses event.
-	if (IsResponseCommitted(c) && (!compactKeepaliveCommitted || compactKeepaliveHasMeaningfulOutput)) ||
+	// Dedicated commitment or an already delivered terminal SSE frame suppresses
+	// replacement after meaningful output, while a keepalive-only Compact
+	// commitment still needs its terminal Responses event.
+	if TerminalSSEDelivered(c) ||
+		(IsResponseCommitted(c) && (!compactKeepaliveCommitted || compactKeepaliveHasMeaningfulOutput)) ||
 		(!compactKeepaliveCommitted && imageKeepaliveResponseWritten) {
 		return false
 	}

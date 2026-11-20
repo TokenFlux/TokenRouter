@@ -44,13 +44,19 @@ func ReadUpstreamResponseBody(reader io.Reader, maxBytes int64, c *gin.Context, 
 }
 
 // AnthropicResponseTooLarge writes a 502 size-limit failure using the Messages
-// envelope.
+// envelope. When event-stream framing is already committed, it emits an
+// Anthropic SSE error frame and records the intended status instead of JSON.
 func AnthropicResponseTooLarge(c *gin.Context) {
-	c.JSON(http.StatusBadGateway, gin.H{"type": "error", "error": gin.H{"type": "upstream_error", "message": "Upstream response too large"}})
+	WriteAnthropicStreamError(c, http.StatusBadGateway, "upstream_error", "", "Upstream response too large", CommittedSSE(c), MarkOpsStreamError)
 }
 
 // OpenAIResponseTooLarge writes a 502 size-limit failure using the OpenAI
-// envelope.
+// envelope. When event-stream framing is already committed, it emits a terminal
+// SSE error event and records the intended status instead of JSON.
 func OpenAIResponseTooLarge(c *gin.Context) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, http.StatusBadGateway, "upstream_error", "Upstream response too large", true)
+		return
+	}
 	c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "upstream_error", "message": "Upstream response too large"}})
 }

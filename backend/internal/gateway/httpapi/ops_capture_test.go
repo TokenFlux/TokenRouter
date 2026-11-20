@@ -12,9 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	opscore "github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -2279,4 +2282,60 @@ func TestKeyPrefix(t *testing.T) {
 	if got := keyPrefix("abc", 8); got != "abc" {
 		t.Errorf("short key should be returned as-is, got %q", got)
 	}
+}
+
+// TestOpsErrorLoggerMiddleware_HeartbeatCommittedSSEFailureNotRecovered
+// reproduces an upstream 502 after DownstreamSSEKeepalive commits HTTP 200
+// text/event-stream on Messages. Ops must record a 502 stream failure and mark
+// the request telemetry failed rather than logging Recovered upstream error.
+func TestOpsErrorLoggerMiddleware_HeartbeatCommittedSSEFailureNotRecovered(t *testing.T) {
+	setupOpsErrorLogTestQueue(t, 2)
+
+	repo := &ingressRejectOpsRepo{}
+	ops := newOpsServiceFixture(repo, nil)
+	var observed telemetry.RequestRecord
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		ctx := telemetry.WithRequestCapture(c.Request.Context(), telemetry.RequestRecord{State: "completed"}, func(r telemetry.RequestRecord) {
+			observed = r
+		})
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	router.Use(opsLoggerFixture(ops))
+	router.Use(TextRequestTiming(), DownstreamSSEKeepalive(5*time.Millisecond, time.Second))
+	router.POST(EndpointMessages, func(c *gin.Context) {
+		c.Request = c.Request.WithContext(requeststate.WithClientProtocol(c.Request.Context(), protocol.ProtocolAnthropicMessages))
+		timing.StagesFromContext(c.Request.Context()).SetStream(true)
+		w, ok := c.Writer.(*sseKeepaliveWriter)
+		require.True(t, ok)
+		w.openHeaderWait(c.Request.Context())
+		require.Eventually(t, func() bool { return CommittedSSE(c) }, time.Second, time.Millisecond)
+
+		AppendOpsUpstreamError(c, opscore.OpsUpstreamErrorEvent{
+			UpstreamStatusCode: http.StatusBadGateway,
+			Kind:               "failover",
+			Message:            "Upstream transport failure",
+		})
+		DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusBadGateway, "api_error", "Upstream service temporarily unavailable", false)
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, EndpointMessages, nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "event: ping\n")
+	require.Contains(t, recorder.Body.String(), "event: error\n")
+	require.Equal(t, "failed", observed.State)
+	require.Equal(t, "stream_error", observed.ErrorCode)
+	require.Equal(t, int64(1), OpsErrorLogQueueLength())
+
+	job := <-opsErrorLogQueue
+	flushOpsErrorLogBatch([]opsErrorLogJob{job})
+	require.Equal(t, 1, repo.insertCalls)
+	require.Len(t, repo.entries, 1)
+	persisted := repo.entries[0]
+	require.Equal(t, http.StatusBadGateway, persisted.StatusCode)
+	require.NotContains(t, persisted.ErrorMessage, "Recovered upstream error")
+	require.Equal(t, "Upstream service temporarily unavailable", persisted.ErrorMessage)
 }

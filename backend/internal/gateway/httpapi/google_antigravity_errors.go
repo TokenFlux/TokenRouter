@@ -43,16 +43,14 @@ type AntigravityOutput struct {
 }
 
 // ClaudeError marks final presentation committed and writes an Anthropic error
-// envelope. It returns the supplied message as an error so request
+// envelope, or an Anthropic SSE error frame when event-stream framing is
+// already committed. It returns the supplied message as an error so request
 // orchestration can still report failure after synchronous client output.
 func (s *AntigravityOutput) ClaudeError(status int, errType, message string) error {
 	c := s.Context
 
 	MarkResponseCommitted(c)
-	c.JSON(status, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": message},
-	})
+	WriteAnthropicStreamError(c, status, errType, "", message, CommittedSSE(c), MarkOpsStreamError)
 	return fmt.Errorf("%s", message)
 }
 
@@ -103,10 +101,7 @@ func (s *AntigravityOutput) MappedClaudeError(provider *gatewayprovider.Executio
 		c, provider.Record.Platform, upstreamStatus, body,
 		0, "", "",
 	); matched {
-		c.JSON(ptStatus, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": ptErrType, "message": ptErrMsg},
-		})
+		WriteAnthropicStreamError(c, ptStatus, ptErrType, "", ptErrMsg, CommittedSSE(c), MarkOpsStreamError)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", upstreamStatus)
 		}
@@ -143,10 +138,7 @@ func (s *AntigravityOutput) MappedClaudeError(provider *gatewayprovider.Executio
 		errMsg = "Upstream request failed"
 	}
 
-	c.JSON(statusCode, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
-	})
+	WriteAnthropicStreamError(c, statusCode, errType, "", errMsg, CommittedSSE(c), MarkOpsStreamError)
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
 	}
@@ -186,8 +178,10 @@ func (s *AntigravityOutput) GoogleError(status int, message string) error {
 }
 
 // AntigravityCompatError commits and writes an OpenAI-compatible error with
-// nil param and code fields. The returned ordinary error contains the message,
-// so final presentation and execution failure remain visible independently.
+// nil param and code fields, or emits a terminal SSE error when event-stream
+// framing is already committed. The returned ordinary error contains the
+// message, so final presentation and execution failure remain visible
+// independently.
 func (s *AntigravityOutput) AntigravityCompatError(
 	status int,
 	errType string,
@@ -196,6 +190,10 @@ func (s *AntigravityOutput) AntigravityCompatError(
 	c := s.Context
 
 	MarkResponseCommitted(c)
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, true)
+		return errors.New(message)
+	}
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"message": message,
@@ -209,8 +207,9 @@ func (s *AntigravityOutput) AntigravityCompatError(
 
 // MappedAntigravityCompatError records the sanitized Google-platform message
 // and provider identity before compatible error output. It applies MapStatus
-// and Antigravity's safe passthrough selector, marks the response committed
-// and returns the diagnostic failure.
+// and Antigravity's safe passthrough selector, marks the response committed,
+// emits SSE when event-stream framing is already committed, and returns the
+// diagnostic failure.
 func (s *AntigravityOutput) MappedAntigravityCompatError(
 	provider *gatewayprovider.ExecutionProvider,
 	upstreamStatus int,
@@ -237,9 +236,15 @@ func (s *AntigravityOutput) MappedAntigravityCompatError(
 
 		Message: message,
 	})
-	c.JSON(protocolforward.MapStatus(upstreamStatus), gin.H{
+	mappedStatus := protocolforward.MapStatus(upstreamStatus)
+	clientMessage := antigravity.GetPassthroughOrDefault(message, "Upstream request failed")
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, mappedStatus, "upstream_error", clientMessage, true)
+		return fmt.Errorf("upstream error: %d %s", upstreamStatus, message)
+	}
+	c.JSON(mappedStatus, gin.H{
 		"error": gin.H{
-			"message": antigravity.GetPassthroughOrDefault(message, "Upstream request failed"),
+			"message": clientMessage,
 
 			"type": "upstream_error",
 

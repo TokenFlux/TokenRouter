@@ -24,7 +24,9 @@ import (
 // Passthrough output rebuilds selected errors using fixed client messages and
 // admits a validated Retry-After header. Compact output is offered the body
 // before JSON is committed because a heartbeat may already have established
-// SSE. These helpers keep intended error status, JSON structure and streaming
+// SSE, and every writer also checks downstream SSE commitment so early idle
+// keepalives end with a terminal protocol error frame rather than raw JSON.
+// These helpers keep intended error status, JSON structure and streaming
 // terminal framing distinct; the forwarding executor chooses health policy and
 // retry eligibility before final presentation reaches them.
 
@@ -43,8 +45,13 @@ func WriteFastPolicyBlockedResponse(c *gin.Context, err *tierpolicy.BlockedError
 }
 
 // WriteForwardAnthropicError writes the supplied type and message in Anthropic
-// JSON.
+// JSON. When event-stream framing is already committed, it instead emits an
+// Anthropic SSE error event and records the intended status for Ops.
 func WriteForwardAnthropicError(c *gin.Context, statusCode int, errType, message string) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, statusCode, errType, message, true)
+		return
+	}
 	c.JSON(statusCode, gin.H{
 		"type": "error",
 		"error": gin.H{
@@ -55,15 +62,22 @@ func WriteForwardAnthropicError(c *gin.Context, statusCode int, errType, message
 }
 
 // WriteForwardAnthropicErrorBody presents captured upstream error bytes as an
-// Anthropic envelope. Callers supply the final status and an available writer.
-// A valid error value is embedded from its raw JSON, retaining its nested
-// representation and diagnostic fields.
+// Anthropic envelope, or as an Anthropic SSE error frame when event-stream
+// framing is already committed. Callers supply the final status and an
+// available writer. On uncommitted responses a valid error value is embedded from
+// its raw JSON, retaining its nested representation and diagnostic fields.
 //
-// When error is absent or its raw value is invalid, the supplied body is
-// written directly with JSON content type. That path can therefore contain
-// invalid JSON if the caller supplied it. The helper does not parse the
-// remaining outer fields or synthesize a replacement error from them.
+// When error is absent or its raw value is invalid on an uncommitted response,
+// the supplied body is written directly with JSON content type. That path can
+// therefore contain invalid JSON if the caller supplied it. Committed SSE
+// responses instead extract a safe error type and sanitized message so raw JSON
+// is never appended onto an active event stream.
 func WriteForwardAnthropicErrorBody(c *gin.Context, statusCode int, body []byte) {
+	if CommittedSSE(c) {
+		errType, _, message := extractSSEErrorFields(statusCode, body, "upstream_error", "Upstream request failed")
+		DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, statusCode, errType, message, true)
+		return
+	}
 	errorObject := gjson.GetBytes(body, "error")
 	// A missing or invalid error value cannot be wrapped as structured Anthropic
 	// JSON. Keep the captured rejection bytes available to the client in that case.
@@ -98,11 +112,16 @@ func BuildForwardAnthropicStreamError(errType, message string) string {
 }
 
 // WriteForwardChatError marks terminal response state before writing the Chat
-// JSON error. Callers provide the chosen client status and live context; the
-// commitment marker prevents outer attempt handling from replacing that
+// JSON error, or emits a terminal SSE error frame when event-stream framing is
+// already committed. Callers provide the chosen client status and live context;
+// the commitment marker prevents outer attempt handling from replacing that
 // dedicated rejection.
 func WriteForwardChatError(c *gin.Context, statusCode int, errType, message string) {
 	MarkResponseCommitted(c)
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, statusCode, errType, message, true)
+		return
+	}
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
@@ -112,10 +131,17 @@ func WriteForwardChatError(c *gin.Context, statusCode int, errType, message stri
 }
 
 // WriteForwardChatErrorBody commits response state and writes supplied JSON
-// error bytes. The body is forwarded as supplied rather than validated here;
-// callers choose the final status before invoking this writer.
+// error bytes, or emits a terminal SSE error frame when event-stream framing is
+// already committed. Uncommitted bodies are forwarded as supplied rather than
+// validated here; committed SSE extracts safe error fields so raw JSON is never
+// appended to an event stream.
 func WriteForwardChatErrorBody(c *gin.Context, statusCode int, body []byte) {
 	MarkResponseCommitted(c)
+	if CommittedSSE(c) {
+		errType, code, message := extractSSEErrorFields(statusCode, body, "upstream_error", "Upstream request failed")
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, statusCode, errType, code, message, true, false)
+		return
+	}
 	c.Data(statusCode, "application/json; charset=utf-8", body)
 }
 
@@ -140,8 +166,13 @@ func BuildForwardChatStreamError(code, message string) string {
 }
 
 // WriteForwardResponsesFallbackError writes the selected error type and
-// message in Responses JSON.
+// message in Responses JSON. When event-stream framing is already committed, it
+// instead emits a terminal SSE failure event and records the intended status.
 func WriteForwardResponsesFallbackError(c *gin.Context, statusCode int, errType, message string) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, statusCode, errType, message, true)
+		return
+	}
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
@@ -219,9 +250,10 @@ func WriteSanitizedForwardPassthroughError(c *gin.Context, upstreamStatus int, u
 }
 
 // WriteForwardPassthroughErrorEnvelope offers a rebuilt error body to the
-// Compact callback before JSON output. Nil contexts are ignored; callers
-// supply compact, and a true callback result ends output because it already
-// handled the response format.
+// Compact callback before JSON output, and checks downstream SSE commitment so
+// an already-started stream receives a terminal SSE error instead of raw JSON.
+// Nil contexts are ignored; callers supply compact, and a true callback result
+// ends output because it already handled the response format.
 func WriteForwardPassthroughErrorEnvelope(c *gin.Context, downstreamStatus int, upstreamHeaders http.Header, message string, compact func(*gin.Context, int, []byte) bool) {
 	if c == nil {
 		return
@@ -239,14 +271,21 @@ func WriteForwardPassthroughErrorEnvelope(c *gin.Context, downstreamStatus int, 
 	if compact(c, downstreamStatus, body) {
 		return
 	}
+	// Downstream keepalives can commit an SSE stream outside Compact; emit a
+	// terminal stream error instead of mutating headers and appending raw JSON.
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, downstreamStatus, "upstream_error", message, true)
+		return
+	}
 	WriteForwardPassthroughErrorHeaders(c.Writer.Header(), upstreamHeaders)
 	c.Data(downstreamStatus, "application/json; charset=utf-8", body)
 }
 
 // WriteForwardFastPolicyBlocked stops Compact heartbeat output before writing
-// a fast-tier rejection. Callers supply stop and failure callbacks; a
-// committed heartbeat uses failure to end the stream, while an uncommitted
-// response receives JSON 403.
+// a fast-tier rejection, and checks downstream SSE commitment for non-Compact
+// streams. Callers supply stop and failure callbacks; a committed Compact
+// heartbeat uses failure, another committed SSE stream uses the client protocol
+// terminal event, and an uncommitted response receives JSON 403.
 func WriteForwardFastPolicyBlocked(c *gin.Context, message string, stop func(*gin.Context) bool, failure func(*gin.Context, int, string, string)) {
 	// A stopped, committed Compact heartbeat requires a terminal event; an
 	// uncommitted writer can still report the permission denial with HTTP 403 JSON.
@@ -254,14 +293,23 @@ func WriteForwardFastPolicyBlocked(c *gin.Context, message string, stop func(*gi
 		failure(c, http.StatusForbidden, "permission_error", message)
 		return
 	}
+	if CommittedSSE(c) {
+		writeCommittedClientSSEError(c, http.StatusForbidden, "permission_error", "", message)
+		return
+	}
 	c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "permission_error", "message": message}})
 }
 
 // WriteOpenAIForwardRejection writes an OpenAI JSON rejection with an optional
-// parameter field. Nil contexts are ignored, and an empty param omits that
+// parameter field, or emits a terminal SSE error when event-stream framing is
+// already committed. Nil contexts are ignored, and an empty param omits that
 // field; callers select the status and classification before writing.
 func WriteOpenAIForwardRejection(c *gin.Context, status int, kind, message, param string) {
 	if c == nil {
+		return
+	}
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, status, kind, message, true)
 		return
 	}
 	payload := gin.H{"type": kind, "message": message}

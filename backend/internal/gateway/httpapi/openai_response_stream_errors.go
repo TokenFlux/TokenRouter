@@ -227,6 +227,16 @@ func (p *OpenAIResponseOutput) PassthroughError(
 		UpstreamResponseBody: upstreamDetail,
 	})
 	if clientInvalidRequest {
+		// Committed event streams cannot emit raw JSON or update response headers;
+		// extract safe error fields and emit a terminal protocol event instead.
+		if CommittedSSE(c) {
+			errType, code, message := extractSSEErrorFields(http.StatusBadRequest, body, "invalid_request_error", "Invalid request")
+			if upstreamMsg != "" {
+				message = upstreamMsg
+			}
+			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusBadRequest, errType, code, message, true, false)
+			return fmt.Errorf("upstream invalid request: %d message=%s", resp.StatusCode, upstreamMsg)
+		}
 		// Keep the captured redacted parameter error intact while the shared
 		// header writer admits retry metadata for this already-final client rejection.
 		WriteForwardPassthroughErrorHeaders(c.Writer.Header(), resp.Header)

@@ -151,12 +151,24 @@ func (h *Support) HandleAnthropicFailoverExhausted(c *gin.Context, failoverErr *
 }
 
 // EnsureAnthropicErrorResponse supplies a default Messages upstream error when
-// output is unwritten. Nil context, missing writer, or committed headers return
-// false. A written fallback returns true so the attempt can report which
-// terminal response it supplied.
+// the response still lacks a final failure. Nil contexts, missing writers,
+// semantically committed responses, delivered terminal SSE frames, and non-SSE
+// written responses return false.
+//
+// An open event stream that has only delivered heartbeats or partial content
+// promotes streamStarted so the fallback emits an Anthropic SSE error event
+// rather than appending raw JSON.
 func (h *Support) EnsureAnthropicErrorResponse(c *gin.Context, streamStarted bool) bool {
-	if c == nil || c.Writer == nil || c.Writer.Written() {
+	if c == nil || c.Writer == nil || gatewayhttp.IsResponseCommitted(c) || gatewayhttp.TerminalSSEDelivered(c) {
 		return false
+	}
+	if c.Writer.Written() {
+		// Non-SSE headers or bodies belong to an already written response; only an
+		// open event stream can accept an appended fallback SSE error frame.
+		if !gatewayhttp.CommittedSSE(c) {
+			return false
+		}
+		streamStarted = true
 	}
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
 	return true
@@ -266,12 +278,13 @@ func (h *Support) HandleFailoverExhaustedSimple(c *gin.Context, statusCode int, 
 }
 
 // EnsureOpenAIStreamReadErrorResponse writes a recognized stream-read failure
-// when semantic output is uncommitted. Unrecognized errors or
-// unavailable/committed responses return false. Already-written HTTP headers
-// select streaming output; the returned true reports fallback emission.
+// when semantic output is uncommitted. Unrecognized errors, unavailable or
+// committed responses, and already delivered terminal SSE frames return false.
+// Already-written HTTP headers select streaming output; the returned true
+// reports fallback emission.
 func (h *Support) EnsureOpenAIStreamReadErrorResponse(c *gin.Context, err error, streamStarted bool) bool {
 	code, message, ok := openaierrors.OpenAIUpstreamStreamReadErrorDetails(err)
-	if !ok || c == nil || c.Writer == nil || gatewayhttp.IsResponseCommitted(c) {
+	if !ok || c == nil || c.Writer == nil || gatewayhttp.IsResponseCommitted(c) || gatewayhttp.TerminalSSEDelivered(c) {
 		return false
 	}
 	if c.Writer.Written() {

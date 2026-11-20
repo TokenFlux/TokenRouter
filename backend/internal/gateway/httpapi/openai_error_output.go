@@ -3,25 +3,24 @@ package httpapi
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
-// openai_error_output.go writes OpenAI protocol errors and records their
-// intended status after stream framing begins.
-// A Compact heartbeat can commit HTTP 200 before an HTTP error is ready. Error
-// output first stops that writer and then emits a failed Responses terminal
-// when the inbound route is Responses, because its client consumes protocol
-// terminal events. Other started routes receive their generic SSE error
-// framing.
+// openai_error_output.go writes OpenAI and Anthropic compatibility protocol
+// errors and records their intended status after stream framing begins.
+// A Compact or downstream idle heartbeat can commit HTTP 200 text/event-stream
+// before an error is ready. Error output first checks those commitment signals
+// and emits a failed Responses terminal on Responses routes or an event: error
+// frame on other started streams, stopping further heartbeats atomically.
 //
-// Stream observations also distinguish ordinary error reporting from failures
-// counted toward SLA, even though the HTTP status has already been sent. The
-// callbacks carry that intended status independently of the writer's committed
-// status. Anthropic compatibility output uses its own error event and leaves
-// observation to its caller, while an unstarted response can still receive
-// JSON with the requested error status.
+// Stream observations distinguish ordinary error reporting from failures
+// counted toward SLA, even though the committed HTTP status remains 200. The
+// callbacks carry that intended status independently of wire status, while an
+// uncommitted response still receives JSON with the requested HTTP status.
 
 // OpenAIErrorOutput binds synchronous protocol error writes to request
 // observation callbacks. DefaultOpenAIErrorOutput supplies the callbacks used
@@ -43,35 +42,43 @@ type OpenAIErrorOutput struct {
 }
 
 // WriteAnthropicStreamingError writes Anthropic JSON before stream start or an
-// error event afterward. The model-attribute helper can replace status and
-// message; started output requires a flusher, ignores write errors and leaves
-// terminal observation to the caller.
+// SSE error event afterward. Model-attribute overrides run first, and an
+// already committed event stream promotes started so early heartbeats never
+// receive trailing raw JSON.
+//
+// On started output it records the intended error status when markStream is
+// configured, then emits event: error through the terminal SSE barrier so idle
+// keepalives stop immediately after delivery. Writers without http.Flusher
+// skip emission after observation.
 func (h OpenAIErrorOutput) WriteAnthropicStreamingError(c *gin.Context, status int, kind, message string, started bool) {
 	status, message = modelAttributeError(c, status, message)
-	if !started {
+	if !started && !CommittedSSE(c) {
 		WriteAnthropicError(c, status, kind, "", message)
 		return
 	}
-	if flusher, ok := c.Writer.(http.Flusher); ok {
-		// This compatibility event contains fixed string fields. Its caller owns
-		// observation and termination even if the subsequent write fails after stream start.
-		payload, _ := json.Marshal(gin.H{"type": "error", "error": gin.H{"type": kind, "message": message}})
-		// This compatibility writer ignores write errors and leaves observation and terminal state to its caller.
-		_, _ = fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", payload)
-		flusher.Flush()
+	if h.markStream != nil {
+		h.markStream(c, kind, message, status)
 	}
+	payload, err := json.Marshal(gin.H{"type": "error", "error": gin.H{"type": kind, "message": message}})
+	// Retain a valid Anthropic error payload if marshaling fails so the active
+	// event stream still terminates with a parseable protocol error frame.
+	if err != nil {
+		payload = []byte(`{"type":"error","error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+	}
+	emitLocalTerminalSSE(c, fmt.Appendf(nil, "event: error\ndata: %s\n\n", payload))
 }
 
 // WriteStreamingErrorWithCode writes a client error in the format permitted by
 // current output. Callers configure the callbacks and provide a live writer.
-// It stops Compact heartbeats before taking over output, and heartbeat
-// commitment selects an in-stream error even when streamStarted was false.
+// It stops Compact heartbeats before taking over output, and either Compact or
+// downstream SSE commitment selects an in-stream error even when streamStarted
+// was false.
 //
 // Started output records either an ordinary stream error or an SLA failure
 // according to countTowardsSLA. Responses routes first attempt
 // response.failed, and other routes or an unsuccessful Responses write use
-// generic SSE error framing when a flusher is available. Unstarted output uses
-// JSON; a nonempty code is included directly in that envelope.
+// generic SSE error framing through the terminal keepalive barrier. Unstarted
+// output uses JSON; a nonempty code is included directly in that envelope.
 func (h OpenAIErrorOutput) WriteStreamingErrorWithCode(
 	c *gin.Context,
 	status int,
@@ -82,15 +89,17 @@ func (h OpenAIErrorOutput) WriteStreamingErrorWithCode(
 	countTowardsSLA bool,
 ) {
 	status, message = modelAttributeError(c, status, message)
-	// Stop waits for an active heartbeat write and prevents later beats, so its
-	// bytes cannot interleave with this terminal error when output takes over.
-	if h.stopCompact(c) {
+	// Stop Compact heartbeats before checking downstream SSE commitment so an
+	// active Compact worker finishes and cannot interleave with terminal output.
+	if (h.stopCompact != nil && h.stopCompact(c)) || CommittedSSE(c) {
 		streamStarted = true
 	}
 	if streamStarted {
 		if countTowardsSLA {
-			h.markFailure(c, errType, code, message, status)
-		} else {
+			if h.markFailure != nil {
+				h.markFailure(c, errType, code, message, status)
+			}
+		} else if h.markStream != nil {
 			h.markStream(c, errType, message, status)
 		}
 		// Responses clients consume terminal lifecycle events. Emit response.failed
@@ -102,24 +111,7 @@ func (h OpenAIErrorOutput) WriteStreamingErrorWithCode(
 		}
 		// Use generic SSE error framing for other routes or when the Responses
 		// terminal could not be written, leaving the committed HTTP status in place.
-		flusher, ok := c.Writer.(http.Flusher)
-		if ok {
-			errorObject := gin.H{"type": errType, "message": message}
-			if code != "" {
-				errorObject["code"] = code
-			}
-			payload, err := json.Marshal(gin.H{"error": errorObject})
-			// Retain a valid generic error event if envelope serialization fails, so
-			// the existing stream can still receive a failure payload through this writer.
-			if err != nil {
-				payload = []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
-			}
-			errorEvent := "event: error\ndata: " + string(payload) + "\n\n"
-			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
-				_ = c.Error(err)
-			}
-			flusher.Flush()
-		}
+		writeOpenAIGenericErrorSSE(c, errType, code, message)
 		return
 	}
 
@@ -130,6 +122,38 @@ func (h OpenAIErrorOutput) WriteStreamingErrorWithCode(
 	c.JSON(status, gin.H{"error": gin.H{
 		"type": errType, "code": code, "message": message,
 	}})
+}
+
+// writeOpenAIGenericErrorSSE encodes an OpenAI-shaped SSE error frame and sends
+// it through the terminal local SSE helper. Empty codes are omitted from the
+// error object, marshaling failure falls back to a fixed upstream_error frame,
+// and false reports that the writer lacks http.Flusher.
+func writeOpenAIGenericErrorSSE(c *gin.Context, errType, code, message string) bool {
+	errorObject := gin.H{"type": errType, "message": message}
+	if code != "" {
+		errorObject["code"] = code
+	}
+	payload, err := json.Marshal(gin.H{"error": errorObject})
+	// Retain a valid generic error event if envelope serialization fails, so
+	// the existing stream can still receive a failure payload through this writer.
+	if err != nil {
+		payload = []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+	}
+	return emitLocalTerminalSSE(c, fmt.Appendf(nil, "event: error\ndata: %s\n\n", payload))
+}
+
+// writeCommittedClientSSEError emits a terminal SSE error for the inbound
+// client protocol after an event stream is already committed. Anthropic
+// Messages clients receive an Anthropic error event, while OpenAI clients use
+// WriteStreamingErrorWithCode to select Responses or generic SSE framing.
+func writeCommittedClientSSEError(c *gin.Context, status int, errType, code, message string) {
+	if c != nil && c.Request != nil {
+		if source, _ := requeststate.ClientProtocolFromContext(c.Request.Context()); source == protocol.ProtocolAnthropicMessages {
+			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, status, errType, message, true)
+			return
+		}
+	}
+	DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, errType, code, message, true, false)
 }
 
 // DefaultOpenAIErrorOutput binds heartbeat stopping, request metadata and Ops

@@ -265,10 +265,11 @@ func (b *openAIMessageAttemptBridge) PartialImages(err error) {
 //
 // Changed output delegates health observation and Anthropic terminal error
 // handling before returning false, protecting the current stream from a second
-// provider's content. Otherwise the classified error decides whether scheduling
-// failure is reported using currentRoutingModel. The text loop owns retry
-// waiting and provider switch allowances after this readiness callback returns
-// true.
+// provider's content. Otherwise already-written heartbeat headers promote
+// streamStarted so later selection or exhaustion paths emit SSE, and the
+// classified error decides whether scheduling failure is reported using
+// currentRoutingModel. The text loop owns retry waiting and provider switch
+// allowances after this readiness callback returns true.
 func (b *openAIMessageAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bool {
 	err := failure.Cause
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -290,6 +291,11 @@ func (b *openAIMessageAttemptBridge) RetryReady(failure *textflow.AttemptFailure
 		b.binding().observeOpenAIProviderHealthFailure(b.c.Request.Context(), b.provider, err)
 		b.binding().handleAnthropicFailoverExhausted(b.c, failoverErr, true)
 		return false
+	}
+	// Replay may remain safe after early heartbeat headers were committed. Mark
+	// the stream before another attempt so later exhaustion uses SSE framing.
+	if b.streamStarted != nil && b.c.Writer.Written() {
+		*b.streamStarted = true
 	}
 	if failoverErr.ShouldReportProviderScheduleFailure() {
 		b.binding().reportOpenAIProviderScheduleResult(b.provider, OpenAIProviderScheduleModel(b.c, b.provider, b.currentRoutingModel, false, nil), false, nil, err)

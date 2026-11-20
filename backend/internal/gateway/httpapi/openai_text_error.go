@@ -19,11 +19,12 @@ import (
 // Messages, while panic recovery logs the captured state used to decide its
 // final response.
 //
-// When a Compact heartbeat has committed output, request-error writing stops
-// it, records the intended failure and tries a failed Responses event with
-// request metadata. JSON remains the fallback when that event cannot be
-// written. Messages panic recovery writes a final error only before its shared
-// started flag indicates streaming.
+// When a Compact or downstream idle heartbeat has committed an event stream,
+// request-error writing stops Compact output, records the intended failure, and
+// emits response.failed on Compact or Responses routes or event: error on other
+// streams. JSON remains the fallback when a terminal frame cannot be written.
+// Messages panic recovery writes a JSON 500 only before its shared started flag
+// or downstream SSE commitment indicates streaming.
 
 // openAITextMaxBytesError extracts a body-limit error through the supplied
 // error chain. Callers use the boolean to select HTTP 413 and retain the
@@ -43,17 +44,29 @@ func (h *OpenAITextHandler) errorResponse(c *gin.Context, status int, kind, mess
 
 // writeOpenAIRequestError stops Compact heartbeat output before writing a
 // chosen OpenAI rejection. Callers supply stop, observation and metadata
-// callbacks. A committed heartbeat records the intended error and attempts
-// response.failed; an unsuccessful terminal write falls through to JSON on the
-// current writer.
+// callbacks. Either a committed Compact heartbeat or an already committed
+// downstream event stream records the intended error and emits response.failed
+// on Compact/Responses routes or generic event: error on other streams; an
+// unsuccessful terminal write falls through to JSON on the current writer.
 func writeOpenAIRequestError(c *gin.Context, status int, kind, message string, stop func(*gin.Context) bool, mark func(*gin.Context, string, string, int), metadata func(*gin.Context) (string, string)) {
-	// Stop waits for an active heartbeat write and prevents later beats before
-	// output takes over. First-beat framing requires a Responses terminal attempt
-	// before this writer can offer an ordinary JSON envelope.
-	if stop(c) {
-		mark(c, kind, message, status)
-		id, model := metadata(c)
-		if WriteResponsesFailedSSE(c, kind, "", message, id, model) {
+	// Stop waits for an active Compact heartbeat write before checking committed
+	// SSE state so no background beat can race terminal framing.
+	compactCommitted := stop != nil && stop(c)
+	sseCommitted := CommittedSSE(c)
+	if compactCommitted || sseCommitted {
+		if mark != nil {
+			mark(c, kind, message, status)
+		}
+		if compactCommitted || InboundIsResponses(c) {
+			id, model := "", ""
+			if metadata != nil {
+				id, model = metadata(c)
+			}
+			if WriteResponsesFailedSSE(c, kind, "", message, id, model) {
+				return
+			}
+		}
+		if sseCommitted && writeOpenAIGenericErrorSSE(c, kind, "", message) {
 			return
 		}
 	}
@@ -123,17 +136,17 @@ func (h *OpenAITextHandler) recoverResponsesPanic(c *gin.Context, started *bool)
 
 // recoverAnthropicMessagesPanic recovers a directly deferred Messages handler
 // panic and logs started state and stack. Before output starts it writes JSON
-// 500; after started output it logs the failure and returns without appending
-// another stream event.
+// 500; after started output or an early SSE heartbeat it logs the failure and
+// returns without appending raw JSON to the stream.
 func (h *OpenAITextHandler) recoverAnthropicMessagesPanic(c *gin.Context, started *bool) {
 	value := recover()
 	if value == nil {
 		return
 	}
-	stream := started != nil && *started
+	stream := (started != nil && *started) || CommittedSSE(c)
 	RequestLogger(c, "handler.openai_gateway.messages").Error("openai.messages_panic_recovered", zap.Bool("stream_started", stream), zap.Any("panic", value), zap.ByteString("stack", debug.Stack()))
-	// Messages recovery writes JSON only before the started flag is set;
-	// the current compatibility recovery path leaves an existing stream to close after logging.
+	// Messages recovery writes JSON only before stream framing starts; committed
+	// SSE output leaves the stream to close after logging rather than appending JSON.
 	if !stream {
 		h.anthropicErrorResponse(c, http.StatusInternalServerError, "api_error", "Internal server error")
 	}
@@ -154,9 +167,9 @@ func (h *OpenAITextHandler) WriteStreamingErrorWithCode(c *gin.Context, status i
 }
 
 // anthropicStreamingAwareError delegates Anthropic error presentation under
-// the supplied started state. The shared compatibility writer can append an
-// error event to started output and leaves stream observation and final
-// termination with its caller.
+// the supplied started state with this handler's stream observation callback.
+// The shared compatibility writer appends an SSE error event after stream or
+// heartbeat commitment and records its intended status through MarkStream.
 func (h *OpenAITextHandler) anthropicStreamingAwareError(c *gin.Context, status int, kind, message string, started bool) {
-	(OpenAIErrorOutput{}).WriteAnthropicStreamingError(c, status, kind, message, started)
+	h.errorOutput().WriteAnthropicStreamingError(c, status, kind, message, started)
 }

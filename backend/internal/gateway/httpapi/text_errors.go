@@ -3,7 +3,6 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,13 +25,14 @@ import (
 // funding and rate failures retain a safe status, code and message and can
 // supply the remaining RPM-window seconds.
 
-// WriteAnthropicStreamError writes a protocol error using streamStarted to
-// choose SSE or JSON. Started Responses paths receive a terminal
-// response.failed event; other started streams use Anthropic error data when
-// Flush is available. The optional observer records intended error status
-// before output, and callers end processing after the helper returns.
+// WriteAnthropicStreamError writes a protocol error using streamStarted and
+// live SSE commitment to choose SSE or JSON. Started Responses paths receive a
+// terminal response.failed event; other started or heartbeat-committed streams
+// emit Anthropic error data through the terminal SSE barrier when Flush is
+// available. The optional observer records intended error status before output,
+// and callers end processing after the helper returns.
 func WriteAnthropicStreamError(c *gin.Context, status int, errType, code, message string, streamStarted bool, observe func(*gin.Context, string, string, int)) {
-	if streamStarted {
+	if streamStarted || CommittedSSE(c) {
 		// A flushed keepalive or data frame commits the status, so subsequent errors use SSE.
 		// Record stream errors so Ops can account for failures whose HTTP status is below 400.
 		if observe != nil {
@@ -46,27 +46,20 @@ func WriteAnthropicStreamError(c *gin.Context, status int, errType, code, messag
 				return
 			}
 		}
-		// Anthropic error data also requires http.Flusher on this same writer.
-		// A Responses failure rejected for missing Flush therefore emits nothing
-		// here; non-Responses streams use this Anthropic path directly.
-		flusher, ok := c.Writer.(http.Flusher)
-		if ok {
-			// Quote variable strings when constructing the fixed SSE error schema.
-			errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
-			if code != "" {
-				errorObject := gin.H{"type": errType, "code": code, "message": message}
-				payload, err := json.Marshal(gin.H{"type": "error", "error": errorObject})
-				// Keep the quoted fixed error event if structured encoding fails, so
-				// variable text still has escaped JSON in the started SSE response.
-				if err == nil {
-					errorEvent = "data: " + string(payload) + "\n\n"
-				}
+		// Quote variable strings when constructing the fixed SSE error schema.
+		errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
+		if code != "" {
+			errorObject := gin.H{"type": errType, "code": code, "message": message}
+			payload, err := json.Marshal(gin.H{"type": "error", "error": errorObject})
+			// Keep the quoted fixed error event if structured encoding fails, so
+			// variable text still has escaped JSON in the started SSE response.
+			if err == nil {
+				errorEvent = "data: " + string(payload) + "\n\n"
 			}
-			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
-				_ = c.Error(err)
-			}
-			flusher.Flush()
 		}
+		// Anthropic error data also requires http.Flusher inside emitLocalTerminalSSE,
+		// so a Responses failure rejected for missing Flush emits nothing here.
+		emitLocalTerminalSSE(c, []byte(errorEvent))
 		return
 	}
 

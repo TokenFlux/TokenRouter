@@ -187,10 +187,7 @@ func (s *GeminiOutput) GeminiMappedError(provider *gatewayprovider.ExecutionProv
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
-		c.JSON(status, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": errType, "message": errMsg},
-		})
+		WriteAnthropicStreamError(c, status, errType, "", errMsg, CommittedSSE(c), MarkOpsStreamError)
 		if upstreamMsg == "" {
 			upstreamMsg = errMsg
 		}
@@ -309,10 +306,7 @@ func (s *GeminiOutput) GeminiMappedError(provider *gatewayprovider.ExecutionProv
 		}
 	}
 
-	c.JSON(statusCode, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
-	})
+	WriteAnthropicStreamError(c, statusCode, errType, "", errMsg, CommittedSSE(c), MarkOpsStreamError)
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
 	}
@@ -517,7 +511,7 @@ func writeGoogleErrorBody(c *gin.Context, status int, body []byte) {
 	if !beginGoogleError(c) {
 		return
 	}
-	if !c.Writer.Written() || !strings.Contains(strings.ToLower(c.Writer.Header().Get("Content-Type")), "text/event-stream") {
+	if !CommittedSSE(c) {
 		c.Data(status, "application/json; charset=utf-8", body)
 		return
 	}

@@ -107,8 +107,9 @@ func LogCodexCLIOnlyDetection(ctx context.Context, c *gin.Context, provider *gat
 
 // EnforceClient rejects a disallowed OAuth client and records a local-policy
 // limitation. Disabled or matched restrictions return nil. HTTP requests
-// receive a 403 JSON response, while WebSocket callers receive the error for
-// their own frame handling.
+// mark semantic commitment and receive a 403 JSON response or a terminal SSE
+// error when event-stream framing is already committed, while WebSocket
+// callers receive the error for their own frame handling.
 func (s *OpenAIRequests) EnforceClient(ctx context.Context, c *gin.Context, provider *gatewayprovider.ExecutionProvider, body []byte, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) error {
 	result := s.DetectClient(c, provider, tlsRouterMatch)
 	apiKeyID := APIKeyIDFromContext(c)
@@ -118,12 +119,18 @@ func (s *OpenAIRequests) EnforceClient(ctx context.Context, c *gin.Context, prov
 	}
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
 	if c != nil && GetOpenAIClientTransport(c) != OpenAIClientTransportWS {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": gin.H{
-				"type":    "forbidden_error",
-				"message": OpenAIClientPolicyForbiddenMessage(result),
-			},
-		})
+		MarkResponseCommitted(c)
+		message := OpenAIClientPolicyForbiddenMessage(result)
+		if CommittedSSE(c) {
+			writeCommittedClientSSEError(c, http.StatusForbidden, "forbidden_error", "", message)
+		} else {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": gin.H{
+					"type":    "forbidden_error",
+					"message": message,
+				},
+			})
+		}
 	}
 	return errors.New("openai oauth client policy restriction: client is not allowed")
 }

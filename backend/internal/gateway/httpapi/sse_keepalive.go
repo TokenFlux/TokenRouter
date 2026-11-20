@@ -87,6 +87,54 @@ type sseKeepaliveWriter struct {
 	worker  sync.WaitGroup // worker lifetime join barrier
 }
 
+// CommittedSSE reports whether the active HTTP response has already committed
+// a successful event-stream header, including early downstream or wait
+// heartbeats. Nil contexts or unwritten writers return false without touching
+// mutable response headers, so an open header-wait window stays intact.
+//
+// When DownstreamSSEKeepalive owns the writer, status and Content-Type are read
+// under its mutex to stay race-free with concurrent timer beats without cloning
+// the header map. Routes without that middleware inspect the current writer
+// only after Written reports true.
+func CommittedSSE(c *gin.Context) bool {
+	if c == nil || c.Writer == nil {
+		return false
+	}
+	if value, ok := c.Get(sseKeepaliveWriterKey); ok {
+		if w, valid := value.(*sseKeepaliveWriter); valid && w != nil {
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			return w.committedSSELocked()
+		}
+	}
+	if !c.Writer.Written() {
+		return false
+	}
+	status := c.Writer.Status()
+	return status >= 200 && status < 300 && strings.Contains(strings.ToLower(c.Writer.Header().Get("Content-Type")), "text/event-stream")
+}
+
+// TerminalSSEDelivered reports whether the installed downstream SSE keepalive
+// writer has already accepted a terminal event frame. Missing contexts or
+// routes without that writer return false, allowing fallback error handlers to
+// suppress duplicate terminal events only when delivery was observed.
+func TerminalSSEDelivered(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, ok := c.Get(sseKeepaliveWriterKey)
+	if !ok {
+		return false
+	}
+	w, valid := value.(*sseKeepaliveWriter)
+	if !valid || w == nil {
+		return false
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.terminal
+}
+
 // DownstreamSSEKeepalive installs idle heartbeats for timed HTTP text requests.
 // A nonpositive interval disables it; a nonpositive stall disables the
 // committed body inactivity cutoff. Pending upstream headers use transport budgets. The middleware must immediately follow TextRequestTiming.

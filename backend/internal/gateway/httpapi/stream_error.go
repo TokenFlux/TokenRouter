@@ -9,14 +9,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
-// stream_error.go writes terminal Responses failure events and derives their
-// response IDs and client error codes.
-// After Responses streaming begins, clients recognize failure through a
-// terminal response.failed object. That object carries an ID, creation
-// timestamp and empty output array so clients can complete their response state
-// even when generation never produced output.
+// stream_error.go writes terminal SSE failure events, extracts safe error
+// fields from captured upstream bodies, and derives Responses IDs and codes.
+// After streaming or early header-wait heartbeats commit HTTP 200
+// text/event-stream, clients cannot accept plain JSON error responses.
+// Responses clients recognize failure through a terminal response.failed object
+// carrying an ID, creation timestamp, and empty output array so they can finish
+// response state even when generation never produced output.
+//
+// Local terminal error delivery sends frames through ResponseSink with upstream
+// timing cleared and Terminal enabled. Clearing timing prevents gateway errors
+// from establishing upstream TTFT, while the terminal marker serializes writes
+// against DownstreamSSEKeepalive and stops further idle beats atomically once
+// accepted. Captured upstream error bodies also pass through field extraction
+// and query sanitization before entering a committed stream.
 
 // ResponsesFailedError is the error object in an OpenAI Responses failure.
 type ResponsesFailedError struct {
@@ -56,8 +68,10 @@ type ResponsesFailedEvent struct {
 // Flush is unavailable, so the caller may choose another protocol error path;
 // committed HTTP status remains fixed.
 func WriteResponsesFailedSSE(c *gin.Context, errType, code, message, requestID, model string) bool {
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
+	if c == nil || c.Writer == nil {
+		return false
+	}
+	if _, ok := c.Writer.(http.Flusher); !ok {
 		return false
 	}
 
@@ -84,15 +98,54 @@ func WriteResponsesFailedSSE(c *gin.Context, errType, code, message, requestID, 
 		return true
 	}
 
-	// Attach delivery failure and finish this error path; the committed
-	// stream cannot recover by switching to an ordinary JSON status
-	// response.
-	if _, err := fmt.Fprintf(c.Writer, "event: response.failed\ndata: %s\n\n", payload); err != nil {
-		_ = c.Error(err)
-		return true
+	return emitLocalTerminalSSE(c, fmt.Appendf(nil, "event: response.failed\ndata: %s\n\n", payload))
+}
+
+// emitLocalTerminalSSE writes a gateway-generated terminal SSE frame through
+// the full response writer chain without upstream timing attribution. Missing
+// contexts or writers without http.Flusher return false so callers may choose
+// an alternate fallback.
+//
+// Setting Terminal on ResponseSink serializes the write and flush against
+// DownstreamSSEKeepalive and stops further idle beats atomically upon accepted
+// delivery. Delivery errors are attached to Gin and still return true because a
+// committed event stream cannot revert to a plain JSON status response.
+func emitLocalTerminalSSE(c *gin.Context, data []byte) bool {
+	if c == nil || c.Writer == nil {
+		return false
 	}
-	flusher.Flush()
+	if _, ok := c.Writer.(http.Flusher); !ok {
+		return false
+	}
+	// Clear timing so local gateway errors never attribute upstream TTFT while
+	// still passing through Ops capture and the terminal keepalive barrier.
+	sink := NewResponseSink(c)
+	sink.timing = nil
+	if err := sink.Emit(upstream.OutputEvent{Data: data, Terminal: true, Flush: true}); err != nil {
+		_ = c.Error(err)
+	}
 	return true
+}
+
+// extractSSEErrorFields extracts safe client error type, optional code, and
+// sanitized message from captured upstream error bytes when a committed event
+// stream cannot emit raw JSON. Missing or blank fields fall back to defaultType
+// and defaultMessage, with HTTP 400 defaulting its type to invalid_request_error.
+func extractSSEErrorFields(status int, body []byte, defaultType, defaultMessage string) (string, string, string) {
+	errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String())
+	if errType == "" {
+		if status == http.StatusBadRequest {
+			errType = "invalid_request_error"
+		} else {
+			errType = defaultType
+		}
+	}
+	code := strings.TrimSpace(upstream.ExtractErrorCode(body))
+	message := strings.TrimSpace(logredact.SanitizeUpstreamQueries(upstream.ExtractErrorMessage(body)))
+	if message == "" {
+		message = defaultMessage
+	}
+	return errType, code, message
 }
 
 // InboundIsResponses recognizes Responses roots and subpaths for terminal error

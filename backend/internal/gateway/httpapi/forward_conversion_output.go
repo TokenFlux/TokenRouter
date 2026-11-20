@@ -195,11 +195,20 @@ func (o ForwardConversionOutput) Flush() {
 	o.Context.Writer.Flush()
 }
 
-// Error marks this conversion error handled before writing its JSON envelope.
-// Responses puts kind in code and Chat puts it in type; the marker describes
-// error handling, since later delivery failure can still occur.
+// Error marks this conversion error handled before writing its JSON envelope,
+// or emits a terminal SSE error event when event-stream framing is already
+// committed. Responses puts kind in code and Chat puts it in type; the marker
+// describes error handling, since later delivery failure can still occur.
 func (o ForwardConversionOutput) Error(status int, kind, message string) {
 	o.Commit()
+	if CommittedSSE(o.Context) {
+		code := ""
+		if o.Responses {
+			code = kind
+		}
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(o.Context, status, kind, code, message, true, false)
+		return
+	}
 	if o.Responses {
 		o.Context.JSON(status, gin.H{"error": gin.H{"code": kind, "message": message}})
 		return
@@ -215,12 +224,13 @@ func (o ForwardConversionOutput) Observe(level, message string, err error, reque
 }
 
 // WriteForwardMessageGenericError marks a handled Messages failure before
-// writing generic 500 output. The callback and Gin context are required;
-// marking precedes delivery so outer error handling can see that this path has
-// attempted its response.
+// writing generic 500 output, switching to a terminal SSE error frame when
+// event-stream framing is already committed. The callback and Gin context are
+// required; marking precedes delivery so outer error handling can see that this
+// path has attempted its response.
 func WriteForwardMessageGenericError(c *gin.Context, commit func()) {
 	commit()
-	c.JSON(http.StatusInternalServerError, gin.H{"type": "error", "error": gin.H{"type": "upstream_error", "message": "Upstream gateway error"}})
+	WriteAnthropicStreamError(c, http.StatusInternalServerError, "upstream_error", "", "Upstream gateway error", CommittedSSE(c), MarkOpsStreamError)
 }
 
 // WriteForwardCountSuccess writes counted output with the supplied status and

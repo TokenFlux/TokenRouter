@@ -125,24 +125,31 @@ func IsOpenAIDeterministicClientError(statusCode int, shouldFailover bool) bool 
 }
 
 // WriteOpenAIUpstreamClientError writes a deterministic client error from
-// selected upstream fields and upstreamMsg. Callers sanitize sensitive data in
-// the message before entry; the upstream body supplies type, code and param,
-// and absent classification or message selects the standard fallback
-// strings.
+// selected upstream fields and upstreamMsg, switching to a terminal SSE error
+// event when event-stream framing is already committed. Callers sanitize
+// sensitive data in the message before entry; the upstream body supplies type,
+// code and param, and absent classification or message selects the standard
+// fallback strings.
 func WriteOpenAIUpstreamClientError(c *gin.Context, statusCode int, body []byte, upstreamMsg string) {
-	errorPayload := gin.H{"type": openAIUpstreamClientErrorFallbackType}
-	if errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); errType != "" {
-		errorPayload["type"] = errType
+	errType := openAIUpstreamClientErrorFallbackType
+	if parsedType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); parsedType != "" {
+		errType = parsedType
 	}
-	if code := strings.TrimSpace(upstream.ExtractErrorCode(body)); code != "" {
+	code := strings.TrimSpace(upstream.ExtractErrorCode(body))
+	message := strings.TrimSpace(upstreamMsg)
+	if message == "" {
+		message = openAIUpstreamClientErrorFallbackMessage
+	}
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, statusCode, errType, code, message, true, false)
+		return
+	}
+	errorPayload := gin.H{"type": errType}
+	if code != "" {
 		errorPayload["code"] = code
 	}
 	if param := strings.TrimSpace(gjson.GetBytes(body, "error.param").String()); param != "" {
 		errorPayload["param"] = param
-	}
-	message := strings.TrimSpace(upstreamMsg)
-	if message == "" {
-		message = openAIUpstreamClientErrorFallbackMessage
 	}
 	errorPayload["message"] = message
 

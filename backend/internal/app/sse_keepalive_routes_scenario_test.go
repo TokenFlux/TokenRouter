@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
@@ -24,6 +25,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/googleforward"
@@ -36,12 +38,16 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	opscore "github.com/TokenFlux/TokenRouter/internal/ops"
+	opsprovider "github.com/TokenFlux/TokenRouter/internal/ops/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
 )
 
 // sse_keepalive_routes_scenario_test.go exercises gateway_middleware.go,
@@ -62,14 +68,33 @@ type heartbeatRouteTransport struct {
 
 // heartbeatRouteOptions adjusts model and transport budgets for SDK route fixtures.
 type heartbeatRouteOptions struct {
-	FallbackURL   string        // optional second provider URL
-	Model         string        // optional fixture model
-	Stall         time.Duration // upstream idle budget
-	HeaderTimeout time.Duration // upstream header budget
+	FallbackURL   string                        // optional second provider URL
+	Model         string                        // optional fixture model
+	Stall         time.Duration                 // upstream idle budget
+	HeaderTimeout time.Duration                 // upstream header budget
+	Ops           *opscore.OpsService           // optional Ops logger service
+	OpsQueue      gatewayhttp.OpsErrorLogQueue  // optional synchronous Ops capture queue
+	OnTelemetry   func(telemetry.RequestRecord) // optional request record observer
 }
 
 // heartbeatRouteNoSearch disables optional search without replacing forwarding logic.
 type heartbeatRouteNoSearch struct{}
+
+// heartbeatRouteSettingsStore supplies default gateway settings without database storage.
+type heartbeatRouteSettingsStore struct{}
+
+// GetMultiple returns an empty map so gateway readers fall back to policy defaults.
+func (heartbeatRouteSettingsStore) GetMultiple(context.Context, []string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+// GetValue reports missing keys using ErrSettingNotFound so defaults apply.
+func (heartbeatRouteSettingsStore) GetValue(context.Context, string) (string, error) {
+	return "", settings.ErrSettingNotFound
+}
+
+// Set accepts fixture settings writes without persisting state.
+func (heartbeatRouteSettingsStore) Set(context.Context, string, string) error { return nil }
 
 // Do delegates one fixture exchange through real pool timing and response hooks.
 // Tests use local HTTP endpoints and own response closure, while cleanup closes
@@ -236,6 +261,9 @@ func newHeartbeatRouteRouter(t *testing.T, url, kind string, interval time.Durat
 	limits := heartbeatRouteOptions{Model: model, Stall: time.Second, HeaderTimeout: 2 * time.Second}
 	if len(overrides) > 0 {
 		limits.FallbackURL = overrides[0].FallbackURL
+		limits.Ops = overrides[0].Ops
+		limits.OpsQueue = overrides[0].OpsQueue
+		limits.OnTelemetry = overrides[0].OnTelemetry
 		if overrides[0].Model != "" {
 			limits.Model = overrides[0].Model
 		}
@@ -288,7 +316,8 @@ func newHeartbeatRouteRouter(t *testing.T, url, kind string, interval time.Durat
 	recording.Dependencies.Calculator = calculator
 	recording.Dependencies.Prices = prices
 	source.Recorder = recording.Core(nil, true)
-	native := &gatewayhttp.UnifiedTextExecutor{OpenAI: source.Responses, Anthropic: gatewayhttp.NewMessagesExecutor(messageforward.NewRuntime(messageforward.Dependencies{Credentials: &providercore.MessageCredentialSource{}, Transport: transport, Deferred: &providercore.DeferredService{}, Search: searchtools.NewEmulator(heartbeatRouteNoSearch{}, nil, nil, nil, nil, nil)}, messageforward.Options{Configured: true, AllowInsecureHTTP: true, ResponseReadLimit: 1 << 20}), nil), Gemini: &gatewayhttp.GeminiExecutor{Runtime: &googleforward.Gemini{Transport: transport, Errors: &provideradapter.GeminiErrorObserver{SetRateLimited: func(context.Context, int64, time.Time) error { return nil }, ResetTime: func([]byte) *int64 { return nil }, DailyReset: func() *int64 { return nil }}, Options: googleforward.Options{Configured: true, AllowInsecureHTTP: true, ResponseReadLimit: 1 << 20, StreamInterval: int(limits.Stall / time.Second)}}}}
+	runtimeSettings := gateway.NewRuntimeSettings(heartbeatRouteSettingsStore{}, settings.ErrSettingNotFound, func() *gateway.BetaPolicySettings { return &gateway.BetaPolicySettings{} })
+	native := &gatewayhttp.UnifiedTextExecutor{OpenAI: source.Responses, Anthropic: gatewayhttp.NewMessagesExecutor(messageforward.NewRuntime(messageforward.Dependencies{Credentials: &providercore.MessageCredentialSource{}, Transport: transport, Settings: runtimeSettings, Deferred: &providercore.DeferredService{}, Search: searchtools.NewEmulator(heartbeatRouteNoSearch{}, nil, nil, nil, nil, nil)}, messageforward.Options{Configured: true, AllowInsecureHTTP: true, ResponseReadLimit: 1 << 20}), nil), Gemini: &gatewayhttp.GeminiExecutor{Runtime: &googleforward.Gemini{Transport: transport, Errors: &provideradapter.GeminiErrorObserver{SetRateLimited: func(context.Context, int64, time.Time) error { return nil }, ResetTime: func([]byte) *int64 { return nil }, DailyReset: func() *int64 { return nil }}, Options: googleforward.Options{Configured: true, AllowInsecureHTTP: true, ResponseReadLimit: 1 << 20, StreamInterval: int(limits.Stall / time.Second)}}}}
 	eligibility := newBillingEligibilityFixture(cfg)
 	t.Cleanup(eligibility.Stop)
 	funding := newFundingAdmissionFixture(eligibility, cfg)
@@ -315,6 +344,172 @@ func newHeartbeatRouteRouter(t *testing.T, url, kind string, interval time.Durat
 	runtime := provideMessageAttemptRuntime(nil, digest, nil, nil, native.Gemini, funding, keys, GatewayCompletionRecorders{Forward: recording.Core(nil, false), OpenAI: source.Recorder}, shared, nil, nil, nil, cfg, nil, generic, nil, nil, prices)
 	gemini := provideGeminiNativeHTTP(shared, digest, runtime, activity, generic)
 	router := gin.New()
+	if limits.OnTelemetry != nil {
+		router.Use(func(c *gin.Context) {
+			ctx := telemetry.WithRequestCapture(c.Request.Context(), telemetry.RequestRecord{State: "completed"}, limits.OnTelemetry)
+			c.Request = c.Request.WithContext(ctx)
+			c.Next()
+		})
+	}
+	if limits.Ops != nil && limits.OpsQueue != nil {
+		router.Use(gatewayhttp.OpsErrorLoggerMiddleware(limits.Ops, limits.OpsQueue, gatewayhttp.OpsObservationAccess{}))
+	}
 	gatewayhttp.RegisterGatewayRoutes(router, gatewayhttp.RouteEndpoints{OpenAIText: endpoints.textHandler(), GeminiNative: gemini, ResponsesWS: func(*gin.Context) {}, PublicUsage: func(*gin.Context) {}}, middleware, func(*gin.RouterGroup) {})
 	return router, origins
+}
+
+// TestGatewayRoutesKeepaliveBeforeUpstreamFailure delays upstream headers beyond
+// the downstream keepalive interval before returning 502, closing the connection,
+// or returning a deterministic 400 error. Every public text route must emit only
+// valid SSE frames with a terminal protocol error and record a non-recovered Ops
+// stream failure with failed request telemetry.
+func TestGatewayRoutesKeepaliveBeforeUpstreamFailure(t *testing.T) {
+	paths := []string{"/v1/messages", "/v1/chat/completions", "/v1/responses"}
+	platforms := []string{"anthropic", "openai", "openai_passthrough", "openai_chat", "gemini"}
+
+	for _, path := range paths {
+		for _, platform := range platforms {
+			// Gemini upstream exchange retries 502 and closed connections with multi-second
+			// backoff; cover its non-retrying 400 and 401 failure paths directly here.
+			failures := []string{"502", "close", "400"}
+			if platform == "gemini" {
+				failures = []string{"400", "401"}
+			}
+			for _, failure := range failures {
+				t.Run(path+"/"+platform+"/"+failure, func(t *testing.T) {
+					testGatewayRouteKeepaliveUpstreamFailure(t, path, platform, failure)
+				})
+			}
+		}
+	}
+}
+
+// testGatewayRouteKeepaliveUpstreamFailure exercises a single-provider gateway
+// route where DownstreamSSEKeepalive commits HTTP 200 text/event-stream before
+// the delayed upstream fails. It verifies early heartbeat delivery, strict SSE
+// framing with a terminal error event, failed telemetry state, and an Ops entry
+// carrying a failed status rather than a recovered upstream summary.
+func testGatewayRouteKeepaliveUpstreamFailure(t *testing.T, path, kind, failure string) {
+	t.Helper()
+	const interval = 10 * time.Millisecond
+	var released atomic.Bool
+	upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		select {
+		case <-time.After(15 * interval):
+		case <-r.Context().Done():
+			return
+		}
+		released.Store(true)
+		switch failure {
+		case "close":
+			if hj, ok := w.(http.Hijacker); ok {
+				conn, _, err := hj.Hijack()
+				if err == nil {
+					_ = conn.Close()
+					return
+				}
+			}
+			w.WriteHeader(http.StatusBadGateway)
+		case "400":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":{"type":"invalid_request_error","code":"invalid_param","message":"invalid request parameter"}}`)
+		case "401":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"error":{"type":"authentication_error","message":"upstream unauthorized"}}`)
+		default:
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = io.WriteString(w, `{"error":{"type":"upstream_error","message":"upstream bad gateway"}}`)
+		}
+	}))
+	t.Cleanup(upstreamServer.Close)
+
+	queue := newOpsCaptureQueue(4)
+	ops := opscore.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{})
+	var lastRecord atomic.Value
+	router, _ := newHeartbeatRouteRouter(t, upstreamServer.URL, kind, interval, heartbeatRouteOptions{
+		Ops:      ops,
+		OpsQueue: queue,
+		OnTelemetry: func(r telemetry.RequestRecord) {
+			lastRecord.Store(r)
+		},
+	})
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	model := map[string]string{"anthropic": "claude-sonnet-4-5-20250929", "gemini": "gemini-2.5-flash", "openai": "gpt-5.4", "openai_passthrough": "gpt-5.4", "openai_chat": "gpt-5.4"}[kind]
+	body := fmt.Sprintf(`{"model":%q,"max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":true}`, model)
+	if strings.HasSuffix(path, "/responses") {
+		body = fmt.Sprintf(`{"model":%q,"input":"hello","stream":true}`, model)
+	}
+	client := server.Client()
+	client.Timeout = 3 * time.Second
+	req, err := http.NewRequest(http.MethodPost, server.URL+path, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, resp.Body.Close()) }()
+
+	reader := bufio.NewReader(resp.Body)
+	var received strings.Builder
+	heartbeat := false
+	for !heartbeat {
+		line, readErr := reader.ReadString('\n')
+		_, _ = received.WriteString(line)
+		if line == ": keepalive\n" || line == "event: ping\n" {
+			heartbeat = true
+			require.False(t, released.Load(), "heartbeat arrived only after upstream failure")
+			break
+		}
+		if readErr != nil {
+			break
+		}
+	}
+	rest, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	_, _ = received.Write(rest)
+
+	raw := received.String()
+	require.True(t, heartbeat, raw)
+	require.Equal(t, http.StatusOK, resp.StatusCode, raw)
+	require.Contains(t, strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream")
+	assertRouteSSELinesValid(t, raw)
+
+	switch path {
+	case "/v1/responses":
+		require.Contains(t, raw, "event: response.failed\n", raw)
+		require.Contains(t, raw, `"type":"response.failed"`, raw)
+	case "/v1/messages":
+		require.Contains(t, raw, `"type":"error"`, raw)
+	default:
+		require.Contains(t, raw, "event: error\n", raw)
+	}
+
+	require.Eventually(t, func() bool { return len(queue.jobs) > 0 }, time.Second, time.Millisecond)
+	job := <-queue.jobs
+	require.GreaterOrEqual(t, job.entry.StatusCode, http.StatusBadRequest, "Ops entry must record failed status, got %d (%q)", job.entry.StatusCode, job.entry.ErrorMessage)
+	require.NotContains(t, job.entry.ErrorMessage, "Recovered upstream error")
+	record, ok := lastRecord.Load().(telemetry.RequestRecord)
+	require.True(t, ok)
+	require.Equal(t, "failed", record.State)
+	require.Equal(t, "stream_error", record.ErrorCode)
+}
+
+// assertRouteSSELinesValid checks that every non-blank line in body is valid
+// SSE framing and every data line contains valid JSON, catching appended JSON.
+func assertRouteSSELinesValid(t *testing.T, body string) {
+	t.Helper()
+	for line := range strings.SplitSeq(body, "\n") {
+		if line == "" || strings.HasPrefix(line, ":") || strings.HasPrefix(line, "event: ") {
+			continue
+		}
+		require.True(t, strings.HasPrefix(line, "data: "), "non-SSE line found in route response: %q (full body: %q)", line, body)
+		payload := strings.TrimPrefix(line, "data: ")
+		require.True(t, json.Valid([]byte(payload)), "SSE data line must hold valid JSON: %q", payload)
+	}
 }

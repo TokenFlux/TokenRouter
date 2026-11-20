@@ -233,7 +233,8 @@ func (b *openAIChatAttemptBridge) PartialImages(err error) {
 //
 // Changed output invokes health observation and terminal error handling, then
 // returns false so the text loop cannot append another provider's content.
-// Unchanged output permits retry, with schedule failure reported only when the
+// Unchanged output promotes streamStarted if heartbeat headers were already
+// committed and permits retry, with schedule failure reported only when the
 // classified upstream error requests that observation. Waiting and switch
 // budgets remain with the outer text loop.
 func (b *openAIChatAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bool {
@@ -257,6 +258,11 @@ func (b *openAIChatAttemptBridge) RetryReady(failure *textflow.AttemptFailure) b
 		b.binding().observeOpenAIProviderHealthFailure(b.c.Request.Context(), b.provider, err)
 		b.binding().handleFailoverExhausted(b.c, failoverErr, true)
 		return false
+	}
+	// Replay may remain safe after early heartbeat headers were committed. Mark
+	// the stream before another attempt so later exhaustion uses SSE framing.
+	if b.streamStarted != nil && b.c.Writer.Written() {
+		*b.streamStarted = true
 	}
 	if failoverErr.ShouldReportProviderScheduleFailure() {
 		b.binding().reportOpenAIProviderScheduleResult(b.provider, OpenAIProviderScheduleModel(b.c, b.provider, b.reqModel, false, nil), false, nil, err)

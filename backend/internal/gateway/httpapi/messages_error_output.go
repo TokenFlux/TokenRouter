@@ -25,14 +25,17 @@ import (
 // Failover exhaustion retains retry guidance and interprets credential
 // failure, capacity shedding, silent refusal and rate limits before ordinary
 // status mapping. Responses streams append a generic terminal only while
-// output is empty or contains heartbeats alone; Chat exhaustion returns
-// immediately once streaming starts. Gemini error rules take precedence over
-// default Google status messages when a rule matches the upstream body.
+// output is empty or contains heartbeats alone; Chat exhaustion emits a stream
+// error for heartbeat-only output and returns unchanged once content has been
+// delivered. Direct error helpers also switch to terminal SSE frames when
+// early heartbeats have already committed an event stream. Gemini error rules
+// take precedence over default Google status messages when a rule matches the
+// upstream body.
 
 // AnthropicForwardErrorOutput writes Messages errors. Callers manage commit and stream state.
 type AnthropicForwardErrorOutput struct {
 	// Context supplies the active writer. Callers manage semantic commitment and
-	// stream state before invoking these plain JSON output methods.
+	// stream state before invoking these error output methods.
 	Context *gin.Context
 }
 
@@ -43,17 +46,27 @@ type MessagesErrorOutput struct {
 	Rules *errorpolicy.ErrorPassthroughService
 }
 
-// Message writes the supplied Anthropic error envelope as JSON. The caller
-// supplies a usable context and manages semantic commitment and stream state;
-// this plain writer sets neither coordination flag itself.
+// Message writes the supplied Anthropic error envelope as JSON, or as an SSE
+// error event when the response has already committed event-stream framing.
+// Callers supply a usable context and manage semantic commitment separately.
 func (o AnthropicForwardErrorOutput) Message(status int, kind, message string) {
+	if CommittedSSE(o.Context) {
+		WriteAnthropicStreamError(o.Context, status, kind, "", message, true, MarkOpsStreamError)
+		return
+	}
 	o.Context.JSON(status, gin.H{"type": "error", "error": gin.H{"type": kind, "message": message}})
 }
 
 // Raw writes supplied upstream bytes as application/json with the requested
-// status. The bytes are not validated, and callers coordinate semantic
-// commitment and streaming before selecting this plain-body output.
+// status, or emits a protocol SSE error event when event-stream framing is
+// already committed. Uncommitted bytes pass through unvalidated; committed SSE
+// extracts safe error fields so raw JSON is never appended to an event stream.
 func (o AnthropicForwardErrorOutput) Raw(status int, body []byte) {
+	if CommittedSSE(o.Context) {
+		errType, code, message := extractSSEErrorFields(status, body, "upstream_error", "Upstream request failed")
+		WriteAnthropicStreamError(o.Context, status, errType, code, message, true, MarkOpsStreamError)
+		return
+	}
 	o.Context.Data(status, "application/json", body)
 }
 
@@ -105,7 +118,7 @@ func (h MessagesErrorOutput) EnsureResponse(c *gin.Context, streamStarted bool) 
 	if c == nil || c.Writer == nil {
 		return false
 	}
-	if IsResponseCommitted(c) {
+	if IsResponseCommitted(c) || TerminalSSEDelivered(c) {
 		return false
 	}
 	// Already-written headers prevent a new HTTP error status; promote streaming
@@ -152,10 +165,14 @@ func (h MessagesErrorOutput) Error(c *gin.Context, status int, errType, message 
 }
 
 // ErrorWithCode delegates Anthropic JSON output with the supplied optional
-// code. The shared writer applies request model-attribute overrides, while the
-// caller determines whether plain output is still appropriate for this
-// request.
+// code, or emits a terminal SSE error when event-stream framing is already
+// committed. Callers supply the target status and code; early heartbeats still
+// produce a valid protocol error event instead of appending raw JSON.
 func (h MessagesErrorOutput) ErrorWithCode(c *gin.Context, status int, errType, code, message string) {
+	if CommittedSSE(c) {
+		WriteAnthropicStreamError(c, status, errType, code, message, true, MarkOpsStreamError)
+		return
+	}
 	WriteAnthropicError(c, status, errType, code, message)
 }
 
@@ -171,9 +188,14 @@ func (h MessagesErrorOutput) Exhausted(c *gin.Context, failure *forwardcore.Upst
 	WriteAnthropicFailover(c, failure, platform, started, rules, forwardcore.IsOpenAISilentRefusalErrorBody, forwardcore.OpenAISilentRefusalClientMessage())
 }
 
-// ResponsesError writes a plain OpenAI Responses error envelope with code and
-// message fields.
+// ResponsesError writes an OpenAI Responses error envelope with code and
+// message fields. When event-stream framing is already committed, it instead
+// delegates a terminal SSE failure event and records the intended status.
 func (h MessagesErrorOutput) ResponsesError(c *gin.Context, status int, code, message string) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, code, code, message, true, false)
+		return
+	}
 	c.JSON(status, gin.H{"error": gin.H{"code": code, "message": message}})
 }
 
@@ -210,10 +232,10 @@ func (h MessagesErrorOutput) ResponsesExhausted(c *gin.Context, lastErr *forward
 	} else if lastErr != nil && statusCode == http.StatusTooManyRequests {
 		status, code, message = http.StatusTooManyRequests, "rate_limit_error", "All available providers are currently rate-limited. Please retry later."
 	}
-	if streamStarted {
-		// Admission heartbeats can flush HTTP output without a terminal result.
-		// Append a failure only for that empty/heartbeat state, preserving any
-		// semantic output already delivered by the Responses converter.
+	if streamStarted || CommittedSSE(c) {
+		// Admission or downstream heartbeats can flush HTTP output without a terminal
+		// result. Append a failure only for that empty/heartbeat state, preserving
+		// any semantic output already delivered by the Responses converter.
 		MarkOpsStreamError(c, code, message, status)
 		if c != nil && c.Writer != nil && HeartbeatAdjustedWrittenSize(c) <= 0 {
 			WriteResponsesFailedSSE(c, code, "", message, ErrorRequestID(c), ErrorRequestModel(c))
@@ -223,16 +245,21 @@ func (h MessagesErrorOutput) ResponsesExhausted(c *gin.Context, lastErr *forward
 	h.ResponsesError(c, status, code, message)
 }
 
-// ChatError writes a plain OpenAI Chat Completions error envelope with type
-// and message fields.
+// ChatError writes an OpenAI Chat Completions error envelope with type and
+// message fields. When event-stream framing is already committed, it instead
+// emits a terminal SSE error frame and records the intended status.
 func (h MessagesErrorOutput) ChatError(c *gin.Context, status int, errType, message string) {
+	if CommittedSSE(c) {
+		DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, true)
+		return
+	}
 	c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": message}})
 }
 
-// ChatExhausted presents Chat failover exhaustion before streaming begins,
-// retaining upstream retry guidance when a failure exists. A started stream
-// returns without additional output; a nil failure uses generic 502
-// exhaustion.
+// ChatExhausted presents Chat failover exhaustion, retaining upstream retry
+// guidance when a failure exists. When streaming or early heartbeats already
+// committed SSE, heartbeat-only output receives an SSE error event while
+// streams with delivered content return unchanged.
 //
 // Credential failure wins over a capacity-shed client message, while silent
 // refusal is checked before ordinary upstream status presentation. The
@@ -240,37 +267,37 @@ func (h MessagesErrorOutput) ChatError(c *gin.Context, status int, errType, mess
 // generic upstream-error response, so client output and upstream diagnostics
 // describe their respective failure boundaries.
 func (h MessagesErrorOutput) ChatExhausted(c *gin.Context, lastErr *forwardcore.UpstreamFailoverError, streamStarted bool) {
-	// Chat stream output is left to its forwarding/error path once started;
-	// returning here prevents exhaustion from adding a plain error after that output.
-	if streamStarted {
+	started := streamStarted || CommittedSSE(c)
+	// Return unchanged once meaningful Chat stream content has been delivered,
+	// avoiding an appended error after partial output owned by the stream reader.
+	if started && HeartbeatAdjustedWrittenSize(c) > 0 {
 		return
 	}
 	if lastErr != nil {
 		CopyFailoverRetryAfter(c, lastErr.ResponseHeaders)
 	}
-	if lastErr != nil && lastErr.IsCredentialFailure() {
-		status, message := CredentialFailoverClientResponse(lastErr)
-		h.ChatError(c, status, "server_error", message)
-		return
-	}
-	if lastErr != nil && gatewayprovider.IsOpenAICapacityShed(lastErr) && strings.TrimSpace(lastErr.ClientMessage) != "" {
-		status := lastErr.ClientStatusCode
-		if status <= 0 {
-			status = http.StatusServiceUnavailable
-		}
-		h.ChatError(c, status, "server_error", lastErr.ClientMessage)
-		return
-	}
 	statusCode := http.StatusBadGateway
 	if lastErr != nil && lastErr.StatusCode > 0 {
 		statusCode = lastErr.StatusCode
 	}
-	if lastErr != nil && forwardcore.IsOpenAISilentRefusalErrorBody(lastErr.ResponseBody) {
+	status, errType, message := statusCode, "server_error", "All available providers exhausted"
+	if lastErr != nil && lastErr.IsCredentialFailure() {
+		status, message = CredentialFailoverClientResponse(lastErr)
+	} else if lastErr != nil && gatewayprovider.IsOpenAICapacityShed(lastErr) && strings.TrimSpace(lastErr.ClientMessage) != "" {
+		status = lastErr.ClientStatusCode
+		if status <= 0 {
+			status = http.StatusServiceUnavailable
+		}
+		message = lastErr.ClientMessage
+	} else if lastErr != nil && forwardcore.IsOpenAISilentRefusalErrorBody(lastErr.ResponseBody) {
 		SetOpsUpstreamError(c, statusCode, forwardcore.OpenAISilentRefusalClientMessage(), "")
-		h.ChatError(c, http.StatusBadGateway, "upstream_error", forwardcore.OpenAISilentRefusalClientMessage())
+		status, errType, message = http.StatusBadGateway, "upstream_error", forwardcore.OpenAISilentRefusalClientMessage()
+	}
+	if started {
+		DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, true)
 		return
 	}
-	h.ChatError(c, statusCode, "server_error", "All available providers exhausted")
+	h.ChatError(c, status, errType, message)
 }
 
 // GeminiExhausted presents exhaustion using a Google error envelope. A

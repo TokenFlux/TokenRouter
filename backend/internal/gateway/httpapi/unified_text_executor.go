@@ -168,10 +168,11 @@ func (e *UnifiedTextExecutor) prepare(c *gin.Context, target *gatewayadapter.Exe
 	}
 	if err != nil {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		MarkResponseCommitted(c)
 		if source == protocol.ProtocolAnthropicMessages {
-			c.JSON(http.StatusForbidden, gin.H{"type": "error", "error": gin.H{"type": "permission_error", "message": err.Error()}})
+			DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusForbidden, "permission_error", err.Error(), CommittedSSE(c))
 		} else {
-			c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "permission_error", "message": err.Error(), "code": "reasoning_effort_limit"}})
+			DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, http.StatusForbidden, "permission_error", "reasoning_effort_limit", err.Error(), CommittedSSE(c), false)
 		}
 	}
 	return target, result, err
