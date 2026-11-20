@@ -9,6 +9,7 @@ import {
   buildEffortModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  firstModelMappingRowError,
   splitEffortModelMappingObject,
   splitPersistedModelRestriction,
   splitQoderPersistedModelRestriction,
@@ -204,5 +205,30 @@ describe('useModelWhitelist', () => {
         { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
       ],
     })
+  })
+
+  // Distinct efforts sharing a source model pass validation, whereas duplicate (source,
+  // effort) rows, mid-string source wildcards, and wildcard targets must return their
+  // corresponding error keys so provider forms can block submission.
+  it('validates duplicate (source, effort) pairs and wildcard placement before submission', () => {
+    expect(
+      firstModelMappingRowError([
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-low', effort: 'low' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-default' },
+      ]),
+    ).toBeNull()
+    expect(
+      firstModelMappingRowError([
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high', effort: 'high' },
+        { from: 'claude-opus-5-5', to: 'claude-opus-5-5-high-v2', effort: 'HIGH' },
+      ]),
+    ).toBe('effortMappingDuplicate')
+    expect(firstModelMappingRowError([{ from: 'a*b', to: 'target', effort: 'high' }])).toBe(
+      'wildcardOnlyAtEnd',
+    )
+    expect(
+      firstModelMappingRowError([{ from: 'claude-opus-5-5', to: 'target*', effort: 'high' }]),
+    ).toBe('targetNoWildcard')
   })
 })

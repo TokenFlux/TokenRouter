@@ -162,10 +162,10 @@ func (s *compatiblePicker) platformSelectorForContext(reqCtx context.Context) (*
 			return s.service.isOpenAIProviderRequestRuntimeBlocked(reqCtx, scope.oldProvider(a), model)
 		},
 		FilterTeamLimited: func(values []schedulercore.FlowProvider, model string, now time.Time) []schedulercore.FlowProvider {
-			return scope.values(filterGrokTeamModelRateLimitedProviders(scope.oldValues(values), model, now))
+			return scope.values(filterGrokTeamModelRateLimitedProviders(reqCtx, scope.oldValues(values), model, now))
 		},
 		FilterModelQuota: func(values []schedulercore.FlowProvider, model string, now time.Time) []schedulercore.FlowProvider {
-			return scope.values(filterGrokModelQuotaBlockedProviders(scope.oldValues(values), model, now))
+			return scope.values(filterGrokModelQuotaBlockedProviders(reqCtx, scope.oldValues(values), model, now))
 		},
 		CompactAllowed: func(a *schedulercore.FlowProvider) bool {
 			return gatewayprovider.AllowsCompatibleCompact(scope.oldProvider(a))

@@ -64,6 +64,11 @@ func (s *Admin) UpdateProvider(ctx context.Context, id int64, input *UpdateProvi
 	// after this read.
 	if input.PatchCredentials {
 		credentialInput = CloneValues(input.Credentials)
+		// Normalize effort-scoped mappings on the raw patch itself so locked
+		// storage merges canonical keys rather than raw submitted spellings.
+		if err := NormalizeEffortModelMappingCredentials(credentialInput); err != nil {
+			return nil, err
+		}
 		copy := *input
 		copy.Credentials = MergeCredentials(provider.Credentials, CloneValues(credentialInput))
 		input = &copy

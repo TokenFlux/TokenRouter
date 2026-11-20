@@ -16,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -306,7 +307,7 @@ func (s *OpenAIWebSocketExecutor) executeWSIngressAdapter(
 			return nil, &gatewayws.AcquireRecoveryError{Err: acquireErr}
 		}
 		if acquireErr != nil {
-			canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(state.OriginalModel)
+			canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(state.OriginalModel)
 			errorDecision := s.handleOpenAIWSDialTransientFailure(ctx, provider, canonicalModel, acquireErr)
 			dialStatus, dialClass, dialCloseStatus, dialCloseReason, dialRespServer, dialRespVia, dialRespCFRay, dialRespReqID := gatewayprovider.SummarizeOpenAIWSDialError(acquireErr)
 			gatewayprovider.LogOpenAIWSModeInfo(
@@ -439,7 +440,13 @@ func (s *OpenAIWebSocketExecutor) executeWSIngressAdapter(
 			return &wsIngressLease{lease}, nil
 		},
 		RelayFn: func(turn int, lease gatewayws.ConnLease, input gatewayws.ClientPayload) (*gatewayws.ForwardResult, error) {
-			streamPort := &wsStreamAdapter{wsPassthroughAdapter: &wsPassthroughAdapter{service: s, request: c, provider: provider, hooks: hooks}, state: state, groupID: groupID, writeClient: writeClientMessage}
+			streamPort := &wsStreamAdapter{
+				wsPassthroughAdapter: &wsPassthroughAdapter{service: s, request: c, provider: provider, hooks: hooks},
+				state:                state,
+				groupID:              groupID,
+				turnEffort:           requeststate.ExtractRoutingReasoningEffort(input.PayloadRaw, protocol.ProtocolResponsesWebSocket),
+				writeClient:          writeClientMessage,
+			}
 			var streamHooks *gatewayws.StreamHooks
 			if hooks != nil {
 				streamHooks = &gatewayws.StreamHooks{OnUpstreamError: hooks.OnUpstreamError}

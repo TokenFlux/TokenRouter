@@ -99,11 +99,16 @@ func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start
 	}
 }
 
-// BillingModel resolves provider forwarding identity from the supplied request
-// model. Its empty dispatch override leaves that request model as the mapping
-// input, so provider mapping determines the returned forwarding/billing name.
+// BillingModel resolves effort-aware provider forwarding identity from the
+// supplied request model. Its empty dispatch override leaves that request model
+// as the mapping input, so provider mapping determines the returned forwarding
+// and billing name.
 func (a *grokForwardAdapter) BillingModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(a.provider).ForwardModel(model, "")
+	policy := gatewayprovider.ExecutionModelPolicy(a.provider)
+	if a.c != nil && a.c.Request != nil {
+		policy = policy.WithContext(a.c.Request.Context())
+	}
+	return policy.ForwardModel(model, "")
 }
 
 // UpstreamModel trims the forwarding model using the provider's OpenAI

@@ -407,6 +407,9 @@ func (s *Antigravity) prepareAntigravityCompatCall(
 	if err != nil {
 		return nil, c.AntigravityCompatError(http.StatusBadRequest, "invalid_request_error", "Invalid request")
 	}
+	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(modelCtx, request.originalModel) {
+		geminiBody = requeststate.StripWireReasoningEffort(geminiBody, protocol.ProtocolGeminiGenerateContent)
+	}
 
 	request.reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(request.reasoningEffort, request.originalBody, mappedModel)
 	return &antigravityCompatUpstreamCall{

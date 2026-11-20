@@ -272,11 +272,17 @@ func StripWireReasoningEffort(body []byte, wireProtocol protocol.ProtocolID) []b
 		}
 		out, _ = deletePath(out, "reasoning_effort")
 	case protocol.ProtocolGeminiGenerateContent:
-		if next, changed := deletePath(out, "generationConfig.thinkingConfig.thinkingLevel"); changed {
-			out = deleteIfEmptyObject(next, "generationConfig.thinkingConfig")
-		}
-		if next, changed := deletePath(out, "generation_config.thinking_config.thinking_level"); changed {
-			out = deleteIfEmptyObject(next, "generation_config.thinking_config")
+		for _, spec := range [][3]string{
+			{"generationConfig.thinkingConfig.thinkingLevel", "generationConfig.thinkingConfig", "generationConfig"},
+			{"generation_config.thinking_config.thinking_level", "generation_config.thinking_config", "generation_config"},
+			// Antigravity v1internal wraps the Gemini payload under a top-level request object.
+			{"request.generationConfig.thinkingConfig.thinkingLevel", "request.generationConfig.thinkingConfig", "request.generationConfig"},
+			{"request.generation_config.thinking_config.thinking_level", "request.generation_config.thinking_config", "request.generation_config"},
+		} {
+			if next, changed := deletePath(out, spec[0]); changed {
+				next = deleteIfEmptyObject(next, spec[1])
+				out = deleteIfEmptyObject(next, spec[2])
+			}
 		}
 	}
 	return out

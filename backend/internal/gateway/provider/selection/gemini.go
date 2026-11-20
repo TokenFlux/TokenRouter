@@ -11,7 +11,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -156,7 +155,7 @@ func (s *Gemini) isProviderUsableForRequestWithPrecheck(
 		return false
 	}
 
-	if requestedModel != "" && !s.isModelSupportedByProvider(provider, requestedModel) {
+	if requestedModel != "" && !s.isModelSupportedByProvider(ctx, provider, requestedModel) {
 		return false
 	}
 
@@ -368,7 +367,7 @@ func (s *Gemini) groupModelUnsupportedErrorIfApplicable(ctx context.Context, pro
 			continue
 		}
 		hasRelevantProvider = true
-		if s.isModelSupportedByProvider(acc, requestedModel) {
+		if s.isModelSupportedByProvider(ctx, acc, requestedModel) {
 			return nil
 		}
 	}
@@ -401,17 +400,14 @@ func (s *Gemini) buildPreCheckUsageResultMap(ctx context.Context, providers []ga
 	return result
 }
 
-// isModelSupportedByProvider applies model support rules for a nonnil target.
-// Antigravity uses its mapping result and accepts blank models; other platforms
-// use protocol-record rules with the provider adapter's model defaults.
-func (s *Gemini) isModelSupportedByProvider(provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
-	if provider.Record.Platform == capability.PlatformAntigravity {
-		if strings.TrimSpace(requestedModel) == "" {
-			return true
-		}
-		return mapAntigravityModel(provider, requestedModel) != ""
+// isModelSupportedByProvider applies execution model support rules for a nonnil
+// target using ctx so effort_model_mapping and Antigravity thinking state match
+// post-selection hydration.
+func (s *Gemini) isModelSupportedByProvider(ctx context.Context, provider *gatewayprovider.ExecutionProvider, requestedModel string) bool {
+	if provider == nil {
+		return false
 	}
-	return gatewayprovider.ExecutionProtocolRecord(provider).IsModelSupported(requestedModel, provideradapter.ModelDefaults(), provideradapter.ModelRules(gatewayprovider.ExecutionProtocolRecord(provider)))
+	return gatewayprovider.ExecutionModelPolicy(provider).Supports(ctx, requestedModel)
 }
 
 // getSchedulableProvider reads the provider by ID through snapshots when

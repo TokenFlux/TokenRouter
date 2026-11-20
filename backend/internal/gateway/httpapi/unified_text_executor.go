@@ -80,10 +80,20 @@ func (e *UnifiedTextExecutor) EnforceClient(ctx context.Context, c *gin.Context,
 
 // Responses executes one selected exchange after pricing and reasoning
 // preparation. It installs the supplied context in Gin, then uses any
-// preparation-updated context for compatible or native dispatch; provider
-// selection, switching and completion remain with its caller.
+// preparation-updated context for compatible or native dispatch. Failed
+// attempts restore the incoming request context so platform effort rewrites
+// cannot leak into subsequent failover candidates; provider selection,
+// switching and completion remain with its caller.
 func (e *UnifiedTextExecutor) Responses(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte) (result *forward.OpenAIResult, failure error) {
-	defer func() { captureTextPerformance(c.Request.Context(), result, failure) }()
+	baseCtx := ctx
+	defer func() {
+		captureTextPerformance(c.Request.Context(), result, failure)
+		// Restore the caller's baseline request context on failure so a platform
+		// effort policy rewrite for one provider does not leak into failover.
+		if failure != nil && c != nil && c.Request != nil {
+			c.Request = c.Request.WithContext(baseCtx)
+		}
+	}()
 	c.Request = c.Request.WithContext(ctx)
 	var err error
 	target, body, err = e.prepare(c, target, body, protocol.ProtocolOpenAIResponses)
@@ -100,9 +110,19 @@ func (e *UnifiedTextExecutor) Responses(ctx context.Context, c *gin.Context, tar
 // Messages clears the current interception marker and executes one selected
 // exchange after common preparation. Compatible targets receive cache/model and
 // optional TLS inputs; native targets use native preparation and return nil
-// result for handled local probes.
+// result for handled local probes. Failed attempts restore the caller's
+// baseline request context so mixed-platform failover keeps original effort
+// hints intact.
 func (e *UnifiedTextExecutor) Messages(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte, cacheKey, model string, tls ...egress.TLSFingerprintRouterMatchResult) (result *forward.OpenAIResult, failure error) {
-	defer func() { captureTextPerformance(c.Request.Context(), result, failure) }()
+	baseCtx := ctx
+	defer func() {
+		captureTextPerformance(c.Request.Context(), result, failure)
+		// Restore the caller's baseline request context on failure so a platform
+		// effort policy rewrite for one provider does not leak into failover.
+		if failure != nil && c != nil && c.Request != nil {
+			c.Request = c.Request.WithContext(baseCtx)
+		}
+	}()
 	c.Request = c.Request.WithContext(ctx)
 	c.Set(nativeMessageInterceptedKey, false)
 	var err error
@@ -119,10 +139,19 @@ func (e *UnifiedTextExecutor) Messages(ctx context.Context, c *gin.Context, targ
 
 // Chat executes one selected exchange after pricing and reasoning preparation
 // in the supplied context. Compatible targets receive cache/model and optional
-// TLS inputs, while native targets use their platform bindings; callers own
-// selection and completion.
+// TLS inputs, while native targets use their platform bindings; failed attempts
+// restore the caller's baseline request context before failover, and callers
+// own selection and completion.
 func (e *UnifiedTextExecutor) Chat(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte, cacheKey, model string, tls ...egress.TLSFingerprintRouterMatchResult) (result *forward.OpenAIResult, failure error) {
-	defer func() { captureTextPerformance(c.Request.Context(), result, failure) }()
+	baseCtx := ctx
+	defer func() {
+		captureTextPerformance(c.Request.Context(), result, failure)
+		// Restore the caller's baseline request context on failure so a platform
+		// effort policy rewrite for one provider does not leak into failover.
+		if failure != nil && c != nil && c.Request != nil {
+			c.Request = c.Request.WithContext(baseCtx)
+		}
+	}()
 	c.Request = c.Request.WithContext(ctx)
 	var err error
 	target, body, err = e.prepare(c, target, body, protocol.ProtocolOpenAIChatCompletions)

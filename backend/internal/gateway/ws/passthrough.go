@@ -506,6 +506,9 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 					hooks.TurnStarted(turnNo, responseCreateAt)
 				}
 				acceptedTurn = true
+				// Strip wire effort only on the outbound copy after usageMeta and
+				// turnPayloads have recorded the intact effective effort for accounting.
+				out = stripOutboundEffort(ctx, p, routingModel, out)
 			}
 			return out, blocked, policyErr
 		},
@@ -562,7 +565,8 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 	firstPerformance := beginPerformance(1, time.Now())
 	upstreamFirstMessageSent := false
 	firstWriteCtx, cancelFirstWrite := context.WithTimeout(ctx, o.WriteTimeout)
-	firstWriteErr := relayUpstreamFrameConn.WriteFrame(firstWriteCtx, TextFrame, firstClientMessage)
+	outboundFirstMessage := stripOutboundEffort(ctx, p, firstRoutingModel, firstClientMessage)
+	firstWriteErr := relayUpstreamFrameConn.WriteFrame(firstWriteCtx, TextFrame, outboundFirstMessage)
 	cancelFirstWrite()
 	if firstWriteErr != nil {
 		return WrapIngressTurnError(

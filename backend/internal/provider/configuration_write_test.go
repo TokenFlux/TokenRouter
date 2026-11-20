@@ -115,3 +115,46 @@ func TestConfigurationRetainsCurrentMonthlyUsage(t *testing.T) {
 	require.Equal(t, now.Format(time.RFC3339), out.Extra["quota_monthly_start"])
 	require.Equal(t, 200.0, out.Extra["quota_monthly_limit"])
 }
+
+// TestConfigurationNormalizesPatchedEffortModelMapping submits a raw
+// CredentialPatch containing uncanonical effort keys and whitespace. Merging
+// must normalize effort_model_mapping before persistence and reject invalid
+// effort values.
+func TestConfigurationNormalizesPatchedEffortModelMapping(t *testing.T) {
+	current := &Record{
+		Platform:    PlatformAnthropic,
+		Type:        ProviderTypeAPIKey,
+		Credentials: map[string]any{"api_key": "secret"},
+	}
+	desired := CloneRecord(current)
+	out, err := ApplyConfigurationChange(current, desired, ConfigurationChange{
+		Fields: ConfigCredentials,
+		CredentialPatch: map[string]any{
+			EffortModelMappingCredentialKey: map[string]any{
+				" claude-opus-5-5 ": map[string]any{
+					"HIGH":       " claude-opus-5-5-high ",
+					"extra_high": "claude-opus-5-5-xhigh",
+				},
+			},
+			EffortModelMappingStripEffortCredentialKey: true,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{
+		"claude-opus-5-5": map[string]any{
+			"high":  "claude-opus-5-5-high",
+			"xhigh": "claude-opus-5-5-xhigh",
+		},
+	}, out.Credentials[EffortModelMappingCredentialKey])
+	require.Equal(t, true, out.Credentials[EffortModelMappingStripEffortCredentialKey])
+
+	_, err = ApplyConfigurationChange(current, desired, ConfigurationChange{
+		Fields: ConfigCredentials,
+		CredentialPatch: map[string]any{
+			EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{"ultra": "claude-opus-5-5-ultra"},
+			},
+		},
+	})
+	require.Error(t, err)
+}

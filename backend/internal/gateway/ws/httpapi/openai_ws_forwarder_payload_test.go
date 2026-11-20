@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -227,4 +228,40 @@ func TestOpenAISetupTokenWSCompatibility(t *testing.T) {
 	require.NotEqual(t, session.SessionID, headers.Get("session_id"))
 
 	require.True(t, svc.isOpenAIWSStoreDisabledInRequestRaw([]byte(`{"store":true}`), provider))
+}
+
+// TestWSOutboundEffortStripPreservesPreStripPayload exercises wsPassthroughAdapter
+// ModelAttributes and StripOutboundEffort on a provider configured with
+// effort_model_mapping and effort_model_mapping_strip_effort. Preparation must
+// retain reasoning.effort for usage capture and failover snapshots, while
+// StripOutboundEffort removes it only on the returned outbound wire copy.
+func TestWSOutboundEffortStripPreservesPreStripPayload(t *testing.T) {
+	provider := &gatewayprovider.ExecutionProvider{
+		Record: providercore.Record{
+			LoadLocation: time.LoadLocation,
+			ID:           77,
+			Platform:     capability.PlatformOpenAI,
+			Type:         capability.ProviderTypeAPIKey,
+			Credentials: map[string]any{
+				"api_key": "ws-key",
+				providercore.EffortModelMappingCredentialKey: map[string]any{
+					"claude-opus-5-5": map[string]any{"high": "claude-opus-5-5-high"},
+				},
+				providercore.EffortModelMappingStripEffortCredentialKey: true,
+			},
+		},
+	}
+	adapter := &wsPassthroughAdapter{
+		service:  newWSFixture(wsFixtureInputs{}).OpenAIWebSocketExecutor,
+		provider: provider,
+	}
+	payload := []byte(`{"type":"response.create","model":"claude-opus-5-5-high","reasoning":{"effort":"high"}}`)
+
+	prepared, err := adapter.ModelAttributes(context.Background(), 1, "claude-opus-5-5-high", payload)
+	require.NoError(t, err)
+	require.Equal(t, "high", gjson.GetBytes(prepared, "reasoning.effort").String(), "ModelAttributes must preserve reasoning.effort for usage and failover")
+
+	wire := adapter.StripOutboundEffort(context.Background(), "claude-opus-5-5", prepared)
+	require.False(t, gjson.GetBytes(wire, "reasoning").Exists(), "StripOutboundEffort must remove reasoning.effort on matched effort rule")
+	require.Equal(t, "high", gjson.GetBytes(prepared, "reasoning.effort").String(), "StripOutboundEffort must not mutate the pre-strip payload slice")
 }

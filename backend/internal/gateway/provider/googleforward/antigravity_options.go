@@ -8,7 +8,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
-	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
@@ -68,13 +67,6 @@ func (s *Antigravity) getUpstreamErrorDetail(body []byte) string {
 		return ""
 	}
 	return logredact.TruncateUTF8(string(body), maxBytes)
-}
-
-// getMappedModel delegates model resolution to the Antigravity provider policy.
-// The policy applies saved exact or wildcard mappings and uses the final model
-// for whitelist admission.
-func (s *Antigravity) getMappedModel(provider *gatewayprovider.ExecutionProvider, requestedModel string) string {
-	return provideradapter.MapAntigravityModel(gatewayprovider.ExecutionRecord(provider), requestedModel)
 }
 
 // resolveAntigravityProjectID selects the provider project through the shared

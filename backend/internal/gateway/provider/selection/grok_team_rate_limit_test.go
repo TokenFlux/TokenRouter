@@ -1,6 +1,7 @@
 package selection
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -52,7 +53,7 @@ func TestGrokTeamModelRateLimit_MarksAndFiltersSiblings(t *testing.T) {
 	require.False(t, isGrokTeamModelRateLimited(other, "grok-4.5", now))
 	require.False(t, isGrokTeamModelRateLimited(noTeam, "grok-4.5", now))
 
-	filtered := filterGrokTeamModelRateLimitedProviders([]gatewayprovider.ExecutionProvider{*a1, *a2, *other, *noTeam}, "grok-4.5", now)
+	filtered := filterGrokTeamModelRateLimitedProviders(context.Background(), []gatewayprovider.ExecutionProvider{*a1, *a2, *other, *noTeam}, "grok-4.5", now)
 	require.Len(t, filtered, 2)
 	ids := []int64{filtered[0].Record.ID, filtered[1].Record.ID}
 	require.Contains(t, ids, int64(103))
@@ -94,5 +95,5 @@ func TestGrokTeamModelRateLimitFilterUsesMappedUpstreamModel(t *testing.T) {
 	}
 	providercore.MarkGrokTeamModelRateLimit(gatewayprovider.ExecutionRecord(provider), "grok-4.5", now.Add(time.Hour))
 
-	require.Empty(t, filterGrokTeamModelRateLimitedProviders([]gatewayprovider.ExecutionProvider{*provider}, "gpt-5", now))
+	require.Empty(t, filterGrokTeamModelRateLimitedProviders(context.Background(), []gatewayprovider.ExecutionProvider{*provider}, "gpt-5", now))
 }

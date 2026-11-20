@@ -137,6 +137,11 @@ func ApplyConfigurationChange(current, desired *Record, change ConfigurationChan
 		out.Credentials = desired.Credentials
 		if change.CredentialPatch != nil {
 			out.Credentials = MergeCredentials(current.Credentials, CloneValues(change.CredentialPatch))
+			// Normalize patched effort_model_mapping values against the merged map
+			// so direct ConfigurationWriter callers cannot persist uncanonical effort keys.
+			if err := NormalizeEffortModelMappingCredentials(out.Credentials); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if change.Fields&ConfigExtra != 0 {

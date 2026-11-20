@@ -223,7 +223,8 @@ func (s *Gemini) forwardClaudeBodyAsOpenAICompat(
 	if err != nil {
 		return nil, c.GeminiOpenAICompatError(protocol, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel) {
+	stripWireEffort := gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, req.Model)
+	if stripWireEffort {
 		geminiReq = requeststate.StripWireReasoningEffort(geminiReq, protocolcore.ProtocolGeminiGenerateContent)
 	}
 
@@ -252,6 +253,9 @@ func (s *Gemini) forwardClaudeBodyAsOpenAICompat(
 			fallback, err := convertClaudeMessagesToGeminiGenerateContent(claudeBody)
 			if err == nil {
 				fallback, err = applyGeminiModelParameters(fallback, originalBody, attributes, true)
+			}
+			if err == nil && stripWireEffort {
+				fallback = requeststate.StripWireReasoningEffort(fallback, protocolcore.ProtocolGeminiGenerateContent)
 			}
 			if err != nil || bytes.Equal(fallback, geminiReq) {
 				return false

@@ -1,5 +1,6 @@
 <template>
   <SettingsSection
+    data-provider-field="model-mapping"
     :title="t('admin.providers.modelRestriction')"
     :hint="hint ?? t('admin.providers.modelRestrictionCombinedHint')"
   >

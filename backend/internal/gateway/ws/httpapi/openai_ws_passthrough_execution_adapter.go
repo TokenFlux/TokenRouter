@@ -81,26 +81,36 @@ func (p *wsPassthroughAdapter) ModelAttributes(ctx context.Context, turn int, mo
 		ctx = routing.WithModelAttributes(ctx, service)
 	}
 	p.attributeContext = ctx
-	prepared, err := gatewayprovider.PrepareModelAttributeParameters(ctx, p.provider, model, body, service)
-	if err != nil {
-		return nil, err
+	return gatewayprovider.PrepareModelAttributeParameters(ctx, p.provider, model, body, service)
+}
+
+// StripOutboundEffort removes wire reasoning effort fields from an outbound
+// WebSocket payload when the selected provider enables
+// effort_model_mapping_strip_effort and an effort-scoped model override matched.
+// Callers invoke this after usage metadata and failover snapshots capture the
+// pre-strip bytes so accounting and replacement providers keep intact effort.
+func (p *wsPassthroughAdapter) StripOutboundEffort(ctx context.Context, routingModel string, body []byte) []byte {
+	if p == nil || p.provider == nil || len(body) == 0 {
+		return body
 	}
-	effort := requeststate.ExtractRoutingReasoningEffort(prepared, protocol.ProtocolResponsesWebSocket)
-	sourceModel := strings.TrimSpace(gjson.GetBytes(prepared, "model").String())
-	if plan, ok := requeststate.RoutePlanFromContext(ctx); ok {
-		if planned := plan.Models().GroupMappedModel; planned != "" {
-			sourceModel = planned
-		} else if requested := plan.Models().RequestedModel; requested != "" {
-			sourceModel = requested
+	effort := requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolResponsesWebSocket)
+	sourceModel := strings.TrimSpace(routingModel)
+	if sourceModel == "" {
+		if plan, ok := requeststate.RoutePlanFromContext(ctx); ok {
+			if planned := plan.Models().GroupMappedModel; planned != "" {
+				sourceModel = planned
+			} else if requested := plan.Models().RequestedModel; requested != "" {
+				sourceModel = requested
+			}
 		}
 	}
 	if sourceModel == "" {
-		sourceModel = model
+		sourceModel = strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	}
-	if gatewayprovider.ExecutionModelPolicy(p.provider).WithEffort(effort).ShouldStripWireEffort(ctx, sourceModel) {
-		prepared = requeststate.StripWireReasoningEffort(prepared, protocol.ProtocolResponsesWebSocket)
+	if !gatewayprovider.ExecutionModelPolicy(p.provider).WithEffort(effort).ShouldStripWireEffort(ctx, sourceModel) {
+		return body
 	}
-	return prepared, nil
+	return requeststate.StripWireReasoningEffort(body, protocol.ProtocolResponsesWebSocket)
 }
 
 // IsLite reports whether this client frame requests Responses Lite handling.

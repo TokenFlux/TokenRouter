@@ -922,6 +922,7 @@
             :sync-credentials="form.platform === 'qoder' ? undefined : syncPreviewCredentials"
             :source-placeholder="isBedrockCategory ? t('admin.providers.fromModel') : undefined"
             :target-placeholder="isBedrockCategory ? t('admin.providers.toModel') : undefined"
+            wildcard-validation
             @update:allowed-models="setAllowedModels"
             @synced="storeModelProtocolSuggestions"
             @add="touchQoderModelRestriction"
@@ -1821,7 +1822,10 @@ import OpenAICompactionToggle from '../../../../components/provider/OpenAICompac
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { fetchAntigravityDefaultMappings } from '@/composables/useModelWhitelist'
+import {
+  fetchAntigravityDefaultMappings,
+  firstModelMappingRowError,
+} from '@/composables/useModelWhitelist'
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
 import {
@@ -3346,6 +3350,16 @@ const handleSubmit = async () => {
   // SettingsTabs locates invalid required fields across hidden panels because
   // the form disables native browser validation and must reveal the failing field.
   if (tabsRef.value && !(await tabsRef.value.validate())) return
+
+  const activeMappings =
+    form.platform === 'antigravity' ? antigravityModelMappings.value : modelMappings.value
+  const mappingError = firstModelMappingRowError(activeMappings)
+  if (mappingError) {
+    if (form.platform === 'antigravity') antigravityModelRestrictionMode.value = 'mapping'
+    else modelRestrictionMode.value = 'mapping'
+    failAt(t(`admin.providers.${mappingError}`), 'model-mapping')
+    return
+  }
 
   // OAuth categories enter authorization after the basic draft passes validation.
   if (isOAuthFlow.value) {

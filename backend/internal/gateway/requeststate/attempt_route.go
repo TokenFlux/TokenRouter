@@ -51,24 +51,33 @@ func (a AttemptRoute) EffortMappingMatched() bool {
 	return a.planned && a.candidate.EffortMappingMatched
 }
 
-// ResolveAttempt rechecks the current provider's enabled protocol route without
-// an external effort override, delegating to ResolveAttemptForEffort.
+// ResolveAttempt rechecks the current provider's enabled protocol route while
+// preserving any reasoning effort already captured on the saved route plan.
 func (s RoutingState) ResolveAttempt(snapshot provider.ProviderSnapshot, previous AttemptRoute) (AttemptRoute, bool, error) {
-	return s.ResolveAttemptForEffort(snapshot, previous, "")
+	return s.resolveAttempt(snapshot, previous, "", false)
 }
 
 // ResolveAttemptForEffort rechecks the current provider's enabled protocol
-// route with an optional reasoning effort and returns the resolved attempt with
-// true when resolution occurs. A saved plan whose group differs from the
-// captured group is discarded for this decision.
+// route with an explicit reasoning effort override and returns the resolved
+// attempt with true when resolution occurs. Passing an empty effort explicitly
+// clears any effort captured on the saved route plan so post-selection rewrites
+// can fall back to ordinary model mappings.
+func (s RoutingState) ResolveAttemptForEffort(snapshot provider.ProviderSnapshot, previous AttemptRoute, effort string) (AttemptRoute, bool, error) {
+	return s.resolveAttempt(snapshot, previous, effort, true)
+}
+
+// resolveAttempt rechecks the current provider's enabled protocol route with an
+// optional reasoning effort override and returns the resolved attempt with true
+// when resolution occurs. A saved plan whose group differs from the captured
+// group is discarded for this decision.
 //
 // Without a usable saved plan, an already selected protocol is retained with
 // false, as is any attempt lacking a client protocol. Otherwise current group
-// policy supplies a fresh capability plan carrying effort. When a saved plan
-// exists and effort is nonblank, effort overrides the plan's captured effort so
-// post-selection policy rewrites bind the updated upstream model. Resolution
-// failure returns an error and an empty attempt.
-func (s RoutingState) ResolveAttemptForEffort(snapshot provider.ProviderSnapshot, previous AttemptRoute, effort string) (AttemptRoute, bool, error) {
+// policy supplies a fresh capability plan carrying effort. When overrideEffort
+// is true, effort replaces the saved plan's captured effort, including clearing
+// it when effort is empty. Resolution failure returns an error and an empty
+// attempt.
+func (s RoutingState) resolveAttempt(snapshot provider.ProviderSnapshot, previous AttemptRoute, effort string, overrideEffort bool) (AttemptRoute, bool, error) {
 	plan, planned := s.plan, s.planSet
 	// A derived group fallback can retain its predecessor's plan. Discard that
 	// plan here so the new group supplies capability rules for this selection.
@@ -87,7 +96,7 @@ func (s RoutingState) ResolveAttemptForEffort(snapshot provider.ProviderSnapshot
 		plan = routing.Plan(routing.PlanInput{Group: s.group, ClientProtocol: s.clientProtocol, ReasoningEffort: effort})
 	} else {
 		plan = plan.WithClientProtocol(s.clientProtocol)
-		if effort != "" {
+		if overrideEffort {
 			plan = plan.WithReasoningEffort(effort)
 		}
 	}

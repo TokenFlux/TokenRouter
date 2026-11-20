@@ -33,6 +33,7 @@ type wsStreamAdapter struct {
 	observer    *forwardcore.ResponseObserver
 	state       *gatewayws.IngressState // current session continuation state
 	groupID     int64                   // authenticated request routing group
+	turnEffort  string                  // normalized reasoning effort for the active turn
 	writeClient func([]byte) error      // synchronous client event writer
 }
 
@@ -110,10 +111,11 @@ func (p *wsStreamAdapter) HasToolOutput(body []byte) bool {
 }
 
 // MappedModel returns the effort-aware provider-mapped and normalized OpenAI
-// model for pooled execution.
+// model for pooled execution, preferring the active turn's effort over the
+// connection's initial request context.
 func (p *wsStreamAdapter) MappedModel(model string) string {
-	effort := ""
-	if p.request != nil && p.request.Request != nil {
+	effort := p.turnEffort
+	if effort == "" && p.request != nil && p.request.Request != nil {
 		effort = requeststate.RoutingReasoningEffortFromContext(p.request.Request.Context())
 	}
 	return gatewayprovider.ExecutionModelPolicy(p.provider).WithEffort(effort).NormalizeOpenAI(
@@ -150,7 +152,9 @@ func (p *wsStreamAdapter) MarkCyber(body []byte, usage *wire.ForwardUsage) {
 // by scheduler health feedback.
 func (p *wsStreamAdapter) SchedulingModel(model string) string {
 	policy := gatewayprovider.ExecutionModelPolicy(p.provider)
-	if p.request != nil && p.request.Request != nil {
+	if p.turnEffort != "" {
+		policy = policy.WithEffort(p.turnEffort)
+	} else if p.request != nil && p.request.Request != nil {
 		policy = policy.WithContext(p.request.Request.Context())
 	}
 	return policy.CanonicalSchedulingModel(model)

@@ -155,9 +155,25 @@ func RunEntry(ctx context.Context, p EntryPorts, in EntryInput, client ClientSoc
 		return
 	}
 
+	// Preview the admitted group's OpenAI reasoning effort policy before planning
+	// without mutating firstMessage so initial provider selection sees downgraded
+	// or mapped efforts while downstream normalization still preserves requested
+	// effort capture and over-limit close behavior.
+	effortPreview := firstMessage
+	if apiKey.Group != nil && (apiKey.Group.MaxReasoningEffort != "" || len(apiKey.Group.ReasoningEffortMappings) > 0) {
+		if updated, changed, policyErr := requeststate.ApplyOpenAIReasoningEffortPolicyForModel(
+			firstMessage,
+			apiKey.Group.MaxReasoningEffort,
+			apiKey.Group.ReasoningEffortMappings,
+			apiKey.Group.MaxReasoningEffortOverLimit,
+			reqModel,
+		); policyErr == nil && changed {
+			effortPreview = updated
+		}
+	}
 	// Capture first-turn reasoning effort before planning so provider
 	// effort_model_mapping rules participate in initial selection and routing.
-	ctx = requeststate.WithRoutingReasoningEffort(ctx, requeststate.ExtractRoutingReasoningEffort(firstMessage, protocol.ProtocolResponsesWebSocket))
+	ctx = requeststate.WithRoutingReasoningEffort(ctx, requeststate.ExtractRoutingReasoningEffort(effortPreview, protocol.ProtocolResponsesWebSocket))
 	// Save the group mapping before detecting image intent, so group-level model
 	// eligibility decides the permission check rather than a later provider alias.
 	ctx, groupMappingWS := p.Plan(ctx, reqModel)

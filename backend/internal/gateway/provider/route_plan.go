@@ -86,11 +86,18 @@ func ProviderForProtocolAttempt(ctx context.Context, value *ExecutionProvider) (
 	if value == nil {
 		return nil, fmt.Errorf("provider is nil")
 	}
-	attempt, resolved, err := requeststate.RoutingStateFromContext(ctx).ResolveAttemptForEffort(
-		ExecutionSnapshot(value),
-		value.Route,
-		requeststate.RoutingReasoningEffortFromContext(ctx),
+	state := requeststate.RoutingStateFromContext(ctx)
+	snapshot := ExecutionSnapshot(value)
+	var (
+		attempt  requeststate.AttemptRoute
+		resolved bool
+		err      error
 	)
+	if effort, hasEffort := requeststate.RoutingReasoningEffortLookupFromContext(ctx); hasEffort {
+		attempt, resolved, err = state.ResolveAttemptForEffort(snapshot, value.Route, effort)
+	} else {
+		attempt, resolved, err = state.ResolveAttempt(snapshot, value.Route)
+	}
 	if err != nil {
 		return nil, err
 	}

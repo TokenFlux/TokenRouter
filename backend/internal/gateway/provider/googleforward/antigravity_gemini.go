@@ -36,7 +36,7 @@ func (s *Antigravity) ForwardGemini(ctx context.Context, output Output, provider
 			apply(&opts)
 		}
 	}
-	adapter := &geminiExecutionAdapter{s: s, c: c, provider: provider}
+	adapter := &geminiExecutionAdapter{s: s, c: c, provider: provider, ctx: ctx, originalModel: originalModel}
 	input := forwardcore.GeminiInput{
 		StartedAt:      start,
 		Model:          originalModel,

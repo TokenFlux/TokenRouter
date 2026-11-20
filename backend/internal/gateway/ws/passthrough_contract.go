@@ -75,6 +75,16 @@ type PassthroughHooks struct {
 	OnUpstreamError func(int, string, int, []byte, string) // upstream risk warning callback
 }
 
+// outboundEffortStripper optionally strips wire reasoning effort fields right
+// before a WebSocket frame is sent upstream, after usage metadata and failover
+// snapshots have captured the intact pre-strip payload.
+type outboundEffortStripper interface {
+	// StripOutboundEffort returns a wire-ready copy of body with reasoning effort
+	// fields removed when the provider enabled effort_model_mapping_strip_effort
+	// and an effort-scoped model override matched routingModel.
+	StripOutboundEffort(ctx context.Context, routingModel string, body []byte) []byte
+}
+
 // PassthroughPort provides selected-provider protocol and transport operations
 // for a dedicated relay session.
 type PassthroughPort interface {
@@ -256,6 +266,16 @@ type PassthroughSession struct {
 	// embedded IngressHooks pointer; callbacks are invoked synchronously by the
 	// relevant relay direction or controller.
 	Hooks *PassthroughHooks // optional turn lifecycle wrapper
+}
+
+// stripOutboundEffort delegates wire-effort stripping to ports implementing
+// outboundEffortStripper, returning body unchanged for other ports.
+func stripOutboundEffort(ctx context.Context, port any, routingModel string, body []byte) []byte {
+	stripper, ok := port.(outboundEffortStripper)
+	if !ok || stripper == nil {
+		return body
+	}
+	return stripper.StripOutboundEffort(ctx, routingModel, body)
 }
 
 // Error returns the client-facing policy rejection reason retained in the

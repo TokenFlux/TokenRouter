@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -60,7 +62,8 @@ func PrepareAnthropicInputTokens(
 
 	originalModel := anthropicReq.Model
 	normalizedModel := anthropicReq.Model
-	billingModel := ExecutionModelPolicy(provider).ForwardModel(normalizedModel, strings.TrimSpace(defaultMappedModel))
+	effort := requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolAnthropicMessages)
+	billingModel := ExecutionModelPolicy(provider).WithEffort(effort).ForwardModel(normalizedModel, strings.TrimSpace(defaultMappedModel))
 	upstreamModel := ExecutionModelPolicy(provider).NormalizeOpenAI(billingModel)
 
 	// Count the converted Responses input, using the same Anthropic content and
@@ -103,7 +106,8 @@ func PrepareNativeInputTokens(body []byte, provider *ExecutionProvider) (*InputT
 	if originalModel == "" {
 		return nil, fmt.Errorf("parse responses input_tokens request: model is required")
 	}
-	billingModel := ExecutionModelPolicy(provider).ForwardModel(originalModel, "")
+	effort := requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolOpenAIResponses)
+	billingModel := ExecutionModelPolicy(provider).WithEffort(effort).ForwardModel(originalModel, "")
 	upstreamModel := ExecutionModelPolicy(provider).NormalizeOpenAI(billingModel)
 	req.Model = upstreamModel
 	return &InputTokensPrepared{

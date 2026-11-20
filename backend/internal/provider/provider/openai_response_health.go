@@ -208,7 +208,7 @@ func (s *OpenAIResponseHealth) Apply(ctx context.Context, provider *providercore
 		return decision
 	}
 	if statusCode == http.StatusTooManyRequests && s.Health != nil && len(canonicalModel) > 0 &&
-		s.Health.Models.ObserveSparkRateLimit(stateCtx, providercore.CloneRecord(provider), canonicalModel[0], statusCode, headers, responseBody, observation.Thinking) {
+		s.Health.Models.ObserveSparkRateLimitForEffort(stateCtx, providercore.CloneRecord(provider), canonicalModel[0], observation.Effort, statusCode, headers, responseBody, observation.Thinking) {
 		return decision
 	}
 	if suppressDefaultRateLimitState && statusCode == http.StatusTooManyRequests {

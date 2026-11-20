@@ -675,9 +675,9 @@ func (s *OpenAIWebSocketExecutor) proxyOpenAIWSHTTPBridgeTurn(
 		}
 	}
 	effort := requeststate.ExtractRoutingReasoningEffort(body, protocolcore.ProtocolResponsesWebSocket)
-	if effort != "" {
-		ctx = requeststate.WithRoutingReasoningEffort(ctx, effort)
-	}
+	// Always synchronize ctx with this turn's effort so an effort-free later turn
+	// clears an earlier turn's effort rather than inheriting it.
+	ctx = requeststate.WithRoutingReasoningEffort(ctx, effort)
 	billingModel := ""
 	mappedModel := ""
 	if provider.Record.Platform == capability.PlatformGrok {

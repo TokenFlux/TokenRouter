@@ -173,7 +173,8 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 	if err != nil {
 		return nil, c.ClaudeError(http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	if gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel) {
+	stripWireEffort := gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(ctx, originalModel)
+	if stripWireEffort {
 		geminiReq = requeststate.StripWireReasoningEffort(geminiReq, protocolcore.ProtocolGeminiGenerateContent)
 	}
 	originalClaudeBody := body
@@ -224,6 +225,9 @@ func (s *Gemini) Forward(ctx context.Context, output Output, provider *gatewaypr
 		// sends the stripped history with compatible controls.
 		if err == nil && attributes.Attributes.HasReasoningOption("toggle") {
 			converted, err = sjson.SetBytes(converted, "generationConfig.thinkingConfig", bridge.GeminiThinkingConfig{BudgetSet: true})
+		}
+		if err == nil && stripWireEffort {
+			converted = requeststate.StripWireReasoningEffort(converted, protocolcore.ProtocolGeminiGenerateContent)
 		}
 		return converted, err
 	}

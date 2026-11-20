@@ -1,11 +1,14 @@
 package requeststate
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // TestExtractGrokResponsesReasoningEffortSupportsOpenAICompatibleField supplies
@@ -426,4 +429,52 @@ func TestStripWireReasoningEffort(t *testing.T) {
 
 	outGemini := StripWireReasoningEffort([]byte(`{"generationConfig":{"thinkingConfig":{"thinkingLevel":"HIGH"},"temperature":0.2}}`), protocol.ProtocolGeminiGenerateContent)
 	require.JSONEq(t, `{"generationConfig":{"temperature":0.2}}`, string(outGemini))
+
+	outGeminiEmpty := StripWireReasoningEffort([]byte(`{"contents":[],"generationConfig":{"thinkingConfig":{"thinkingLevel":"HIGH"}}}`), protocol.ProtocolGeminiGenerateContent)
+	require.JSONEq(t, `{"contents":[]}`, string(outGeminiEmpty))
+
+	outAntigravityWrapped := StripWireReasoningEffort([]byte(`{"project":"p1","model":"claude-opus-5-5-high","request":{"contents":[],"generationConfig":{"thinkingConfig":{"thinkingLevel":"HIGH"}}}}`), protocol.ProtocolGeminiGenerateContent)
+	require.JSONEq(t, `{"project":"p1","model":"claude-opus-5-5-high","request":{"contents":[]}}`, string(outAntigravityWrapped))
+}
+
+// TestResolveAttemptForEffortClearsPriorEffort verifies that ResolveAttempt
+// retains a saved route plan's effort while ResolveAttemptForEffort with an
+// empty string clears it and falls back to ordinary model mapping.
+func TestResolveAttemptForEffortClearsPriorEffort(t *testing.T) {
+	group := &routing.Group{ID: 7, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages}}
+	plan := routing.Plan(routing.PlanInput{
+		Group:           group,
+		RequestedModel:  "claude-opus-5-5",
+		GroupMapping:    routing.GroupMappingResult{MappedModel: "claude-opus-5-5"},
+		ClientProtocol:  protocol.ProtocolAnthropicMessages,
+		ReasoningEffort: "high",
+	})
+	snapshot := provider.ProviderSnapshot{
+		ID:               42,
+		Platform:         provider.PlatformAnthropic,
+		Type:             provider.ProviderTypeAPIKey,
+		EnabledProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages},
+		ModelPolicy: provider.NewModelRoutingSnapshotWithEffort(
+			map[string]string{"claude-opus-5-5": "claude-opus-5-5-default"},
+			provider.EffortModelMapping{"claude-opus-5-5": {"high": "claude-opus-5-5-high"}},
+		),
+	}
+	ctx := WithRoutePlan(WithClientProtocol(WithGroup(context.Background(), group), protocol.ProtocolAnthropicMessages), plan)
+	state := RoutingStateFromContext(ctx)
+
+	retained, ok, err := state.ResolveAttempt(snapshot, AttemptRoute{})
+	require.NoError(t, err)
+	require.True(t, ok)
+	cand, planned := retained.Candidate()
+	require.True(t, planned)
+	require.Equal(t, "claude-opus-5-5-high", cand.Models.ProviderMappedModel)
+	require.True(t, retained.EffortMappingMatched())
+
+	cleared, ok, err := state.ResolveAttemptForEffort(snapshot, AttemptRoute{}, "")
+	require.NoError(t, err)
+	require.True(t, ok)
+	candCleared, plannedCleared := cleared.Candidate()
+	require.True(t, plannedCleared)
+	require.Equal(t, "claude-opus-5-5-default", candCleared.Models.ProviderMappedModel)
+	require.False(t, cleared.EffortMappingMatched())
 }

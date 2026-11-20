@@ -157,11 +157,18 @@ func (h *OpenAITextHandler) Messages(c *gin.Context) {
 		return
 	}
 
+	// Preview the bound OpenAI group effort policy without mutating body so
+	// provider effort_model_mapping and selection observe downgraded or mapped
+	// efforts while conversion still applies over-limit rejection and audit capture.
+	effortSourceBody := body
+	if policyBody, changed, policyErr := requeststate.ApplyOpenAIReasoningEffortPolicyFromContext(c.Request.Context(), body); policyErr == nil && changed {
+		effortSourceBody = policyBody
+	}
 	// Capture request effort before planning so provider effort_model_mapping
 	// rules participate in route resolution and selection.
 	c.Request = c.Request.WithContext(requeststate.WithRoutingReasoningEffort(
 		c.Request.Context(),
-		requeststate.ExtractRoutingReasoningEffort(body, protocol.ProtocolAnthropicMessages),
+		requeststate.ExtractRoutingReasoningEffort(effortSourceBody, protocol.ProtocolAnthropicMessages),
 	))
 	// Plan from admitted canonical input after moderation. Retain the group
 	// model for provider rules while the original model remains available for client attribution.

@@ -84,7 +84,16 @@ func ApplyGrokExecutionHealth(ctx context.Context, health *provideradapter.GrokH
 // ignored. HandleDefault uses argument presence for model observation, while
 // temporary-rule checks use EffectiveModel.
 func HealthObservationFromContext(ctx context.Context, status int, headers http.Header, body []byte, models []string) provideradapter.HealthObservation {
-	input := provideradapter.HealthObservation{Status: status, Headers: headers, Body: body, EffectiveModel: requeststate.HealthModel(ctx, models), ModelProvided: len(models) > 0, Thinking: requeststate.HealthThinking(ctx), ImagesEndpoint: requeststate.OpenAIImagesEndpointFromContext(ctx)}
+	input := provideradapter.HealthObservation{
+		Status:         status,
+		Headers:        headers,
+		Body:           body,
+		EffectiveModel: requeststate.HealthModel(ctx, models),
+		ModelProvided:  len(models) > 0,
+		Thinking:       requeststate.HealthThinking(ctx),
+		Effort:         requeststate.RoutingReasoningEffortFromContext(ctx),
+		ImagesEndpoint: requeststate.OpenAIImagesEndpointFromContext(ctx),
+	}
 	if len(models) > 0 {
 		input.Model = models[0]
 	}

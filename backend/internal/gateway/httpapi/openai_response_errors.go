@@ -321,7 +321,7 @@ func (p *OpenAIResponseOutput) ResponseError(
 	}
 	if reqModel == "" {
 		reqModel, _, _ = requeststate.OpenAIRequestMetaFromBody(requestBody)
-		reqModel = gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(reqModel)
+		reqModel = gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(reqModel)
 	}
 	var decision providercore.UpstreamErrorDecision
 	if provider != nil && provider.Record.Platform == capability.PlatformGrok {

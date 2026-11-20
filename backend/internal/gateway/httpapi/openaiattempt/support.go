@@ -73,7 +73,11 @@ func OpenAIProviderScheduleModel(c *gin.Context, provider *gatewayprovider.Execu
 	if actual := gatewayhttp.GetOpsUpstreamModel(c); actual != "" {
 		return actual
 	}
-	return gatewayprovider.ExecutionModelPolicy(provider).OpenAIUpstream(forwardModel, requireCompact)
+	policy := gatewayprovider.ExecutionModelPolicy(provider)
+	if c != nil && c.Request != nil {
+		policy = policy.WithContext(c.Request.Context())
+	}
+	return policy.OpenAIUpstream(forwardModel, requireCompact)
 }
 
 // AppendOpenAIProviderProxyLogFields appends selected proxy ID, name, host, and

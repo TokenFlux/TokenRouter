@@ -67,7 +67,7 @@ func (s *GrokExecutor) ChatResponses(
 	}
 	originalModel := chatReq.Model
 	clientStream := chatReq.Stream
-	billingModel := gatewayprovider.ExecutionModelPolicy(provider).ForwardModel(originalModel, defaultMappedModel)
+	billingModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).ForwardModel(originalModel, defaultMappedModel)
 	upstreamModel := gatewayprovider.ExecutionModelPolicy(provider).NormalizeOpenAI(billingModel)
 	attributes, attributesErr := gatewayprovider.ResolveModelAttributes(ctx, provider, upstreamModel, s.Attributes, "openai_responses")
 	if attributesErr != nil {

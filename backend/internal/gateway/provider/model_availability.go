@@ -105,9 +105,10 @@ func (r modelRejectionRules) GetConfiguredRequestModels() []string {
 }
 
 // IsModelSupported delegates provider support checks using current defaults
-// and platform rules.
+// and platform rules, including aliases exposed via effort_model_mapping so
+// rejection diagnostics advertise all requestable configured models.
 func (r modelRejectionRules) IsModelSupported(model string) bool {
-	return r.Record.IsModelSupported(model, provideradapter.ModelDefaults(), provideradapter.ModelRules(r.Record))
+	return (ModelPolicy{Record: r.Record}).SupportsAnyEffort(context.Background(), model)
 }
 
 // ModelRejectionProvider binds a nonnil provider's platform and current model

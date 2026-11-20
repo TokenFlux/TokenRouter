@@ -375,3 +375,71 @@ func TestUnifiedTextExecutorPrepareRefreshesEffortMappingAfterGroupDowngrade(t *
 	stripped := stripOpenAIWireEffortIfMatched(c.Request.Context(), c, routed, updatedBody, protocol.ProtocolAnthropicMessages)
 	require.False(t, gjson.GetBytes(stripped, "output_config").Exists())
 }
+
+// TestUnifiedTextExecutorRestoresContextEffortAfterFailedAttempt runs a failed
+// Anthropic attempt whose group policy downgraded max to high, then prepares a
+// follow-up Gemini attempt on the same gin.Context. Restoring the baseline
+// context on failure must keep the second attempt mapped under max rather than
+// inheriting Anthropic's downgraded high effort.
+func TestUnifiedTextExecutorRestoresContextEffortAfterFailedAttempt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	body := []byte(`{"model":"claude-opus-5-5","output_config":{"effort":"max"},"messages":[{"role":"user","content":"hi"}]}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(string(body)))
+	baseCtx := requeststate.WithClientProtocol(req.Context(), protocol.ProtocolAnthropicMessages)
+	baseCtx = requeststate.WithRoutingReasoningEffort(baseCtx, "max")
+	group := &routing.Group{
+		ID:                          12,
+		MaxReasoningEffort:          "high",
+		MaxReasoningEffortOverLimit: routing.ReasoningEffortOverLimitDowngrade,
+	}
+	plan := routing.Plan(routing.PlanInput{
+		Group:           group,
+		RequestedModel:  "claude-opus-5-5",
+		GroupMapping:    routing.GroupMappingResult{MappedModel: "claude-opus-5-5"},
+		ClientProtocol:  protocol.ProtocolAnthropicMessages,
+		ReasoningEffort: "max",
+	})
+	baseCtx = requeststate.WithGroup(baseCtx, group)
+	baseCtx = requeststate.WithRoutePlan(baseCtx, plan)
+	c.Request = req.WithContext(baseCtx)
+	c.Set("gateway_effective_key", &apikey.APIKey{ID: 6, GroupID: &group.ID, Group: group})
+
+	// Anthropic attempt triggers max->high downgrade during prepare, then fails
+	// when no route is enabled for the chosen client protocol.
+	failingAnthropic := gatewayadapter.NewExecutionProvider(&provider.Record{
+		ID:       101,
+		Platform: provider.PlatformAnthropic,
+		Type:     provider.ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":            "k",
+			"upstream_protocols": []string{},
+		},
+	})
+	exec := &UnifiedTextExecutor{}
+	_, err := exec.Messages(c.Request.Context(), c, failingAnthropic, body, "", "claude-opus-5-5")
+	require.Error(t, err)
+	require.Equal(t, "max", requeststate.RoutingReasoningEffortFromContext(c.Request.Context()))
+
+	// Follow-up Gemini candidate must still resolve max -> claude-opus-5-5-max.
+	geminiTarget := gatewayadapter.NewExecutionProvider(&provider.Record{
+		ID:       102,
+		Platform: provider.PlatformGemini,
+		Type:     provider.ProviderTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "g",
+			provider.EffortModelMappingCredentialKey: map[string]any{
+				"claude-opus-5-5": map[string]any{
+					"high": "claude-opus-5-5-high",
+					"max":  "claude-opus-5-5-max",
+				},
+			},
+		},
+	})
+	routed, _, err := exec.prepare(c, geminiTarget, body, protocol.ProtocolAnthropicMessages)
+	require.NoError(t, err)
+	cand, planned := routed.Route.Candidate()
+	require.True(t, planned)
+	require.Equal(t, "claude-opus-5-5-max", cand.Models.ProviderMappedModel)
+}

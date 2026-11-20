@@ -405,6 +405,7 @@
             :target-placeholder="
               provider.type === 'bedrock' ? t('admin.providers.toModel') : undefined
             "
+            wildcard-validation
             @update:allowed-models="setAllowedModels"
             @synced="storeModelProtocolSuggestions"
             @add="touchQoderModelRestriction"
@@ -1116,7 +1117,7 @@ import { VERTEX_LOCATION_OPTIONS, groupedProviderSelectOptions } from '@/constan
 import { supportsUpstreamBalanceAlert } from '@/utils/upstreamBalanceAlert'
 import { resolveUpstreamUsageConfig } from '@/utils/upstreamUsage'
 import type { SyncUpstreamModelsResult } from '@/api/admin/providers'
-import type { QoderSite } from '@/composables/useModelWhitelist'
+import { firstModelMappingRowError, type QoderSite } from '@/composables/useModelWhitelist'
 
 // EditProviderModal.vue presents provider settings, validates draft fields, and submits
 // administration updates. Authentication type and platform determine the visible controls
@@ -2073,6 +2074,22 @@ const handleSubmit = async () => {
   if (form.status !== 'active' && form.status !== 'inactive' && form.status !== 'error') {
     failAt(t('admin.providers.pleaseSelectStatus'), 'status')
     return
+  }
+  if (showModelRestriction.value || props.provider.platform === 'antigravity') {
+    const activeMappings =
+      props.provider.platform === 'antigravity'
+        ? antigravityModelMappings.value
+        : modelMappings.value
+    const mappingError = firstModelMappingRowError(activeMappings)
+    if (mappingError) {
+      if (props.provider.platform === 'antigravity') {
+        antigravityModelRestrictionMode.value = 'mapping'
+      } else {
+        modelRestrictionMode.value = 'mapping'
+      }
+      failAt(t(`admin.providers.${mappingError}`), 'model-mapping')
+      return
+    }
   }
 
   const updatePayload = buildProviderBasePatch(draft)

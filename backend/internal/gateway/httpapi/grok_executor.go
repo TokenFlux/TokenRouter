@@ -11,6 +11,7 @@ import (
 	gatewayadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -64,6 +65,7 @@ func (s *GrokExecutor) BuildResponsesRequest(ctx context.Context, c *gin.Context
 	if err != nil {
 		return nil, err
 	}
+	body = stripOpenAIWireEffortIfMatched(ctx, c, target, body, protocol.ProtocolOpenAIResponses)
 	beta := ""
 	if c != nil {
 		beta = c.GetHeader("OpenAI-Beta")

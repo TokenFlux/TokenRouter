@@ -58,6 +58,9 @@ type HealthObservation struct {
 	// resolution. Nil means no choice was supplied; keep a supplied pointed-to
 	// value stable during synchronous health handling.
 	Thinking *bool
+	// Effort optionally carries the attempt's normalized routing reasoning effort
+	// so effort_model_mapping scopes model cooldowns to the resolved target key.
+	Effort string
 	// ImagesEndpoint marks a dedicated image endpoint. Model health uses it to
 	// distinguish capability denial there from a text-endpoint mismatch for an
 	// image model.
@@ -252,7 +255,7 @@ func (s *UpstreamHealth) HandleDefault(ctx context.Context, provider *providerco
 		return false
 	}
 
-	if observation.ModelProvided && s.Models.Observe(ctx, provider, observation.Model, statusCode, responseBody, observation.Thinking, observation.ImagesEndpoint) {
+	if observation.ModelProvided && s.Models.ObserveForEffort(ctx, provider, observation.Model, observation.Effort, statusCode, responseBody, observation.Thinking, observation.ImagesEndpoint) {
 		return true
 	}
 

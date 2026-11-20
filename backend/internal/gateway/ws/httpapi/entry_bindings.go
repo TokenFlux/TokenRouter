@@ -677,10 +677,14 @@ func (p *openAIWSEntryAdapter) SubmitCompletion(source context.Context, result *
 	p.bindings.Common.Support.Submission.SubmitImages(source, images, task)
 }
 
-// MappedModel resolves the selected provider's mapped model for entry
-// feedback.
+// MappedModel resolves the selected provider's effort-aware mapped model for
+// entry feedback.
 func (t *openAIWSEntryTarget) MappedModel(model string) string {
-	return gatewayprovider.ExecutionModelPolicy(t.provider).Mapped(model)
+	policy := gatewayprovider.ExecutionModelPolicy(t.provider)
+	if t.root != nil && t.root.c != nil && t.root.c.Request != nil {
+		policy = policy.WithContext(t.root.c.Request.Context())
+	}
+	return policy.Mapped(model)
 }
 
 // Report submits the selected provider outcome and optional TTFT

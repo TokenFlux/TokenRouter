@@ -120,6 +120,7 @@
               v-model="modelMappings"
               v-model:strip-effort="stripEffortOnEffortModelMapping"
               support-effort
+              wildcard-validation
             />
           </BulkApplyField>
         </template>
@@ -786,6 +787,7 @@ import {
   buildEffortModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  firstModelMappingRowError,
   normalizeModelWhitelist,
   splitEffortModelMappingObject,
   splitQoderPersistedModelRestriction,
@@ -1906,6 +1908,14 @@ const handleSubmit = async () => {
     const trimmedBaseUrl = baseUrl.value.trim()
     if (trimmedBaseUrl && !/^https?:\/\//i.test(trimmedBaseUrl)) {
       appStore.showError(t('admin.providers.grokCustomBaseUrl.invalid'))
+      return
+    }
+  }
+
+  if (enableModelRestriction.value) {
+    const mappingError = firstModelMappingRowError(modelMappings.value)
+    if (mappingError) {
+      appStore.showError(t(`admin.providers.${mappingError}`))
       return
     }
   }

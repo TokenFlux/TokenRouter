@@ -55,9 +55,12 @@ func RelayTurn(ctx context.Context, p StreamPort, lease StreamLease, input Clien
 	turnStart := time.Now()
 	performance := timing.BeginPerformance(ctx, o.ProviderID, turnStart)
 	wroteDownstream := false
-	// Send the normalized request before observing events; a write failure records
-	// the pre-output stage so ingress can consider its bounded connection retry.
-	if err := lease.WriteRequest(ctx, payload, o.WriteTimeout); err != nil {
+	// Send the normalized request before observing events; strip wire effort only
+	// on the outbound copy so payload retains effective effort for usage recording
+	// and failover replay. A write failure records the pre-output stage so ingress
+	// can consider its bounded connection retry.
+	outboundPayload := stripOutboundEffort(ctx, p, routingModel, payload)
+	if err := lease.WriteRequest(ctx, outboundPayload, o.WriteTimeout); err != nil {
 		return nil, WrapIngressTurnError(
 			"write_upstream",
 			fmt.Errorf("write upstream websocket request: %w", err),

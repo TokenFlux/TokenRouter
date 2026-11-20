@@ -950,8 +950,25 @@ func TestGeminiMessagesCompatService_isModelSupportedByProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := svc.isModelSupportedByProvider(tt.provider, tt.model)
+			got := svc.isModelSupportedByProvider(context.Background(), tt.provider, tt.model)
 			require.Equal(t, tt.expected, got)
 		})
+	}
+
+	// Effort-scoped rules on both Gemini and Antigravity must admit whitelisted
+	// suffixed targets only when ctx carries a matching reasoning effort.
+	effortCreds := map[string]any{
+		"model_whitelist": []string{"claude-opus-5-5-high"},
+		providercore.EffortModelMappingCredentialKey: map[string]any{
+			"claude-opus-5-5": map[string]any{"high": "claude-opus-5-5-high"},
+		},
+	}
+	for _, platform := range []string{capability.PlatformGemini, capability.PlatformAntigravity} {
+		provider := &gatewayprovider.ExecutionProvider{
+			Record: providercore.Record{LoadLocation: time.LoadLocation, Platform: platform, Credentials: effortCreds},
+		}
+		require.False(t, svc.isModelSupportedByProvider(context.Background(), provider, "claude-opus-5-5"))
+		highCtx := requeststate.WithRoutingReasoningEffort(context.Background(), "high")
+		require.True(t, svc.isModelSupportedByProvider(highCtx, provider, "claude-opus-5-5"))
 	}
 }

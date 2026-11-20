@@ -109,7 +109,7 @@ func (p *OpenAIResponseOutput) PassthroughFailoverError(
 	SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	LogOpenAIInstructionsRequiredDebug(ctx, c, provider, resp.StatusCode, upstreamMsg, requestBody, body)
 	reqModel, _, _ := requeststate.OpenAIRequestMetaFromBody(requestBody)
-	canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(reqModel)
+	canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(reqModel)
 	decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, p.Health, provider, resp.StatusCode, resp.Header, body, false, canonicalModel)
 	if decision.ShouldReturnGenericError() {
 		MarkResponseCommitted(c)
@@ -196,7 +196,7 @@ func (p *OpenAIResponseOutput) PassthroughError(
 	// Remaining failures can affect provider reuse, so health runs before final presentation.
 	if !requestScopedError {
 		reqModel, _, _ := requeststate.OpenAIRequestMetaFromBody(requestBody)
-		canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).CanonicalSchedulingModel(reqModel)
+		canonicalModel := gatewayprovider.ExecutionModelPolicy(provider).WithContext(ctx).CanonicalSchedulingModel(reqModel)
 		decision := gatewayprovider.ApplyOpenAIResponseHealth(ctx, p.Health, provider, resp.StatusCode, resp.Header, body, false, canonicalModel)
 		if decision.ShouldReturnGenericError() {
 			MarkResponseCommitted(c)

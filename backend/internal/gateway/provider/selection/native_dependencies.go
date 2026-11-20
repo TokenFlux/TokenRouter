@@ -11,7 +11,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	providercore "github.com/TokenFlux/TokenRouter/internal/provider"
-	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
@@ -119,12 +118,6 @@ func (s *Compatible) stickyStats() *schedulercore.StickyStats {
 // the execution target's model policy.
 func resolveProviderUpstreamModel(ctx context.Context, value *gatewayprovider.ExecutionProvider, model string) string {
 	return gatewayprovider.ExecutionModelPolicy(value).UpstreamModel(ctx, model)
-}
-
-// mapAntigravityModel delegates Antigravity model mapping through the current
-// execution provider record.
-func mapAntigravityModel(value *gatewayprovider.ExecutionProvider, model string) string {
-	return provideradapter.MapAntigravityModel(gatewayprovider.ExecutionRecord(value), model)
 }
 
 // defaultWindowCostGuard constructs the default Anthropic window-cost guard for

@@ -1,6 +1,7 @@
 package selection
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 // grok_team_rate_limit.go filters Grok candidates against team model cooldowns
 // using their scheduling model names.
 // Grok OAuth providers in one team share observed model cooldowns in the
-// provider package. Filtering resolves each candidate's scheduling model before
-// the team check and compacts survivors into the incoming slice, preserving
-// their relative order and shared record data.
+// provider package. Filtering resolves each candidate's effort-aware scheduling
+// model before the team check and compacts survivors into the incoming slice,
+// preserving their relative order and shared record data.
 
 // isGrokTeamModelRateLimited delegates the team and model cooldown lookup to
 // provider rules. Nil, non-Grok-OAuth, and missing-team providers return false
@@ -24,17 +25,17 @@ func isGrokTeamModelRateLimited(provider *gatewayprovider.ExecutionProvider, mod
 }
 
 // filterGrokTeamModelRateLimitedProviders removes providers whose team is
-// cooling down for their mapped scheduling model. It reuses the input slice's
-// backing array, so callers relinquish its prior contents; an entirely filtered
-// nonempty pool returns nil.
-func filterGrokTeamModelRateLimitedProviders(providers []gatewayprovider.ExecutionProvider, model string, now time.Time) []gatewayprovider.ExecutionProvider {
+// cooling down for their mapped scheduling model under ctx. It reuses the input
+// slice's backing array, so callers relinquish its prior contents; an entirely
+// filtered nonempty pool returns nil.
+func filterGrokTeamModelRateLimitedProviders(ctx context.Context, providers []gatewayprovider.ExecutionProvider, model string, now time.Time) []gatewayprovider.ExecutionProvider {
 	if len(providers) == 0 || strings.TrimSpace(model) == "" {
 		return providers
 	}
 	out := providers[:0]
 	kept := false
 	for i := range providers {
-		upstreamModel := gatewayprovider.ExecutionModelPolicy(&providers[i]).CanonicalSchedulingModel(model)
+		upstreamModel := gatewayprovider.ExecutionModelPolicy(&providers[i]).WithContext(ctx).CanonicalSchedulingModel(model)
 		if isGrokTeamModelRateLimited(&providers[i], upstreamModel, now) {
 			continue
 		}

@@ -9,6 +9,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -31,15 +32,17 @@ import (
 // geminiExecutionAdapter retains native attempt inputs and its selected
 // Antigravity response.
 type geminiExecutionAdapter struct {
-	// s, c, and provider are borrowed for this synchronous native attempt.
-	// Execute initializes retry and params before core exchange hooks call
-	// Retry and Recover against the saved response.
+	// s, c, provider, ctx, and originalModel are borrowed for this synchronous
+	// native attempt. Execute initializes retry and params before core exchange
+	// hooks call Retry and Recover against the saved response.
 	//
 	// shared Antigravity forwarding services
 	s *Antigravity
 	c *attempt // current attempt presentation state
 	// selected execution provider state
-	provider *gatewayprovider.ExecutionProvider
+	provider      *gatewayprovider.ExecutionProvider
+	ctx           context.Context // attempt request context carrying routing effort
+	originalModel string          // pre-mapping request model for strip-effort checks
 	// Credential stores token and Transport selects proxyURL before Execute
 	// binds retry inputs; prefix is assigned by ForwardGemini for this
 	// request diagnostics.
@@ -80,21 +83,33 @@ func (a *geminiExecutionAdapter) ImageTier(size string) string {
 // ZeroCount presents a zero local token count through native HTTP output.
 func (a *geminiExecutionAdapter) ZeroCount() { a.c.Count(0) }
 
-// MappedModel returns the selected provider Antigravity mapping for the request
-// model.
+// MappedModel returns the effort-aware Antigravity mapping for the request
+// model using the attempt's captured request context.
 func (a *geminiExecutionAdapter) MappedModel(model string) string {
-	return a.s.getMappedModel(a.provider, model)
+	return gatewayprovider.ExecutionModelPolicy(a.provider).FinalAntigravityModel(a.ctx, model)
 }
 
-// ModelParameters resolves the final model attributes and applies native Gemini
-// controls. Resolution or JSON update errors return to the core flow before
+// ModelParameters resolves the final model attributes, applies native Gemini
+// controls, and strips wire thinkingLevel when effort_model_mapping_strip_effort
+// matched. Resolution or JSON update errors return to the core flow before
 // wrapping or sending the request.
 func (a *geminiExecutionAdapter) ModelParameters(ctx context.Context, model string, body []byte) ([]byte, error) {
 	resolved, err := gatewayprovider.ResolveModelAttributes(ctx, a.provider, model, a.s.Attributes, "gemini_generate_content")
 	if err != nil {
 		return nil, err
 	}
-	return applyGeminiModelParameters(body, body, resolved, false)
+	prepared, err := applyGeminiModelParameters(body, body, resolved, false)
+	if err != nil {
+		return nil, err
+	}
+	sourceModel := a.originalModel
+	if sourceModel == "" {
+		sourceModel = model
+	}
+	if gatewayprovider.ExecutionModelPolicy(a.provider).ShouldStripWireEffort(ctx, sourceModel) {
+		prepared = requeststate.StripWireReasoningEffort(prepared, protocol.ProtocolGeminiGenerateContent)
+	}
+	return prepared, nil
 }
 
 // FeatureDenied records local feature denial through the current attempt HTTP

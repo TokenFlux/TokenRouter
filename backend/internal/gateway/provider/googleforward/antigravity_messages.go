@@ -123,6 +123,10 @@ func (s *Antigravity) Forward(ctx context.Context, output Output, provider *gate
 	if err != nil {
 		return nil, c.ClaudeError(http.StatusBadRequest, "invalid_request_error", "Invalid request")
 	}
+	stripWireEffort := gatewayprovider.ExecutionModelPolicy(provider).ShouldStripWireEffort(modelCtx, originalModel)
+	if stripWireEffort {
+		geminiBody = requeststate.StripWireReasoningEffort(geminiBody, protocol.ProtocolGeminiGenerateContent)
+	}
 
 	// Both client modes consume the v1internal streaming action; response
 	// adaptation emits Claude events for streaming callers and collects
@@ -180,6 +184,9 @@ func (s *Antigravity) Forward(ctx context.Context, output Output, provider *gate
 		options := antigravity.ClaudeRecoveryOptions{
 			Retry: func(body []byte) (*http.Response, error) {
 				next := params
+				if stripWireEffort {
+					body = requeststate.StripWireReasoningEffort(body, protocol.ProtocolGeminiGenerateContent)
+				}
 				next.Body = body
 				value, err := retry.AntigravityRetryLoop(next)
 				if err != nil {

@@ -317,7 +317,7 @@ func (s *Diagnostics) isBlockedByDiagnosticSchedulingThreshold(ctx context.Conte
 	if routingModel == "" {
 		return false
 	}
-	mappedModel, _ := gatewayprovider.ExecutionModelPolicy(provider).CandidateSnapshot().ModelPolicy.Resolve(routingModel)
+	mappedModel, _, _ := gatewayprovider.ExecutionModelPolicy(provider).CandidateSnapshot().ModelPolicy.ResolveForEffort(routingModel, requeststate.RoutingReasoningEffortFromContext(ctx))
 	if !anthropic.IsAnthropicFableModel(mappedModel) && !anthropic.IsAnthropicFableModel(routingModel) {
 		return false
 	}

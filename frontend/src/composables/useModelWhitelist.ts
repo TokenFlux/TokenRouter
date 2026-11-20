@@ -1,7 +1,9 @@
 import {
   REASONING_EFFORT_VALUES,
+  WILDCARD_ONLY_RULES,
   isValidWildcardPattern,
   normalizeReasoningEffortValue,
+  validateModelMappingRows,
   type ModelMappingRow,
 } from '@/utils/modelMappingRules'
 import { getAntigravityDefaultModelMapping } from '@/api/admin/providers'
@@ -132,6 +134,36 @@ export function buildModelMappingObject(
   }
 
   return Object.keys(mapping).length > 0 ? mapping : null
+}
+
+// ModelMappingValidationErrorKey names the admin.providers i18n key for the first
+// invalid source wildcard, target wildcard, or duplicate (source, effort) row.
+export type ModelMappingValidationErrorKey =
+  'effortMappingDuplicate' | 'wildcardOnlyAtEnd' | 'targetNoWildcard'
+
+// firstModelMappingRowError validates provider mapping rows for duplicate (source,
+// effort) pairs and wildcard placement before submission. Returning the first error
+// key lets create, edit, and bulk-edit forms block submission instead of silently
+// dropping invalid rows or overwriting duplicates during serialization.
+export function firstModelMappingRowError(
+  rows: ModelMappingRow[],
+): ModelMappingValidationErrorKey | null {
+  const issues = validateModelMappingRows(rows, {
+    ...WILDCARD_ONLY_RULES,
+    uniqueSource: true,
+  })
+  for (const issue of issues) {
+    if (issue.from === 'duplicateSource') {
+      return 'effortMappingDuplicate'
+    }
+    if (issue.from) {
+      return 'wildcardOnlyAtEnd'
+    }
+    if (issue.to) {
+      return 'targetNoWildcard'
+    }
+  }
+  return null
 }
 
 // buildEffortModelMappingObject serializes editor rows carrying a recognized
