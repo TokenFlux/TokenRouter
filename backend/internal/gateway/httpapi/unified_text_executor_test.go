@@ -421,6 +421,8 @@ func TestUnifiedTextExecutorRestoresContextEffortAfterFailedAttempt(t *testing.T
 	_, err := exec.Messages(c.Request.Context(), c, failingAnthropic, body, "", "claude-opus-5-5")
 	require.Error(t, err)
 	require.Equal(t, "max", requeststate.RoutingReasoningEffortFromContext(c.Request.Context()))
+	require.NotNil(t, requeststate.RequestedReasoningEffortFromContext(c.Request.Context()))
+	require.Equal(t, "max", *requeststate.RequestedReasoningEffortFromContext(c.Request.Context()))
 
 	// Follow-up Gemini candidate must still resolve max -> claude-opus-5-5-max.
 	geminiTarget := gatewayadapter.NewExecutionProvider(&provider.Record{

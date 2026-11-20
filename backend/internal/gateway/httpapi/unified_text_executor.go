@@ -81,17 +81,15 @@ func (e *UnifiedTextExecutor) EnforceClient(ctx context.Context, c *gin.Context,
 // Responses executes one selected exchange after pricing and reasoning
 // preparation. It installs the supplied context in Gin, then uses any
 // preparation-updated context for compatible or native dispatch. Failed
-// attempts restore the incoming request context so platform effort rewrites
-// cannot leak into subsequent failover candidates; provider selection,
-// switching and completion remain with its caller.
+// attempts restore the incoming routing context while retaining any captured
+// client-requested effort; provider selection, switching and completion remain
+// with its caller.
 func (e *UnifiedTextExecutor) Responses(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte) (result *forward.OpenAIResult, failure error) {
 	baseCtx := ctx
 	defer func() {
 		captureTextPerformance(c.Request.Context(), result, failure)
-		// Restore the caller's baseline request context on failure so a platform
-		// effort policy rewrite for one provider does not leak into failover.
-		if failure != nil && c != nil && c.Request != nil {
-			c.Request = c.Request.WithContext(baseCtx)
+		if failure != nil {
+			restoreFailedAttemptContext(c, baseCtx)
 		}
 	}()
 	c.Request = c.Request.WithContext(ctx)
@@ -111,16 +109,14 @@ func (e *UnifiedTextExecutor) Responses(ctx context.Context, c *gin.Context, tar
 // exchange after common preparation. Compatible targets receive cache/model and
 // optional TLS inputs; native targets use native preparation and return nil
 // result for handled local probes. Failed attempts restore the caller's
-// baseline request context so mixed-platform failover keeps original effort
-// hints intact.
+// baseline routing context while retaining any captured client-requested
+// effort.
 func (e *UnifiedTextExecutor) Messages(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte, cacheKey, model string, tls ...egress.TLSFingerprintRouterMatchResult) (result *forward.OpenAIResult, failure error) {
 	baseCtx := ctx
 	defer func() {
 		captureTextPerformance(c.Request.Context(), result, failure)
-		// Restore the caller's baseline request context on failure so a platform
-		// effort policy rewrite for one provider does not leak into failover.
-		if failure != nil && c != nil && c.Request != nil {
-			c.Request = c.Request.WithContext(baseCtx)
+		if failure != nil {
+			restoreFailedAttemptContext(c, baseCtx)
 		}
 	}()
 	c.Request = c.Request.WithContext(ctx)
@@ -140,16 +136,14 @@ func (e *UnifiedTextExecutor) Messages(ctx context.Context, c *gin.Context, targ
 // Chat executes one selected exchange after pricing and reasoning preparation
 // in the supplied context. Compatible targets receive cache/model and optional
 // TLS inputs, while native targets use their platform bindings; failed attempts
-// restore the caller's baseline request context before failover, and callers
-// own selection and completion.
+// restore the caller's baseline routing context while retaining any captured
+// client-requested effort, and callers own selection and completion.
 func (e *UnifiedTextExecutor) Chat(ctx context.Context, c *gin.Context, target *gatewayadapter.ExecutionProvider, body []byte, cacheKey, model string, tls ...egress.TLSFingerprintRouterMatchResult) (result *forward.OpenAIResult, failure error) {
 	baseCtx := ctx
 	defer func() {
 		captureTextPerformance(c.Request.Context(), result, failure)
-		// Restore the caller's baseline request context on failure so a platform
-		// effort policy rewrite for one provider does not leak into failover.
-		if failure != nil && c != nil && c.Request != nil {
-			c.Request = c.Request.WithContext(baseCtx)
+		if failure != nil {
+			restoreFailedAttemptContext(c, baseCtx)
 		}
 	}()
 	c.Request = c.Request.WithContext(ctx)
@@ -394,4 +388,24 @@ func captureTextPerformance(ctx context.Context, result *forward.OpenAIResult, f
 		p.UsageComplete = false
 	}
 	result.Timings = p
+}
+
+// restoreFailedAttemptContext restores baseCtx onto c.Request after a failed
+// attempt so platform effort rewrites do not leak into subsequent failover
+// candidates. When baseCtx had no requested-effort observation, any client
+// choice captured from the inbound payload before group policy evaluation is
+// carried forward for local-denial and failure attribution.
+func restoreFailedAttemptContext(c *gin.Context, baseCtx context.Context) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	restored := baseCtx
+	// Carry forward the immutable client effort captured before group policy
+	// evaluation so local 403 denials and Ops diagnostics retain the raw choice.
+	if requeststate.RequestedReasoningEffortFromContext(restored) == nil {
+		if requested := requeststate.RequestedReasoningEffortFromContext(c.Request.Context()); requested != nil {
+			restored = requeststate.WithRequestedReasoningEffort(restored, *requested)
+		}
+	}
+	c.Request = c.Request.WithContext(restored)
 }
