@@ -115,9 +115,11 @@ type AntigravityRetry struct {
 	// Do supplies shared transport when an attempt has no override. Its callbacks
 	// receive the selected proxy and record ID/concurrency from the bound attempt.
 	Do func(*http.Request, string, int64, int) (*http.Response, error)
-	// BaseURL is required to supply the platform endpoint from the borrowed record.
-	// Its callback is read when the platform prepares a request for this attempt.
+	// BaseURL supplies the single platform endpoint when BaseURLs is nil.
 	BaseURL func(*provider.Record) string
+	// BaseURLs optionally supplies ordered forwarding endpoint candidates (such
+	// as [daily, prod] for paid accounts in auto mode); nil falls back to BaseURL.
+	BaseURLs func(*provider.Record) []string
 	// BodyLimit is required for response-error reads and selected-provider probes.
 	// The value is passed to LimitReader exactly; callers configure its
 	// intended positive byte limit.
@@ -153,6 +155,7 @@ func (s *AntigravityRetry) WithDo(do func(*http.Request, string, int64, int) (*h
 		Policy:         s.Policy,
 		Do:             do,
 		BaseURL:        s.BaseURL,
+		BaseURLs:       s.BaseURLs,
 		BodyLimit:      s.BodyLimit,
 		LogConfig:      s.LogConfig,
 		TruncateString: s.TruncateString,
@@ -228,8 +231,17 @@ func (s *AntigravityRetry) Bind(p AntigravityRetryRequest) (*antigravity.RetryAd
 			return remaining
 		},
 	}
+	var baseURLs func() []string
+	if s.BaseURLs != nil {
+		baseURLs = func() []string { return s.BaseURLs(value) }
+	}
+	var baseURL func() string
+	if s.BaseURL != nil {
+		baseURL = func() string { return s.BaseURL(value) }
+	}
 	options := antigravity.RetryOptions{
-		BaseURL: func() string { return s.BaseURL(value) },
+		BaseURL:  baseURL,
+		BaseURLs: baseURLs,
 		Do: func(req *http.Request) (*http.Response, error) {
 			if p.Do != nil {
 				return p.Do(req)

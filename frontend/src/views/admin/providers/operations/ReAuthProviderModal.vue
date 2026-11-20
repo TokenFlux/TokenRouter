@@ -84,34 +84,27 @@
           <div
             :class="[
               'flex h-8 w-8 shrink-0 items-center justify-center rounded-control',
-              geminiOAuthType === 'google_one'
-                ? 'bg-purple-500 text-white'
-                : geminiOAuthType === 'code_assist'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-amber-500 text-white',
+              geminiOAuthType === 'code_assist'
+                ? 'bg-blue-500 text-white'
+                : 'bg-amber-500 text-white',
             ]"
           >
-            <Icon v-if="geminiOAuthType === 'google_one'" name="user" size="sm" />
-            <Icon v-else-if="geminiOAuthType === 'code_assist'" name="cloud" size="sm" />
+            <Icon v-if="geminiOAuthType === 'code_assist'" name="cloud" size="sm" />
             <Icon v-else name="sparkles" size="sm" />
           </div>
           <div>
             <span class="block text-sm font-medium text-gray-900 dark:text-white">
               {{
-                geminiOAuthType === 'google_one'
-                  ? 'Google One'
-                  : geminiOAuthType === 'code_assist'
-                    ? t('admin.providers.gemini.oauthType.builtInTitle')
-                    : t('admin.providers.gemini.oauthType.customTitle')
+                geminiOAuthType === 'code_assist'
+                  ? t('admin.providers.gemini.oauthType.builtInTitle')
+                  : t('admin.providers.gemini.oauthType.customTitle')
               }}
             </span>
             <span class="text-xs text-gray-500 dark:text-gray-400">
               {{
-                geminiOAuthType === 'google_one'
-                  ? '个人提供商'
-                  : geminiOAuthType === 'code_assist'
-                    ? t('admin.providers.gemini.oauthType.builtInDesc')
-                    : t('admin.providers.gemini.oauthType.customDesc')
+                geminiOAuthType === 'code_assist'
+                  ? t('admin.providers.gemini.oauthType.builtInDesc')
+                  : t('admin.providers.gemini.oauthType.customDesc')
               }}
             </span>
           </div>
@@ -144,7 +137,8 @@
                   ? 'grok'
                   : 'anthropic'
         "
-        :show-project-id="isGemini && geminiOAuthType === 'code_assist'"
+        :show-project-id="isAntigravity || (isGemini && geminiOAuthType === 'code_assist')"
+        :initial-project-id="existingGoogleProjectId"
         :initial-input-method="grokInitialInputMethod"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
@@ -289,7 +283,22 @@ const oauthFlowRef = ref<OAuthFlowExposed | null>(null)
  * generation, code exchange, and persisted provider credentials.
  */
 const addMethod = ref<AddMethod>('oauth')
-const geminiOAuthType = ref<'code_assist' | 'google_one' | 'ai_studio'>('code_assist')
+const geminiOAuthType = ref<'code_assist' | 'ai_studio'>('code_assist')
+
+/**
+ * existingGoogleProjectId reads any saved GCP Project ID from Gemini or Antigravity
+ * credentials so reauthorization pre-populates the Project ID input.
+ */
+const existingGoogleProjectId = computed(() => {
+  const creds = (props.provider?.credentials || {}) as Record<string, unknown>
+  if (typeof creds.project_id === 'string' && creds.project_id.trim()) {
+    return creds.project_id.trim()
+  }
+  if (typeof creds.antigravity_project_id === 'string' && creds.antigravity_project_id.trim()) {
+    return creds.antigravity_project_id.trim()
+  }
+  return ''
+})
 
 /**
  * Platform predicates select OAuth composables and input capabilities, including OpenAI-like
@@ -396,12 +405,7 @@ watch(
       }
       if (isGemini.value) {
         const creds = (props.provider.credentials || {}) as Record<string, unknown>
-        geminiOAuthType.value =
-          creds.oauth_type === 'google_one'
-            ? 'google_one'
-            : creds.oauth_type === 'ai_studio'
-              ? 'ai_studio'
-              : 'code_assist'
+        geminiOAuthType.value = creds.oauth_type === 'ai_studio' ? 'ai_studio' : 'code_assist'
       }
     } else {
       resetState()
@@ -532,6 +536,8 @@ const handleExchangeCode = async () => {
       code: authCode.trim(),
       sessionId,
       state: stateToUse,
+      projectId:
+        geminiOAuthType.value === 'code_assist' ? oauthFlowRef.value?.projectId : undefined,
       proxyId: props.provider.proxy_id,
       oauthType: geminiOAuthType.value,
       tierId:
@@ -571,16 +577,19 @@ const handleExchangeCode = async () => {
       code: authCode.trim(),
       sessionId,
       state: stateToUse,
+      projectId: oauthFlowRef.value?.projectId || existingGoogleProjectId.value || undefined,
       proxyId: props.provider.proxy_id,
     })
     if (!tokenInfo) return
 
     const credentials = antigravityOAuth.buildCredentials(tokenInfo)
+    const extra = antigravityOAuth.buildExtraInfo?.(tokenInfo)
 
     try {
       const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
         type: 'oauth',
         credentials,
+        ...(extra ? { extra } : {}),
       })
       appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
       emit('reauthorized', updatedProvider)
@@ -793,12 +802,15 @@ const handleValidateRefreshToken = async (refreshTokenInput: string) => {
     const tokenInfo = await antigravityOAuth.validateRefreshToken(
       refreshToken,
       props.provider.proxy_id,
+      oauthFlowRef.value?.projectId || existingGoogleProjectId.value || undefined,
     )
     if (!tokenInfo) return
 
+    const extra = antigravityOAuth.buildExtraInfo?.(tokenInfo)
     const updatedProvider = await adminAPI.providers.applyOAuthCredentials(props.provider.id, {
       type: 'oauth',
       credentials: antigravityOAuth.buildCredentials(tokenInfo, refreshToken),
+      ...(extra ? { extra } : {}),
     })
     appStore.showSuccess(t('admin.providers.reAuthorizedSuccess'))
     emit('reauthorized', updatedProvider)

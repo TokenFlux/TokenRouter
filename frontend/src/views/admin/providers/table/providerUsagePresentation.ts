@@ -1,4 +1,5 @@
 import type {
+  AntigravityModelQuota,
   GeminiCredentials,
   Provider,
   ProviderUsageInfo,
@@ -15,11 +16,13 @@ import { formatCompactNumber } from '@/utils/format'
  */
 
 /**
- * AntigravityUsageResult summarizes utilization and earliest reset for one model family.
+ * AntigravityUsageResult summarizes utilization, earliest reset, and optional local
+ * window statistics for one model family bucket.
  */
 export interface AntigravityUsageResult {
   utilization: number // Highest observed utilization percentage across family models.
   resetTime: string | null // Lexically earliest nonempty reset timestamp in the family.
+  windowStats?: WindowStats | null // Optional local usage totals recorded in this window.
 }
 
 /**
@@ -53,70 +56,106 @@ export interface QuotaBarInfo {
 }
 
 /**
- * Antigravity model family groupings used to summarize quota maps into four compact bars.
+ * AntigravityUsageGroupDisplay pairs a model-family group with its optional 7-day
+ * and 5-hour usage windows for table presentation.
  */
-export const ANTIGRAVITY_PRO_MODELS = [
-  'gemini-3-pro-low',
-  'gemini-3-pro-high',
-  'gemini-3-pro-preview',
-] as const
-export const ANTIGRAVITY_FLASH_MODELS = ['gemini-3-flash'] as const
-export const ANTIGRAVITY_IMAGE_MODELS = [
-  'gemini-2.5-flash-image',
-  'gemini-3.1-flash-image',
-  'gemini-3-pro-image',
-] as const
-export const ANTIGRAVITY_CLAUDE_MODELS = [
-  'claude-fable-5-1',
-  'claude-fable-5',
-  'claude-sonnet-4-5',
-  'claude-opus-4-5-thinking',
-  'claude-sonnet-4-6',
-  'claude-opus-4-6',
-  'claude-opus-4-6-thinking',
-  'claude-opus-4-7',
-  'claude-opus-4-8',
-] as const
+export interface AntigravityUsageGroupDisplay {
+  key: 'gemini' | 'claude_gpt' // Stable model-family group identifier.
+  labelKey: string // i18n key for the group heading.
+  weekly: AntigravityUsageResult | null // Rolling 7-day usage window.
+  fiveHour: AntigravityUsageResult | null // Rolling 5-hour usage window.
+}
 
 /**
- * summarizeAntigravityFamilyUsage selects the highest utilization and earliest
- * reset timestamp across matching model entries, preserving zero-utilization
- * entries when at least one family model exists in the quota map.
+ * toAntigravityUsageResult normalizes one raw quota window into a non-negative
+ * utilization percentage and nullable reset timestamp.
  */
-export function summarizeAntigravityFamilyUsage(
-  quota: ProviderUsageInfo['antigravity_quota'] | undefined,
-  modelNames: readonly string[],
+function toAntigravityUsageResult(
+  quota: AntigravityModelQuota | null | undefined,
 ): AntigravityUsageResult | null {
   if (!quota) return null
+  return {
+    utilization: Math.max(0, quota.utilization),
+    resetTime: quota.reset_time || null,
+    windowStats: quota.window_stats ?? null,
+  }
+}
 
-  let maxUtilization = 0
-  let earliestReset: string | null = null
+/**
+ * mergeAntigravityUsageResult retains the higher utilization and lexically earliest
+ * reset timestamp when aggregating per-model fallback entries into one family window.
+ */
+function mergeAntigravityUsageResult(
+  current: AntigravityUsageResult | null,
+  candidate: AntigravityUsageResult,
+): AntigravityUsageResult {
+  if (!current) return candidate
+  const utilization = Math.max(current.utilization, candidate.utilization)
+  let resetTime = current.resetTime
+  if (candidate.resetTime && (!resetTime || candidate.resetTime < resetTime)) {
+    resetTime = candidate.resetTime
+  }
+  return {
+    utilization,
+    resetTime,
+    windowStats: current.windowStats ?? candidate.windowStats ?? null,
+  }
+}
 
-  for (const model of modelNames) {
-    const modelQuota = quota[model]
-    if (!modelQuota) continue
+/**
+ * summarizeAntigravityUsageGroups projects Antigravity quota observations into
+ * Gemini and Claude/GPT groups with 7d and 5h windows, falling back to per-model
+ * 5h aggregation when antigravity_quota_summary is absent.
+ */
+export function summarizeAntigravityUsageGroups(
+  usageInfo: ProviderUsageInfo | null | undefined,
+): AntigravityUsageGroupDisplay[] {
+  if (!usageInfo) return []
 
-    if (modelQuota.utilization > maxUtilization) {
-      maxUtilization = modelQuota.utilization
-    }
-    if (modelQuota.reset_time) {
-      if (!earliestReset || modelQuota.reset_time < earliestReset) {
-        earliestReset = modelQuota.reset_time
+  const summary = usageInfo.antigravity_quota_summary
+  const geminiWeekly = toAntigravityUsageResult(summary?.gemini?.weekly)
+  let geminiFiveHour = toAntigravityUsageResult(summary?.gemini?.five_hour)
+  const claudeWeekly = toAntigravityUsageResult(summary?.claude_gpt?.weekly)
+  let claudeFiveHour = toAntigravityUsageResult(summary?.claude_gpt?.five_hour)
+
+  // Older cached snapshots or endpoints without retrieveUserQuotaSummary provide
+  // per-model 5-hour observations only; roll them into the same two family groups.
+  if (!summary && usageInfo.antigravity_quota) {
+    for (const [modelName, rawQuota] of Object.entries(usageInfo.antigravity_quota)) {
+      const parsed = toAntigravityUsageResult(rawQuota)
+      if (!parsed) continue
+      const lower = modelName.toLowerCase()
+      if (lower.includes('gemini')) {
+        geminiFiveHour = mergeAntigravityUsageResult(geminiFiveHour, parsed)
+      } else if (
+        lower.includes('claude') ||
+        lower.includes('gpt') ||
+        lower.includes('openai') ||
+        /^o[134]\b/.test(lower)
+      ) {
+        claudeFiveHour = mergeAntigravityUsageResult(claudeFiveHour, parsed)
       }
     }
   }
 
-  // A matching zero-use observation still represents known quota; return null
-  // only when none of the requested model entries exists.
-  if (maxUtilization === 0 && earliestReset === null) {
-    const hasAnyData = modelNames.some((model) => Boolean(quota[model]))
-    if (!hasAnyData) return null
+  const groups: AntigravityUsageGroupDisplay[] = []
+  if (geminiWeekly || geminiFiveHour) {
+    groups.push({
+      key: 'gemini',
+      labelKey: 'admin.providers.usageWindow.antigravityGeminiModels',
+      weekly: geminiWeekly,
+      fiveHour: geminiFiveHour,
+    })
   }
-
-  return {
-    utilization: maxUtilization,
-    resetTime: earliestReset,
+  if (claudeWeekly || claudeFiveHour) {
+    groups.push({
+      key: 'claude_gpt',
+      labelKey: 'admin.providers.usageWindow.antigravityClaudeGptModels',
+      weekly: claudeWeekly,
+      fiveHour: claudeFiveHour,
+    })
   }
+  return groups
 }
 
 /**
@@ -143,6 +182,43 @@ export function getAntigravityTierId(
   }
 
   return null
+}
+
+/**
+ * resolveAntigravityPlanType maps live usage tier observations, saved plan_type
+ * credentials, legacy load_code_assist metadata, or parent plans into the
+ * normalized subscription label consumed by PlatformTypeBadge. Non-Antigravity
+ * rows, unknown markers, and missing metadata return undefined.
+ */
+export function resolveAntigravityPlanType(
+  provider:
+    | (Pick<Provider, 'platform' | 'credentials' | 'extra'> & { parent_plan_type?: string })
+    | null
+    | undefined,
+  observedUsage?: Pick<ProviderUsageInfo, 'subscription_tier' | 'subscription_tier_raw'> | null,
+): string | undefined {
+  if (!provider || provider.platform !== 'antigravity') return undefined
+
+  const mapRawTier = (raw: unknown): string | undefined => {
+    if (typeof raw !== 'string') return undefined
+    const trimmed = raw.trim()
+    if (!trimmed) return undefined
+    const lower = trimmed.toLowerCase()
+    if (lower === 'unknown') return undefined
+    if (lower === 'g1-ultra-tier' || lower === 'ultra') return 'Ultra'
+    if (lower === 'g1-pro-tier' || lower === 'pro') return 'Pro'
+    if (lower === 'free-tier' || lower === 'free') return 'Free'
+    if (lower === 'abnormal') return 'Abnormal'
+    return trimmed
+  }
+
+  return (
+    mapRawTier(observedUsage?.subscription_tier_raw) ||
+    mapRawTier(observedUsage?.subscription_tier) ||
+    mapRawTier((provider.credentials as Record<string, unknown> | undefined)?.plan_type) ||
+    mapRawTier(getAntigravityTierId(provider)) ||
+    mapRawTier(provider.parent_plan_type)
+  )
 }
 
 /**
@@ -196,7 +272,7 @@ export interface GeminiChannelSummary {
   tier: string | null // Raw saved tier_id string or null.
   oauthType: string | null // Trimmed oauth_type marker or null.
   isCodeAssist: boolean // Whether the credential uses GCP Code Assist.
-  channelShort: 'ai studio' | 'gcp' | 'google one' | 'client' | null // Normalized channel tag.
+  channelShort: 'ai studio' | 'gcp' | 'client' | null // Normalized channel tag.
   userLevel: string | null // Normalized subscription level within the channel.
   authTypeLabel: string | null // Combined channel + level badge label.
   tierClass: string // Tailwind badge class for the channel and level.
@@ -237,8 +313,6 @@ export function summarizeGeminiChannel(
   let channelShort: GeminiChannelSummary['channelShort'] = 'ai studio'
   if (provider.type === 'apikey') {
     channelShort = 'ai studio'
-  } else if (oauthType === 'google_one') {
-    channelShort = 'google one'
   } else if (isCodeAssist) {
     channelShort = 'gcp'
   } else if (oauthType === 'ai_studio') {
@@ -250,24 +324,15 @@ export function summarizeGeminiChannel(
   const tierUpper = tierStr.toUpperCase()
   let userLevel: string | null = null
 
-  if (oauthType === 'google_one') {
-    if (tierLower === 'google_one_free') userLevel = 'free'
-    else if (tierLower === 'google_ai_pro') userLevel = 'pro'
-    else if (tierLower === 'google_ai_ultra') userLevel = 'ultra'
-    else if (tierUpper === 'AI_PREMIUM' || tierUpper === 'GOOGLE_ONE_STANDARD') userLevel = 'pro'
-    else if (tierUpper === 'GOOGLE_ONE_UNLIMITED') userLevel = 'ultra'
-    else if (
-      tierUpper === 'FREE' ||
-      tierUpper === 'GOOGLE_ONE_BASIC' ||
-      tierUpper === 'GOOGLE_ONE_UNKNOWN' ||
-      tierUpper === ''
-    ) {
-      userLevel = 'free'
-    }
-  } else if (isCodeAssist) {
+  if (isCodeAssist) {
     if (tierLower === 'gcp_enterprise') userLevel = 'enterprise'
-    else if (tierLower === 'gcp_standard') userLevel = 'standard'
-    else if (tierUpper.includes('ULTRA') || tierUpper.includes('ENTERPRISE')) {
+    else if (
+      tierLower === 'gcp_standard' ||
+      tierLower === 'legacy-tier' ||
+      tierLower === 'free-tier'
+    ) {
+      userLevel = 'standard'
+    } else if (tierUpper.includes('ULTRA') || tierUpper.includes('ENTERPRISE')) {
       userLevel = 'enterprise'
     } else {
       userLevel = 'standard'
@@ -289,14 +354,6 @@ export function summarizeGeminiChannel(
   let tierClass = ''
   if (channelShort === 'client' || channelShort === 'ai studio') {
     tierClass = 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-  } else if (channelShort === 'google one') {
-    if (userLevel === 'ultra') {
-      tierClass = 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    } else if (userLevel === 'pro') {
-      tierClass = 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    } else {
-      tierClass = 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
-    }
   } else if (channelShort === 'gcp') {
     tierClass =
       userLevel === 'enterprise'
@@ -306,16 +363,7 @@ export function summarizeGeminiChannel(
 
   let quotaPolicyChannelKey = 'admin.providers.gemini.quotaPolicy.rows.aiStudio.channel'
   let quotaPolicyLimitsKey = 'admin.providers.gemini.quotaPolicy.rows.aiStudio.limitsFree'
-  if (oauthType === 'google_one') {
-    quotaPolicyChannelKey = 'admin.providers.gemini.quotaPolicy.rows.googleOne.channel'
-    if (tierLower === 'google_ai_ultra' || userLevel === 'ultra') {
-      quotaPolicyLimitsKey = 'admin.providers.gemini.quotaPolicy.rows.googleOne.limitsUltra'
-    } else if (tierLower === 'google_ai_pro' || userLevel === 'pro') {
-      quotaPolicyLimitsKey = 'admin.providers.gemini.quotaPolicy.rows.googleOne.limitsPro'
-    } else {
-      quotaPolicyLimitsKey = 'admin.providers.gemini.quotaPolicy.rows.googleOne.limitsFree'
-    }
-  } else if (isCodeAssist) {
+  if (isCodeAssist) {
     quotaPolicyChannelKey = 'admin.providers.gemini.quotaPolicy.rows.gcp.channel'
     quotaPolicyLimitsKey =
       tierLower === 'gcp_enterprise' || userLevel === 'enterprise'
@@ -325,10 +373,9 @@ export function summarizeGeminiChannel(
     quotaPolicyLimitsKey = 'admin.providers.gemini.quotaPolicy.rows.aiStudio.limitsPaid'
   }
 
-  const quotaPolicyDocsUrl =
-    oauthType === 'google_one' || isCodeAssist
-      ? 'https://developers.google.com/gemini-code-assist/resources/quotas'
-      : 'https://ai.google.dev/pricing'
+  const quotaPolicyDocsUrl = isCodeAssist
+    ? 'https://developers.google.com/gemini-code-assist/resources/quotas'
+    : 'https://ai.google.dev/pricing'
 
   return {
     tier,
@@ -362,7 +409,6 @@ export function buildGeminiUsageBars(
   const usesSharedDaily =
     Boolean(usageInfo.gemini_shared_daily) ||
     Boolean(usageInfo.gemini_shared_minute) ||
-    channel.oauthType === 'google_one' ||
     channel.isCodeAssist
 
   const bars: GeminiUsageBarItem[] = []

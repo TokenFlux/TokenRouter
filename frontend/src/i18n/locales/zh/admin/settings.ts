@@ -719,9 +719,9 @@ export default {
       clientDatelineNormalizationHint:
         '默认开启。将 Anthropic OAuth/Setup Token 请求体中 "Today\'s date is …" 语句里的撇号与日期分隔符还原为 ASCII 撇号 + 短横线 (2026-07-01) 的规范形态，抹除某些客户端在检测到非官方 base URL 时注入的隐写指纹位。仅作用于 system prompt 与 <system-reminder> 块内，API Key 提供商不受影响。',
       antigravityUserAgentVersion: 'Antigravity UA 版本',
-      antigravityUserAgentVersionPlaceholder: '1.23.2',
+      antigravityUserAgentVersionPlaceholder: '2.33.0',
       antigravityUserAgentVersionHint:
-        '留空时使用 ANTIGRAVITY_USER_AGENT_VERSION 或内置默认值 1.23.2；填写后后台设置优先。',
+        '留空时使用 ANTIGRAVITY_USER_AGENT_VERSION 或内置默认值 2.33.0；填写后后台设置优先。',
       openaiCodexUserAgent: 'OpenAI Codex UA',
       openaiCodexUserAgentPlaceholder:
         'codex-tui/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.144.1)',

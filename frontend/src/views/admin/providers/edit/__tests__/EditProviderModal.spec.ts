@@ -2447,6 +2447,29 @@ describe('EditProviderModal', () => {
     expect(wrapper.getComponent(ModelWhitelistSelectorStub).props('providerId')).toBeUndefined()
     wrapper.unmount()
   })
+
+  // Antigravity AI Credits overage forwarding governs outbound request behavior rather
+  // than group membership or proxy routing. The toggle mounts inside the request tab
+  // panel instead of the basic tab panel.
+  it('places Antigravity allow-overages toggle in the request tab', async () => {
+    const provider = {
+      ...buildProvider(),
+      platform: 'antigravity' as const,
+      type: 'oauth' as const,
+      credentials: { project_id: 'demo-project' },
+      extra: { allow_overages: true },
+    }
+    const wrapper = mountModal(provider)
+    await flushPromises()
+
+    expect(
+      wrapper
+        .get('#edit-provider-allow-overages')
+        .element.closest('[data-settings-tab]')
+        ?.getAttribute('data-settings-tab'),
+    ).toBe('request')
+    wrapper.unmount()
+  })
 })
 
 useProtocolCatalogFixture()

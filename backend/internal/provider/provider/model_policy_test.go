@@ -1040,11 +1040,11 @@ func TestProviderGetModelMapping_AntigravityEnsuresGeminiDefaultPassthroughs(t *
 	}
 }
 
-// TestGoogleOneEmptyWhitelistAllowsUnknownModel supplies Google One
+// TestGeminiOAuthEmptyWhitelistAllowsUnknownModel supplies Code Assist
 // authentication without model configuration. Mapping must remain empty while
 // admission accepts an unknown model through the unrestricted scope.
-func TestGoogleOneEmptyWhitelistAllowsUnknownModel(t *testing.T) {
-	value := &acct.Record{Platform: capability.PlatformGemini, Type: capability.ProviderTypeOAuth, Credentials: map[string]any{"oauth_type": "google_one"}}
+func TestGeminiOAuthEmptyWhitelistAllowsUnknownModel(t *testing.T) {
+	value := &acct.Record{Platform: capability.PlatformGemini, Type: capability.ProviderTypeOAuth, Credentials: map[string]any{"oauth_type": "code_assist"}}
 	if len(acct.ResolveModelMapping(value, ModelDefaults())) != 0 {
 		t.Fatal("unexpected implicit mapping")
 	}
@@ -1053,15 +1053,15 @@ func TestGoogleOneEmptyWhitelistAllowsUnknownModel(t *testing.T) {
 	}
 }
 
-// TestProviderGetModelMapping_GoogleOnePreservesExplicitMapping supplies one
-// custom Google One alias. Resolution must retain its target and avoid
+// TestProviderGetModelMapping_GeminiCodeAssistPreservesExplicitMapping supplies
+// one custom Code Assist alias. Resolution must retain its target and avoid
 // introducing a target identity entry from platform defaults.
-func TestProviderGetModelMapping_GoogleOnePreservesExplicitMapping(t *testing.T) {
+func TestProviderGetModelMapping_GeminiCodeAssistPreservesExplicitMapping(t *testing.T) {
 	provider := &acct.Record{
 		Platform: capability.PlatformGemini,
 		Type:     capability.ProviderTypeOAuth,
 		Credentials: map[string]any{
-			"oauth_type": "google_one",
+			"oauth_type": "code_assist",
 			"model_mapping": map[string]any{
 				"custom-model": "gemini-2.5-flash",
 			},
@@ -1070,7 +1070,7 @@ func TestProviderGetModelMapping_GoogleOnePreservesExplicitMapping(t *testing.T)
 
 	mapping := acct.ResolveModelMapping(provider, ModelDefaults())
 	if mapping["custom-model"] != "gemini-2.5-flash" {
-		t.Fatalf("expected explicit Google One mapping to be preserved, got %v", mapping)
+		t.Fatalf("expected explicit Gemini Code Assist mapping to be preserved, got %v", mapping)
 	}
 	if _, ok := mapping["gemini-2.5-flash"]; ok {
 		t.Fatalf("did not expect defaults to overwrite an explicit mapping: %v", mapping)

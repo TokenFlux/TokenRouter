@@ -12,19 +12,18 @@ import (
 
 // health_forbidden_observation.go routes forbidden-response observations to
 // platform health handling and builds their diagnostics. A 403 classification
-// can identify a quota-like concurrency response, an HTML denial or a provider
-// account error. Platform and classification determine which health scope
-// applies: Antigravity uses its classified account diagnostic, Kimi concurrency
-// takes its temporary command first, and OpenAI/Kimi, Zhipu, and DeepSeek HTML
-// observations leave this provider-health decision unhandled.
+// can identify a quota-like concurrency response, an HTML denial, a Google
+// account validation/violation/client rejection, or a generic account error.
+// Antigravity and Gemini share Google-specific 403 classification, Kimi
+// concurrency takes its temporary command first, and OpenAI/Kimi, Zhipu, and
+// DeepSeek HTML observations leave this provider-health decision unhandled.
 //
 // Diagnostic construction prefers an adapter message, then a bounded body
 // representation, then a supplied fallback. JSON bodies are compacted before
 // bounded line conversion; adapter messages are trimmed at their edges and
-// otherwise remain untruncated. Antigravity validation can append its
-// verification URL; other classifications keep ordinary diagnostics. The
-// selected health command owns policy, storage and logged outcomes, so handled
-// results remain separate from confirmation of a persisted row.
+// otherwise remain untruncated. Google validation errors append their
+// verification URL, while unsupported-client or subscription rejections append
+// Antigravity migration guidance when observed on Gemini.
 
 // ForbiddenObservation holds upstream denial evidence and adapter
 // classifications for provider health selection.
@@ -35,13 +34,13 @@ type ForbiddenObservation struct {
 	// message.
 	Body []byte
 	// HTML supplies handleCountedForbidden's provider-penalty exemption.
-	// ApplyForbiddenObservation considers Antigravity and Kimi concurrency
-	// before applying a platform's counted-forbidden policy.
+	// ApplyForbiddenObservation considers Google and Kimi concurrency before
+	// applying a platform's counted-forbidden policy.
 	HTML bool
-	// Kind and ValidationURL determine Antigravity's account diagnostic together.
-	// A validation classification can append its URL; violation and unrecognized
-	// kinds use their own ordinary message paths.
-	Kind          string // Antigravity denial kind
+	// Kind and ValidationURL determine Google account diagnostics together. A
+	// validation classification appends its URL; violation and unrecognized kinds
+	// use their own message paths.
+	Kind          string // Google denial kind
 	ValidationURL string // account verification URL
 	// ConcurrentRequestLimited and ConcurrencyReason select Kimi's temporary
 	// capacity command before HTML/default handling. The reason is passed to that
@@ -85,8 +84,9 @@ func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody 
 
 // ApplyForbiddenObservation chooses a health scope from the classified 403 and
 // provider platform. Supply a usable service and record with stable observation
-// data. Antigravity account handling runs first; Kimi concurrency selects its
-// temporary command before other Kimi, Zhipu, and DeepSeek denial policy.
+// data. Antigravity and Gemini account handling run first; Kimi concurrency
+// selects its temporary command before other Kimi, Zhipu, and DeepSeek denial
+// policy.
 //
 // Platforms with counted-forbidden policy reach handleCountedForbidden, where
 // HTML can return false and non-HTML responses enter administrator cooldown/threshold
@@ -95,8 +95,8 @@ func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody 
 // write fails, while the HTML false result lets the caller retain its separate
 // request retry decision.
 func (s *HealthService) ApplyForbiddenObservation(ctx context.Context, provider *Record, observation ForbiddenObservation) (shouldDisable bool) {
-	if provider.Platform == capability.PlatformAntigravity {
-		return s.handleAntigravity403(ctx, provider, observation)
+	if provider.Platform == capability.PlatformAntigravity || provider.Platform == capability.PlatformGemini {
+		return s.handleGoogle403(ctx, provider, observation)
 	}
 	// Kimi reports concurrency limits as 403. Use a temporary pause and keep the failover signal
 	// so repeated capacity failures do not accumulate toward an account-error threshold.
@@ -143,15 +143,13 @@ func (s *HealthService) handleCountedForbidden(ctx context.Context, provider *Re
 	return s.ApplyForbidden(ctx, provider, msg)
 }
 
-// handleAntigravity403 builds an account-error diagnostic from the supplied
-// denial kind. Validation appends a nonempty verification URL, violation uses
-// its own fallback, and other kinds use ordinary access-forbidden text.
-// ApplyAuthenticationFailure owns persistence, and this method returns true
-// after selecting that handling.
-func (s *HealthService) handleAntigravity403(ctx context.Context, provider *Record, observation ForbiddenObservation) (shouldDisable bool) {
-	fbType := observation.Kind
-
-	switch fbType {
+// handleGoogle403 builds an account-error diagnostic for Antigravity and Gemini
+// 403 responses. Validation appends a nonempty verification URL, violation uses
+// its terms-of-service label, Gemini unsupported-client or subscription denials
+// direct personal/Google One accounts to Antigravity, and other kinds use
+// ordinary access-forbidden text.
+func (s *HealthService) handleGoogle403(ctx context.Context, provider *Record, observation ForbiddenObservation) (shouldDisable bool) {
+	switch observation.Kind {
 	case ForbiddenTypeValidation:
 		msg := buildForbiddenErrorMessage(
 			"Validation required (403):",
@@ -174,15 +172,34 @@ func (s *HealthService) handleAntigravity403(ctx context.Context, provider *Reco
 		)
 		s.ApplyAuthenticationFailure(ctx, provider, msg)
 		return true
+	}
 
-	default:
+	if provider.Platform == capability.PlatformGemini && isGeminiUnsupportedClient403(observation.Message, observation.Body) {
 		msg := buildForbiddenErrorMessage(
-			"Access forbidden (403):",
+			"Unsupported client (403):",
 			observation.Message,
 			observation.Body,
-			"provider may be suspended or lack permissions",
+			"personal and Google One accounts must use the Antigravity platform",
 		)
+		msg += " | Personal and Google One accounts are only supported via Antigravity OAuth."
 		s.ApplyAuthenticationFailure(ctx, provider, msg)
 		return true
 	}
+
+	msg := buildForbiddenErrorMessage(
+		"Access forbidden (403):",
+		observation.Message,
+		observation.Body,
+		"provider may be suspended or lack permissions",
+	)
+	s.ApplyAuthenticationFailure(ctx, provider, msg)
+	return true
+}
+
+// isGeminiUnsupportedClient403 reports whether a Gemini 403 carries upstream
+// UNSUPPORTED_CLIENT or SUBSCRIPTION_REQUIRED rejection markers.
+func isGeminiUnsupportedClient403(message string, body []byte) bool {
+	combined := strings.ToUpper(message + " " + string(body))
+	return strings.Contains(combined, "UNSUPPORTED_CLIENT") ||
+		strings.Contains(combined, "SUBSCRIPTION_REQUIRED")
 }

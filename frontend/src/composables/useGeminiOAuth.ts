@@ -87,11 +87,13 @@ export function useGeminiOAuth() {
       state.value = response.state
       return true
     } catch (err: any) {
-      // Prefer server detail for URL-generation failures. The localized
-      // generation message supplies usable form feedback when the failed
-      // request provides no detail.
+      // Prefer server detail or unwrapped API error message for URL-generation
+      // failures; fall back to the localized generation message when absent.
       error.value =
-        err.response?.data?.detail || t('admin.providers.oauth.gemini.failedToGenerateUrl')
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message ||
+        t('admin.providers.oauth.gemini.failedToGenerateUrl')
       appStore.showError(error.value)
       return false
     } finally {
@@ -99,13 +101,16 @@ export function useGeminiOAuth() {
     }
   }
 
-  // exchangeAuthCode submits the supplied code, session identifier, and state
-  // for tokens. Missing required input returns null with local feedback;
-  // request failures also show a toast, and completion clears loading.
+  // exchangeAuthCode submits the supplied code, session identifier, state, and
+  // optional Project ID override for tokens. Missing required input returns
+  // null with local feedback; request failures surface structured server
+  // diagnostics (activation URL, verification URL, or no-relogin Project ID
+  // prompt) and show a toast before clearing loading.
   const exchangeAuthCode = async (params: {
     code: string // Pasted authorization code.
     sessionId: string // Backend session identifier.
     state: string // Callback correlation state.
+    projectId?: string | null // Optional GCP Project ID override.
     proxyId?: number | null // Selected proxy identifier.
     oauthType?: string // Selected OAuth mode.
     tierId?: string // Selected subscription tier.
@@ -125,6 +130,8 @@ export function useGeminiOAuth() {
         state: params.state,
         code,
       }
+      const trimmedProjectID = params.projectId?.trim()
+      if (trimmedProjectID) payload.project_id = trimmedProjectID
       if (params.proxyId) payload.proxy_id = params.proxyId
       if (params.oauthType) payload.oauth_type = params.oauthType
       const trimmedTierID = params.tierId?.trim()
@@ -133,14 +140,11 @@ export function useGeminiOAuth() {
       const tokenInfo = await adminAPI.gemini.exchangeCode(payload as any)
       return tokenInfo as GeminiTokenInfo
     } catch (err: any) {
-      // A missing-project message selects the recovery hint for project input.
-      // Other failures use their message or the general localized exchange text.
-      const errorMessage = err.message || err.response?.data?.message || ''
-      if (errorMessage.includes('missing project_id')) {
-        error.value = t('admin.providers.oauth.gemini.missingProjectId')
-      } else {
-        error.value = errorMessage || t('admin.providers.oauth.gemini.failedToExchangeCode')
-      }
+      // Preserve specific server diagnostic messages (activation links,
+      // verification URLs, and same-session Project ID guidance) when present.
+      const errorMessage =
+        err.response?.data?.detail || err.response?.data?.message || err.message || ''
+      error.value = errorMessage || t('admin.providers.oauth.gemini.failedToExchangeCode')
       appStore.showError(error.value)
       return null
     } finally {

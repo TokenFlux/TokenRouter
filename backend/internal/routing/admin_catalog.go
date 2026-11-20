@@ -17,7 +17,6 @@ const (
 	CatalogClaude      AdminCatalogKind = "claude"      // Claude model response
 	CatalogOpenAI      AdminCatalogKind = "openai"      // OpenAI model response
 	CatalogGemini      AdminCatalogKind = "gemini"      // Gemini model response
-	CatalogGoogleOne   AdminCatalogKind = "google_one"  // Google One metadata
 	CatalogAntigravity AdminCatalogKind = "antigravity" // Antigravity model response
 	CatalogQoder       AdminCatalogKind = "qoder"       // Qoder model response
 	CatalogGrok        AdminCatalogKind = "grok"        // Grok model response
@@ -43,14 +42,10 @@ type AdminCatalogInput struct {
 	// Platform and Site carry the provider identity supplied by callers. Available
 	// uses Platform to choose the response shape, while Site remains unused by
 	// that selection.
-	// Platform identifies the provider platform; Site retains the provider site.
 	Platform, Site string
-	// OAuth and GoogleOne jointly select the Google One catalog for Gemini.
-	// Passthrough remains a supplied transport flag that Available does not
-	// consult when choosing the response shape.
-	// OAuth authentication flag; GoogleOne requests that variant; Passthrough
-	// retains the caller's transport mode.
-	OAuth, GoogleOne, Passthrough bool
+	// OAuth and Passthrough retain caller authentication and transport flags
+	// alongside Platform for metadata lookup callers.
+	OAuth, Passthrough bool
 	// Accept filters configured candidates before metadata lookup. A nil callback
 	// accepts every distinct configured ID that reaches the catalog loop.
 	Accept func(string) bool // optional model eligibility check
@@ -85,9 +80,8 @@ func NewAdminCatalog(options AdminCatalogOptions) *AdminCatalog { return &AdminC
 // Available returns accepted records in sorted configured-ID order using the
 // selected platform's response shape. The required configured callback supplies
 // a slice that is sorted in place; an optional Accept callback filters IDs
-// before Lookup supplies their complete metadata records. Unknown platforms use
-// the Claude shape, and Gemini selects Google One only when both GoogleOne and
-// OAuth are true.
+// before Lookup supplies their complete metadata records, and unknown platforms
+// use the Claude shape.
 func (s *AdminCatalog) Available(input AdminCatalogInput, configured func() []string) (AdminCatalogResult, error) {
 	kind := CatalogClaude
 	switch input.Platform {
@@ -95,9 +89,6 @@ func (s *AdminCatalog) Available(input AdminCatalogInput, configured func() []st
 		kind = CatalogOpenAI
 	case "gemini":
 		kind = CatalogGemini
-		if input.GoogleOne && input.OAuth {
-			kind = CatalogGoogleOne
-		}
 	case "antigravity":
 		kind = CatalogAntigravity
 	case "qoder":

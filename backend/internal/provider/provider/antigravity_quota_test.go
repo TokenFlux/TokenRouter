@@ -197,7 +197,8 @@ func TestExtractValidationURL(t *testing.T) {
 
 // TestAntigravityUsageCacheDoesNotCrossCredentialIdentity changes an access token
 // while retaining the provider ID. It checks that the second usage lookup repeats
-// both platform queries instead of using the first identity's cached result.
+// all three platform queries (models, tier, and quota summary) instead of using
+// the first identity's cached result.
 func TestAntigravityUsageCacheDoesNotCrossCredentialIdentity(t *testing.T) {
 	transport := &agUsageIdentityTransport{}
 	old := http.DefaultTransport
@@ -221,21 +222,24 @@ func TestAntigravityUsageCacheDoesNotCrossCredentialIdentity(t *testing.T) {
 	a := &providercore.Record{ID: 885, Platform: capability.PlatformAntigravity, Type: capability.ProviderTypeOAuth, Status: providercore.StatusActive, Credentials: map[string]any{"access_token": "first", "project_id": "fixture"}}
 	_, err := svc.GetAntigravityUsage(context.Background(), a)
 	require.NoError(t, err)
-	require.Equal(t, int32(2), transport.calls.Load())
+	require.Equal(t, int32(3), transport.calls.Load())
 	a.Credentials = map[string]any{"access_token": "second", "project_id": "fixture"}
 	_, err = svc.GetAntigravityUsage(context.Background(), a)
 	require.NoError(t, err)
-	require.Equal(t, int32(4), transport.calls.Load())
+	require.Equal(t, int32(6), transport.calls.Load())
 }
 
-// RoundTrip counts a request and returns tier or model JSON for its endpoint.
-// The returned response retains the request and has a caller-owned body. It
-// supplies no transport error or additional quota headers.
+// RoundTrip counts a request and returns tier, quota-summary, or model JSON for
+// its endpoint. The returned response retains the request and has a caller-owned
+// body without transport errors or additional quota headers.
 func (t *agUsageIdentityTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	t.calls.Add(1)
 	body := `{"models":{}}`
-	if strings.Contains(r.URL.Path, "loadCodeAssist") {
+	switch {
+	case strings.Contains(r.URL.Path, "loadCodeAssist"):
 		body = `{"currentTier":{"id":"FREE"}}`
+	case strings.Contains(r.URL.Path, "retrieveUserQuotaSummary"):
+		body = `{"groups":[]}`
 	}
 	return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 }

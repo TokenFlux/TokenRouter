@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
@@ -431,4 +432,74 @@ func TestBuildUsageInfo_AICredits(t *testing.T) {
 	require.Equal(t, "GOOGLE_ONE_AI", info.AICredits[0].CreditType)
 	require.Equal(t, 25.0, info.AICredits[0].Amount)
 	require.Equal(t, 5.0, info.AICredits[0].MinimumBalance)
+}
+
+// TestBuildUsageInfoWithSummary_GroupsWeeklyAndFiveHourWindows exercises
+// official retrieveUserQuotaSummary groups including a proto3 zero-omitted
+// remainingFraction bucket, verifying converted used-percentage windows and
+// CloneUsageInfo isolation.
+func TestBuildUsageInfoWithSummary_GroupsWeeklyAndFiveHourWindows(t *testing.T) {
+	fetcher := &AntigravityQuota{}
+	modelsResp := &antigravity.FetchAvailableModelsResponse{
+		Models: map[string]antigravity.ModelInfo{},
+	}
+	rem12 := 0.12
+	rem100 := 1.0
+	rem50 := 0.50
+	summaryResp := &antigravity.RetrieveUserQuotaSummaryResponse{
+		Groups: []google.AntigravityQuotaSummaryGroup{
+			{
+				DisplayName: "Gemini Models",
+				Buckets: []google.AntigravityQuotaSummaryBucket{
+					{
+						BucketID:          "gemini-weekly",
+						Window:            "weekly",
+						RemainingFraction: &rem12,
+						ResetTime:         "2026-11-25T18:00:00Z",
+					},
+					{
+						BucketID:          "gemini-5h",
+						Window:            "5h",
+						RemainingFraction: &rem100,
+						ResetTime:         "2026-11-20T22:00:00Z",
+					},
+					{
+						BucketID:          "gemini-argon-wtu-weekly",
+						Window:            "weekly",
+						RemainingFraction: &rem50,
+						ResetTime:         "2026-11-25T18:00:00Z",
+					},
+				},
+			},
+			{
+				DisplayName: "Claude and GPT models",
+				Buckets: []google.AntigravityQuotaSummaryBucket{
+					{
+						BucketID:          "3p-weekly",
+						Window:            "weekly",
+						RemainingFraction: &rem50,
+						ResetTime:         "2026-11-25T18:00:00Z",
+					},
+					{
+						BucketID:  "3p-5h",
+						Window:    "5h",
+						ResetTime: "2026-11-20T22:00:00Z",
+					},
+				},
+			},
+		},
+	}
+
+	info := fetcher.BuildUsageInfoWithSummary(modelsResp, summaryResp, "g1-pro-tier", "PRO", nil)
+	require.NotNil(t, info.AntigravityQuotaSummary)
+	require.NotNil(t, info.AntigravityQuotaSummary.Gemini)
+	require.NotNil(t, info.AntigravityQuotaSummary.ClaudeGPT)
+	require.Equal(t, &AntigravityModelQuota{Utilization: 88, ResetTime: "2026-11-25T18:00:00Z"}, info.AntigravityQuotaSummary.Gemini.Weekly)
+	require.Equal(t, &AntigravityModelQuota{Utilization: 0, ResetTime: "2026-11-20T22:00:00Z"}, info.AntigravityQuotaSummary.Gemini.FiveHour)
+	require.Equal(t, &AntigravityModelQuota{Utilization: 50, ResetTime: "2026-11-25T18:00:00Z"}, info.AntigravityQuotaSummary.ClaudeGPT.Weekly)
+	require.Equal(t, &AntigravityModelQuota{Utilization: 100, ResetTime: "2026-11-20T22:00:00Z"}, info.AntigravityQuotaSummary.ClaudeGPT.FiveHour)
+
+	cloned := CloneUsageInfo(info)
+	cloned.AntigravityQuotaSummary.Gemini.Weekly.Utilization = 10
+	require.Equal(t, 88, info.AntigravityQuotaSummary.Gemini.Weekly.Utilization)
 }

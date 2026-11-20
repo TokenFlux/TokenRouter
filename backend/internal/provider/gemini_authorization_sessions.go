@@ -1,28 +1,39 @@
 package provider
 
-import "time"
+import (
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
+)
 
 // gemini_authorization_sessions.go retains Gemini authorization proof alongside
-// project, tier, OAuth variant, and redirect choices used during code exchange.
+// project, tier, OAuth variant, redirect choices, and cached token exchanges.
 // The platform store delegates pointer retention and periodic expiry cleanup to
-// authorizationSessionStore so those saved choices share the session lifetime.
+// authorizationSessionStore so saved choices and recoverable code exchanges
+// share the thirty-minute session lifetime.
 
 // GeminiAuthorizationSessionTTL bounds authorization proof reuse while Get
 // checks age and periodic cleanup removes expired entries.
 const GeminiAuthorizationSessionTTL = 30 * time.Minute
 
-// GeminiOAuthSession retains temporary OAuth proof and the selected
-// authorization request context.
+// GeminiOAuthSession retains temporary OAuth proof, the selected authorization
+// request context, and any recoverable exchanged token awaiting Project ID input.
 type GeminiOAuthSession struct {
 	State        string `json:"state"`                // generated OAuth state proof
 	CodeVerifier string `json:"code_verifier"`        // stored PKCE verifier text
 	ProxyURL     string `json:"proxy_url,omitempty"`  // selected authorization proxy URL
 	RedirectURI  string `json:"redirect_uri"`         // authorization callback URI text
 	ProjectID    string `json:"project_id,omitempty"` // selected OAuth project identity
-	// TierID records the selected discovery fallback. Google One and Code Assist
-	// exchange prefer a detected tier and use this value when detection fails.
+	// TierID records the selected discovery fallback. Code Assist exchange
+	// prefers a detected tier and uses this value when detection leaves tier unresolved.
 	TierID    string `json:"tier_id,omitempty"`
-	OAuthType string `json:"oauth_type"` // code_assist, google_one, or ai_studio
+	OAuthType string `json:"oauth_type"` // code_assist or ai_studio
+	// ExchangedToken, ExchangedCodeHash, and ExchangedAt cache a successfully
+	// exchanged Google token when subsequent project discovery fails recoverably,
+	// letting the operator retry Complete Auth with the same code without re-login.
+	ExchangedToken    *google.TokenResponse `json:"-"` // cached exchanged token response
+	ExchangedCodeHash string                `json:"-"` // hex SHA-256 of trimmed exchanged code
+	ExchangedAt       time.Time             `json:"-"` // timestamp when ExchangedToken was obtained
 	// CreatedAt anchors lookup expiry and periodic removal. Keep it unchanged
 	// while the retained session is stored and read by the cleanup worker.
 	CreatedAt time.Time `json:"created_at"`
@@ -66,8 +77,7 @@ func (s *GeminiAuthorizationSessions) Get(sessionID string) (*GeminiOAuthSession
 
 // Delete removes sessionID from subsequent lookups and accepts an absent ID.
 // Borrowers retain previously returned pointers, so callers coordinate
-// exclusive
-// exchange separately from the store's Get and Delete operations.
+// exclusive exchange separately from the store's Get and Delete operations.
 func (s *GeminiAuthorizationSessions) Delete(sessionID string) {
 	s.delete(sessionID)
 }

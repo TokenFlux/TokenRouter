@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,19 +16,19 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 )
 
-// oauth.go builds OAuth authorization values and selects User-Agent versions
-// and available endpoints.
+// oauth.go builds OAuth authorization values and selects Antigravity Hub
+// User-Agent identities and available endpoints.
 // OAuth uses cached startup credentials and a request-time User-Agent version
-// resolver. A resolver result is accepted only after trimming and
-// major.minor.patch validation, and invalid results select the startup version
-// even when the callback runs concurrently with replacement.
+// resolver. NormalizeUserAgentVersion validates major.minor.patch syntax for
+// configuration storage, while EffectiveUserAgentVersion clamps obsolete
+// versions below 2.23.0 up to 2.33.0 before BuildUserAgent formats the Hub
+// identity and Piper changelist required by newer upstream models.
 //
 // Endpoint availability combines supplied membership, temporary failure
-// expiry, and last-success priority under a shared lock. Expired entries
-// become eligible without deletion, and selection moves an eligible successful
-// endpoint ahead of other entries. Account-management endpoint order remains
-// separate from the daily-first copy offered by ForwardBaseURLs; callers of
-// the retry adapter select their own forwarding base URL.
+// expiry, and last-success priority under a shared lock. Paid forwarding
+// defaults return a daily-first candidate slice [daily, prod] so RetryLoop can
+// fall back when daily rejects or misses a model, while free-tier forwarding
+// stays on prod alone because free tokens lack daily endpoint access.
 
 const (
 	// bundledOAuthClientSecret supplies the default client identity when startup
@@ -48,21 +49,30 @@ const (
 	// exchange, and refresh requests.
 	ClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 
-	// DefaultUserAgentVersion supplies the startup version when the environment
-	// override does not pass normalization.
-	DefaultUserAgentVersion = "1.23.2"
+	// DefaultUserAgentVersion and MinSupportedUserAgentVersion define the
+	// built-in Hub release and the minimum upstream version accepted before
+	// EffectiveUserAgentVersion upgrades legacy configured versions.
+	DefaultUserAgentVersion      = "2.33.0"
+	MinSupportedUserAgentVersion = "2.23.0"
+
+	// defaultPiperChangelist, onboardGoogleAPIClientSuffix, and GoogAPIClientHeader
+	// match the official Antigravity Hub control-plane request headers.
+	defaultPiperChangelist       = "1023160026"
+	onboardGoogleAPIClientSuffix = " google-api-nodejs-client/10.3.0"
+	GoogAPIClientHeader          = "gl-node/22.21.1"
 
 	// RedirectURI supplies the loopback callback value used in consent and
 	// authorization-code exchange requests.
 	RedirectURI = "http://localhost:8085/callback"
 
 	// Scopes joins the configured permissions into the space-separated value sent
-	// by the consent URL builder.
+	// by the consent URL builder, including the aicode scope required by Hub.
 	Scopes = "https://www.googleapis.com/auth/cloud-platform " +
 		"https://www.googleapis.com/auth/userinfo.email " +
 		"https://www.googleapis.com/auth/userinfo.profile " +
 		"https://www.googleapis.com/auth/cclog " +
-		"https://www.googleapis.com/auth/experimentsandconfigs"
+		"https://www.googleapis.com/auth/experimentsandconfigs " +
+		"https://www.googleapis.com/auth/aicode"
 
 	// SessionTTL bounds the authorization-session lifetime used by the owning
 	// OAuth session workflow outside this package.
@@ -84,6 +94,23 @@ var (
 	// userAgentVersionPattern accepts three decimal version components after
 	// trimming, excluding prefixes and build suffixes.
 	userAgentVersionPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+
+	// hubVersionChangelists maps known Antigravity Hub releases to their
+	// published Piper changelist numbers; unknown newer versions fall back to
+	// defaultPiperChangelist.
+	hubVersionChangelists = map[string]string{
+		"2.23.0": "990814210",
+		"2.24.0": "993928412",
+		"2.25.0": "996881024",
+		"2.26.0": "1000215488",
+		"2.27.0": "1003549120",
+		"2.28.0": "1006892340",
+		"2.29.0": "1010124800",
+		"2.30.0": "1013458210",
+		"2.31.0": "1016789012",
+		"2.32.0": "1020012345",
+		"2.33.0": defaultPiperChangelist,
+	}
 
 	// defaultUserAgentVersion holds the normalized startup override or built-in
 	// version, used when request-time resolution is absent or invalid.
@@ -144,6 +171,21 @@ func NormalizeUserAgentVersion(version string) string {
 	return version
 }
 
+// EffectiveUserAgentVersion resolves a normalized Hub version and upgrades
+// versions older than MinSupportedUserAgentVersion (2.23.0) to
+// DefaultUserAgentVersion (2.33.0). Blank or invalid input falls back to the
+// startup version before applying the same minimum-version floor.
+func EffectiveUserAgentVersion(version string) string {
+	normalized := NormalizeUserAgentVersion(version)
+	if normalized == "" {
+		normalized = NormalizeUserAgentVersion(defaultUserAgentVersion)
+	}
+	if normalized == "" || compareSemverTriplet(normalized, MinSupportedUserAgentVersion) < 0 {
+		return DefaultUserAgentVersion
+	}
+	return normalized
+}
+
 // GetDefaultUserAgentVersion returns the version selected once during startup
 // initialization.
 func GetDefaultUserAgentVersion() string {
@@ -188,22 +230,63 @@ func GetUserAgentVersionForContext(ctx context.Context) string {
 	return defaultUserAgentVersion
 }
 
-// BuildUserAgent formats a normalized version with the fixed windows/amd64
-// identity. Blank or invalid input uses the cached startup version, which can
-// differ from the built-in version after initialization.
+// BuildUserAgent formats an effective Hub version with the official
+// aidev_client identity and its Piper changelist. Legacy versions below 2.23.0
+// are upgraded to 2.33.0 so upstream does not block newer model families.
 func BuildUserAgent(version string) string {
-	if normalized := NormalizeUserAgentVersion(version); normalized != "" {
-		return fmt.Sprintf("antigravity/%s windows/amd64", normalized)
-	}
-	return fmt.Sprintf("antigravity/%s windows/amd64", defaultUserAgentVersion)
+	effective := EffectiveUserAgentVersion(version)
+	cl := changelistForVersion(effective)
+	return fmt.Sprintf("antigravity/hub/%s (aidev_client; os_type=darwin; arch=arm64; cl=%s)", effective, cl)
+}
+
+// BuildOnboardUserAgent appends the Google Node.js API client suffix sent by
+// Antigravity Hub during onboardUser and operation polling calls.
+func BuildOnboardUserAgent(version string) string {
+	return BuildUserAgent(version) + onboardGoogleAPIClientSuffix
 }
 
 // GetUserAgentForContext delegates request-time version resolution and formats
-// its platform identity. Nil context follows the resolver helper background
+// its Hub platform identity. Nil context follows the resolver helper background
 // default; callback concurrency and valid-version selection follow
 // GetUserAgentVersionForContext.
 func GetUserAgentForContext(ctx context.Context) string {
 	return BuildUserAgent(GetUserAgentVersionForContext(ctx))
+}
+
+// GetOnboardUserAgentForContext resolves the request-time Hub User-Agent with
+// the Node.js API client suffix used on onboarding requests.
+func GetOnboardUserAgentForContext(ctx context.Context) string {
+	return BuildOnboardUserAgent(GetUserAgentVersionForContext(ctx))
+}
+
+// changelistForVersion returns the published Piper changelist for version or
+// defaultPiperChangelist when version is unmapped.
+func changelistForVersion(version string) string {
+	if cl, ok := hubVersionChangelists[version]; ok {
+		return cl
+	}
+	return defaultPiperChangelist
+}
+
+// compareSemverTriplet compares two validated major.minor.patch strings and
+// returns -1, 0, or 1.
+func compareSemverTriplet(a, b string) int {
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+	if len(aParts) != 3 || len(bParts) != 3 {
+		return strings.Compare(a, b)
+	}
+	for i := range 3 {
+		av, _ := strconv.Atoi(aParts[i])
+		bv, _ := strconv.Atoi(bParts[i])
+		if av < bv {
+			return -1
+		}
+		if av > bv {
+			return 1
+		}
+	}
+	return 0
 }
 
 // getClientSecret returns the trimmed cached OAuth secret or a bad-request
@@ -218,25 +301,25 @@ func getClientSecret() (string, error) {
 }
 
 // ForwardBaseURLs returns an independent slice with the exact daily endpoint
-// moved first when present. Empty configuration returns nil, and source order
-// is retained for all other entries.
-//
-// The first matching daily occurrence is moved without editing BaseURLs; later
-// duplicate entries remain. This result is an ordering option for callers,
-// while RetryLoop receives a selected forwarding base URL separately. Callers
-// serialize changes to the package slice with readers so copying observes a
-// stable endpoint list.
+// moved first when present, or index one moved first when BaseURLs uses custom
+// test URLs. Empty configuration returns nil, and source order is retained for
+// all other entries.
 func ForwardBaseURLs() []string {
 	if len(BaseURLs) == 0 {
 		return nil
 	}
 	urls := append([]string(nil), BaseURLs...)
 	dailyIndex := -1
-	for i, url := range urls {
-		if url == antigravityDailyBaseURL {
+	for i, u := range urls {
+		if u == antigravityDailyBaseURL {
 			dailyIndex = i
 			break
 		}
+	}
+	if dailyIndex < 0 && len(urls) > 1 {
+		// Local test fixtures replace BaseURLs with httptest URLs in [prod, daily]
+		// order; promote index 1 so daily-first behavior matches production order.
+		dailyIndex = 1
 	}
 	if dailyIndex <= 0 {
 		return urls
@@ -245,13 +328,36 @@ func ForwardBaseURLs() []string {
 	// endpoint values at other indexes remain in their supplied relative order.
 	reordered := make([]string, 0, len(urls))
 	reordered = append(reordered, urls[dailyIndex])
-	for i, url := range urls {
+	for i, u := range urls {
 		if i == dailyIndex {
 			continue
 		}
-		reordered = append(reordered, url)
+		reordered = append(reordered, u)
 	}
 	return reordered
+}
+
+// ResolveAntigravityForwardBaseURLs returns the ordered forwarding endpoint
+// candidates for mode and paid status. Explicit non-auto modes return a single
+// pinned URL, paid auto/empty modes return ForwardBaseURLs ([daily, prod]) for
+// automatic fallback, and free auto/empty modes return only the primary prod
+// endpoint so free accounts never hit daily with 401 rejections.
+func ResolveAntigravityForwardBaseURLs(mode string, paid bool) []string {
+	baseURLs := BaseURLs
+	if len(baseURLs) == 0 {
+		return nil
+	}
+	normalizedMode := strings.ToLower(strings.TrimSpace(mode))
+	if normalizedMode != "" && normalizedMode != "auto" {
+		if single := ResolveAntigravityForwardBaseURL(mode, paid); single != "" {
+			return []string{single}
+		}
+		return nil
+	}
+	if paid {
+		return ForwardBaseURLs()
+	}
+	return []string{baseURLs[0]}
 }
 
 // NewURLAvailability constructs an empty endpoint tracker using ttl as

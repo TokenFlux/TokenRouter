@@ -19,8 +19,8 @@ import (
 //
 // For remaining providers, third-party endpoints use a generic configured
 // duration. Official routes first use a parsed response deadline, then select
-// tier cooldown for Code Assist or Google One, or the supplied daily reset for
-// API keys and AI Studio. Missing daily timing leaves a five-minute window.
+// tier cooldown for Code Assist, or the supplied daily reset for API keys and
+// AI Studio. Missing daily timing leaves a five-minute window.
 // These choices are persisted best effort, while selected authentication and
 // overload errors delegate to the common health service.
 
@@ -99,8 +99,8 @@ func (s *GeminiErrorObserver) Observe(ctx context.Context, value *provider.Recor
 	resetAt := s.ResetTime(body)
 	if resetAt == nil {
 		var ra time.Time
-		if isCodeAssist || oauthType == "google_one" {
-			// These OAuth routes use a tier-based window when reset metadata is
+		if isCodeAssist {
+			// Code Assist OAuth routes use a tier-based window when reset metadata is
 			// absent. A configured Precheck can replace the static tier duration
 			// at observation time.
 			cooldown := provider.GeminiCooldownForTier(tierID)
@@ -108,11 +108,7 @@ func (s *GeminiErrorObserver) Observe(ctx context.Context, value *provider.Recor
 				cooldown = s.Precheck.GeminiCooldown(ctx, value)
 			}
 			ra = time.Now().Add(cooldown)
-			if isCodeAssist {
-				logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Provider %d (Code Assist, tier=%s, project=%s) rate limited, cooldown=%v", value.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
-			} else {
-				logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Provider %d (Google One OAuth, tier=%s, project=%s) rate limited, cooldown=%v", value.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
-			}
+			logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini 429] Provider %d (Code Assist, tier=%s, project=%s) rate limited, cooldown=%v", value.ID, tierID, projectID, time.Until(ra).Truncate(time.Second))
 		} else {
 			// These official routes use the supplied daily reset after response
 			// timing is absent. Missing daily timing leaves a short cooldown

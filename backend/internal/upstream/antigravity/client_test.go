@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +17,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 )
 
-// Account client fixtures cover Google OAuth exchanges, v1internal
-// project/model queries, and shared tier/credit decoding. Some early fixtures
-// construct HTTP requests directly, while RealCall tests invoke Client methods
-// through a prefix-rewriting transport; these protect different layers of
-// behavior.
+// client_test.go covers Google OAuth exchanges, v1internal project/model
+// queries, and shared tier/credit decoding. Some early fixtures construct HTTP
+// requests directly, while RealCall tests invoke Client methods through a
+// prefix-rewriting transport; these protect different layers of behavior.
 //
 // Endpoint and secret overrides restore shared package state after each
 // serialized test. The redirect transport changes the supplied request URL in
@@ -2045,5 +2046,164 @@ func TestExtractProjectIDFromOnboardResponse(t *testing.T) {
 				t.Fatalf("extractProjectIDFromOnboardResponse() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestClient_OnboardUserWithProject_PollsGetOperationAndOmitsFreeTierProject
+// exercises OnboardUserWithProject when onboarding starts pending with a named
+// operation. Subsequent checks must poll GET /v1internal/{name} with Hub
+// control-plane headers and omit cloudaicompanionProject on free-tier.
+func TestClient_OnboardUserWithProject_PollsGetOperationAndOmitsFreeTierProject(t *testing.T) {
+	var postBodyRaw string
+	var seenMethods []string
+	var seenOnboardUA string
+	var seenGoogClient string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenMethods = append(seenMethods, r.Method+" "+r.URL.Path)
+		seenOnboardUA = r.Header.Get("User-Agent")
+		seenGoogClient = r.Header.Get("X-Goog-Api-Client")
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1internal:onboardUser":
+			raw, _ := io.ReadAll(r.Body)
+			postBodyRaw = string(raw)
+			_, _ = w.Write([]byte(`{"done":false,"name":"operations/ag-op-1"}`))
+		case "/v1internal/operations/ag-op-1":
+			_, _ = w.Write([]byte(`{"done":true,"name":"operations/ag-op-1","response":{"cloudaicompanionProject":{"id":"ag-managed-proj"}}}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	withMockBaseURLs(t, []string{server.URL})
+
+	client, err := NewClientWithOptions("", ClientOptions{
+		HTTPClient:          server.Client(),
+		OnboardPollInterval: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("NewClientWithOptions failed: %v", err)
+	}
+
+	projectID, err := client.OnboardUserWithProject(context.Background(), "token-ag", "free-tier", "user-proj")
+	if err != nil {
+		t.Fatalf("OnboardUserWithProject failed: %v", err)
+	}
+	if projectID != "ag-managed-proj" {
+		t.Fatalf("projectID = %q, want ag-managed-proj", projectID)
+	}
+	if strings.Contains(postBodyRaw, "cloudaicompanionProject") {
+		t.Fatalf("free-tier onboarding must omit cloudaicompanionProject, got %s", postBodyRaw)
+	}
+	if !strings.Contains(postBodyRaw, `"duetProject":"user-proj"`) {
+		t.Fatalf("expected duetProject hint in metadata, got %s", postBodyRaw)
+	}
+	if !strings.HasSuffix(seenOnboardUA, " google-api-nodejs-client/10.3.0") {
+		t.Fatalf("expected onboard UA suffix, got %q", seenOnboardUA)
+	}
+	if seenGoogClient != GoogAPIClientHeader {
+		t.Fatalf("X-Goog-Api-Client = %q, want %q", seenGoogClient, GoogAPIClientHeader)
+	}
+	expectedMethods := []string{"POST /v1internal:onboardUser", "GET /v1internal/operations/ag-op-1"}
+	if !slices.Equal(seenMethods, expectedMethods) {
+		t.Fatalf("seenMethods = %v, want %v", seenMethods, expectedMethods)
+	}
+}
+
+// TestClient_FetchAvailableModelsWithOptions_PreferDailyFallsBackOn401 configures
+// prod and daily servers where daily rejects the token with HTTP 401. PreferDaily
+// must query daily first and fall back to prod to return usable quota data.
+func TestClient_FetchAvailableModelsWithOptions_PreferDailyFallsBackOn401(t *testing.T) {
+	var hitOrder []string
+	prodSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitOrder = append(hitOrder, "prod")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"models":{"claude-sonnet-4-5":{"quotaInfo":{"remainingFraction":0.75}}}}`))
+	}))
+	defer prodSrv.Close()
+
+	dailySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitOrder = append(hitOrder, "daily")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"unauthorized on daily"}`))
+	}))
+	defer dailySrv.Close()
+
+	withMockBaseURLs(t, []string{prodSrv.URL, dailySrv.URL})
+
+	client := mustNewClient(t, "")
+	resp, _, err := client.FetchAvailableModelsWithOptions(context.Background(), "token", "proj", FetchAvailableModelsOptions{
+		BodyLimit:   defaultFetchAvailableModelsBodyLimit,
+		PreferDaily: true,
+	})
+	if err != nil {
+		t.Fatalf("FetchAvailableModelsWithOptions failed: %v", err)
+	}
+	if !slices.Equal(hitOrder, []string{"daily", "prod"}) {
+		t.Fatalf("hitOrder = %v, want [daily prod]", hitOrder)
+	}
+	if _, ok := resp.Models["claude-sonnet-4-5"]; !ok {
+		t.Fatalf("expected claude-sonnet-4-5 from prod fallback")
+	}
+}
+
+// TestClient_RetrieveUserQuotaSummary_DailyFirstAndPlaceholderProjectOmitted
+// verifies that RetrieveUserQuotaSummary queries daily before prod, omits the
+// placeholder "aicode-consumers" project, and decodes weekly and 5h buckets.
+func TestClient_RetrieveUserQuotaSummary_DailyFirstAndPlaceholderProjectOmitted(t *testing.T) {
+	var hitOrder []string
+	var dailyBody string
+	prodSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitOrder = append(hitOrder, "prod")
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer prodSrv.Close()
+
+	dailySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitOrder = append(hitOrder, "daily:"+r.URL.Path)
+		bodyBytes, _ := io.ReadAll(r.Body)
+		dailyBody = string(bodyBytes)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"groups": [
+				{
+					"displayName": "Gemini Models",
+					"buckets": [
+						{"bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.12, "resetTime": "2026-11-25T18:00:00Z"},
+						{"bucketId": "gemini-5h", "window": "5h", "remainingFraction": 1.0, "resetTime": "2026-11-20T22:00:00Z"}
+					]
+				},
+				{
+					"displayName": "Claude and GPT models",
+					"buckets": [
+						{"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.5, "resetTime": "2026-11-25T18:00:00Z"},
+						{"bucketId": "3p-5h", "window": "5h", "resetTime": "2026-11-20T22:00:00Z"}
+					]
+				}
+			]
+		}`))
+	}))
+	defer dailySrv.Close()
+
+	withMockBaseURLs(t, []string{prodSrv.URL, dailySrv.URL})
+
+	client := mustNewClient(t, "")
+	resp, _, err := client.RetrieveUserQuotaSummary(context.Background(), "token", "aicode-consumers", defaultFetchAvailableModelsBodyLimit)
+	if err != nil {
+		t.Fatalf("RetrieveUserQuotaSummary failed: %v", err)
+	}
+	if !slices.Equal(hitOrder, []string{"daily:/v1internal:retrieveUserQuotaSummary"}) {
+		t.Fatalf("hitOrder = %v, want [daily:/v1internal:retrieveUserQuotaSummary]", hitOrder)
+	}
+	if strings.Contains(dailyBody, "project") {
+		t.Fatalf("placeholder project must be omitted, got %s", dailyBody)
+	}
+	if len(resp.Groups) != 2 {
+		t.Fatalf("len(resp.Groups) = %d, want 2", len(resp.Groups))
+	}
+	if resp.Groups[1].Buckets[1].RemainingFraction != nil {
+		t.Fatalf("expected omitted zero remainingFraction to decode as nil pointer")
 	}
 }

@@ -2040,7 +2040,7 @@ describe('admin SettingsView payment visible method controls', () => {
   it('submits Antigravity user agent version gateway setting', async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
-      antigravity_user_agent_version: '1.23.2',
+      antigravity_user_agent_version: '2.33.0',
     })
 
     const wrapper = mountView()
@@ -2052,7 +2052,7 @@ describe('admin SettingsView payment visible method controls', () => {
     expect(updateSettings).toHaveBeenCalledTimes(1)
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        antigravity_user_agent_version: '1.23.2',
+        antigravity_user_agent_version: '2.33.0',
       }),
     )
   })

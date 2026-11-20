@@ -1543,7 +1543,7 @@ export default {
         projectIdLabel: 'Project ID (optional)',
         projectIdPlaceholder: 'e.g. my-gcp-project or cloud-ai-companion-xxxxx',
         projectIdHint:
-          'Leave empty to auto-detect after code exchange. If auto-detection fails, fill it in and re-generate the auth URL to try again.',
+          'Leave empty to auto-detect after code exchange. If auto-detection finds no project, enter your GCP Project ID here and click Complete Auth again without re-logging in.',
         howToGetProjectId: 'How to get',
         step2OpenUrl: 'Open the URL in your browser and complete authorization',
         openUrlDesc:
@@ -1567,7 +1567,7 @@ export default {
         missingExchangeParams: 'Missing auth code, session ID, or state',
         failedToExchangeCode: 'Failed to exchange Gemini auth code',
         missingProjectId:
-          'GCP Project ID retrieval failed: Your Google account is not linked to an active GCP project. Please activate GCP and bind a credit card in Google Cloud Console, or manually enter the Project ID during authorization.',
+          'GCP Project ID is required: enter an active GCP Project ID in the Project ID field above and click Complete Auth again, or create a project in Google Cloud Console.',
         modelPassthrough: 'Gemini Model Passthrough',
         modelPassthroughDesc:
           'Requests are forwarded to Gemini API using the configured model mappings and whitelist.',
@@ -1648,11 +1648,6 @@ export default {
         hint: 'Tip: The system will try to auto-detect the tier first; if auto-detection is unavailable or fails, your selected tier is used as a fallback (simulated quota).',
         aiStudioHint:
           'AI Studio quotas are per-model (Pro/Flash are limited independently). If billing is enabled, choose Pay-as-you-go.',
-        googleOne: {
-          free: 'Google One Free',
-          pro: 'Google One Pro',
-          ultra: 'Google One Ultra',
-        },
         gcp: {
           standard: 'GCP Standard',
           enterprise: 'GCP Enterprise',
@@ -1674,17 +1669,16 @@ export default {
         quotaLink: 'Quota guide',
       },
       oauthType: {
+        personalUseAntigravityNotice:
+          'Personal Google accounts and Google One (AI Pro / AI Ultra) subscriptions sign in through the Antigravity platform, and can still join Gemini groups for shared routing.',
         builtInTitle: 'Built-in OAuth (Gemini CLI / Code Assist)',
         builtInDesc: 'Uses Google built-in client ID. No admin configuration required.',
         builtInRequirement: 'Requires a GCP project and Project ID.',
         gcpProjectLink: 'Create project',
-        googleOneTitle: 'Google One',
-        googleOneDesc: 'Personal account using your Google One subscription quota',
         codeAssistTitle: 'GCP Code Assist',
-        codeAssistDesc: 'Enterprise use, requires a GCP project',
-        codeAssistRequirement: 'Requires an activated GCP project with billing enabled',
-        showAdvanced: 'Show advanced options (custom OAuth client)',
-        hideAdvanced: 'Hide advanced options (custom OAuth client)',
+        codeAssistDesc: 'Workspace or GCP accounts backed by a Google Cloud project',
+        codeAssistRequirement:
+          'Requires an active GCP project with Gemini for Google Cloud enabled',
         customTitle: 'Custom OAuth (AI Studio OAuth)',
         customDesc: 'Uses admin-configured OAuth client for org management.',
         customRequirement: 'Admin must configure Client ID and add you as a test user.',
@@ -1694,8 +1688,6 @@ export default {
           noAdmin: 'No admin setup',
           orgManaged: 'Org managed',
           adminRequired: 'Admin required',
-          personal: 'Recommended for individuals',
-          noGcp: 'No GCP needed',
           enterprise: 'Enterprise',
         },
       },
@@ -1733,12 +1725,6 @@ export default {
         },
         simulatedNote: 'Simulated quota, for reference only',
         rows: {
-          googleOne: {
-            channel: 'Google One OAuth (Individuals / Code Assist for Individuals)',
-            limitsFree: 'Shared pool: 1000 RPD / 60 RPM',
-            limitsPro: 'Shared pool: 1500 RPD / 120 RPM',
-            limitsUltra: 'Shared pool: 2000 RPD / 120 RPM',
-          },
           gcp: {
             channel: 'GCP Code Assist OAuth (Enterprise)',
             limitsStandard: 'Shared pool: 1500 RPD / 120 RPM',
@@ -2131,10 +2117,8 @@ export default {
       statsTitleDaily: 'Daily Usage Statistics',
       geminiProDaily: 'Pro',
       geminiFlashDaily: 'Flash',
-      gemini3Pro: 'G3P',
-      gemini3Flash: 'G3F',
-      gemini3Image: 'G31FI',
-      claude: 'Claude',
+      antigravityGeminiModels: 'Gemini',
+      antigravityClaudeGptModels: 'Claude & GPT',
       grokRequests: 'Req',
       grokTokens: 'Tok',
       grokFreeQuota24hHint:

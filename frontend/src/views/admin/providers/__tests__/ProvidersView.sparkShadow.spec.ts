@@ -692,7 +692,7 @@ describe('admin ProvidersView — 提供商行展示', () => {
 
     const initialProvider = {
       id: 213,
-      name: 'refresh-tier',
+      name: 'grok-auto-refresh',
       platform: 'grok',
       type: 'oauth',
       extra: { grok_usage_snapshot: { subscription_tier: 'Free', status_code: 200 } },

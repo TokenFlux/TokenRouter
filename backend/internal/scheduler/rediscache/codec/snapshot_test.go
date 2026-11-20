@@ -102,11 +102,11 @@ func TestProviderCodecGeminiQuotaPrecheck(t *testing.T) {
 			usageReads: true,
 		},
 		{
-			name: "google_one_ultra",
+			name: "code_assist_enterprise",
 			kind: provider.ProviderTypeOAuth,
 			credentials: map[string]any{
-				"oauth_type": "google_one",
-				"tier_id":    "google_ai_ultra",
+				"oauth_type": "code_assist",
+				"tier_id":    "gcp_enterprise",
 			},
 			allowed:    true,
 			usageReads: true,

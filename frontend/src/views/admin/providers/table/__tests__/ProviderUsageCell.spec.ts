@@ -285,23 +285,25 @@ describe('ProviderUsageCell', () => {
     expect(wrapper.text()).toContain('admin.providers.usageWindow.activeQuery')
   })
 
-  // Three Antigravity image model observations contain different utilization
-  // and reset values. The aggregate image bar displays the highest utilization
-  // and its associated reset timestamp.
-  it('Antigravity 图片用量会聚合新旧 image 模型', async () => {
-    getUsage.mockResolvedValue({
-      antigravity_quota: {
-        'gemini-2.5-flash-image': {
-          utilization: 45,
-          reset_time: '2026-03-01T11:00:00Z',
+  // Antigravity quota summary supplies Gemini and Claude/GPT weekly (7d) and 5h
+  // buckets with local window_stats, renders the active query button, and falls
+  // back to per-model 5h family groups when antigravity_quota_summary is absent.
+  it('Antigravity 按 Gemini 与 Claude & GPT 分组展示 7d 和 5h 用量窗口、本地窗口统计及主动查询按钮', async () => {
+    getUsage.mockResolvedValueOnce({
+      subscription_tier: 'PRO',
+      subscription_tier_raw: 'g1-pro-tier',
+      antigravity_quota_summary: {
+        gemini: {
+          weekly: {
+            utilization: 88,
+            reset_time: '2026-03-06T09:00:00Z',
+            window_stats: { requests: 12, tokens: 4500, cost: 1.25, user_cost: 2.0 },
+          },
+          five_hour: { utilization: 0, reset_time: '2026-03-01T14:00:00Z' },
         },
-        'gemini-3.1-flash-image': {
-          utilization: 20,
-          reset_time: '2026-03-01T10:00:00Z',
-        },
-        'gemini-3-pro-image': {
-          utilization: 70,
-          reset_time: '2026-03-01T09:00:00Z',
+        claude_gpt: {
+          weekly: { utilization: 50, reset_time: '2026-03-06T09:00:00Z' },
+          five_hour: { utilization: 15, reset_time: '2026-03-01T12:00:00Z' },
         },
       },
     })
@@ -310,6 +312,78 @@ describe('ProviderUsageCell', () => {
       props: {
         provider: makeProvider({
           id: 1001,
+          platform: 'antigravity',
+          type: 'oauth',
+          extra: {},
+        }),
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: [
+              'label', // usage window display label
+              'utilization', // observed usage percentage value
+              'resetsAt', // usage window reset timestamp
+              'windowStats', // optional local window statistics
+              'color', // requested window label color
+            ],
+            template:
+              '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}|{{ windowStats?.requests ?? 0 }}</div>',
+          },
+          ProviderQuotaInfo: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.providers.usageWindow.antigravityGeminiModels')
+    expect(wrapper.text()).toContain('admin.providers.usageWindow.antigravityClaudeGptModels')
+    expect(wrapper.text()).toContain('7d|88|2026-03-06T09:00:00Z|12')
+    expect(wrapper.text()).toContain('5h|0|2026-03-01T14:00:00Z|0')
+    expect(wrapper.text()).toContain('7d|50|2026-03-06T09:00:00Z|0')
+    expect(wrapper.text()).toContain('5h|15|2026-03-01T12:00:00Z|0')
+    expect(wrapper.emitted('usage-loaded')?.[0]?.[0]).toMatchObject({
+      subscription_tier: 'PRO',
+      subscription_tier_raw: 'g1-pro-tier',
+    })
+
+    getUsage.mockResolvedValueOnce({
+      subscription_tier: 'ULTRA',
+      subscription_tier_raw: 'g1-ultra-tier',
+      antigravity_quota_summary: {
+        gemini: {
+          weekly: { utilization: 92, reset_time: '2026-03-06T09:00:00Z' },
+        },
+      },
+    })
+    const queryButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('admin.providers.usageWindow.activeQuery'))
+    expect(queryButton).toBeDefined()
+    await queryButton!.trigger('click')
+    await flushPromises()
+    expect(getUsage).toHaveBeenLastCalledWith(1001, 'active', true)
+    expect(wrapper.text()).toContain('7d|92|2026-03-06T09:00:00Z|0')
+
+    // Fallback when antigravity_quota_summary is absent: aggregate per-model 5h quotas.
+    getUsage.mockResolvedValueOnce({
+      antigravity_quota: {
+        'gemini-2.5-flash-image': {
+          utilization: 45,
+          reset_time: '2026-03-01T11:00:00Z',
+        },
+        'gemini-3-pro-image': {
+          utilization: 70,
+          reset_time: '2026-03-01T09:00:00Z',
+        },
+      },
+    })
+
+    const fallbackWrapper = mount(ProviderUsageCell, {
+      props: {
+        provider: makeProvider({
+          id: 1009,
           platform: 'antigravity',
           type: 'oauth',
           extra: {},
@@ -333,9 +407,8 @@ describe('ProviderUsageCell', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toContain(
-      'admin.providers.usageWindow.gemini3Image|70|2026-03-01T09:00:00Z',
-    )
+    expect(fallbackWrapper.text()).toContain('admin.providers.usageWindow.antigravityGeminiModels')
+    expect(fallbackWrapper.text()).toContain('5h|70|2026-03-01T09:00:00Z')
   })
 
   // The Antigravity usage response includes an AI Credits balance. The cell

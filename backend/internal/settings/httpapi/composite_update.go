@@ -1228,7 +1228,7 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		normalized := strings.TrimSpace(*req.AntigravityUserAgentVersion)
 		req.AntigravityUserAgentVersion = &normalized
 		if normalized != "" && !semverPattern.MatchString(normalized) {
-			httpx.Error(c, http.StatusBadRequest, "antigravity_user_agent_version must be empty or a valid semver (e.g. 1.23.2)")
+			httpx.Error(c, http.StatusBadRequest, "antigravity_user_agent_version must be empty or a valid semver (e.g. 2.33.0)")
 			return
 		}
 	}

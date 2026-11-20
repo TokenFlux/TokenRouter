@@ -16,18 +16,16 @@ import (
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 )
 
-// Gemini OAuth variants choose different effective clients, callback addresses
-// and project requirements. These cases exercise gemini_authorization.go
-// option bindings through core URL generation, refresh, project discovery and
-// credential construction, checking built-in CLI selection, custom AI Studio
-// eligibility, canonical tiers and omission of invalid or absent optional
-// fields.
+// gemini_authorization_test.go exercises Gemini OAuth option bindings through
+// core URL generation, refresh, project discovery, and credential construction,
+// checking built-in CLI selection, custom AI Studio eligibility, canonical
+// tiers, and omission of invalid or absent optional fields.
 //
 // Injected client functions distinguish terminal token rejection from
-// transient refresh retry and allow missing-project/Drive failures to be
-// tested without supplier HTTP. Proxy lookup and configuration are retained in
-// the helper's callbacks, so a selected provider carries its own proxy and
-// OAuth variant into refresh. The URL strategy parent fixes its process secret
+// transient refresh retry and allow missing-project failures to be tested
+// without supplier HTTP. Proxy lookup and configuration are retained in the
+// helper's callbacks, so a selected provider carries its own proxy and OAuth
+// variant into refresh. The URL strategy parent fixes its process secret
 // before parallel rows inspect client/scope/state data; other fixtures use
 // per-case mutable state and explicit service lifecycle helpers.
 
@@ -44,8 +42,8 @@ type mockGeminiOAuthClient struct {
 	refreshTokenFunc func(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error)
 }
 
-// mockGeminiCodeAssistClient supplies configured project/tier discovery and
-// onboarding responses for tests.
+// mockGeminiCodeAssistClient supplies configured project/tier discovery,
+// onboarding, and operation polling responses for tests.
 type mockGeminiCodeAssistClient struct {
 	// loadCodeAssistFunc supplies project and tier metadata for the request
 	// pointer. A missing callback makes that query panic, exposing discovery
@@ -55,6 +53,9 @@ type mockGeminiCodeAssistClient struct {
 	// project/tier. A missing callback makes OnboardUser panic when discovery
 	// unexpectedly reaches that path.
 	onboardUserFunc func(ctx context.Context, accessToken, proxyURL string, req *geminicli.OnboardUserRequest) (*geminicli.OnboardUserResponse, error)
+	// getOperationFunc supplies long-running operation polling responses. A
+	// missing callback panics when unconfigured polling occurs.
+	getOperationFunc func(ctx context.Context, accessToken, proxyURL, operationName string) (*geminicli.OnboardUserResponse, error)
 }
 
 // mockGeminiProxyRepo supports exact configured lookup and rejects
@@ -66,19 +67,10 @@ type mockGeminiProxyRepo struct {
 	getByIDFunc func(ctx context.Context, id int64) (*egress.Proxy, error)
 }
 
-// mockDriveClient supplies configured storage metadata or a stable
-// unavailable-query error.
-type mockDriveClient struct {
-	// getStorageQuotaFunc supplies Drive quota with access and proxy inputs. A
-	// nil callback returns the stable fixture unavailable error used for tier
-	// defaulting.
-	getStorageQuotaFunc func(ctx context.Context, accessToken, proxyURL string) (*geminicli.DriveStorageInfo, error)
-}
-
 // TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy varies CLI and AI
 // Studio configuration with a supplied callback hint. It checks effective
 // client, redirect, scope, state/project fields and rejection when AI Studio
-// lacks custom credentials.
+// lacks custom credentials or google_one is requested.
 func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 	// Fix the process-wide CLI secret before parallel rows read effective settings.
 	// The parent owns the environment restoration, while rows keep this shared
@@ -106,27 +98,21 @@ func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 
 	tests := []testCase{
 		{
-			name: "google_one uses built-in client when not configured and redirects to upstream",
+			name: "code_assist uses built-in client when not configured and redirects to upstream",
 			cfg:  &geminicli.OAuthConfig{},
 
-			oauthType:     "google_one",
+			oauthType:     "code_assist",
 			wantClientID:  geminicli.GeminiCLIOAuthClientID,
 			wantRedirect:  geminicli.GeminiCLIRedirectURI,
 			wantScope:     geminicli.DefaultCodeAssistScopes,
 			wantProjectID: "",
 		},
 		{
-			name: "google_one always forces built-in client even when custom client configured",
-			cfg: &geminicli.OAuthConfig{
-				ClientID:     "custom-client-id",
-				ClientSecret: "custom-client-secret",
-			},
+			name: "google_one is rejected and directs personal accounts to Antigravity",
+			cfg:  &geminicli.OAuthConfig{},
 
 			oauthType:     "google_one",
-			wantClientID:  geminicli.GeminiCLIOAuthClientID,
-			wantRedirect:  geminicli.GeminiCLIRedirectURI,
-			wantScope:     geminicli.DefaultCodeAssistScopes,
-			wantProjectID: "",
+			wantErrSubstr: "must be 'code_assist' or 'ai_studio'",
 		},
 		{
 			name: "code_assist always forces built-in client even when custom client configured",
@@ -155,7 +141,7 @@ func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, tt.cfg)
+			svc := newGeminiAuthorizationForTest(nil, nil, nil, tt.cfg)
 			svc.Start()
 			got, err := svc.GenerateAuthURL(context.Background(), nil, "https://example.com/auth/callback", tt.projectID, tt.oauthType, "")
 			if tt.wantErrSubstr != "" {
@@ -203,7 +189,7 @@ func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 func TestGeminiOAuthService_BuildProviderCredentials(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -220,7 +206,7 @@ func TestGeminiOAuthService_BuildProviderCredentials(t *testing.T) {
 			TierID:       "gcp_standard",
 			OAuthType:    "code_assist",
 			Extra: map[string]any{
-				"drive_storage_limit": int64(2199023255552),
+				"custom_metadata": "value",
 			},
 		}
 
@@ -235,8 +221,8 @@ func TestGeminiOAuthService_BuildProviderCredentials(t *testing.T) {
 		assertCredStr(t, creds, "oauth_type", "code_assist")
 		assertCredStr(t, creds, "expires_at", "1700000000")
 
-		if _, ok := creds["drive_storage_limit"]; !ok {
-			t.Fatal("extra 字段 drive_storage_limit 未包含在 creds 中")
+		if _, ok := creds["custom_metadata"]; !ok {
+			t.Fatal("extra 字段 custom_metadata 未包含在 creds 中")
 		}
 	})
 
@@ -380,7 +366,7 @@ func TestGeminiOAuthService_GetOAuthConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, tt.cfg)
+			svc := newGeminiAuthorizationForTest(nil, nil, nil, tt.cfg)
 			svc.Start()
 			defer stopGeminiAuthorization(t, svc)
 
@@ -401,7 +387,7 @@ func TestGeminiOAuthService_GetOAuthConfig(t *testing.T) {
 func TestGeminiOAuthService_Stop_NoPanic(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 
 	stopGeminiAuthorization(t, svc)
@@ -428,7 +414,7 @@ func TestGeminiOAuthService_RefreshToken_Success(t *testing.T) {
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(nil, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -459,7 +445,7 @@ func TestGeminiOAuthService_RefreshToken_NonRetryableError(t *testing.T) {
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(nil, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -495,7 +481,7 @@ func TestGeminiOAuthService_RefreshToken_RetryableError(t *testing.T) {
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(nil, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -517,7 +503,7 @@ func TestGeminiOAuthService_RefreshToken_RetryableError(t *testing.T) {
 func TestGeminiOAuthService_RefreshProviderToken_NotGeminiOAuth(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -542,7 +528,7 @@ func TestGeminiOAuthService_RefreshProviderToken_NotGeminiOAuth(t *testing.T) {
 func TestGeminiOAuthService_RefreshProviderToken_NoRefreshToken(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -582,7 +568,7 @@ func TestGeminiOAuthService_RefreshProviderToken_AIStudio(t *testing.T) {
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -626,7 +612,7 @@ func TestGeminiOAuthService_RefreshProviderToken_CodeAssist_WithProjectID(t *tes
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -676,7 +662,7 @@ func TestGeminiOAuthService_RefreshProviderToken_DefaultOAuthType(t *testing.T) 
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -729,7 +715,7 @@ func TestGeminiOAuthService_RefreshProviderToken_WithProxy(t *testing.T) {
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(proxyRepo, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(proxyRepo, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -776,7 +762,7 @@ func TestGeminiOAuthService_RefreshProviderToken_CodeAssist_NoProjectID_AutoDete
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, codeAssist, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, codeAssist, &geminicli.OAuthConfig{})
 
 	// Keep Resource Manager discovery unavailable so the Code Assist response
 	// determines whether this fixture returns its project or a missing-project error.
@@ -836,7 +822,7 @@ func TestGeminiOAuthService_RefreshProviderToken_CodeAssist_NoProjectID_FailsEmp
 		},
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, codeAssist, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, codeAssist, &geminicli.OAuthConfig{})
 
 	// Keep Resource Manager discovery unavailable so the Code Assist response
 	// determines whether this fixture returns its project or a missing-project error.
@@ -861,90 +847,6 @@ func TestGeminiOAuthService_RefreshProviderToken_CodeAssist_NoProjectID_FailsEmp
 	}
 	if !strings.Contains(err.Error(), "project_id") {
 		t.Fatalf("错误信息应包含 project_id: got=%q", err.Error())
-	}
-}
-
-// TestGeminiOAuthService_RefreshProviderToken_GoogleOne_FreshCache supplies a
-// recently timestamped saved Drive tier and project. It checks Google One
-// refresh retains the canonical Pro tier without requiring a configured Drive
-// query client.
-func TestGeminiOAuthService_RefreshProviderToken_GoogleOne_FreshCache(t *testing.T) {
-	t.Parallel()
-
-	client := &mockGeminiOAuthClient{
-		refreshTokenFunc: func(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error) {
-			return &geminicli.TokenResponse{
-				AccessToken: "at",
-				ExpiresIn:   3600,
-			}, nil
-		},
-	}
-
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, &geminicli.OAuthConfig{})
-	svc.Start()
-	defer stopGeminiAuthorization(t, svc)
-
-	provider := &providercore.Record{
-		Platform: capability.PlatformGemini,
-		Type:     capability.ProviderTypeOAuth,
-		Credentials: map[string]any{
-			"refresh_token": "rt",
-			"oauth_type":    "google_one",
-			"project_id":    "proj",
-			"tier_id":       "google_ai_pro",
-		},
-		Extra: map[string]any{
-			// The tier cache is within its 24-hour freshness window.
-			"drive_tier_updated_at": time.Now().Add(-1 * time.Hour).Format(time.RFC3339),
-		},
-	}
-
-	info, err := svc.RefreshProviderToken(context.Background(), provider)
-	if err != nil {
-		t.Fatalf("RefreshProviderToken 返回错误: %v", err)
-	}
-	if info.TierID != providercore.GeminiTierGoogleAIPro {
-		t.Fatalf("TierID 应使用缓存值: got=%q want=%q", info.TierID, providercore.GeminiTierGoogleAIPro)
-	}
-}
-
-// TestGeminiOAuthService_RefreshProviderToken_GoogleOne_NoTierID_DefaultsFree
-// omits saved tier and supplies an unavailable Drive fixture. It checks
-// refresh still succeeds with the canonical Google One Free tier after
-// metadata discovery fails.
-func TestGeminiOAuthService_RefreshProviderToken_GoogleOne_NoTierID_DefaultsFree(t *testing.T) {
-	t.Parallel()
-
-	client := &mockGeminiOAuthClient{
-		refreshTokenFunc: func(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error) {
-			return &geminicli.TokenResponse{
-				AccessToken: "at",
-				ExpiresIn:   3600,
-			}, nil
-		},
-	}
-
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, &mockDriveClient{}, &geminicli.OAuthConfig{})
-	svc.Start()
-	defer stopGeminiAuthorization(t, svc)
-
-	provider := &providercore.Record{
-		Platform: capability.PlatformGemini,
-		Type:     capability.ProviderTypeOAuth,
-		Credentials: map[string]any{
-			"refresh_token": "rt",
-			"oauth_type":    "google_one",
-			"project_id":    "proj",
-		},
-	}
-
-	info, err := svc.RefreshProviderToken(context.Background(), provider)
-	if err != nil {
-		t.Fatalf("RefreshProviderToken 返回错误: %v", err)
-	}
-	// With no stored tier and an unavailable Drive lookup, use the free tier.
-	if info.TierID != providercore.GeminiTierGoogleOneFree {
-		t.Fatalf("TierID 应为默认 free: got=%q", info.TierID)
 	}
 }
 
@@ -975,7 +877,7 @@ func TestGeminiOAuthService_RefreshProviderToken_UnauthorizedClient_Fallback(t *
 		ClientSecret: "custom-secret",
 	}
 
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, cfg)
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, cfg)
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -1013,7 +915,7 @@ func TestGeminiOAuthService_RefreshProviderToken_UnauthorizedClient_NoFallback(t
 	}
 
 	// Without a custom OAuth client, the alternate exchange is unavailable.
-	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(&mockGeminiProxyRepo{}, client, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -1042,7 +944,7 @@ func TestGeminiOAuthService_RefreshProviderToken_UnauthorizedClient_NoFallback(t
 func TestGeminiOAuthService_ExchangeCode_SessionNotFound(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -1066,7 +968,7 @@ func TestGeminiOAuthService_ExchangeCode_SessionNotFound(t *testing.T) {
 func TestGeminiOAuthService_ExchangeCode_InvalidState(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -1098,7 +1000,7 @@ func TestGeminiOAuthService_ExchangeCode_InvalidState(t *testing.T) {
 func TestGeminiOAuthService_ExchangeCode_EmptyState(t *testing.T) {
 	t.Parallel()
 
-	svc := newGeminiAuthorizationForTest(nil, nil, nil, nil, &geminicli.OAuthConfig{})
+	svc := newGeminiAuthorizationForTest(nil, nil, nil, &geminicli.OAuthConfig{})
 	svc.Start()
 	defer stopGeminiAuthorization(t, svc)
 
@@ -1159,6 +1061,15 @@ func (m *mockGeminiCodeAssistClient) OnboardUser(ctx context.Context, accessToke
 		return m.onboardUserFunc(ctx, accessToken, proxyURL, req)
 	}
 	panic("OnboardUser not implemented")
+}
+
+// GetOperation delegates operation polling to its configured callback. A
+// missing callback panics when discovery reaches unconfigured polling.
+func (m *mockGeminiCodeAssistClient) GetOperation(ctx context.Context, accessToken, proxyURL, operationName string) (*geminicli.OnboardUserResponse, error) {
+	if m.getOperationFunc != nil {
+		return m.getOperationFunc(ctx, accessToken, proxyURL, operationName)
+	}
+	panic("GetOperation not implemented")
 }
 
 // Create panics on proxy persistence requested through this Gemini lookup
@@ -1296,17 +1207,6 @@ func (m *mockGeminiProxyRepo) CountExpiringSoon(ctx context.Context, now time.Ti
 	panic("not impl")
 }
 
-// GetStorageQuota delegates the access/proxy query when a fixture callback is
-// present. Otherwise it returns the stable Drive-unavailable error with no
-// quota data. Core tier handling decides which stored or default tier remains
-// after that failure.
-func (m *mockDriveClient) GetStorageQuota(ctx context.Context, accessToken, proxyURL string) (*geminicli.DriveStorageInfo, error) {
-	if m.getStorageQuotaFunc != nil {
-		return m.getStorageQuotaFunc(ctx, accessToken, proxyURL)
-	}
-	return nil, fmt.Errorf("drive API not available in test")
-}
-
 // assertCredStr checks that a credential key exists and holds the expected
 // string. Missing key, nonstring value or mismatched spelling terminates the
 // calling test. It marks itself as a helper so diagnostics identify the case
@@ -1343,7 +1243,7 @@ func credKeys(m map[string]any) []string {
 // Proxies may be nil, leaving resolution absent; a configured lookup failure
 // returns empty/false. The caller owns startup and shutdown of the constructed
 // core.
-func newGeminiAuthorizationForTest(proxies *mockGeminiProxyRepo, client providercore.GeminiOAuthClient, discovery providercore.GeminiCodeAssistClient, drive providercore.GeminiDriveClient, cfg *geminicli.OAuthConfig) *providercore.GeminiAuthorization {
+func newGeminiAuthorizationForTest(proxies *mockGeminiProxyRepo, client providercore.GeminiOAuthClient, discovery providercore.GeminiCodeAssistClient, cfg *geminicli.OAuthConfig) *providercore.GeminiAuthorization {
 	var resolve func(context.Context, int64) (string, bool)
 	if proxies != nil {
 		resolve = func(ctx context.Context, id int64) (string, bool) {
@@ -1358,7 +1258,7 @@ func newGeminiAuthorizationForTest(proxies *mockGeminiProxyRepo, client provider
 			return proxy.URL(), true
 		}
 	}
-	return providercore.NewGeminiAuthorization(client, discovery, drive, GeminiAuthorizationOptions(func() geminicli.OAuthConfig { return *cfg }, resolve))
+	return providercore.NewGeminiAuthorization(client, discovery, GeminiAuthorizationOptions(func() geminicli.OAuthConfig { return *cfg }, resolve))
 }
 
 // stopGeminiAuthorization stops the supplied core and reports lifecycle errors

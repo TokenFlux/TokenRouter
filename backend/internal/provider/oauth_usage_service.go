@@ -280,7 +280,7 @@ func (s *OAuthUsageService) GetUsageForProvider(ctx context.Context, provider *R
 	}
 
 	if provider.Platform == PlatformAntigravity {
-		usage, err := s.GetAntigravityUsage(ctx, provider)
+		usage, err := s.GetAntigravityUsage(ctx, provider, forceProbe)
 		if err == nil {
 			s.recoverProviderError(ctx, provider)
 		}

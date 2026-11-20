@@ -67,11 +67,13 @@ export function useAntigravityOAuth() {
       state.value = response.state
       return true
     } catch (err: any) {
-      // Prefer the generation response detail when available. The localized
-      // message supplies readable feedback when the failure has no response
-      // detail.
+      // Prefer the generation response detail or unwrapped API message when
+      // available; fall back to the localized generation error text.
       error.value =
-        err.response?.data?.detail || t('admin.providers.oauth.antigravity.failedToGenerateUrl')
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message ||
+        t('admin.providers.oauth.antigravity.failedToGenerateUrl')
       appStore.showError(error.value)
       return false
     } finally {
@@ -79,13 +81,15 @@ export function useAntigravityOAuth() {
     }
   }
 
-  // exchangeAuthCode submits the supplied code, session identifier, and state
-  // for tokens. Missing required input returns null with local feedback;
-  // request failures also show a toast, and completion clears loading.
+  // exchangeAuthCode submits the supplied code, session identifier, state, and
+  // optional GCP Project ID for tokens. Missing required input returns null
+  // with local feedback; request failures surface server diagnostics in place
+  // so operators can enter a Project ID and retry without re-logging in.
   const exchangeAuthCode = async (params: {
     code: string // Pasted authorization code.
     sessionId: string // Backend session identifier.
     state: string // Callback correlation state.
+    projectId?: string | null // Optional GCP Project ID override.
     proxyId?: number | null // Selected proxy identifier.
   }): Promise<AntigravityTokenInfo | null> => {
     const code = params.code?.trim()
@@ -103,16 +107,20 @@ export function useAntigravityOAuth() {
         state: params.state,
         code,
       }
+      const trimmedProjectID = params.projectId?.trim()
+      if (trimmedProjectID) payload.project_id = trimmedProjectID
       if (params.proxyId) payload.proxy_id = params.proxyId
 
       const tokenInfo = await adminAPI.antigravity.exchangeCode(payload as any)
       return tokenInfo as AntigravityTokenInfo
     } catch (err: any) {
       // A rejected exchange keeps the entered session available for
-      // correction. Response detail takes precedence over the localized
-      // exchange message shown in the toast.
+      // correction. Server diagnostics take precedence over the generic toast.
       error.value =
-        err.response?.data?.detail || t('admin.providers.oauth.antigravity.failedToExchangeCode')
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message ||
+        t('admin.providers.oauth.antigravity.failedToExchangeCode')
       appStore.showError(error.value)
       return null
     } finally {
@@ -120,13 +128,14 @@ export function useAntigravityOAuth() {
     }
   }
 
-  // validateRefreshToken exchanges a trimmed refresh token for Antigravity
-  // token information. Blank input or request failure returns null and
-  // updates local feedback; batch callers display that feedback without a
-  // global toast.
+  // validateRefreshToken exchanges a trimmed refresh token and optional GCP
+  // Project ID for Antigravity token information. Blank input or request
+  // failure returns null and updates local feedback; batch callers display
+  // that feedback without a global toast.
   const validateRefreshToken = async (
     refreshToken: string,
     proxyId?: number | null,
+    projectId?: string | null,
   ): Promise<AntigravityTokenInfo | null> => {
     if (!refreshToken.trim()) {
       error.value = t('admin.providers.oauth.antigravity.pleaseEnterRefreshToken')
@@ -140,6 +149,7 @@ export function useAntigravityOAuth() {
       const tokenInfo = await adminAPI.antigravity.refreshAntigravityToken(
         refreshToken.trim(),
         proxyId,
+        projectId,
       )
       return tokenInfo as AntigravityTokenInfo
     } catch (err: any) {
@@ -147,7 +157,10 @@ export function useAntigravityOAuth() {
       // failure locally and return null so batch callers decide how to
       // present individual failures.
       error.value =
-        err.response?.data?.detail || t('admin.providers.oauth.antigravity.failedToValidateRT')
+        err.response?.data?.detail ||
+        err.response?.data?.message ||
+        err.message ||
+        t('admin.providers.oauth.antigravity.failedToValidateRT')
       return null
     } finally {
       loading.value = false
@@ -180,7 +193,7 @@ export function useAntigravityOAuth() {
       ? tokenInfo.refresh_token
       : fallbackRefreshToken
 
-    return {
+    const creds: Record<string, unknown> = {
       access_token: tokenInfo.access_token,
       refresh_token: refreshToken,
       token_type: tokenInfo.token_type,
@@ -188,6 +201,21 @@ export function useAntigravityOAuth() {
       project_id: tokenInfo.project_id,
       email: tokenInfo.email,
     }
+    if (typeof tokenInfo.plan_type === 'string' && tokenInfo.plan_type.trim()) {
+      creds.plan_type = tokenInfo.plan_type.trim()
+    }
+    return creds
+  }
+
+  // buildExtraInfo extracts optional privacy metadata returned during token
+  // exchange or refresh validation. It returns undefined when no metadata is
+  // present so callers can omit empty extra patches.
+  const buildExtraInfo = (tokenInfo: AntigravityTokenInfo): Record<string, string> | undefined => {
+    const extra: Record<string, string> = {}
+    if (typeof tokenInfo.privacy_mode === 'string' && tokenInfo.privacy_mode.trim()) {
+      extra.privacy_mode = tokenInfo.privacy_mode.trim()
+    }
+    return Object.keys(extra).length > 0 ? extra : undefined
   }
 
   return {
@@ -201,5 +229,6 @@ export function useAntigravityOAuth() {
     exchangeAuthCode,
     validateRefreshToken,
     buildCredentials,
+    buildExtraInfo,
   }
 }

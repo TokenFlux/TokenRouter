@@ -184,6 +184,8 @@ const planLabel = computed(() => {
     case 'chatgptpro':
     case 'pro':
       return 'Pro'
+    case 'ultra':
+      return 'Ultra'
     case 'free':
     case 'basic':
       return props.platform === 'grok' ? 'Grok Free' : 'Free'
@@ -337,6 +339,9 @@ const planBadgeClass = computed(() => {
   }
   if (normalizedPlanType.value === 'pro' || normalizedPlanType.value === 'chatgptpro') {
     return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+  }
+  if (normalizedPlanType.value === 'ultra') {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
   }
   return typeClass.value
 })

@@ -33,6 +33,7 @@
       v-model="mappings"
       :source-placeholder="sourcePlaceholder"
       :target-placeholder="targetPlaceholder"
+      :wildcard-validation="wildcardValidation"
       @add="emit('add')"
       @remove="emit('remove')"
     />
@@ -75,6 +76,7 @@ defineProps<{
   syncCredentials?: SyncUpstreamPreviewParams
   sourcePlaceholder?: string // Request model input placeholder.
   targetPlaceholder?: string // Upstream model input placeholder.
+  wildcardValidation?: boolean // Live wildcard rule diagnostics on mapping rows.
   hint?: string // Supplemental field help text.
 }>()
 // mode binds the parent-owned whitelist or model-mapping editor mode to the shared

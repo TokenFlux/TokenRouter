@@ -15,10 +15,10 @@
 
 Antigravity 平台标识为 `antigravity`，仅支持 `oauth` 提供商：
 
-- 授权与元数据：管理端通过 `/api/v1/admin/antigravity/oauth/*` 生成授权 URL、交换 code 或校验/刷新 refresh token，再由通用提供商创建/更新接口持久化。access token 在使用前自动刷新；project ID、订阅与 tier、privacy mode、额度和上游 User-Agent 存为提供商及运行时元数据。
-- 原生协议与封装：协议目录声明平台适配版 GenerateContent，Messages、Responses 与 Chat 通过分组转换开放（见[统一协议能力](protocol_capabilities.md)）。上游请求发往 `v1internal` 端点，内容为 Gemini 格式并封装 `project`、`model` 与 `request` 外壳。
+- 授权与元数据：管理端通过 `/api/v1/admin/antigravity/oauth/*` 生成授权 URL（包含 `aicode` 等客户端权限范围）、交换 code 或校验/刷新 refresh token，再由通用提供商创建/更新接口持久化。access token 在使用前自动刷新；project ID、订阅与 tier、privacy mode、额度和上游 User-Agent（默认 Hub `2.33.0` 格式，低于 `2.23.0` 的已存版本自动抬升至 `2.33.0`）存为提供商及运行时元数据。
+- 原生协议与多端点回退：协议目录声明平台适配版 GenerateContent，Messages、Responses 与 Chat 通过分组转换开放（见[统一协议能力](protocol_capabilities.md)）。上游请求发往 `v1internal` 端点，内容为 Gemini 格式并封装 `project`、`model` 与 `request` 外壳。自动模式下付费账号（Pro / Ultra）在转发与配额查询中优先使用 `[daily-cloudcode-pa, cloudcode-pa]` 并在 `404`、URL 级 `429` 或连接错误时回退至 `prod`（配额查询遇 `401` 或 `5xx` 同样回退），免费账号固定使用 `prod`。
 - 已移除静态接入：API Key 与历史 `upstream` 接入已移除，迁移 `286` 停用存量静态提供商并保留记录 ID、凭据、分组关联与历史用量引用。接入中转网关时应按对应协议创建 Anthropic 或 Gemini API Key 提供商（填完整网关前缀）；Google 官方 Gemini Key 使用 Gemini 提供商。
-- 资格与隐私：standard-tier OAuth 缺少必需 project ID 时直接拒绝。导入、凭据刷新与批量导入后检查并设置适用隐私状态；凭据、refresh token、project ID 与上游内部标识永不暴露在客户端错误或模型列表中。
+- 资格、免重登补填与隐私：交互式换码与 refresh token 校验依次尝试 `loadCodeAssist`、`onboardUser`（含 `GET /v1internal/{name}` 轮询）与 Cloud Resource Manager 回退，仍缺少有效 GCP project ID（或填写了纯数字 Project Number）时直接拒绝建号。换码阶段遇到缺项目、`SERVICE_DISABLED` 或 `VALIDATION_REQUIRED` 时在原会话 TTL 内保留已换取令牌，支持管理员补填 `project_id` 或完成验证后直接重试换码；凭据刷新保持非破坏性语义并保留已有 `project_id`。导入、凭据刷新与批量导入后检查并设置适用隐私状态；凭据、refresh token、project ID 与上游内部标识永不暴露在客户端错误或模型列表中。
 
 ## 专用端点与协议适配
 
@@ -68,7 +68,7 @@ Chat Completions / Responses
 2. 附加本次请求的 thinking 后缀（若有）。
 3. 校验最终模型白名单（仅允许 thinking 变体时基础名加 thinking 通过；仅允许基础名时 thinking 请求被拒）。
 
-- 配额与计费归属：额度查询按「提供商 + 模型 scope」保存上游 reset 与 remaining（可含 AI Credits）；`429`/`503` 区分模型限流、credits 用尽与共享容量不足。上游提供商额度独立于用户余额、订阅和 Key 限额；使用记录 `platform` 记实际执行提供商，提供商成本与用户售价分别解析，选中 Antigravity 不改变用户价格。
+- 配额与计费归属：额度查询结合 `retrieveUserQuotaSummary`（按 `Gemini` 与 `Claude & GPT` 两组汇总 7d 与 5h 窗口并附带该窗口内的本地请求、Token、成本与扣费统计，缺省时回退 `fetchAvailableModels` 单模型 5h 配额；主动查询支持 `force=true` 绕过缓存，并在观测到有效订阅档位时回填 `credentials.plan_type`）及可选 AI Credits；`429`/`503` 区分模型限流、credits 用尽与共享容量不足。上游提供商额度独立于用户余额、订阅和 Key 限额；使用记录 `platform` 记实际执行提供商，提供商成本与用户售价分别解析，选中 Antigravity 不改变用户价格。
 
 ## 失败与恢复
 
@@ -84,7 +84,7 @@ Chat Completions / Responses
 - 执行与探测边界：单次平台交换、普通/智能重试、credits 请求、进程内模型容量冷却与响应体关闭归 `upstream/antigravity`；提供商切换、付款主体与资金完成由网关编排。指定提供商探测复用平台重试且不占用户/提供商并发槽，探针 UA 通过显式请求字段传递（不走 Context 键），不记 Ops 错误也不改动粘性会话，与转发共用关停屏障。
 - 共享流生命周期：Gemini、Messages、Chat、Responses 输出及非流式 SSE 汇总共用[Gemini 流生命周期](gemini_upstream.md#gemini_stream_lifecycle)（帧规范化、多候选终态、空事件保活、空闲截止与 5 秒用量尾帧上限）。
 - 终态与保活边界：各协议保留自有内容转换器，收到 finish reason 先结束内容，待用量尾帧结束后再发最终 usage 与终态；尾部显式上游错误不可生成成功终态（保留已观测用量）。Gemini 原生不发 `DONE` 或注释心跳；保活见[SSE 保活](../architecture/gateway_request_lifecycle.md#sse_keepalive)。HTTP 提交、重试窗口关闭与语义输出分开判定，实际平台在请求期固定供完成器使用。
-- 授权与刷新预算：OAuth 会话、交换后一次性删除、项目/套餐发现、隐私设置与校验归 `provider`（报文变体归 `protocol/google`）。token provider 保持 project 回填冷却、缓存键、8 秒请求刷新预算、15 分钟后台刷新资格与 CAS 兼容。
+- 授权与刷新预算：OAuth 会话、可恢复错误同会话令牌缓存与成功/不可恢复销毁、项目/套餐发现、隐私设置与校验归 `provider`（报文变体归 `protocol/google`）。token provider 保持 project 回填冷却、缓存键、8 秒请求刷新预算、15 分钟后台刷新资格与 CAS 兼容。
 - 健康与关停：额度展示、credits/模型窗口与 `INTERNAL 500` 惩罚归提供商健康层；停止时取消在途操作并等待有限重试收尾，预算用尽报告未完成、不算排空成功。
 - 错误观测优先级：模型窗口先于一般错误处理；`503` 共享容量不足不升级为提供商冷却；缺少模型信息的 `429` 回退使用最终模型并按提供商级默认规则处理。
 

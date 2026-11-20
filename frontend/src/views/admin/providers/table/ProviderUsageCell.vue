@@ -180,18 +180,12 @@
 
     <!-- Antigravity OAuth providers: fetch usage from API -->
     <template v-else-if="provider.platform === 'antigravity' && provider.type === 'oauth'">
-      <!-- Provider entitlement tier badge. -->
-      <div v-if="antigravityTierLabel" class="mb-1 flex items-center gap-1">
-        <span
-          :class="[
-            'inline-block rounded-compact px-1.5 py-0.5 text-xs font-medium',
-            antigravityTierClass,
-          ]"
-        >
-          {{ antigravityTierLabel }}
-        </span>
-        <!-- Ineligible entitlement warning. -->
-        <span v-if="hasIneligibleTiers" class="group relative cursor-help">
+      <!-- Ineligible entitlement warning. -->
+      <div
+        v-if="hasIneligibleTiers"
+        class="mb-1 flex items-center justify-end gap-1 lg:justify-start"
+      >
+        <span class="group relative cursor-help">
           <Icon name="exclamationCircle" size="xs" class="h-3.5 w-3.5 text-red-500" />
           <span
             class="pointer-events-none absolute left-0 top-full z-50 mt-1 w-80 whitespace-normal break-words tooltip-panel rounded-compact px-3 py-2 text-xs leading-relaxed opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
@@ -265,46 +259,32 @@
       </div>
 
       <!-- Usage data from API -->
-      <div v-else-if="hasAntigravityQuotaFromAPI" class="space-y-1">
-        <!-- Gemini 3 Pro -->
-        <UsageProgressBar
-          v-if="antigravity3ProUsageFromAPI !== null"
-          :label="t('admin.providers.usageWindow.gemini3Pro')"
-          :utilization="antigravity3ProUsageFromAPI.utilization"
-          :resets-at="antigravity3ProUsageFromAPI.resetTime"
-          color="indigo"
-        />
-
-        <!-- Gemini 3 Flash -->
-        <UsageProgressBar
-          v-if="antigravity3FlashUsageFromAPI !== null"
-          :label="t('admin.providers.usageWindow.gemini3Flash')"
-          :utilization="antigravity3FlashUsageFromAPI.utilization"
-          :resets-at="antigravity3FlashUsageFromAPI.resetTime"
-          color="emerald"
-        />
-
-        <!-- Gemini 3 Image -->
-        <UsageProgressBar
-          v-if="antigravity3ImageUsageFromAPI !== null"
-          :label="t('admin.providers.usageWindow.gemini3Image')"
-          :utilization="antigravity3ImageUsageFromAPI.utilization"
-          :resets-at="antigravity3ImageUsageFromAPI.resetTime"
-          color="purple"
-        />
-
-        <!-- Claude -->
-        <UsageProgressBar
-          v-if="antigravityClaudeUsageFromAPI !== null"
-          :label="t('admin.providers.usageWindow.claude')"
-          :utilization="antigravityClaudeUsageFromAPI.utilization"
-          :resets-at="antigravityClaudeUsageFromAPI.resetTime"
-          color="amber"
-        />
+      <div v-else-if="antigravityUsageGroups.length > 0" class="space-y-2">
+        <div v-for="group in antigravityUsageGroups" :key="group.key" class="space-y-1">
+          <div class="text-right text-xs font-medium text-gray-500 dark:text-dark-400 lg:text-left">
+            {{ t(group.labelKey) }}
+          </div>
+          <UsageProgressBar
+            v-if="group.weekly !== null"
+            label="7d"
+            :utilization="group.weekly.utilization"
+            :resets-at="group.weekly.resetTime"
+            :window-stats="group.weekly.windowStats"
+            color="emerald"
+          />
+          <UsageProgressBar
+            v-if="group.fiveHour !== null"
+            label="5h"
+            :utilization="group.fiveHour.utilization"
+            :resets-at="group.fiveHour.resetTime"
+            :window-stats="group.fiveHour.windowStats"
+            color="indigo"
+          />
+        </div>
 
         <div
           v-if="aiCreditsDisplay"
-          class="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+          class="mt-1 flex items-center justify-end gap-1 text-xs text-gray-500 dark:text-gray-400 lg:justify-start"
         >
           <Icon name="creditCard" size="xs" />
           {{ t('admin.providers.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
@@ -312,12 +292,29 @@
       </div>
       <div
         v-else-if="aiCreditsDisplay"
-        class="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+        class="flex items-center justify-end gap-1 text-xs text-gray-500 dark:text-gray-400 lg:justify-start"
       >
         <Icon name="creditCard" size="xs" />
         {{ t('admin.providers.aiCreditsBalance') }}: {{ aiCreditsDisplay }}
       </div>
       <div v-else class="text-xs text-gray-400">-</div>
+
+      <div v-if="!loading" class="mt-0.5 flex items-center justify-end gap-1.5 lg:justify-start">
+        <button
+          type="button"
+          class="inline-flex items-center gap-0.5 rounded-compact px-1.5 py-0.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-500 dark:hover:bg-primary-500/8"
+          :disabled="activeQueryLoading"
+          @click="loadActiveUsage"
+        >
+          <Icon
+            name="refresh"
+            size="xs"
+            :class="{ 'animate-spin': activeQueryLoading }"
+            :stroke-width="2"
+          />
+          {{ t('admin.providers.usageWindow.activeQuery') }}
+        </button>
+      </div>
     </template>
 
     <!-- Grok OAuth rows combine xAI quota observations with local request accounting. -->
@@ -797,18 +794,11 @@ import { formatCompactNumber } from '@/utils/format'
 import { useDesktopTableViewport } from '@/composables/useDesktopTableViewport'
 import Icon from '@/components/icons/Icon.vue'
 import {
-  ANTIGRAVITY_CLAUDE_MODELS,
-  ANTIGRAVITY_FLASH_MODELS,
-  ANTIGRAVITY_IMAGE_MODELS,
-  ANTIGRAVITY_PRO_MODELS,
   buildGeminiUsageBars,
   buildLocalQuotaBar,
-  getAntigravityTierBadgeClass,
-  getAntigravityTierId,
-  getAntigravityTierLabelKey,
   hasAntigravityIneligibleTiers,
   resolveQoderEnterpriseUrl,
-  summarizeAntigravityFamilyUsage,
+  summarizeAntigravityUsageGroups,
   summarizeGeminiChannel,
   summarizeGrokUsage,
   summarizeQoderQuota,
@@ -912,8 +902,8 @@ const props = withDefaults(
 )
 
 /**
- * emit returns an updated provider record after the Ollama Cloud child refreshes its saved
- * usage observation for this table row.
+ * emit publishes refreshed Ollama Cloud provider state and newly fetched usage
+ * observations so the owning table keeps row metadata and batch state aligned.
  */
 const emit = defineEmits<{
   /**
@@ -921,6 +911,11 @@ const emit = defineEmits<{
    * displayed row.
    */
   'provider-updated': [provider: Provider]
+  /**
+   * Emits a newly loaded usage observation from local or manual active queries so the parent
+   * page can synchronize its batch cache and row subscription badges.
+   */
+  'usage-loaded': [usage: ProviderUsageInfo]
 }>()
 
 /**
@@ -1088,27 +1083,11 @@ const shouldLazyLoadOnMobile = computed(() => {
 })
 
 /**
- * Antigravity quota availability requires a nonempty returned quota map; family summaries then
- * select matching model observations through providerUsagePresentation.
+ * antigravityUsageGroups projects Antigravity weekly and 5-hour quota buckets
+ * into Gemini and Claude/GPT display groups, falling back to per-model 5-hour
+ * observations when summary buckets are absent.
  */
-const hasAntigravityQuotaFromAPI = computed(() => {
-  return (
-    usageInfo.value?.antigravity_quota && Object.keys(usageInfo.value.antigravity_quota).length > 0
-  )
-})
-
-const antigravity3ProUsageFromAPI = computed(() =>
-  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_PRO_MODELS),
-)
-const antigravity3FlashUsageFromAPI = computed(() =>
-  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_FLASH_MODELS),
-)
-const antigravity3ImageUsageFromAPI = computed(() =>
-  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_IMAGE_MODELS),
-)
-const antigravityClaudeUsageFromAPI = computed(() =>
-  summarizeAntigravityFamilyUsage(usageInfo.value?.antigravity_quota, ANTIGRAVITY_CLAUDE_MODELS),
-)
+const antigravityUsageGroups = computed(() => summarizeAntigravityUsageGroups(usageInfo.value))
 
 /**
  * aiCreditsDisplay totals observed credit amounts and shows a rounded integer only when the
@@ -1126,7 +1105,6 @@ const aiCreditsDisplay = computed(() => {
  * Gemini, Antigravity, Qoder, and Grok presentation projections derive badge
  * labels, quota-policy keys, and progress bars from providerUsagePresentation.
  */
-const antigravityTier = computed(() => getAntigravityTierId(props.provider))
 const geminiChannelSummary = computed(() => summarizeGeminiChannel(props.provider))
 const geminiAuthTypeLabel = computed(() => geminiChannelSummary.value.authTypeLabel)
 const geminiTierClass = computed(() => geminiChannelSummary.value.tierClass)
@@ -1157,11 +1135,6 @@ const grokQuotaUnknownLabel = computed(() => {
 })
 const grokRetryAfterLabel = computed(() => grokSummary.value.retryAfterLabel)
 
-const antigravityTierLabel = computed(() => {
-  const key = getAntigravityTierLabelKey(antigravityTier.value)
-  return key ? t(key) : null
-})
-const antigravityTierClass = computed(() => getAntigravityTierBadgeClass(antigravityTier.value))
 const hasIneligibleTiers = computed(() =>
   hasAntigravityIneligibleTiers(props.provider.extra as Record<string, unknown> | undefined),
 )
@@ -1294,6 +1267,7 @@ const loadUsage = async (options?: {
       usageInfo.value = cached.data
       error.value = null
       loading.value = false
+      emit('usage-loaded', cached.data)
       return
     }
   }
@@ -1315,6 +1289,7 @@ const loadUsage = async (options?: {
       _usageCache.set(requestProviderId, { data: result, ts: Date.now() })
       if (requestSeq === localUsageRequestSeq && props.provider.id === requestProviderId) {
         usageInfo.value = result
+        emit('usage-loaded', result)
       }
     }
   } catch (e: any) {
@@ -1437,6 +1412,7 @@ const loadActiveUsage = async () => {
       _usageCache.set(requestProviderId, { data: result, ts: Date.now() })
       if (requestSeq === localUsageRequestSeq && props.provider.id === requestProviderId) {
         usageInfo.value = result
+        emit('usage-loaded', result)
       }
     }
   } catch (e: any) {

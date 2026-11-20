@@ -14,7 +14,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/provider/postgres"
 	provideradapter "github.com/TokenFlux/TokenRouter/internal/provider/provider"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	usageerrors "github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
@@ -29,7 +28,7 @@ import (
 // resolution to platform clients. cfg and proxies supply request-time
 // callbacks; unreadable or absent proxy results are reported through the
 // resolver's false availability result.
-func provideGeminiAuthorization(proxies egress.ProxyRepository, client provider.GeminiOAuthClient, discovery provider.GeminiCodeAssistClient, drive codeassist.DriveClient, cfg *config.Config) *provider.GeminiAuthorization {
+func provideGeminiAuthorization(proxies egress.ProxyRepository, client provider.GeminiOAuthClient, discovery provider.GeminiCodeAssistClient, cfg *config.Config) *provider.GeminiAuthorization {
 	options := provideradapter.GeminiAuthorizationOptions(func() google.OAuthConfig {
 		return google.OAuthConfig{ClientID: cfg.Provider.Gemini.OAuth.ClientID, ClientSecret: cfg.Provider.Gemini.OAuth.ClientSecret, Scopes: cfg.Provider.Gemini.OAuth.Scopes}
 	}, func(ctx context.Context, id int64) (string, bool) {
@@ -41,7 +40,7 @@ func provideGeminiAuthorization(proxies egress.ProxyRepository, client provider.
 		}
 		return proxy.URL(), true
 	})
-	return provider.NewGeminiAuthorization(client, discovery, drive, options)
+	return provider.NewGeminiAuthorization(client, discovery, options)
 }
 
 // provideGeminiQuotaPolicy binds startup tier overrides and policy JSON reads

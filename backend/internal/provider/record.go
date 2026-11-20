@@ -525,11 +525,6 @@ func (r *Record) IsGeminiCodeAssist() bool {
 	return oauthType == "code_assist"
 }
 
-// IsGeminiGoogleOne identifies a Gemini OAuth record on the google_one channel.
-func (r *Record) IsGeminiGoogleOne() bool {
-	return r.Platform == PlatformGemini && r.Type == ProviderTypeOAuth && r.GeminiOAuthType() == "google_one"
-}
-
 // CanGetUsage reports whether this record has the OAuth provider type.
 func (r *Record) CanGetUsage() bool {
 	return r.Type == ProviderTypeOAuth

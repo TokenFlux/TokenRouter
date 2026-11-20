@@ -33,20 +33,21 @@ export interface GeminiOAuthCapabilities {
 export interface GeminiAuthUrlRequest {
   proxy_id?: number // Selected proxy identifier.
   project_id?: string // Requested project id.
-  oauth_type?: 'code_assist' | 'google_one' | 'ai_studio' // Requested oauth type.
+  oauth_type?: 'code_assist' | 'ai_studio' // Requested oauth type.
   tier_id?: string // Requested tier id.
 }
 
 /**
  * GeminiExchangeCodeRequest submits a Gemini authorization code with its
- * session, state and selected flow context.
+ * session, state, optional project override, and selected flow context.
  */
 export interface GeminiExchangeCodeRequest {
   session_id: string // Authorization session identifier.
   state: string // OAuth correlation state.
   code: string // OAuth authorization code.
+  project_id?: string // Optional GCP Project ID override for retry completion.
   proxy_id?: number // Selected proxy identifier.
-  oauth_type?: 'code_assist' | 'google_one' | 'ai_studio' // Requested oauth type.
+  oauth_type?: 'code_assist' | 'ai_studio' // Requested oauth type.
   tier_id?: string // Requested tier id.
 }
 

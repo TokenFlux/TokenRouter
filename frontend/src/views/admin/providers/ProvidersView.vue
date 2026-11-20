@@ -383,15 +383,6 @@
                       row.credentials?.subscription_expires_at || row.parent_subscription_expires_at
                     "
                   />
-                  <span
-                    v-if="getAntigravityTierLabel(row)"
-                    :class="[
-                      'inline-block rounded-compact px-1.5 py-0.5 text-xs font-medium',
-                      getAntigravityTierClass(row),
-                    ]"
-                  >
-                    {{ getAntigravityTierLabel(row) }}
-                  </span>
                 </div>
               </div>
             </template>
@@ -807,11 +798,7 @@ import ScheduledTestsPanel from '@/views/admin/providers/testing/ScheduledTestsP
 import type { SelectOption } from '@/components/common/Select.vue'
 import ProviderStatusIndicator from '@/views/admin/providers/table/ProviderStatusIndicator.vue'
 import ProviderUsageCell from '@/views/admin/providers/table/ProviderUsageCell.vue'
-import {
-  getAntigravityTierBadgeClass,
-  getAntigravityTierId,
-  getAntigravityTierLabelKey,
-} from '@/views/admin/providers/table/providerUsagePresentation'
+import { resolveAntigravityPlanType } from '@/views/admin/providers/table/providerUsagePresentation'
 import ProviderTodayStatsCell from '@/views/admin/providers/table/ProviderTodayStatsCell.vue'
 import ProviderGroupsCell from '@/views/admin/providers/table/ProviderGroupsCell.vue'
 import ProviderCapacityCell from '@/views/admin/providers/table/ProviderCapacityCell.vue'
@@ -1495,6 +1482,9 @@ function getProviderPlanType(row: any): string | undefined {
       row.parent_plan_type,
     )
   }
+  if (row.platform === 'antigravity') {
+    return resolveAntigravityPlanType(row, usageBatchByProviderId.value[String(row.id)])
+  }
   return firstNonBlankString(row.credentials?.plan_type, row.parent_plan_type)
 }
 
@@ -1505,13 +1495,6 @@ function getOpenAIAuthMode(row: any): string | undefined {
   if (!row || row.platform !== 'openai' || row.type !== 'oauth') return undefined
   const authMode = row.credentials?.auth_mode
   return typeof authMode === 'string' && authMode.trim() ? authMode : undefined
-}
-
-// getAntigravityTierLabel translates a recognized Antigravity tier into its
-// visible label through the shared provider-usage presentation rules.
-function getAntigravityTierLabel(row: any): string | null {
-  const key = getAntigravityTierLabelKey(getAntigravityTierId(row))
-  return key ? t(key) : null
 }
 
 // providerDisplayEmail chooses the email shown in the provider name cell.
@@ -1530,12 +1513,6 @@ function providerHomepageUrl(row: Provider): string {
   if (row.type !== 'apikey' || typeof row.credentials?.base_url !== 'string') return ''
   const baseUrl = sanitizeUrl(row.credentials.base_url)
   return baseUrl ? new URL(baseUrl).origin : ''
-}
-
-// getAntigravityTierClass chooses the theme-aware badge classes for a
-// recognized tier through the shared provider-usage presentation rules.
-function getAntigravityTierClass(row: any): string {
-  return getAntigravityTierBadgeClass(getAntigravityTierId(row))
 }
 
 // allColumns defines available table fields and server-sortable columns using

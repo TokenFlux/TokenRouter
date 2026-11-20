@@ -66,7 +66,7 @@ func (h *ManagementHandler) GetAvailableModels(c *gin.Context) {
 	rules := h.modelRules(v)
 	result, err := h.catalog.Available(routing.AdminCatalogInput{Accept: func(id string) bool {
 		return rules.Supports(c.Request.Context(), id)
-	}, Platform: v.Platform, Site: v.GetCredential("site"), OAuth: v.IsOAuth(), GoogleOne: v.IsGeminiGoogleOne(), Passthrough: v.IsOpenAIPassthroughEnabled()}, rules.ConfiguredModels)
+	}, Platform: v.Platform, Site: v.GetCredential("site"), OAuth: v.IsOAuth(), Passthrough: v.IsOpenAIPassthroughEnabled()}, rules.ConfiguredModels)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return

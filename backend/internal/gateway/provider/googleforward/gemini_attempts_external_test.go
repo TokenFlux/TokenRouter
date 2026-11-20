@@ -750,11 +750,11 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 	})
 }
 
-// TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown
-// observes Google One capacity exhaustion with a known tier and persistence
+// TestHandleGeminiUpstreamError_CodeAssistCapacityExhaustedUsesTierCooldown
+// observes Code Assist capacity exhaustion with a known tier and persistence
 // recorder. One provider cooldown write selects the tested five-minute window
 // around observation time.
-func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t *testing.T) {
+func TestHandleGeminiUpstreamError_CodeAssistCapacityExhaustedUsesTierCooldown(t *testing.T) {
 	repo := &rateLimit429ProviderRepoStub{}
 	quotaSvc := providercore.NewGeminiQuotaService(providercore.GeminiQuotaOptions{})
 	rlSvc := newUpstreamHealthForTest(repo, &googleforward.Options{}, nil, providercore.HealthOptions{}, nil)
@@ -777,8 +777,8 @@ func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t 
 			Type: capability.ProviderTypeOAuth,
 
 			Credentials: map[string]any{
-				"oauth_type": "google_one",
-				"tier_id":    "google_ai_pro",
+				"oauth_type": "code_assist",
+				"tier_id":    "gcp_standard",
 			},
 		},
 	}

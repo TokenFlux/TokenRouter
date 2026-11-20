@@ -713,10 +713,8 @@ export default {
       statsTitleDaily: '每日用量统计',
       geminiProDaily: 'Pro',
       geminiFlashDaily: 'Flash',
-      gemini3Pro: 'G3P',
-      gemini3Flash: 'G3F',
-      gemini3Image: 'G31FI',
-      claude: 'Claude',
+      antigravityGeminiModels: 'Gemini',
+      antigravityClaudeGptModels: 'Claude & GPT',
       grokRequests: '请求',
       grokTokens: 'Token',
       grokFreeQuota24hHint: '按 tokenrouter 近 24 小时本地 Token 用量估算（上限 {limit}）',
@@ -1555,7 +1553,7 @@ export default {
         projectIdLabel: 'Project ID（可选）',
         projectIdPlaceholder: '例如：my-gcp-project 或 cloud-ai-companion-xxxxx',
         projectIdHint:
-          '留空则在兑换授权码后自动探测；若自动探测失败，可填写后重新生成授权链接再授权。',
+          '留空则在兑换授权码后自动探测。若未能自动发现项目，可在此处补填 GCP Project ID 后直接再次点击完成授权，无需重新登录。',
         howToGetProjectId: '如何获取',
         step2OpenUrl: '在浏览器中打开链接并完成授权',
         openUrlDesc: '请在新标签页中打开授权链接，登录您的 Google 账户并授权。',
@@ -1575,7 +1573,7 @@ export default {
         missingExchangeParams: '缺少 code / session_id / state',
         failedToExchangeCode: 'Gemini 授权码兑换失败',
         missingProjectId:
-          'GCP Project ID 获取失败：您的 Google 账号未关联有效的 GCP 项目。请前往 Google Cloud Console 激活 GCP 并绑定信用卡，或在授权时手动填写 Project ID。',
+          '缺少 GCP Project ID：请在上方 Project ID 输入框中填写已启用的 GCP Project ID 后再次点击完成授权，或前往 Google Cloud Console 创建项目。',
         modelPassthrough: 'Gemini 直接转发模型',
         modelPassthroughDesc: '请求转发至 Gemini API，按已配置的模型映射和白名单处理。',
         stateWarningTitle: '提示',
@@ -1648,11 +1646,6 @@ export default {
         hint: '提示：系统会优先尝试自动识别提供商等级；若自动识别不可用或失败，则使用你选择的等级作为回退（本地模拟配额）。',
         aiStudioHint:
           'AI Studio 的配额是按模型分别限流（Pro/Flash 独立）。若已绑卡（按量付费），请选 Pay-as-you-go。',
-        googleOne: {
-          free: 'Google One Free',
-          pro: 'Google One Pro',
-          ultra: 'Google One Ultra',
-        },
         gcp: {
           standard: 'GCP Standard',
           enterprise: 'GCP Enterprise',
@@ -1672,17 +1665,15 @@ export default {
         quotaLink: '配额说明',
       },
       oauthType: {
+        personalUseAntigravityNotice:
+          '个人 Google 账号与 Google One（AI Pro / AI Ultra）会员请改选 Antigravity 平台完成授权，授权后仍可加入 Gemini 分组同组调度。',
         builtInTitle: '内置授权（Gemini CLI / Code Assist）',
         builtInDesc: '使用 Google 内置客户端 ID，无需管理员配置。',
         builtInRequirement: '需要 GCP 项目并填写 Project ID。',
         gcpProjectLink: '创建项目',
-        googleOneTitle: 'Google One',
-        googleOneDesc: '个人提供商，享受 Google One 订阅配额',
         codeAssistTitle: 'GCP Code Assist',
-        codeAssistDesc: '企业级，需要 GCP 项目',
-        codeAssistRequirement: '需要激活 GCP 项目并绑定信用卡',
-        showAdvanced: '显示高级选项（自建 OAuth Client）',
-        hideAdvanced: '隐藏高级选项（自建 OAuth Client）',
+        codeAssistDesc: '关联 Google Cloud 项目的 Workspace 或 GCP 账号',
+        codeAssistRequirement: '需要已启用 Gemini for Google Cloud 的有效 GCP 项目',
         customTitle: '自定义授权（AI Studio OAuth）',
         customDesc: '使用管理员预设的 OAuth 客户端，适合组织管理。',
         customRequirement: '需管理员配置 Client ID 并加入测试用户白名单。',
@@ -1692,8 +1683,6 @@ export default {
           noAdmin: '无需管理员配置',
           orgManaged: '组织管理',
           adminRequired: '需要管理员',
-          personal: '推荐个人用户',
-          noGcp: '无需 GCP',
           enterprise: '企业用户',
         },
       },
@@ -1731,12 +1720,6 @@ export default {
         },
         simulatedNote: '本地模拟配额，仅供参考',
         rows: {
-          googleOne: {
-            channel: 'Google One OAuth（个人版 / Code Assist for Individuals）',
-            limitsFree: '共享池：1000 RPD / 60 RPM（不分模型）',
-            limitsPro: '共享池：1500 RPD / 120 RPM（不分模型）',
-            limitsUltra: '共享池：2000 RPD / 120 RPM（不分模型）',
-          },
           gcp: {
             channel: 'GCP Code Assist OAuth（企业版）',
             limitsStandard: '共享池：1500 RPD / 120 RPM（不分模型）',

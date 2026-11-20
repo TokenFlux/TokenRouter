@@ -489,20 +489,6 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		BrowserPath: "/admin/providers",
 		Input:       adminapi.Arguments("/api/v1/admin/providers/batch-refresh", []string{}, (*ProviderBatchRefreshRequest)(nil)),
 	}),
-	"providers.batch_refresh_tier.create": adminapi.Define(adminapi.Operation{
-		ID:     "providers.batch_refresh_tier.create",
-		Module: "providers",
-		Title:  "Batch Refresh Tier",
-		Description: "BatchRefreshTier refreshes supplied provider IDs or the core's Google One selection. " +
-			"Malformed JSON and an empty selection both choose that population query, and individual " +
-			"errors remain alongside successful counts. Omitted body fields follow the HTTP handler " +
-			"defaults; explicit null and empty collections retain their documented meanings.",
-		Method:      "POST",
-		Path:        "/api/v1/admin/providers/batch-refresh-tier",
-		Response:    "json",
-		BrowserPath: "/admin/providers",
-		Input:       adminapi.Arguments("/api/v1/admin/providers/batch-refresh-tier", []string{}, (*BatchRefreshTierRequest)(nil)),
-	}),
 	"providers.batch_update_credentials.create": adminapi.Define(adminapi.Operation{
 		ID:     "providers.batch_update_credentials.create",
 		Module: "providers",
@@ -974,19 +960,6 @@ var ManagementOperations = map[string]*adminapi.Operation{
 		Response:    "json",
 		BrowserPath: "/admin/providers",
 		Input:       adminapi.Arguments("/api/v1/admin/providers/:id/refresh", []string{}, nil),
-	}),
-	"providers.refresh_tier.create": adminapi.Define(adminapi.Operation{
-		ID:     "providers.refresh_tier.create",
-		Module: "providers",
-		Title:  "Refresh Tier",
-		Description: "RefreshTier loads a provider and returns tier plus Drive storage display fields after " +
-			"maintenance. Lookup failure maps to 404; the core handles eligibility and identity-checked " +
-			"configuration writes before producing its result.",
-		Method:      "POST",
-		Path:        "/api/v1/admin/providers/:id/refresh-tier",
-		Response:    "json",
-		BrowserPath: "/admin/providers",
-		Input:       adminapi.Arguments("/api/v1/admin/providers/:id/refresh-tier", []string{}, nil),
 	}),
 	"providers.reset_quota.create": adminapi.Define(adminapi.Operation{
 		ID:     "providers.reset_quota.create",

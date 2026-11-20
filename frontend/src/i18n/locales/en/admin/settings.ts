@@ -769,9 +769,9 @@ export default {
       clientDatelineNormalizationHint:
         'Default on. Rewrites the "Today\'s date is …" sentence in Anthropic OAuth/Setup Token requests back to a canonical ASCII apostrophe and hyphen date format, erasing steganographic fingerprint bits some clients inject when they detect a non-official base URL. Applies to system prompts and <system-reminder> blocks only; API-Key providers are unaffected.',
       antigravityUserAgentVersion: 'Antigravity UA Version',
-      antigravityUserAgentVersionPlaceholder: '1.23.2',
+      antigravityUserAgentVersionPlaceholder: '2.33.0',
       antigravityUserAgentVersionHint:
-        'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 1.23.2; when set, the admin setting takes precedence.',
+        'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 2.33.0; when set, the admin setting takes precedence.',
       openaiCodexUserAgent: 'OpenAI Codex UA',
       openaiCodexUserAgentPlaceholder:
         'codex-tui/0.144.1 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.144.1)',

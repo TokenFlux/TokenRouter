@@ -37,6 +37,32 @@
       </div>
     </div>
 
+    <!-- Optional GCP Project ID fallback for Antigravity manual refresh-token validation. -->
+    <div v-if="showProjectId && platform === 'antigravity' && inputMethod === 'refresh_token'">
+      <div class="mb-1.5 flex items-center gap-2">
+        <label :for="`${uid}-rt-project-id`" class="input-label mb-0">{{
+          t('admin.providers.oauth.gemini.projectIdLabel')
+        }}</label>
+        <a
+          href="https://console.cloud.google.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-1 text-xs text-link"
+        >
+          <Icon name="questionCircle" size="xs" />
+          {{ t('admin.providers.oauth.gemini.howToGetProjectId') }}
+        </a>
+      </div>
+      <input
+        :id="`${uid}-rt-project-id`"
+        v-model="projectId"
+        type="text"
+        class="input font-mono text-sm"
+        :placeholder="t('admin.providers.oauth.gemini.projectIdPlaceholder')"
+      />
+      <p class="input-hint">{{ t('admin.providers.oauth.gemini.projectIdHint') }}</p>
+    </div>
+
     <!-- Refresh Token（OpenAI / Antigravity / Grok / Mobile RT） -->
     <OAuthCredentialImport
       v-if="inputMethod === 'refresh_token' || inputMethod === 'mobile_refresh_token'"
@@ -178,7 +204,7 @@
     <!-- Manual authorization proceeds through URL generation, browser approval, and pasted callback input. -->
     <ol v-if="inputMethod === 'manual'">
       <OAuthStep :index="1" :title="oauthStep1GenerateUrl" :done="hasGeneratedUrl">
-        <div v-if="showProjectId && platform === 'gemini'">
+        <div v-if="showProjectId && (platform === 'gemini' || platform === 'antigravity')">
           <div class="mb-1.5 flex items-center gap-2">
             <label :for="`${uid}-project-id`" class="input-label mb-0">{{
               t('admin.providers.oauth.gemini.projectIdLabel')
@@ -468,6 +494,8 @@ interface Props {
   initialInputMethod?: AuthInputMethod
   platform?: ProviderPlatform // Provider platform identifier.
   showProjectId?: boolean // Shows the project input.
+  // Initial GCP Project ID draft populated when opening Step 2 or reauthorizing an account.
+  initialProjectId?: string
   // OpenAI batch sessions take precedence over the single authUrl/sessionId pair and
   // preserve callback state matching.
   authSessions?: OpenAIOAuthSession[]
@@ -497,6 +525,7 @@ const props = withDefaults(defineProps<Props>(), {
   initialInputMethod: 'manual',
   platform: 'anthropic',
   showProjectId: true,
+  initialProjectId: '',
   authSessions: () => [],
 })
 
@@ -620,8 +649,8 @@ const showHelpDialog = ref(false)
 // supply it during exchange.
 const oauthState = ref('')
 // projectId retains the optional project draft that platform-specific parent controllers
-// read before generating an authorization URL.
-const projectId = ref('')
+// read before generating an authorization URL or retrying code exchange.
+const projectId = ref(props.initialProjectId)
 
 // methodOptionCount counts enabled method flags so the template can choose between
 // hidden, segmented, and dropdown method controls.
@@ -813,6 +842,13 @@ watch(
   },
 )
 
+watch(
+  () => props.initialProjectId,
+  (newVal) => {
+    projectId.value = newVal
+  },
+)
+
 watch(inputMethod, (newVal) => {
   emit('update:inputMethod', newVal)
 })
@@ -940,7 +976,7 @@ defineExpose({
   reset: () => {
     authCodeInput.value = ''
     oauthState.value = ''
-    projectId.value = ''
+    projectId.value = props.initialProjectId
     sessionKeyInput.value = ''
     refreshTokenInput.value = ''
     sessionTokenInput.value = ''

@@ -2,6 +2,9 @@ package provider
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -17,37 +20,47 @@ import (
 // gemini_authorization.go exchanges and refreshes Gemini OAuth credentials
 // with project and account-tier discovery.
 // Gemini authorization stores PKCE proof with its OAuth variant, proxy,
-// project, and selected tier. Code Assist and Google One use the built-in CLI
-// client, while AI Studio requires custom client configuration and uses its
-// dedicated callback address.
+// project, and selected tier. Code Assist uses the built-in Gemini CLI client
+// for GCP and Workspace projects, while AI Studio requires a custom Google
+// OAuth client and uses its dedicated loopback callback address.
 //
-// Successful code exchange consumes proof before project and tier discovery,
-// so later validation failure still leaves the session consumed. Discovery
-// combines variant-specific project requirements with stored or selected tier
-// fallback; Google One also retains Drive metadata. Adjusted expiry subtracts
-// five minutes and clamps stored lifetime to thirty seconds, which can exceed
-// a short upstream lifetime. Public activity registrations support shutdown
-// waiting, while fixed retry and onboarding sleeps ignore cancellation until
-// return. Callers serialize same-session exchanges and keep callbacks and
-// borrowed inputs stable.
+// Recoverable project-discovery failures (missing project_id, SERVICE_DISABLED,
+// or VALIDATION_REQUIRED) retain the exchanged Google token in the session
+// keyed by constant-time SHA-256 code comparison, letting operators supply a
+// GCP Project ID or finish verification and click Complete Auth again without
+// repeating browser login. Unrecoverable client or terms violations delete the
+// session immediately, and successful completion deletes the session before
+// returning credentials.
 
-// Gemini storage constants use binary byte units and classify Drive limits
-// into the local subscription labels consumed by authorization tier inference.
 const (
-	GB = 1024 * 1024 * 1024
-	TB = 1024 * GB
+	// defaultGeminiOnboardPollInterval spaces GetOperation polls when
+	// GeminiAuthorizationOptions.OnboardPollInterval is unset.
+	defaultGeminiOnboardPollInterval = 2 * time.Second
 
-	StorageTierUnlimited = 100 * TB // 100TB
-	StorageTierAIPremium = 2 * TB   // 2TB
-	StorageTierFree      = 15 * GB  // 15GB
+	// cachedTokenRefreshHorizon triggers an automatic RefreshToken call before
+	// reusing a session-cached access token that is within sixty seconds of expiry.
+	cachedTokenRefreshHorizon = 60 * time.Second
+)
+
+var (
+	// tierIDPattern accepts up to 64 ASCII alphanumerics, underscores, hyphens, and slashes.
+	tierIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_/-]+$`)
+
+	// numericProjectNumberPattern detects numeric GCP Project Numbers supplied where
+	// a string GCP Project ID is required.
+	numericProjectNumberPattern = regexp.MustCompile(`^\d+$`)
+
+	// googleProjectIDPattern accepts standard and domain-scoped GCP Project IDs
+	// beginning with an ASCII letter.
+	googleProjectIDPattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9._:-]*$`)
 )
 
 // GeminiOAuthClient exchanges authorization codes and renews variant-specific
 // Google credentials.
 type GeminiOAuthClient interface {
 	// ExchangeCode exchanges variant-specific code and saved PKCE proof. Return
-	// nonnil token data on success because authorization consumes proof before
-	// deriving expiry and account metadata from that result.
+	// nonnil token data on success so authorization can cache or finalize
+	// credentials and account metadata.
 	ExchangeCode(context.Context, string, string, string, string, string) (*google.TokenResponse, error)
 	// RefreshToken renews the supplied variant credential through its proxy.
 	// Successful data must be nonnil because authorization reads lifetime and
@@ -55,27 +68,17 @@ type GeminiOAuthClient interface {
 	RefreshToken(context.Context, string, string, string) (*google.TokenResponse, error)
 }
 
-// GeminiCodeAssistClient reads project eligibility and performs project
-// onboarding requests.
+// GeminiCodeAssistClient reads project eligibility, submits onboarding, and
+// polls pending onboarding operations.
 type GeminiCodeAssistClient interface {
 	// LoadCodeAssist reads project and tier observations with optional metadata.
 	// Nil response can trigger onboarding; a nonnil response may retain useful
-	// tier information even when the request reports an error.
+	// tier and ineligibility information.
 	LoadCodeAssist(context.Context, string, string, *geminiwire.LoadCodeAssistRequest) (*geminiwire.LoadCodeAssistResponse, error)
-	// OnboardUser submits or polls selected-tier onboarding. Return nonnil
-	// successful responses; pending results are polled, while completed project
-	// identifiers may use string or object representations consumed by project
-	// discovery.
+	// OnboardUser submits selected-tier onboarding and returns an operation state.
 	OnboardUser(context.Context, string, string, *geminiwire.OnboardUserRequest) (*geminiwire.OnboardUserResponse, error)
-}
-
-// GeminiDriveClient reads storage totals used to estimate personal
-// subscription tiers.
-type GeminiDriveClient interface {
-	// GetStorageQuota reads storage totals with the supplied token and proxy.
-	// Return nonnil successful data because tier inference uses Limit bytes and
-	// retains other observations as credential metadata.
-	GetStorageQuota(context.Context, string, string) (*google.DriveStorageInfo, error)
+	// GetOperation polls a pending onboarding operation by its resource name.
+	GetOperation(context.Context, string, string, string) (*geminiwire.OnboardUserResponse, error)
 }
 
 // GeminiAuthorizationOptions binds dynamic OAuth configuration, proof
@@ -88,15 +91,10 @@ type GeminiAuthorizationOptions struct {
 	// BuiltinClientID, CLIRedirectURI, and AIStudioRedirectURI pair client
 	// identity with callback selection. Built-in clients use the CLI address;
 	// custom clients use the AI Studio address, replacing the input redirect.
-	// BuiltinClientID: built-in CLI client identity; CLIRedirectURI: built-in
-	// client callback address; AIStudioRedirectURI: custom client callback
-	// address.
 	BuiltinClientID, CLIRedirectURI, AIStudioRedirectURI string
 	// GenerateState, GenerateCodeVerifier, and GenerateSessionID prepare one
 	// paired proof before publication. Their errors abort setup before storing
 	// state and verifier under the session identifier.
-	// GenerateState: OAuth state generator; GenerateCodeVerifier: PKCE verifier
-	// generator; GenerateSessionID: proof lookup identifier generator.
 	GenerateState, GenerateCodeVerifier, GenerateSessionID func() (string, error)
 	// GenerateCodeChallenge is required after verifier generation and derives the
 	// URL challenge from the exact verifier retained for code exchange.
@@ -110,15 +108,15 @@ type GeminiAuthorizationOptions struct {
 	// ResolveProxy is required when ProxyID is supplied. False availability
 	// retains saved exchange transport or leaves a new flow proxy URL empty.
 	ResolveProxy func(context.Context, int64) (string, bool)
-	// FetchProject is required when Resource Manager fallback is reached. Its
-	// error or blank output may be replaced by the Code Assist discovery
-	// diagnostic.
+	// FetchProject queries Cloud Resource Manager when Code Assist discovery
+	// returns no companion project.
 	FetchProject func(context.Context, string, string) (string, error)
+	// OnboardPollInterval overrides the two-second wait between pending
+	// onboarding operation polls when positive.
+	OnboardPollInterval time.Duration
 	// Logf and Printf are required by reached metadata and failure paths. Logf
 	// records discovery decisions and details; Printf reports recoverable
 	// discovery or credential-validation diagnostics to the operator.
-	// Logf: discovery decision diagnostics; Printf: recoverable failure
-	// diagnostics.
 	Logf, Printf func(string, ...any)
 }
 
@@ -127,86 +125,67 @@ type GeminiAuthorizationOptions struct {
 // @project-doc docs/interfaces/gemini_upstream.md#gemini_native_execution
 type GeminiAuthorization struct {
 	// Store owns temporary proof and cleanup lifecycle. Construction initializes
-	// it; successful exchange consumes a session before later project or tier
-	// validation.
+	// it; completed exchanges and unrecoverable errors delete the session, while
+	// recoverable missing-project errors retain cached tokens for same-session retry.
 	Store *GeminiAuthorizationSessions
-	// Client, CodeAssist, and Drive borrow shared protocol clients and remain
-	// usable until registered operations return. Their consumers select token,
-	// project, or storage work according to the saved OAuth variant.
-	Client GeminiOAuthClient // shared Google token client
-	// CodeAssist supplies project discovery when reached. Nil causes the
-	// private discovery operation to return a client-not-configured error.
-	CodeAssist GeminiCodeAssistClient
-	// Drive is required for Google One storage discovery when reached.
-	// Successful responses are nonnil and supply bytes for its local tier
-	// estimate.
-	Drive GeminiDriveClient
+	// Client and CodeAssist borrow shared protocol clients and remain usable
+	// until registered operations return.
+	Client     GeminiOAuthClient      // shared Google token client
+	CodeAssist GeminiCodeAssistClient // Code Assist discovery and onboarding client
 	// Options copies callback values and borrows captured dependencies. Configure
 	// the shared service before operations and keep callbacks stable through
 	// registered work.
-	Options GeminiAuthorizationOptions
-	// registered authorization operation lifetime
-	activity operationActivity
+	Options  GeminiAuthorizationOptions
+	activity operationActivity // registered authorization operation lifetime
 }
 
 // GeminiOAuthCapabilities reports custom-client eligibility and required AI
 // Studio callback addresses.
 type GeminiOAuthCapabilities struct {
-	// custom client capability indicator
-	AIStudioOAuthEnabled bool `json:"ai_studio_oauth_enabled"`
-	// configured custom callback addresses
-	RequiredRedirectURIs []string `json:"required_redirect_uris"`
+	AIStudioOAuthEnabled bool     `json:"ai_studio_oauth_enabled"` // custom client capability indicator
+	RequiredRedirectURIs []string `json:"required_redirect_uris"`  // configured custom callback addresses
 }
 
 // GeminiAuthURLResult pairs the browser destination with saved session state
 // identifiers.
 type GeminiAuthURLResult struct {
-	// generated browser authorization URL
-	AuthURL   string `json:"auth_url"`
+	AuthURL   string `json:"auth_url"`   // generated browser authorization URL
 	SessionID string `json:"session_id"` // stored proof lookup identifier
 	State     string `json:"state"`      // returned OAuth state proof
 }
 
-// GeminiExchangeCodeInput supplies code proof and optional proxy and tier
-// selections.
+// GeminiExchangeCodeInput supplies code proof and optional project, proxy, and
+// tier selections.
 type GeminiExchangeCodeInput struct {
 	SessionID string // stored proof lookup identifier
 	State     string // supplied OAuth state proof
 	Code      string // supplied authorization code text
+	// ProjectID overrides the stored session project hint when nonblank after
+	// trimming, allowing Project ID completion without generating a new auth URL.
+	ProjectID string
 	// ProxyID overrides saved transport only when selected lookup succeeds.
-	// An unavailable selection retains the proxy associated with this stored
-	// session.
+	// An unavailable selection retains the proxy associated with this stored session.
 	ProxyID *int64
 	// OAuthType is accepted metadata, while ExchangeCode uses the stored session
 	// variant. An empty saved variant selects the Code Assist exchange path.
 	OAuthType string
 	// TierID supplies a compatible fallback after automatic discovery. Empty
-	// or incompatible input uses the saved session tier before its variant
-	// default.
+	// or incompatible input uses the saved session tier before its variant default.
 	TierID string
 }
 
 // GeminiTokenInfo carries renewed credentials, adjusted expiry, and account
 // discovery hints.
 type GeminiTokenInfo struct {
-	// exchanged OAuth access token
-	AccessToken string `json:"access_token"`
-	// optional token renewal credential
-	RefreshToken string `json:"refresh_token"`
-	// upstream token lifetime seconds
-	ExpiresIn int64 `json:"expires_in"`
-	// adjusted stored Unix expiry
-	ExpiresAt int64 `json:"expires_at"`
-	// upstream token type name
-	TokenType string `json:"token_type"`
-	// upstream authorization scope text
-	Scope string `json:"scope,omitempty"`
-	// selected project execution identifier
-	ProjectID string `json:"project_id,omitempty"`
-	// selected OAuth variant label
-	OAuthType string `json:"oauth_type,omitempty"`
-	// selected tier identifier text
-	TierID string `json:"tier_id,omitempty"`
+	AccessToken  string `json:"access_token"`         // exchanged OAuth access token
+	RefreshToken string `json:"refresh_token"`        // optional token renewal credential
+	ExpiresIn    int64  `json:"expires_in"`           // upstream token lifetime seconds
+	ExpiresAt    int64  `json:"expires_at"`           // adjusted stored Unix expiry
+	TokenType    string `json:"token_type"`           // upstream token type name
+	Scope        string `json:"scope,omitempty"`      // upstream authorization scope text
+	ProjectID    string `json:"project_id,omitempty"` // selected project execution identifier
+	OAuthType    string `json:"oauth_type,omitempty"` // selected OAuth variant label
+	TierID       string `json:"tier_id,omitempty"`    // selected tier identifier text
 	// Extra merges into credentials last and can override token or tier keys.
 	// Nested values remain borrowed through that shallow metadata copy.
 	Extra map[string]any `json:"extra,omitempty"`
@@ -216,8 +195,13 @@ type GeminiTokenInfo struct {
 // idle session storage. Configure reached callbacks and clients before use;
 // Start enables cleanup, and StopContext owns authorization cancellation and
 // completion waiting.
-func NewGeminiAuthorization(client GeminiOAuthClient, codeassist GeminiCodeAssistClient, drive GeminiDriveClient, options GeminiAuthorizationOptions) *GeminiAuthorization {
-	return &GeminiAuthorization{Store: NewGeminiAuthorizationSessions(), Client: client, CodeAssist: codeassist, Drive: drive, Options: options}
+func NewGeminiAuthorization(client GeminiOAuthClient, codeassist GeminiCodeAssistClient, options GeminiAuthorizationOptions) *GeminiAuthorization {
+	return &GeminiAuthorization{
+		Store:      NewGeminiAuthorizationSessions(),
+		Client:     client,
+		CodeAssist: codeassist,
+		Options:    options,
+	}
 }
 
 // Start enables periodic expiry cleanup through the authorization session
@@ -235,18 +219,47 @@ func (s *GeminiAuthorization) StopContext(ctx context.Context) error {
 	return s.activity.stop(ctx, "gemini authorization")
 }
 
+// ValidateGoogleProjectID checks optional operator-supplied GCP Project IDs.
+// Blank values pass; numeric GCP Project Numbers and malformed identifiers
+// return descriptive validation errors before upstream calls run.
+func ValidateGoogleProjectID(projectID string) error {
+	trimmed := strings.TrimSpace(projectID)
+	if trimmed == "" {
+		return nil
+	}
+	if len(trimmed) > 128 {
+		return fmt.Errorf("invalid project_id: exceeds maximum length of 128 characters")
+	}
+	if numericProjectNumberPattern.MatchString(trimmed) {
+		return fmt.Errorf("invalid project_id %q: appears to be a numeric GCP Project Number rather than a Project ID string (use the Project ID such as \"my-gcp-project-123\" from Google Cloud Console)", trimmed)
+	}
+	if !googleProjectIDPattern.MatchString(trimmed) {
+		return fmt.Errorf("invalid project_id %q: must start with a letter and contain only letters, digits, hyphens, underscores, dots, or colons", trimmed)
+	}
+	return nil
+}
+
+// hashAuthorizationCode computes the lowercase hex SHA-256 digest of a trimmed
+// OAuth authorization code for session-bound idempotent retry verification.
+func hashAuthorizationCode(code string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(code)))
+	return hex.EncodeToString(sum[:])
+}
+
+// matchesCachedCodeHash compares two hex SHA-256 digests in constant time and
+// rejects empty hashes.
+func matchesCachedCodeHash(savedHash, candidateHash string) bool {
+	if savedHash == "" || len(savedHash) != len(candidateHash) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(savedHash), []byte(candidateHash)) == 1
+}
+
 // GetOAuthConfig reports whether custom client configuration enables AI Studio
 // OAuth. Config is required; trimmed ID and secret must both be nonempty, and
 // the ID must differ from the configured built-in identifier.
-//
-// Those fields are obtained from separate Config calls, so changing callback
-// output can produce a mixed observation. RequiredRedirectURIs contains a
-// newly allocated slice with the configured custom callback address. The
-// returned capability describes these reads; later setup and exchange read
-// configuration again and perform their own validation.
 func (s *GeminiAuthorization) GetOAuthConfig() *GeminiOAuthCapabilities {
-	// AI Studio OAuth is only enabled when the operator configures a custom OAuth
-	// client.
+	// AI Studio OAuth is only enabled when the operator configures a custom OAuth client.
 	clientID := strings.TrimSpace(s.Options.Config().ClientID)
 	clientSecret := strings.TrimSpace(s.Options.Config().ClientSecret)
 	enabled := clientID != "" && clientSecret != "" && clientID != s.Options.BuiltinClientID
@@ -258,15 +271,8 @@ func (s *GeminiAuthorization) GetOAuthConfig() *GeminiOAuthCapabilities {
 }
 
 // GenerateAuthURL registers setup and stores state, verifier, proxy, project,
-// tier, and variant for its URL. Required generator failures stop before proof
-// publication; unresolved selected proxy lookup leaves transport empty.
-//
-// Code Assist and Google One clear custom credentials before effective client
-// selection. Built-in clients use CLIRedirectURI, custom clients use
-// AIStudioRedirectURI, and AI Studio rejects the built-in client. Proof is
-// stored before configuration validation, then its redirect is updated before
-// URL construction, so later errors can leave a stored session. Callers keep
-// callbacks stable and serialize eventual exchange of the returned identifier.
+// tier, and variant for its URL. Only code_assist and ai_studio are supported,
+// and nonblank projectID inputs are validated before session creation.
 // Pass a nonnil context for independent activity registration.
 func (s *GeminiAuthorization) GenerateAuthURL(ctx context.Context, proxyID *int64, redirectURI, projectID, oauthType, tierID string) (*GeminiAuthURLResult, error) {
 	operation, done, startErr := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
@@ -276,9 +282,18 @@ func (s *GeminiAuthorization) GenerateAuthURL(ctx context.Context, proxyID *int6
 	defer done()
 	ctx = operation
 
+	oauthType = strings.TrimSpace(oauthType)
+	if oauthType == "" {
+		oauthType = "code_assist"
+	}
+	if oauthType != "code_assist" && oauthType != "ai_studio" {
+		return nil, fmt.Errorf("invalid oauth_type %q: must be 'code_assist' or 'ai_studio' (personal and Google One accounts must use Antigravity)", oauthType)
+	}
+	if err := ValidateGoogleProjectID(projectID); err != nil {
+		return nil, err
+	}
+
 	// Prepare state, verifier, challenge, and identifier before publishing proof.
-	// Generator failures leave no stored partial session, and later code exchange
-	// uses this paired state and verifier.
 	state, err := s.Options.GenerateState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate state: %w", err)
@@ -293,28 +308,21 @@ func (s *GeminiAuthorization) GenerateAuthURL(ctx context.Context, proxyID *int6
 		return nil, fmt.Errorf("failed to generate session ID: %w", err)
 	}
 
-	// This flow has no saved session route to recover. Unavailable selected
-	// proxy lookup leaves an empty URL for the configured Google transport
-	// callbacks.
 	var proxyURL string
-	if proxyID != nil {
+	if proxyID != nil && s.Options.ResolveProxy != nil {
 		if resolved, ok := s.Options.ResolveProxy(ctx, *proxyID); ok {
 			proxyURL = resolved
 		}
 	}
 
-	// Clear custom credentials for Code Assist and Google One before effective
-	// client selection. AI Studio retains configured credentials so setup can
-	// validate its custom-client requirement.
+	// Clear custom credentials for Code Assist before effective client selection.
+	// AI Studio retains configured credentials so setup can validate its custom-client requirement.
 	oauthCfg := s.Options.Config()
-	if oauthType == "code_assist" || oauthType == "google_one" {
+	if oauthType == "code_assist" {
 		oauthCfg.ClientID = ""
 		oauthCfg.ClientSecret = ""
 	}
 
-	// Publish initial proof before validating effective client configuration. A
-	// later configuration or URL error therefore retains this session until its
-	// age gate or cleanup removes it.
 	session := &GeminiOAuthSession{
 		State:        state,
 		CodeVerifier: codeVerifier,
@@ -340,9 +348,6 @@ func (s *GeminiAuthorization) GenerateAuthURL(ctx context.Context, proxyID *int6
 		return nil, fmt.Errorf("AI Studio OAuth requires a custom OAuth Client (GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET). If you don't want to configure an OAuth client, please use an AI Studio API Key provider instead")
 	}
 
-	// Choose callback from effective client identity, replacing the input
-	// redirect. Update the stored session with that address before URL
-	// construction so later exchange uses its paired callback.
 	if isBuiltinClient {
 		redirectURI = s.Options.CLIRedirectURI
 	} else {
@@ -370,11 +375,10 @@ func ValidateTierID(tierID string) error {
 	if tierID == "" {
 		return nil
 	}
-	// Bound stored tier labels before accepting credential metadata.
 	if len(tierID) > 64 {
 		return fmt.Errorf("tier_id exceeds maximum length of 64 characters")
 	}
-	if !regexp.MustCompile(`^[a-zA-Z0-9_/-]+$`).MatchString(tierID) {
+	if !tierIDPattern.MatchString(tierID) {
 		return fmt.Errorf("tier_id contains invalid characters")
 	}
 	return nil
@@ -382,26 +386,19 @@ func ValidateTierID(tierID string) error {
 
 // ExtractTierIDFromAllowedTiers selects a trimmed nonempty default tier, then
 // the first nonempty tier when its sentinel remains. Missing and blank IDs
-// cannot displace a usable candidate; empty input returns LEGACY.
-//
-// LEGACY is also a possible upstream ID, so selecting that exact default still
-// enters the second pass. An earlier nondefault tier can then replace it.
-// Array order determines the fallback, and fetchProjectID uses the result for
-// onboarding only when current or paid tier metadata is unavailable.
+// cannot displace a usable candidate; empty input returns legacy-tier.
 func ExtractTierIDFromAllowedTiers(allowedTiers []geminiwire.AllowedTier) string {
-	// Use LEGACY as the unresolved marker before default selection. Its
+	// Use legacy-tier as the unresolved marker before default selection. Its
 	// literal identity also triggers the later first-nonempty pass, so
-	// explicit LEGACY defaults need that same handling.
-	tierID := "LEGACY"
+	// explicit legacy-tier defaults need that same handling.
+	tierID := "legacy-tier"
 	for _, tier := range allowedTiers {
 		if tier.IsDefault && strings.TrimSpace(tier.ID) != "" {
 			tierID = strings.TrimSpace(tier.ID)
 			break
 		}
 	}
-	// LEGACY doubles as the unresolved sentinel, so an explicit default LEGACY
-	// also enters this pass and can select an earlier nonempty array entry.
-	if tierID == "LEGACY" {
+	if tierID == "legacy-tier" {
 		for _, tier := range allowedTiers {
 			if strings.TrimSpace(tier.ID) != "" {
 				tierID = strings.TrimSpace(tier.ID)
@@ -412,85 +409,15 @@ func ExtractTierIDFromAllowedTiers(allowedTiers []geminiwire.AllowedTier) string
 	return tierID
 }
 
-// InferGoogleOneTier estimates a label from Drive bytes and requires logf.
-// Above one hundred binary TB selects Ultra; two through one hundred selects
-// Pro, fifteen GB through below two TB selects Free, and other values select
-// Unknown.
-func InferGoogleOneTier(storageBytes int64, logf func(string, ...any)) string {
-	// Rounded binary-unit diagnostics leave integer-byte tier comparisons
-	// unchanged.
-	logf("[GeminiOAuth] inferGoogleOneTier - input: %d bytes (%.2f TB)", storageBytes, float64(storageBytes)/float64(TB))
-
-	// Storage capacity produces a local estimate, so unresolved or below-free
-	// observations use Unknown. Check larger cutoffs first because each also
-	// satisfies the lower cutoffs; exact maximum capacity remains in Pro.
-	if storageBytes <= 0 {
-		logf("[GeminiOAuth] inferGoogleOneTier - storageBytes <= 0, returning UNKNOWN")
-		return GeminiTierGoogleOneUnknown
-	}
-
-	if storageBytes > StorageTierUnlimited {
-		logf("[GeminiOAuth] inferGoogleOneTier - > %d bytes (100TB), returning UNLIMITED", StorageTierUnlimited)
-		return GeminiTierGoogleAIUltra
-	}
-	if storageBytes >= StorageTierAIPremium {
-		logf("[GeminiOAuth] inferGoogleOneTier - >= %d bytes (2TB), returning google_ai_pro", StorageTierAIPremium)
-		return GeminiTierGoogleAIPro
-	}
-	if storageBytes >= StorageTierFree {
-		logf("[GeminiOAuth] inferGoogleOneTier - >= %d bytes (15GB), returning FREE", StorageTierFree)
-		return GeminiTierGoogleOneFree
-	}
-
-	logf("[GeminiOAuth] inferGoogleOneTier - < %d bytes (15GB), returning UNKNOWN", StorageTierFree)
-	return GeminiTierGoogleOneUnknown
-}
-
-// fetchGoogleOneTier estimates a personal tier from Drive quota using the
-// selected token and proxy. Drive and Logf are required, successful storage
-// data is nonnil, and request failure returns Unknown with the original error.
-func (s *GeminiAuthorization) fetchGoogleOneTier(ctx context.Context, accessToken, proxyURL string) (string, *google.DriveStorageInfo, error) {
-	s.Options.Logf("[GeminiOAuth] Starting FetchGoogleOneTier (Google One personal provider)")
-
-	// Use Drive API to infer tier from storage quota (requires drive.readonly
-	// scope)
-	s.Options.Logf("[GeminiOAuth] Calling Drive API for storage quota...")
-
-	storageInfo, err := s.Drive.GetStorageQuota(ctx, accessToken, proxyURL)
-	if err != nil {
-		// A status 403 diagnostic uses scope-specific logging before returning the
-		// original error and Unknown tier, keeping the failed observation unresolved.
-		if strings.Contains(err.Error(), "status 403") {
-			s.Options.Logf("[GeminiOAuth] Drive API scope not available (403): %v", err)
-			return GeminiTierGoogleOneUnknown, nil, err
-		}
-		s.Options.Logf("[GeminiOAuth] Failed to fetch Drive storage: %v", err)
-		return GeminiTierGoogleOneUnknown, nil, err
-	}
-
-	s.Options.Logf("[GeminiOAuth] Drive API response - Limit: %d bytes (%.2f TB), Usage: %d bytes (%.2f GB)",
-		storageInfo.Limit, float64(storageInfo.Limit)/float64(TB),
-		storageInfo.Usage, float64(storageInfo.Usage)/float64(GB))
-
-	tierID := InferGoogleOneTier(storageInfo.Limit, s.Options.Logf)
-	s.Options.Logf("[GeminiOAuth] Inferred tier from storage: %s", tierID)
-
-	return tierID, storageInfo, nil
-}
-
-// ExchangeCode registers a nonnil input, validates saved state, and exchanges
-// its code. Session OAuthType selects the variant, defaulting empty to
-// code_assist; input OAuthType is unused, and a resolved input proxy overrides
-// saved transport.
+// ExchangeCode validates saved state, exchanges or reuses the session-cached
+// Google token, and resolves required Code Assist project and tier metadata.
 //
-// Success deletes proof before project validation. Code Assist rejects an
-// empty resulting project; Google One aborts project discovery errors and
-// queries Drive for tier, while AI Studio uses selected tier without
-// discovery. Compatible detected tiers precede input/session fallback and
-// variant defaults. Expiry is margin-adjusted with a thirty-second floor.
-// Callers serialize same-session exchange and provide nonnil successful token
-// responses.
-// Pass a nonnil context for independent activity registration.
+// When token exchange succeeds but Code Assist project discovery fails for a
+// recoverable reason (missing project_id, SERVICE_DISABLED, or
+// VALIDATION_REQUIRED), the exchanged token remains cached on the session so
+// the operator can enter a GCP Project ID or finish verification and retry
+// Complete Auth without re-running browser login. Unrecoverable client or terms
+// rejections and successful exchanges delete the session immediately.
 func (s *GeminiAuthorization) ExchangeCode(ctx context.Context, input *GeminiExchangeCodeInput) (*GeminiTokenInfo, error) {
 	operation, done, startErr := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
 	if startErr != nil {
@@ -499,235 +426,120 @@ func (s *GeminiAuthorization) ExchangeCode(ctx context.Context, input *GeminiExc
 	defer done()
 	ctx = operation
 
-	s.Options.Logf("[GeminiOAuth] ========== ExchangeCode START ==========")
-	s.Options.Logf("[GeminiOAuth] SessionID: %s", input.SessionID)
+	s.logf("[GeminiOAuth] ========== ExchangeCode START ==========")
+	s.logf("[GeminiOAuth] SessionID: %s", input.SessionID)
 
 	session, ok := s.Store.Get(input.SessionID)
 	if !ok {
-		s.Options.Logf("[GeminiOAuth] ERROR: Session not found or expired")
+		s.logf("[GeminiOAuth] ERROR: Session not found or expired")
 		return nil, fmt.Errorf("session not found or expired")
 	}
 	if strings.TrimSpace(input.State) == "" || input.State != session.State {
-		s.Options.Logf("[GeminiOAuth] ERROR: Invalid state")
+		s.logf("[GeminiOAuth] ERROR: Invalid state")
 		return nil, fmt.Errorf("invalid state")
 	}
+	trimmedCode := strings.TrimSpace(input.Code)
+	if trimmedCode == "" {
+		return nil, fmt.Errorf("authorization code is required")
+	}
 
-	// Unavailable selected proxy lookup retains the saved transport route so
-	// code exchange continues with the proxy associated with this authorization
-	// proof.
+	effectiveProjectID := strings.TrimSpace(input.ProjectID)
+	if effectiveProjectID == "" {
+		effectiveProjectID = strings.TrimSpace(session.ProjectID)
+	}
+	// Validate Project ID before consuming the authorization code so a numeric
+	// Project Number typo keeps the session intact for immediate correction.
+	if err := ValidateGoogleProjectID(effectiveProjectID); err != nil {
+		return nil, err
+	}
+
 	proxyURL := session.ProxyURL
-	if input.ProxyID != nil {
+	if input.ProxyID != nil && s.Options.ResolveProxy != nil {
 		if resolved, ok := s.Options.ResolveProxy(ctx, *input.ProxyID); ok {
 			proxyURL = resolved
 		}
 	}
-	s.Options.Logf("[GeminiOAuth] ProxyURL: %s", proxyURL)
 
 	redirectURI := session.RedirectURI
-
-	// The saved session selects OAuth variant, so input OAuthType cannot replace
-	// it. Empty stored variants use Code Assist and its fixed built-in callback
-	// address.
-	oauthType := session.OAuthType
+	oauthType := strings.TrimSpace(session.OAuthType)
 	if oauthType == "" {
 		oauthType = "code_assist"
 	}
-	s.Options.Logf("[GeminiOAuth] OAuth Type: %s", oauthType)
-	s.Options.Logf("[GeminiOAuth] Project ID from session: %s", session.ProjectID)
+	if oauthType != "code_assist" && oauthType != "ai_studio" {
+		s.Store.Delete(input.SessionID)
+		return nil, fmt.Errorf("unsupported oauth_type %q: personal and Google One accounts must use Antigravity", oauthType)
+	}
 
-	// If the session was created for AI Studio OAuth, ensure a custom OAuth
-	// client is configured.
 	if oauthType == "ai_studio" {
 		effectiveCfg, err := s.Options.EffectiveOAuthConfig(s.Options.Config(), "ai_studio")
 		if err != nil {
 			return nil, err
 		}
-		isBuiltinClient := effectiveCfg.ClientID == s.Options.BuiltinClientID
-		if isBuiltinClient {
+		if effectiveCfg.ClientID == s.Options.BuiltinClientID {
 			return nil, fmt.Errorf("AI Studio OAuth requires a custom OAuth Client. Please use an AI Studio API Key provider, or configure GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET and re-authorize")
 		}
 	}
-
-	// Code Assist and Google One exchange through the fixed CLI callback, matching
-	// the built-in client selected when their authorization URL stored this PKCE
-	// proof.
-	if oauthType == "code_assist" || oauthType == "google_one" {
+	if oauthType == "code_assist" {
 		redirectURI = s.Options.CLIRedirectURI
 	}
 
-	tokenResp, err := s.Client.ExchangeCode(ctx, oauthType, input.Code, session.CodeVerifier, redirectURI, proxyURL)
+	tokenResp, err := s.obtainOrReuseSessionToken(ctx, session, input.SessionID, oauthType, trimmedCode, redirectURI, proxyURL)
 	if err != nil {
-		s.Options.Logf("[GeminiOAuth] ERROR: Failed to exchange code: %v", err)
-		return nil, fmt.Errorf("failed to exchange code: %w", err)
+		return nil, err
 	}
-	s.Options.Logf("[GeminiOAuth] Token exchange successful")
-	s.Options.Logf("[GeminiOAuth] Token scope: %s", tokenResp.Scope)
-	s.Options.Logf("[GeminiOAuth] Token expires_in: %d seconds", tokenResp.ExpiresIn)
+	if effectiveProjectID != "" {
+		session.ProjectID = effectiveProjectID
+		s.Store.Set(input.SessionID, session)
+	}
 
-	// Consume proof after token success and before project validation. A later
-	// missing-project error therefore requires new setup for another code
-	// exchange.
-	sessionProjectID := strings.TrimSpace(session.ProjectID)
-	s.Store.Delete(input.SessionID)
-
-	// Subtract a refresh margin but floor stored lifetime at thirty seconds. This
-	// avoids immediately elapsed credential timestamps and may exceed the lifetime
-	// actually issued by upstream.
 	const safetyWindow = 300 // 5 minutes
 	const minTTL = 30        // minimum 30 seconds
-	expiresAt := time.Now().Unix() + tokenResp.ExpiresIn - safetyWindow
-	minExpiresAt := time.Now().Unix() + minTTL
-	if expiresAt < minExpiresAt {
-		expiresAt = minExpiresAt
-	}
+	expiresAt := max(time.Now().Unix()+tokenResp.ExpiresIn-safetyWindow, time.Now().Unix()+minTTL)
 
-	projectID := sessionProjectID
-	var tierID string
-	// Select a compatible input tier before the stored session choice. This
-	// fallback is consulted when automatic discovery yields an unresolved
-	// compatible tier.
 	fallbackTierID := CanonicalGeminiTierIDForOAuthType(oauthType, input.TierID)
 	if fallbackTierID == "" {
 		fallbackTierID = CanonicalGeminiTierIDForOAuthType(oauthType, session.TierID)
 	}
 
-	s.Options.Logf("[GeminiOAuth] ========== Provider Type Detection START ==========")
-	s.Options.Logf("[GeminiOAuth] OAuth Type: %s", oauthType)
+	var projectID string
+	var tierID string
 
-	// Code Assist rejects a still-empty project after discovery; Google One
-	// aborts discovery errors but does not recheck a successful blank result.
-	// Their tier sources differ, while AI Studio uses the compatible selected
-	// tier without project discovery.
 	switch oauthType {
 	case "code_assist":
-		s.Options.Logf("[GeminiOAuth] Processing code_assist OAuth type")
+		resolvedProj, discoveredTier, unrecoverable, discoverErr := s.discoverCodeAssistProjectAndTier(ctx, tokenResp.AccessToken, proxyURL, effectiveProjectID)
+		if discoverErr != nil {
+			if unrecoverable {
+				s.Store.Delete(input.SessionID)
+			}
+			s.printf("[GeminiOAuth] Warning: Code Assist project discovery failed: %v\n", discoverErr)
+			s.logf("[GeminiOAuth] ERROR: Code Assist project discovery failed (unrecoverable=%t): %v", unrecoverable, discoverErr)
+			return nil, discoverErr
+		}
+		projectID = strings.TrimSpace(resolvedProj)
 		if projectID == "" {
-			s.Options.Logf("[GeminiOAuth] No project_id provided, attempting to fetch from LoadCodeAssist API...")
-			var err error
-			projectID, tierID, err = s.fetchProjectID(ctx, tokenResp.AccessToken, proxyURL)
-			if err != nil {
-				// Log discovery errors here; the
-				// missing-project check below rejects an
-				// unresolved project.
-				s.Options.Printf("[GeminiOAuth] Warning: Failed to fetch project_id during token exchange: %v\n", err)
-				s.Options.Logf("[GeminiOAuth] WARNING: Failed to fetch project_id: %v", err)
-			} else {
-				s.Options.Logf("[GeminiOAuth] Successfully fetched project_id: %s, tier_id: %s", projectID, tierID)
-			}
-		} else {
-			s.Options.Logf("[GeminiOAuth] User provided project_id: %s, fetching tier_id...", projectID)
-			// A manually supplied project still needs tier discovery.
-			_, fetchedTierID, err := s.fetchProjectID(ctx, tokenResp.AccessToken, proxyURL)
-			if err != nil {
-				s.Options.Printf("[GeminiOAuth] Warning: Failed to fetch tierID: %v\n", err)
-				s.Options.Logf("[GeminiOAuth] WARNING: Failed to fetch tier_id: %v", err)
-			} else {
-				tierID = fetchedTierID
-				s.Options.Logf("[GeminiOAuth] Successfully fetched tier_id: %s", tierID)
-			}
+			return nil, fmt.Errorf("missing project_id for Code Assist OAuth: enter your GCP Project ID in the Project ID field above and click Complete Auth again (no re-login needed), or create an active project at https://console.cloud.google.com")
 		}
-		if strings.TrimSpace(projectID) == "" {
-			s.Options.Logf("[GeminiOAuth] ERROR: Missing project_id for Code Assist OAuth")
-			return nil, fmt.Errorf("missing project_id for Code Assist OAuth: please fill Project ID (optional field) and regenerate the auth URL, or ensure your Google account has an ACTIVE GCP project")
-		}
-		// Compatible detected tier takes precedence. If unresolved, compatible
-		// input/session fallback wins before the standard Code Assist default used
-		// for this account variant.
-		tierID = CanonicalGeminiTierIDForOAuthType(oauthType, tierID)
+		tierID = CanonicalGeminiTierIDForOAuthType(oauthType, discoveredTier)
 		if tierID == "" {
 			if fallbackTierID != "" {
 				tierID = fallbackTierID
-				s.Options.Logf("[GeminiOAuth] Using fallback tier_id from user/session: %s", tierID)
 			} else {
 				tierID = GeminiTierGCPStandard
-				s.Options.Logf("[GeminiOAuth] Using default tier_id: %s", tierID)
 			}
-		}
-		s.Options.Logf("[GeminiOAuth] Final code_assist result - project_id: %s, tier_id: %s", projectID, tierID)
-
-	case "google_one":
-		s.Options.Logf("[GeminiOAuth] Processing google_one OAuth type")
-
-		// Google One providers use cloudaicompanion API, which requires a project_id.
-		// Try LoadCodeAssist and Resource Manager when a project was not supplied.
-		if projectID == "" {
-			s.Options.Logf("[GeminiOAuth] No project_id provided, attempting to fetch from LoadCodeAssist API...")
-			var err error
-			projectID, _, err = s.fetchProjectID(ctx, tokenResp.AccessToken, proxyURL)
-			if err != nil {
-				s.Options.Logf("[GeminiOAuth] ERROR: Failed to fetch project_id: %v", err)
-				return nil, fmt.Errorf("google One providers require a project_id, failed to auto-detect: %w", err)
-			}
-			s.Options.Logf("[GeminiOAuth] Successfully fetched project_id: %s", projectID)
-		}
-
-		s.Options.Logf("[GeminiOAuth] Attempting to fetch Google One tier from Drive API...")
-		var storageInfo *google.DriveStorageInfo
-		var err error
-		tierID, storageInfo, err = s.fetchGoogleOneTier(ctx, tokenResp.AccessToken, proxyURL)
-		if err != nil {
-			// Drive failure retains tokens and project metadata. Clear the inferred
-			// tier so compatible input/session fallback can supply its display label.
-			s.Options.Printf("[GeminiOAuth] Warning: Failed to fetch Drive tier: %v\n", err)
-			s.Options.Logf("[GeminiOAuth] WARNING: Failed to fetch Drive tier: %v", err)
-			tierID = ""
-		} else {
-			s.Options.Logf("[GeminiOAuth] Successfully fetched Drive tier: %s", tierID)
-			if storageInfo != nil {
-				s.Options.Logf("[GeminiOAuth] Drive storage - Limit: %d bytes (%.2f TB), Usage: %d bytes (%.2f GB)",
-					storageInfo.Limit, float64(storageInfo.Limit)/float64(TB),
-					storageInfo.Usage, float64(storageInfo.Usage)/float64(GB))
-			}
-		}
-		tierID = CanonicalGeminiTierIDForOAuthType(oauthType, tierID)
-		if tierID == "" || tierID == GeminiTierGoogleOneUnknown {
-			if fallbackTierID != "" {
-				tierID = fallbackTierID
-				s.Options.Logf("[GeminiOAuth] Using fallback tier_id from user/session: %s", tierID)
-			} else {
-				tierID = GeminiTierGoogleOneFree
-				s.Options.Logf("[GeminiOAuth] Using default tier_id: %s", tierID)
-			}
-		}
-		s.Options.Printf("[GeminiOAuth] Google One tierID after normalization: %s\n", tierID)
-
-		// Retain Drive totals with their observation time for later credential
-		// construction, which merges these metadata keys after the selected token
-		// fields.
-		if storageInfo != nil {
-			tokenInfo := &GeminiTokenInfo{
-				AccessToken:  tokenResp.AccessToken,
-				RefreshToken: tokenResp.RefreshToken,
-				TokenType:    tokenResp.TokenType,
-				ExpiresIn:    tokenResp.ExpiresIn,
-				ExpiresAt:    expiresAt,
-				Scope:        tokenResp.Scope,
-				ProjectID:    projectID,
-				TierID:       tierID,
-				OAuthType:    oauthType,
-				Extra: map[string]any{
-					"drive_storage_limit":   storageInfo.Limit,
-					"drive_storage_usage":   storageInfo.Usage,
-					"drive_tier_updated_at": time.Now().Format(time.RFC3339),
-				},
-			}
-			s.Options.Logf("[GeminiOAuth] ========== ExchangeCode END (google_one with storage info) ==========")
-			return tokenInfo, nil
 		}
 
 	case "ai_studio":
-		// No automatic tier detection for AI Studio OAuth; rely on user selection.
+		projectID = effectiveProjectID
 		if fallbackTierID != "" {
 			tierID = fallbackTierID
 		} else {
 			tierID = GeminiTierAIStudioFree
 		}
-
-	default:
-		s.Options.Logf("[GeminiOAuth] Processing %s OAuth type (no tier detection)", oauthType)
 	}
 
-	s.Options.Logf("[GeminiOAuth] ========== Provider Type Detection END ==========")
+	// Delete the authorization session only after project and tier resolution
+	// succeeds so completed credentials cannot be replayed.
+	s.Store.Delete(input.SessionID)
 
 	result := &GeminiTokenInfo{
 		AccessToken:  tokenResp.AccessToken,
@@ -740,21 +552,59 @@ func (s *GeminiAuthorization) ExchangeCode(ctx context.Context, input *GeminiExc
 		TierID:       tierID,
 		OAuthType:    oauthType,
 	}
-	s.Options.Logf("[GeminiOAuth] Final result - OAuth Type: %s, Project ID: %s, Tier ID: %s", result.OAuthType, result.ProjectID, result.TierID)
-	s.Options.Logf("[GeminiOAuth] ========== ExchangeCode END ==========")
+	s.logf("[GeminiOAuth] Final result - OAuth Type: %s, Project ID: %s, Tier ID: %s", result.OAuthType, result.ProjectID, result.TierID)
+	s.logf("[GeminiOAuth] ========== ExchangeCode END ==========")
 	return result, nil
+}
+
+// obtainOrReuseSessionToken returns a cached Google token when the same session
+// submits the exact authorization code again, refreshing it if near expiry, or
+// performs a fresh ExchangeCode and caches the result on session.
+func (s *GeminiAuthorization) obtainOrReuseSessionToken(
+	ctx context.Context,
+	session *GeminiOAuthSession,
+	sessionID, oauthType, trimmedCode, redirectURI, proxyURL string,
+) (*google.TokenResponse, error) {
+	codeHash := hashAuthorizationCode(trimmedCode)
+	if session.ExchangedToken != nil && matchesCachedCodeHash(session.ExchangedCodeHash, codeHash) {
+		cached := *session.ExchangedToken
+		// Refresh the cached access token when within sixty seconds of expiry so a
+		// delayed Project ID retry still calls Code Assist with a live bearer token.
+		if !session.ExchangedAt.IsZero() && cached.ExpiresIn > 0 && cached.RefreshToken != "" {
+			remaining := time.Until(session.ExchangedAt.Add(time.Duration(cached.ExpiresIn) * time.Second))
+			if remaining < cachedTokenRefreshHorizon {
+				refreshed, err := s.Client.RefreshToken(ctx, oauthType, cached.RefreshToken, proxyURL)
+				if err == nil && refreshed != nil && strings.TrimSpace(refreshed.AccessToken) != "" {
+					if strings.TrimSpace(refreshed.RefreshToken) == "" {
+						refreshed.RefreshToken = cached.RefreshToken
+					}
+					session.ExchangedToken = refreshed
+					session.ExchangedAt = time.Now()
+					s.Store.Set(sessionID, session)
+					return refreshed, nil
+				}
+			}
+		}
+		s.logf("[GeminiOAuth] Reusing session-cached token for retry on session %s", sessionID)
+		return &cached, nil
+	}
+
+	tokenResp, err := s.Client.ExchangeCode(ctx, oauthType, trimmedCode, session.CodeVerifier, redirectURI, proxyURL)
+	if err != nil {
+		s.logf("[GeminiOAuth] ERROR: Failed to exchange code: %v", err)
+		return nil, fmt.Errorf("failed to exchange code: %w", err)
+	}
+	session.ExchangedToken = tokenResp
+	session.ExchangedCodeHash = codeHash
+	session.ExchangedAt = time.Now()
+	s.Store.Set(sessionID, session)
+	return tokenResp, nil
 }
 
 // refreshToken renews the supplied variant credential with at most four calls
 // and nonnil successful token data. Permanent OAuth substrings stop
 // immediately; other errors use one-, two-, and four-second unconditional
 // sleeps, while ctx reaches cooperative requests.
-//
-// Expiry subtracts a five-minute margin and then floors the stored timestamp
-// at thirty seconds from the clock. ExpiresIn retains the upstream lifetime,
-// so the adjusted timestamp can extend beyond a short-lived token. Retry
-// sleeps can outlast shutdown waiting even after the protocol context is
-// canceled.
 func (s *GeminiAuthorization) refreshToken(ctx context.Context, oauthType, refreshToken, proxyURL string) (*GeminiTokenInfo, error) {
 	var lastErr error
 
@@ -769,16 +619,9 @@ func (s *GeminiAuthorization) refreshToken(ctx context.Context, oauthType, refre
 
 		tokenResp, err := s.Client.RefreshToken(ctx, oauthType, refreshToken, proxyURL)
 		if err == nil {
-			// Subtract a refresh margin but floor stored lifetime at thirty seconds.
-			// The adjusted timestamp can exceed short upstream lifetimes even though
-			// ExpiresIn still reports the issued lifetime.
 			const safetyWindow = 300 // 5 minutes
 			const minTTL = 30        // minimum 30 seconds
-			expiresAt := time.Now().Unix() + tokenResp.ExpiresIn - safetyWindow
-			minExpiresAt := time.Now().Unix() + minTTL
-			if expiresAt < minExpiresAt {
-				expiresAt = minExpiresAt
-			}
+			expiresAt := max(time.Now().Unix()+tokenResp.ExpiresIn-safetyWindow, time.Now().Unix()+minTTL)
 			return &GeminiTokenInfo{
 				AccessToken:  tokenResp.AccessToken,
 				RefreshToken: tokenResp.RefreshToken,
@@ -821,15 +664,6 @@ func IsNonRetryableGeminiOAuthError(err error) bool {
 // RefreshProviderToken registers renewal for a stable nonnil Gemini OAuth
 // record with a nonblank refresh token. Empty stored type defaults to Code
 // Assist; unresolved selected proxy lookup uses an empty URL.
-//
-// Client mismatch may retry through another variant, but returned OAuthType
-// remains the stored variant. Existing project survives renewal. Code Assist
-// canonicalizes stored tier, defaults it, and discovers a missing project.
-// Google One refreshes Drive metadata after its twenty-four-hour timestamp
-// gate and retains existing tier when discovery is unusable. Discovery
-// failures have variant-specific consequences, and metadata is returned for
-// caller persistence.
-// Pass a nonnil context for independent activity registration.
 func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider *Record) (*GeminiTokenInfo, error) {
 	operation, done, startErr := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
 	if startErr != nil {
@@ -847,48 +681,28 @@ func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider
 		return nil, fmt.Errorf("no refresh token available")
 	}
 
-	// Empty stored variant text selects Code Assist renewal. The returned
-	// metadata keeps that selected variant even when client-mismatch recovery
-	// uses a different exchange path.
 	oauthType := strings.TrimSpace(provider.GetCredential("oauth_type"))
 	if oauthType == "" {
 		oauthType = "code_assist"
 	}
 
-	// This flow has no saved session route to recover. Unavailable selected
-	// proxy lookup leaves an empty URL for the configured Google transport
-	// callbacks.
 	var proxyURL string
-	if provider.ProxyID != nil {
+	if provider.ProxyID != nil && s.Options.ResolveProxy != nil {
 		if resolved, ok := s.Options.ResolveProxy(ctx, *provider.ProxyID); ok {
 			proxyURL = resolved
 		}
 	}
 
-	// Attempt the stored variant before client-mismatch alternatives. Alternate
-	// failure retains the initial error, while success still reports the stored
-	// OAuth variant in returned credential metadata.
 	tokenInfo, err := s.refreshToken(ctx, oauthType, refreshToken, proxyURL)
-	// A Code Assist unauthorized_client error can retry through AI Studio
-	// when custom credentials are configured. Preserve the initial error if that
-	// alternate fails.
+	// A Code Assist unauthorized_client error can retry through AI Studio when
+	// custom credentials are configured. Preserve the initial error if that alternate fails.
 	if err != nil && oauthType == "code_assist" && strings.Contains(err.Error(), "unauthorized_client") && s.GetOAuthConfig().AIStudioOAuthEnabled {
 		if alt, altErr := s.refreshToken(ctx, "ai_studio", refreshToken, proxyURL); altErr == nil {
 			tokenInfo = alt
 			err = nil
 		}
 	}
-	// Google One unauthorized_client selects a Code Assist retry when custom
-	// configuration is available. The standard OAuthClient forces built-in
-	// identity for both variants.
-	if err != nil && oauthType == "google_one" && strings.Contains(err.Error(), "unauthorized_client") && s.GetOAuthConfig().AIStudioOAuthEnabled {
-		if alt, altErr := s.refreshToken(ctx, "code_assist", refreshToken, proxyURL); altErr == nil {
-			tokenInfo = alt
-			err = nil
-		}
-	}
 	if err != nil {
-		// Provide a more actionable error for common OAuth client mismatch issues.
 		if strings.Contains(err.Error(), "unauthorized_client") {
 			return nil, fmt.Errorf("%w (OAuth client mismatch: the refresh_token is bound to the OAuth client used during authorization; please re-authorize this provider or restore the original GEMINI_OAUTH_CLIENT_ID/SECRET)", err)
 		}
@@ -897,9 +711,6 @@ func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider
 
 	tokenInfo.OAuthType = oauthType
 
-	// Renewal itself returns no project metadata. Keep the nonblank stored
-	// project so the selected account can remain usable without another discovery
-	// request.
 	existingProjectID := strings.TrimSpace(provider.GetCredential("project_id"))
 	if existingProjectID != "" {
 		tokenInfo.ProjectID = existingProjectID
@@ -907,12 +718,7 @@ func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider
 
 	existingTierID := strings.TrimSpace(provider.GetCredential("tier_id"))
 
-	// For Code Assist, project_id is required. Auto-detect if missing.
-	// For AI Studio OAuth, project_id is optional and should not block refresh.
-	switch oauthType {
-	case "code_assist":
-		// Use the stored canonical tier, or the standard Code Assist tier when it is
-		// missing.
+	if oauthType == "code_assist" {
 		if existingTierID != "" {
 			tokenInfo.TierID = CanonicalGeminiTierIDForOAuthType(oauthType, existingTierID)
 		}
@@ -920,78 +726,22 @@ func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider
 			tokenInfo.TierID = GeminiTierGCPStandard
 		}
 
-		// Missing project metadata triggers discovery after assigning a provisional
-		// tier. A compatible discovered tier can replace that provisional choice
-		// before the final project requirement is checked.
-		needDetect := strings.TrimSpace(tokenInfo.ProjectID) == "" || tokenInfo.TierID == ""
-		if needDetect {
-			projectID, tierID, err := s.fetchProjectID(ctx, tokenInfo.AccessToken, proxyURL)
-			if err != nil {
-				s.Options.Printf("[GeminiOAuth] Warning: failed to auto-detect project/tier: %v\n", err)
+		if strings.TrimSpace(tokenInfo.ProjectID) == "" {
+			projectID, tierID, _, discoverErr := s.discoverCodeAssistProjectAndTier(ctx, tokenInfo.AccessToken, proxyURL, "")
+			if discoverErr != nil {
+				s.printf("[GeminiOAuth] Warning: failed to auto-detect project/tier: %v\n", discoverErr)
 			} else {
-				if strings.TrimSpace(tokenInfo.ProjectID) == "" && projectID != "" {
+				if projectID != "" {
 					tokenInfo.ProjectID = projectID
 				}
-				if tierID != "" {
-					if canonical := CanonicalGeminiTierIDForOAuthType(oauthType, tierID); canonical != "" {
-						tokenInfo.TierID = canonical
-					}
+				if canonical := CanonicalGeminiTierIDForOAuthType(oauthType, tierID); canonical != "" {
+					tokenInfo.TierID = canonical
 				}
 			}
 		}
 
 		if strings.TrimSpace(tokenInfo.ProjectID) == "" {
 			return nil, fmt.Errorf("failed to auto-detect project_id: empty result")
-		}
-	case "google_one":
-		canonicalExistingTier := CanonicalGeminiTierIDForOAuthType(oauthType, existingTierID)
-		// Reuse a parseable Drive tier timestamp no older than twenty-four hours.
-		// Future timestamps satisfy this elapsed-time gate too, postponing another
-		// discovery attempt.
-		needsRefresh := true
-		if provider.Extra != nil {
-			if updatedAtStr, ok := provider.Extra["drive_tier_updated_at"].(string); ok {
-				if updatedAt, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-					if time.Since(updatedAt) <= 24*time.Hour {
-						needsRefresh = false
-						tokenInfo.TierID = canonicalExistingTier
-					}
-				}
-			}
-		}
-
-		if tokenInfo.TierID == "" {
-			tokenInfo.TierID = canonicalExistingTier
-		}
-
-		// Stale or missing Drive age triggers discovery. Errors or unusable tier
-		// data retain existing canonical metadata and let the final default rule
-		// supply a tier; successful storage data contributes a fresh Extra map.
-		if needsRefresh {
-			tierID, storageInfo, err := s.fetchGoogleOneTier(ctx, tokenInfo.AccessToken, proxyURL)
-			if err == nil {
-				if canonical := CanonicalGeminiTierIDForOAuthType(oauthType, tierID); canonical != "" && canonical != GeminiTierGoogleOneUnknown {
-					tokenInfo.TierID = canonical
-				}
-				if storageInfo != nil {
-					tokenInfo.Extra = map[string]any{
-						"drive_storage_limit":   storageInfo.Limit,
-						"drive_storage_usage":   storageInfo.Usage,
-						"drive_tier_updated_at": time.Now().Format(time.RFC3339),
-					}
-				}
-			}
-		}
-
-		// An unresolved tier keeps a compatible stored value where available.
-		// Otherwise use the free Google One label so renewal returns displayable
-		// tier metadata even when Drive discovery did not identify the plan.
-		if tokenInfo.TierID == "" || tokenInfo.TierID == GeminiTierGoogleOneUnknown {
-			if canonicalExistingTier != "" {
-				tokenInfo.TierID = canonicalExistingTier
-			} else {
-				tokenInfo.TierID = GeminiTierGoogleOneFree
-			}
 		}
 	}
 
@@ -1002,12 +752,6 @@ func (s *GeminiAuthorization) RefreshProviderToken(ctx context.Context, provider
 // information. Access token and decimal Unix expiry are included; nonempty
 // optional fields are copied, and structurally invalid tier is diagnosed and
 // omitted.
-//
-// Extra is copied into credentials last. Its keys can override token,
-// identity, or validated tier entries, and nested references remain borrowed
-// because maps.Copy is shallow. Normal Google One results supply Drive
-// metadata keys, while other callers choose Extra keys and synchronize mutable
-// values before persistence.
 func (s *GeminiAuthorization) BuildProviderCredentials(tokenInfo *GeminiTokenInfo) map[string]any {
 	creds := map[string]any{
 		"access_token": tokenInfo.AccessToken,
@@ -1026,14 +770,11 @@ func (s *GeminiAuthorization) BuildProviderCredentials(tokenInfo *GeminiTokenInf
 		creds["project_id"] = tokenInfo.ProjectID
 	}
 	if tokenInfo.TierID != "" {
-		// Validate structure before storing the selected tier. Failure omits that
-		// entry while credential construction keeps the other exchanged values
-		// available.
 		if err := ValidateTierID(tokenInfo.TierID); err == nil {
 			creds["tier_id"] = tokenInfo.TierID
-			s.Options.Printf("[GeminiOAuth] Storing tier_id: %s\n", tokenInfo.TierID)
+			s.printf("[GeminiOAuth] Storing tier_id: %s\n", tokenInfo.TierID)
 		} else {
-			s.Options.Printf("[GeminiOAuth] Invalid tier_id %s: %v\n", tokenInfo.TierID, err)
+			s.printf("[GeminiOAuth] Invalid tier_id %s: %v\n", tokenInfo.TierID, err)
 		}
 	}
 	if tokenInfo.OAuthType != "" {
@@ -1047,140 +788,243 @@ func (s *GeminiAuthorization) BuildProviderCredentials(tokenInfo *GeminiTokenInf
 	return creds
 }
 
-// fetchProjectID obtains a project and tier through Code Assist, onboarding,
-// or Resource Manager. Missing CodeAssist fails; callers provide reached
-// FetchProject and Logf callbacks and nonnil successful onboarding responses.
-//
-// A load project returns directly. Registered tier without project skips
-// onboarding and tries Resource Manager; otherwise a default or LEGACY tier is
-// polled up to five times. Each pending result sleeps two seconds, including
-// the final attempt. Completed string or object IDs return even when blank.
-// Other outcomes try Resource Manager and fold its failure into the selected
-// diagnostic; tier can accompany project failure.
+// fetchProjectID runs Code Assist discovery without an operator project hint.
 func (s *GeminiAuthorization) fetchProjectID(ctx context.Context, accessToken, proxyURL string) (string, string, error) {
+	projectID, tierID, _, err := s.discoverCodeAssistProjectAndTier(ctx, accessToken, proxyURL, "")
+	return projectID, tierID, err
+}
+
+// discoverCodeAssistProjectAndTier follows the official gemini-cli setupUser
+// flow: it sends optional hintProject in cloudaicompanionProject and
+// metadata.duetProject, checks ineligibleTiers when enrollment is blocked,
+// polls GetOperation for pending onboarding, and falls back to hintProject or
+// Cloud Resource Manager without ever returning a blank project as success.
+func (s *GeminiAuthorization) discoverCodeAssistProjectAndTier(
+	ctx context.Context,
+	accessToken, proxyURL, hintProject string,
+) (projectID string, tierID string, unrecoverable bool, err error) {
 	if s.CodeAssist == nil {
-		return "", "", errors.New("code assist client not configured")
+		if strings.TrimSpace(hintProject) != "" {
+			return strings.TrimSpace(hintProject), GeminiTierGCPStandard, false, nil
+		}
+		return "", "", false, errors.New("code assist client not configured")
 	}
 
-	loadResp, loadErr := s.CodeAssist.LoadCodeAssist(ctx, accessToken, proxyURL, nil)
+	hintProject = strings.TrimSpace(hintProject)
+	loadReq := &geminiwire.LoadCodeAssistRequest{
+		CloudAICompanionProject: hintProject,
+		Metadata: geminiwire.LoadCodeAssistMetadata{
+			IDEType:     "IDE_UNSPECIFIED",
+			Platform:    "PLATFORM_UNSPECIFIED",
+			PluginType:  "GEMINI",
+			DuetProject: hintProject,
+		},
+	}
 
-	// Retain tier data even while project discovery is unresolved.
-	// Resource Manager and onboarding results can then return that useful
-	// account observation alongside a missing-project diagnostic.
-	tierID := "LEGACY"
+	loadResp, loadErr := s.CodeAssist.LoadCodeAssist(ctx, accessToken, proxyURL, loadReq)
+	if loadErr != nil && isServiceDisabledGuidance(loadErr) {
+		// Propagate Cloud Console API activation links directly while keeping the
+		// cached session token alive for post-activation retry.
+		return "", "", false, loadErr
+	}
+
+	var registeredTier string
+	candidateTier := "legacy-tier"
 	if loadResp != nil {
-		if tier := loadResp.GetTier(); tier != "" {
-			tierID = tier
-		} else {
-			tierID = ExtractTierIDFromAllowedTiers(loadResp.AllowedTiers)
+		registeredTier = strings.TrimSpace(loadResp.GetTier())
+		if registeredTier != "" {
+			candidateTier = registeredTier
+		} else if allowed := ExtractTierIDFromAllowedTiers(loadResp.AllowedTiers); allowed != "" && allowed != "legacy-tier" {
+			candidateTier = allowed
 		}
 	}
 
 	if loadErr == nil && loadResp != nil && strings.TrimSpace(loadResp.CloudAICompanionProject) != "" {
-		return strings.TrimSpace(loadResp.CloudAICompanionProject), tierID, nil
+		return strings.TrimSpace(loadResp.CloudAICompanionProject), candidateTier, false, nil
 	}
 
-	// Registered tier metadata selects Resource Manager before onboarding. A
-	// failed or blank project lookup retains the tier observation with a request
-	// for manually supplied project identity.
-	if loadResp != nil {
-		registeredTierID := strings.TrimSpace(loadResp.GetTier())
-		if registeredTierID != "" {
-			s.Options.Logf("[GeminiOAuth] User has tier (%s) but no cloudaicompanionProject, trying Cloud Resource Manager...", registeredTierID)
+	// Surface explicit upstream eligibility blocks before attempting onboarding
+	// when upstream returned neither a registered tier nor any allowed onboarding tier.
+	if loadResp != nil && registeredTier == "" && len(loadResp.AllowedTiers) == 0 && len(loadResp.IneligibleTiers) > 0 {
+		diagErr, fatal := formatCodeAssistIneligibleError(loadResp.IneligibleTiers)
+		return "", candidateTier, fatal, diagErr
+	}
 
-			// A registered tier without project can still use
-			// Resource Manager. Failed or blank fallback becomes
-			// the missing-project diagnostic returned with the
-			// observed tier.
-			fallback, fbErr := s.Options.FetchProject(ctx, accessToken, proxyURL)
-			if fbErr == nil && strings.TrimSpace(fallback) != "" {
-				s.Options.Logf("[GeminiOAuth] Found project from Cloud Resource Manager: %s", fallback)
-				return strings.TrimSpace(fallback), tierID, nil
-			}
-
-			s.Options.Logf("[GeminiOAuth] No project found from Cloud Resource Manager, user must provide project_id manually")
-			return "", tierID, fmt.Errorf("user is registered (tier: %s) but no project_id available. Please provide Project ID manually in the authorization form, or create a project at https://console.cloud.google.com", registeredTierID)
+	// Already-registered accounts without a companion project require a user GCP
+	// project (or an ACTIVE Resource Manager project).
+	if registeredTier != "" {
+		if loadErr == nil && hintProject != "" {
+			return hintProject, registeredTier, false, nil
 		}
+		if fallback := s.tryFetchResourceManagerProject(ctx, accessToken, proxyURL); fallback != "" {
+			return fallback, registeredTier, false, nil
+		}
+		if loadResp != nil && len(loadResp.IneligibleTiers) > 0 {
+			diagErr, fatal := formatCodeAssistIneligibleError(loadResp.IneligibleTiers)
+			return "", registeredTier, fatal, diagErr
+		}
+		return "", registeredTier, false, fmt.Errorf("account is enrolled in Code Assist (tier: %s) without a managed project_id: enter your GCP Project ID in the Project ID field above and click Complete Auth again (no re-login needed), or create an active project at https://console.cloud.google.com", registeredTier)
 	}
 
-	// Without currentTier or paidTier, try onboarding as a new user.
-	s.Options.Logf("[GeminiOAuth] No currentTier/paidTier found, proceeding with onboardUser (tierID: %s)", tierID)
-
-	req := &geminiwire.OnboardUserRequest{
-		TierID: tierID,
+	// Unregistered accounts proceed through onboardUser and GetOperation polling.
+	onboardReq := &geminiwire.OnboardUserRequest{
+		TierID: candidateTier,
 		Metadata: geminiwire.LoadCodeAssistMetadata{
-			IDEType:    "ANTIGRAVITY",
-			Platform:   "PLATFORM_UNSPECIFIED",
-			PluginType: "GEMINI",
+			IDEType:     "IDE_UNSPECIFIED",
+			Platform:    "PLATFORM_UNSPECIFIED",
+			PluginType:  "GEMINI",
+			DuetProject: hintProject,
 		},
 	}
-
-	// Bound polling of pending onboarding responses before Resource Manager
-	// fallback. Reusing the selected request keeps tier and account metadata
-	// consistent across those finite attempts.
-	maxAttempts := 5
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		resp, err := s.CodeAssist.OnboardUser(ctx, accessToken, proxyURL, req)
-		if err != nil {
-			// Onboarding failure may still leave a Resource
-			// Manager project available. Failed or blank fallback
-			// retains the original onboarding error with the
-			// selected tier.
-			fallback, fbErr := s.Options.FetchProject(ctx, accessToken, proxyURL)
-			if fbErr == nil && strings.TrimSpace(fallback) != "" {
-				return strings.TrimSpace(fallback), tierID, nil
-			}
-			return "", tierID, err
-		}
-		// Completed onboarding may encode the project as string or object ID.
-		// Extract that representation before fallback, retaining even an explicitly
-		// blank returned identifier.
-		if resp.Done {
-			if resp.Response != nil && resp.Response.CloudAICompanionProject != nil {
-				switch v := resp.Response.CloudAICompanionProject.(type) {
-				case string:
-					return strings.TrimSpace(v), tierID, nil
-				case map[string]any:
-					if id, ok := v["id"].(string); ok {
-						return strings.TrimSpace(id), tierID, nil
-					}
-				}
-			}
-
-			// Completed onboarding without a recognized project
-			// tries Resource Manager. Failed or blank fallback
-			// returns the completed-without-project diagnostic and
-			// retains the selected tier.
-			fallback, fbErr := s.Options.FetchProject(ctx, accessToken, proxyURL)
-			if fbErr == nil && strings.TrimSpace(fallback) != "" {
-				return strings.TrimSpace(fallback), tierID, nil
-			}
-			return "", tierID, errors.New("onboardUser completed but no project_id returned")
-		}
-		// Pending onboarding is polled after fixed spacing. The last pending
-		// attempt also sleeps before fallback, and cancellation does not wake this
-		// delay.
-		time.Sleep(2 * time.Second)
+	if hintProject != "" && !strings.EqualFold(candidateTier, "free-tier") {
+		onboardReq.CloudAICompanionProject = hintProject
 	}
 
-	// Pending onboarding exhausted its finite polls. Try Resource Manager
-	// before choosing the timeout diagnostic, retaining a prior load
-	// failure when it supplies useful context.
-	fallback, fbErr := s.Options.FetchProject(ctx, accessToken, proxyURL)
-	if fbErr == nil && strings.TrimSpace(fallback) != "" {
-		return strings.TrimSpace(fallback), tierID, nil
+	pollInterval := s.Options.OnboardPollInterval
+	if pollInterval <= 0 {
+		pollInterval = defaultGeminiOnboardPollInterval
+	}
+
+	const maxAttempts = 5
+	var pendingOpName string
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		var resp *geminiwire.OnboardUserResponse
+		var opErr error
+		if attempt == 1 || pendingOpName == "" {
+			resp, opErr = s.CodeAssist.OnboardUser(ctx, accessToken, proxyURL, onboardReq)
+		} else {
+			resp, opErr = s.CodeAssist.GetOperation(ctx, accessToken, proxyURL, pendingOpName)
+		}
+		if opErr != nil {
+			if isServiceDisabledGuidance(opErr) {
+				return "", candidateTier, false, opErr
+			}
+			if loadErr == nil && hintProject != "" {
+				return hintProject, candidateTier, false, nil
+			}
+			if fallback := s.tryFetchResourceManagerProject(ctx, accessToken, proxyURL); fallback != "" {
+				return fallback, candidateTier, false, nil
+			}
+			return "", candidateTier, false, opErr
+		}
+
+		if resp != nil && resp.Done {
+			if managedProj := resp.ProjectID(); managedProj != "" {
+				return managedProj, candidateTier, false, nil
+			}
+			if hintProject != "" {
+				return hintProject, candidateTier, false, nil
+			}
+			if fallback := s.tryFetchResourceManagerProject(ctx, accessToken, proxyURL); fallback != "" {
+				return fallback, candidateTier, false, nil
+			}
+			return "", candidateTier, false, errors.New("code assist onboarding completed without a managed project_id: if this is a GCP/Workspace account, enter your GCP Project ID above and click Complete Auth again (no re-login needed); if this is a personal or Google One account, use the Antigravity platform instead")
+		}
+
+		if resp != nil && strings.TrimSpace(resp.Name) != "" {
+			pendingOpName = strings.TrimSpace(resp.Name)
+		}
+
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return "", candidateTier, false, ctx.Err()
+		}
+	}
+
+	if hintProject != "" && loadErr == nil {
+		return hintProject, candidateTier, false, nil
+	}
+	if fallback := s.tryFetchResourceManagerProject(ctx, accessToken, proxyURL); fallback != "" {
+		return fallback, candidateTier, false, nil
 	}
 	if loadErr != nil {
-		return "", tierID, fmt.Errorf("loadCodeAssist failed (%v) and onboardUser timeout after %d attempts", loadErr, maxAttempts)
+		return "", candidateTier, false, fmt.Errorf("loadCodeAssist failed (%v) and onboardUser timed out after %d attempts", loadErr, maxAttempts)
 	}
-	return "", tierID, fmt.Errorf("onboardUser timeout after %d attempts", maxAttempts)
+	return "", candidateTier, false, fmt.Errorf("onboardUser timed out after %d attempts: enter a GCP Project ID above and click Complete Auth again", maxAttempts)
+}
+
+// tryFetchResourceManagerProject returns a trimmed ACTIVE GCP project ID from
+// FetchProject or an empty string when unavailable.
+func (s *GeminiAuthorization) tryFetchResourceManagerProject(ctx context.Context, accessToken, proxyURL string) string {
+	if s.Options.FetchProject == nil {
+		return ""
+	}
+	fallback, err := s.Options.FetchProject(ctx, accessToken, proxyURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(fallback)
+}
+
+// formatCodeAssistIneligibleError converts upstream ineligibleTiers into an
+// operator-facing diagnostic and reports whether the session is unrecoverable.
+func formatCodeAssistIneligibleError(tiers []geminiwire.IneligibleTier) (error, bool) {
+	for _, tier := range tiers {
+		code := strings.ToUpper(strings.TrimSpace(tier.ReasonCode))
+		msg := strings.TrimSpace(tier.ReasonMessage)
+		if msg == "" {
+			msg = strings.TrimSpace(tier.ValidationErrorMessage)
+		}
+		switch code {
+		case "UNSUPPORTED_CLIENT", "SUBSCRIPTION_REQUIRED":
+			if msg != "" {
+				return fmt.Errorf("personal and Google One accounts are not supported on Gemini CLI OAuth (%s: %s); please add this account using the Antigravity platform instead", code, msg), true
+			}
+			return errors.New("personal and Google One accounts are not supported on Gemini CLI OAuth; please add this account using the Antigravity platform instead"), true
+		case "TOS_VIOLATION":
+			if msg != "" {
+				return fmt.Errorf("account rejected by Code Assist (%s): %s", code, msg), true
+			}
+			return errors.New("account rejected by Code Assist due to a terms-of-service violation"), true
+		case "VALIDATION_REQUIRED":
+			validationURL := strings.TrimSpace(tier.ValidationURL)
+			if validationURL != "" {
+				return fmt.Errorf("account verification required (%s): complete verification at %s and then click Complete Auth again (no re-login needed)", firstNonEmptyText(msg, code), validationURL), false
+			}
+			return fmt.Errorf("account verification required (%s): complete verification in your Google account and click Complete Auth again", firstNonEmptyText(msg, code)), false
+		}
+	}
+
+	first := tiers[0]
+	reason := firstNonEmptyText(strings.TrimSpace(first.ReasonMessage), strings.TrimSpace(first.ValidationErrorMessage), strings.TrimSpace(first.ReasonCode), "account ineligible for Code Assist")
+	return fmt.Errorf("account eligibility rejected by Code Assist: %s (for personal or Google One accounts, use the Antigravity platform instead)", reason), false
+}
+
+// isServiceDisabledGuidance reports whether err carries the formatted Cloud
+// Console API-activation prompt produced by codeassist.Client.
+func isServiceDisabledGuidance(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "gemini API not enabled for this project")
+}
+
+// firstNonEmptyText returns the first nonblank string in values or empty.
+func firstNonEmptyText(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+// logf invokes Options.Logf when configured.
+func (s *GeminiAuthorization) logf(format string, args ...any) {
+	if s.Options.Logf != nil {
+		s.Options.Logf(format, args...)
+	}
+}
+
+// printf invokes Options.Printf when configured.
+func (s *GeminiAuthorization) printf(format string, args ...any) {
+	if s.Options.Printf != nil {
+		s.Options.Printf(format, args...)
+	}
 }
 
 // RefreshToken registers renewal separately with authorization activity and
-// releases it after refreshToken returns. Nested public calls also register
-// themselves; shutdown waits for actual completion, including unconditional
-// finite retry sleeps.
-// Pass a nonnil context for independent activity registration.
+// releases it after refreshToken returns.
 func (s *GeminiAuthorization) RefreshToken(ctx context.Context, kind, token, proxy string) (*GeminiTokenInfo, error) {
 	operation, done, err := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
 	if err != nil {
@@ -1190,24 +1034,8 @@ func (s *GeminiAuthorization) RefreshToken(ctx context.Context, kind, token, pro
 	return s.refreshToken(operation, kind, token, proxy)
 }
 
-// FetchGoogleOneTier registers Drive discovery for shutdown waiting. The
-// private query defines required clients and nonnil successful data;
-// cancellation reaches its cooperative request, and registration ends on
-// return.
-// Pass a nonnil context for independent activity registration.
-func (s *GeminiAuthorization) FetchGoogleOneTier(ctx context.Context, token, proxy string) (string, *google.DriveStorageInfo, error) {
-	operation, done, err := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
-	if err != nil {
-		return "", nil, err
-	}
-	defer done()
-	return s.fetchGoogleOneTier(operation, token, proxy)
-}
-
 // FetchProject registers project discovery for shutdown waiting using the
-// supplied token and proxy. Delegated fallback and onboarding rules apply,
-// including unconditional sleeps that can outlast a caller stop budget.
-// Pass a nonnil context for independent activity registration.
+// supplied token and proxy.
 func (s *GeminiAuthorization) FetchProject(ctx context.Context, token, proxy string) (string, string, error) {
 	operation, done, err := s.activity.begin(ctx, errors.New("gemini authorization is stopped"))
 	if err != nil {

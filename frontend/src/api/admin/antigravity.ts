@@ -3,8 +3,8 @@ import { apiClient } from '../client'
 /**
  * antigravity.ts sends administrator Antigravity authorization requests and
  * returns token information. Authorization URL creation and code exchange
- * forward their typed session data, while refresh includes a proxy identifier
- * only when the supplied value is truthy.
+ * forward their typed session and optional project data, while refresh includes
+ * optional proxy and project identifiers when supplied.
  */
 
 /**
@@ -27,12 +27,13 @@ export interface AntigravityAuthUrlRequest {
 
 /**
  * AntigravityExchangeCodeRequest submits the authorization code with its
- * matching session, state and optional proxy.
+ * matching session, state, optional GCP project, and optional proxy.
  */
 export interface AntigravityExchangeCodeRequest {
   session_id: string // Authorization session identifier.
   state: string // OAuth correlation state.
   code: string // OAuth authorization code.
+  project_id?: string // Optional GCP Project ID for standard-tier accounts.
   proxy_id?: number // Selected proxy identifier.
 }
 
@@ -48,6 +49,8 @@ export interface AntigravityTokenInfo {
   expires_in?: number // Lifetime in seconds.
   project_id?: string // Recorded project id.
   email?: string // Account email address.
+  plan_type?: string // Discovered subscription plan label.
+  privacy_mode?: string // Privacy configuration observation marker.
   [key: string]: unknown // Additional token response fields.
 }
 
@@ -80,15 +83,18 @@ export async function exchangeCode(
 
 /**
  * refreshAntigravityToken exchanges the supplied refresh token for token metadata.
- * A truthy proxy identifier is forwarded; zero, null, and omission leave it out
- * of the request. The completed response data is returned without reshaping it.
+ * Truthy proxy and nonblank project identifiers are forwarded; zero, null, blank,
+ * and omission leave them out of the request.
  */
 export async function refreshAntigravityToken(
   refreshToken: string,
   proxyId?: number | null,
+  projectId?: string | null,
 ): Promise<AntigravityTokenInfo> {
   const payload: Record<string, any> = { refresh_token: refreshToken }
   if (proxyId) payload.proxy_id = proxyId
+  const trimmedProjectID = projectId?.trim()
+  if (trimmedProjectID) payload.project_id = trimmedProjectID
 
   const { data } = await apiClient.post<AntigravityTokenInfo>(
     '/admin/antigravity/oauth/refresh-token',

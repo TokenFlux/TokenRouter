@@ -383,6 +383,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 | `GET`、`PUT /api/v1/admin/settings/openai-oauth-import-defaults` | `404` | 在提供商创建表单或导入文件中填写配置 |
 | `GET /v1/sub2api/billing` | `404` | 无；不再享有 API Key 非消费请求豁免 |
 | `GET`、`PUT /api/v1/admin/providers/upstream-billing-probe/settings`、`POST .../upstream-billing-probe/batch`、`PUT`、`POST /api/v1/admin/providers/:id/upstream-billing-probe` | `404` | 无 |
+| `POST /api/v1/admin/providers/:id/refresh-tier`、`POST /api/v1/admin/providers/batch-refresh-tier` | `404` | 个人与 Google One 账号改用 Antigravity 平台自动同步订阅档位；GCP Code Assist 在刷新与授权时自动同步 tier |
 | `POST /api/v1/admin/providers/check-mixed-channel` | `404` | 提供商写入时直接校验 |
 | `GET /api/v1/user/platform-quotas`、`GET`、`PUT /api/v1/admin/users/:id/platform-quotas`、`POST /api/v1/admin/users/:id/platform-quotas/reset` | `404` | 提供商上游额度、余额、订阅、团队和 Key 限额各自接口 |
 | `/api/v1/admin/channels` | `404` | `/api/v1/admin/pricing/configs` |

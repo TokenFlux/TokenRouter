@@ -96,7 +96,6 @@ type ManagementHandler struct {
 
 	models           *providercore.ModelSyncService                    // live upstream model queries
 	reports          ProviderReportOptions                             // local usage report callbacks
-	tier             *providercore.TierManagement                      // Google One tier maintenance
 	catalog          *routing.AdminCatalog                             // administrator model eligibility catalogue
 	modelDefaults    providercore.ModelMappingDefaults                 // platform mapping default callbacks
 	modelRules       func(*providercore.Record) routing.CatalogueRules // per-record catalogue rules callback
@@ -138,7 +137,6 @@ type ProviderCreationPrivacy interface {
 type ManagementOptions struct {
 	Models           *providercore.ModelSyncService                    // live upstream model queries
 	Reports          ProviderReportOptions                             // local usage report callbacks
-	Tier             *providercore.TierManagement                      // Google One tier maintenance
 	Catalog          *routing.AdminCatalog                             // administrator model eligibility catalogue
 	ModelDefaults    providercore.ModelMappingDefaults                 // platform mapping default callbacks
 	ModelRules       func(*providercore.Record) routing.CatalogueRules // per-record catalogue rules callback
@@ -168,7 +166,7 @@ func (f ProviderRuntimePresenterFunc) Present(ctx context.Context, v *providerco
 // constructor supplies no substitutes or background lifecycle and retains
 // callback references.
 func NewManagementHandler(admin ProviderManagement, options ManagementOptions) *ManagementHandler {
-	return &ManagementHandler{models: options.Models, reports: options.Reports, tier: options.Tier, catalog: options.Catalog, modelDefaults: options.ModelDefaults, modelRules: options.ModelRules, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
+	return &ManagementHandler{models: options.Models, reports: options.Reports, catalog: options.Catalog, modelDefaults: options.ModelDefaults, modelRules: options.ModelRules, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
 }
 
 // GetByID reads a provider and returns its runtime management view. An optional

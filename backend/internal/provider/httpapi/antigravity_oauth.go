@@ -11,10 +11,11 @@ import (
 
 // antigravity_oauth.go handles Antigravity authorization URL, code exchange,
 // and refresh-token HTTP requests.
-// Antigravity authorization binds Google OAuth session, state and code before
-// delegating token exchange. Invalid bodies are rejected here, URL-generation
-// failures use 500, code-exchange failures use 400, and refresh-token
-// validation keeps the common domain error mapping.
+// Antigravity authorization binds Google OAuth session, state, code, and
+// optional GCP Project ID hints before delegating token exchange or refresh
+// validation. Invalid bodies are rejected here, URL-generation failures use
+// 500, code-exchange failures use 400, and refresh-token validation keeps the
+// common domain error mapping.
 
 // AntigravityOAuthHandler binds administrator authorization inputs to the
 // Antigravity authorization use case.
@@ -31,20 +32,26 @@ type AntigravityGenerateAuthURLRequest struct {
 }
 
 // AntigravityExchangeCodeRequest carries the required session, state and code
-// for Google token exchange.
+// plus optional GCP project and proxy selections for Google token exchange.
 type AntigravityExchangeCodeRequest struct {
 	SessionID string `json:"session_id" binding:"required"` // authorization session identifier
 	State     string `json:"state" binding:"required"`      // authorization state value
 	Code      string `json:"code" binding:"required"`       // authorization exchange code
+	// ProjectID supplies an explicit GCP Project ID when automatic companion
+	// project discovery returns empty so retries can complete without re-login.
+	ProjectID string `json:"project_id"` // optional GCP project identifier
 	// ProxyID overrides the stored route only when its lookup resolves. Omitted
 	// or unresolved selection retains the authorization session's proxy URL.
 	ProxyID *int64 `json:"proxy_id"` // optional exchange proxy selection
 }
 
 // AntigravityRefreshTokenRequest carries a required refresh token and optional
-// proxy for validation.
+// project and proxy hints for validation.
 type AntigravityRefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"` // supplied OAuth refresh token
+	// ProjectID supplies an explicit GCP Project ID fallback when automatic
+	// companion project discovery returns empty during refresh validation.
+	ProjectID string `json:"project_id"` // optional GCP project identifier
 	// ProxyID supplies raw refresh validation's proxy lookup. Omitted or
 	// unresolved selection leaves an empty URL for the token and discovery calls.
 	ProxyID *int64 `json:"proxy_id"` // optional refresh proxy selection
@@ -59,13 +66,13 @@ type AntigravityAuthorizationUseCase interface {
 	GenerateAuthURL(context.Context, *int64) (*provider.AntigravityAuthURLResult, error)
 	// ExchangeCode validates a stored session and its state before exchanging the
 	// supplied code. Proxy selection and session consumption follow authorization;
-	// returned token metadata can contain partial optional discovery results.
+	// missing-project retries reuse cached session tokens within the session TTL.
 	ExchangeCode(context.Context, *provider.AntigravityExchangeCodeInput) (*provider.AntigravityTokenInfo, error)
-	// ValidateRefreshToken exchanges the supplied refresh token and resolves
-	// optional Antigravity metadata through the selected proxy. Its caller
-	// receives credentials for later provider creation rather than a provider
-	// storage mutation.
-	ValidateRefreshToken(context.Context, string, *int64) (*provider.AntigravityTokenInfo, error)
+	// ValidateRefreshTokenWithProject exchanges the supplied refresh token and
+	// resolves Antigravity metadata with an optional GCP Project ID hint through
+	// the selected proxy. Its caller receives credentials for later provider
+	// creation rather than a provider storage mutation.
+	ValidateRefreshTokenWithProject(context.Context, string, string, *int64) (*provider.AntigravityTokenInfo, error)
 }
 
 // NewAntigravityOAuthHandler borrows the Google authorization use case for
@@ -96,9 +103,10 @@ func (h *AntigravityOAuthHandler) GenerateAuthURL(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// ExchangeCode binds the required session, state and authorization code before
-// exchanging Google tokens. Invalid bodies and use-case exchange failures
-// return 400; token information is returned after a successful exchange.
+// ExchangeCode binds the required session, state and authorization code plus
+// optional ProjectID before exchanging Google tokens. Invalid bodies and
+// use-case exchange failures return 400; token information is returned after a
+// successful exchange.
 // POST /api/v1/admin/antigravity/oauth/exchange-code
 func (h *AntigravityOAuthHandler) ExchangeCode(c *gin.Context) {
 	var req AntigravityExchangeCodeRequest
@@ -111,6 +119,7 @@ func (h *AntigravityOAuthHandler) ExchangeCode(c *gin.Context) {
 		SessionID: req.SessionID,
 		State:     req.State,
 		Code:      req.Code,
+		ProjectID: req.ProjectID,
 		ProxyID:   req.ProxyID,
 	})
 	if err != nil {
@@ -121,10 +130,10 @@ func (h *AntigravityOAuthHandler) ExchangeCode(c *gin.Context) {
 	response.Success(c, tokenInfo)
 }
 
-// RefreshToken validates a supplied Antigravity refresh token through
-// authorization and returns its token information. A missing required token is
-// a binding error; authorization failures retain the common domain error
-// mapping.
+// RefreshToken validates a supplied Antigravity refresh token and optional
+// ProjectID through authorization and returns its token information. A missing
+// required token is a binding error; authorization failures retain the common
+// domain error mapping.
 // POST /api/v1/admin/antigravity/oauth/refresh-token
 func (h *AntigravityOAuthHandler) RefreshToken(c *gin.Context) {
 	var req AntigravityRefreshTokenRequest
@@ -133,7 +142,7 @@ func (h *AntigravityOAuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	tokenInfo, err := h.antigravityOAuthService.ValidateRefreshToken(c.Request.Context(), req.RefreshToken, req.ProxyID)
+	tokenInfo, err := h.antigravityOAuthService.ValidateRefreshTokenWithProject(c.Request.Context(), req.RefreshToken, req.ProjectID, req.ProxyID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

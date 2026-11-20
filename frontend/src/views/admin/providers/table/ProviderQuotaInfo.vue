@@ -34,9 +34,9 @@ import type { Provider, GeminiCredentials } from '@/api/admin/providers.types'
 
 /**
  * ProviderQuotaInfo.vue displays Gemini channel tiers and the provider-level rate-limit
- * countdown. Credential markers select Code Assist, Google One, or AI Studio labels, including
- * legacy tier spellings. Third-party API-key credentials suppress this official-quota display,
- * and invalid reset timestamps do not activate rate-limit presentation.
+ * countdown. Credential markers select Code Assist or AI Studio labels, including legacy tier
+ * spellings. Third-party API-key credentials suppress this official-quota display, and invalid
+ * reset timestamps do not activate rate-limit presentation.
  *
  * The local clock advances once per second while a valid future reset is active. Its watcher
  * starts the timer for an initially limited provider and stops it after expiry; unmount
@@ -73,11 +73,6 @@ const isCodeAssist = computed(() => {
   return creds?.oauth_type === 'code_assist' || (!creds?.oauth_type && !!creds?.project_id)
 })
 
-const isGoogleOne = computed(() => {
-  const creds = props.provider.credentials as GeminiCredentials | undefined
-  return creds?.oauth_type === 'google_one'
-})
-
 /**
  * shouldShowQuota exposes official Gemini tier information while excluding API-key records
  * marked as third-party providers in their credential metadata.
@@ -100,7 +95,9 @@ const tierLabel = computed(() => {
   if (isCodeAssist.value) {
     const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
     if (tier === 'gcp_enterprise') return 'GCP Enterprise'
-    if (tier === 'gcp_standard') return 'GCP Standard'
+    if (tier === 'gcp_standard' || tier === 'legacy-tier' || tier === 'free-tier') {
+      return 'GCP Standard'
+    }
     // Interpret legacy tier markers within the selected channel so older credential records
     // continue to display their stored subscription level.
     const upper = (creds?.tier_id || '').toString().trim().toUpperCase()
@@ -109,21 +106,7 @@ const tierLabel = computed(() => {
     return 'GCP'
   }
 
-  if (isGoogleOne.value) {
-    const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
-    if (tier === 'google_ai_ultra') return 'Google AI Ultra'
-    if (tier === 'google_ai_pro') return 'Google AI Pro'
-    if (tier === 'google_one_free') return 'Google One Free'
-    // Interpret legacy tier markers within the selected channel so older credential records
-    // continue to display their stored subscription level.
-    const upper = (creds?.tier_id || '').toString().trim().toUpperCase()
-    if (upper === 'AI_PREMIUM') return 'Google AI Pro'
-    if (upper === 'GOOGLE_ONE_UNLIMITED') return 'Google AI Ultra'
-    if (upper) return `Google One ${upper}`
-    return 'Google One'
-  }
-
-  // Credentials outside the OAuth channels use AI Studio tier labels, with a generic label when
+  // Credentials outside Code Assist use AI Studio tier labels, with a generic label when
   // a recognized tier is absent.
   const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
   if (tier === 'aistudio_paid') return 'AI Studio Pay-as-you-go'
@@ -142,7 +125,7 @@ const tierBadgeClass = computed(() => {
     const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
     if (tier === 'gcp_enterprise')
       return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    if (tier === 'gcp_standard')
+    if (tier === 'gcp_standard' || tier === 'legacy-tier' || tier === 'free-tier')
       return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
     // Interpret legacy tier markers within the selected channel so older credential records
     // continue to display their stored subscription level.
@@ -150,24 +133,6 @@ const tierBadgeClass = computed(() => {
     if (upper.includes('ULTRA') || upper.includes('ENTERPRISE'))
       return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
     return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-  }
-
-  if (isGoogleOne.value) {
-    const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
-    if (tier === 'google_ai_ultra')
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    if (tier === 'google_ai_pro')
-      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    if (tier === 'google_one_free')
-      return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
-    // Interpret legacy tier markers within the selected channel so older credential records
-    // continue to display their stored subscription level.
-    const upper = (creds?.tier_id || '').toString().trim().toUpperCase()
-    if (upper === 'GOOGLE_ONE_UNLIMITED')
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300'
-    if (upper === 'AI_PREMIUM')
-      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300'
-    return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-200'
   }
 
   // AI Studio uses the paid palette when its tier marker is unknown, while an explicit free

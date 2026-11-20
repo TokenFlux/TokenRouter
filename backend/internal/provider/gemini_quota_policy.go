@@ -304,8 +304,8 @@ func (s *GeminiQuotaService) CooldownForProvider(ctx context.Context, provider *
 	return s.CooldownForTier(ctx, tierKey)
 }
 
-// NewGeminiQuotaPolicy creates independent local defaults for seven supported
-// tier keys. AI Studio uses class quotas and other families use shared quotas;
+// NewGeminiQuotaPolicy creates independent local defaults for four supported
+// tier keys. AI Studio uses class quotas and Code Assist uses shared quotas;
 // negative daily values disable their local enforcement, while cooldown
 // defaults vary by tier.
 func NewGeminiQuotaPolicy() *GeminiQuotaPolicy {
@@ -316,11 +316,6 @@ func NewGeminiQuotaPolicy() *GeminiQuotaPolicy {
 			// Daily negative-one skips local daily enforcement; these positive minute
 			// limits still constrain the modeled paid-tier request rate.
 			GeminiTierAIStudioPaid: {Quota: GeminiQuota{ProRPD: -1, ProRPM: 1000, FlashRPD: -1, FlashRPM: 2000}, Cooldown: 5 * time.Minute},
-
-			// Google One shares quota across model classes.
-			GeminiTierGoogleOneFree: {Quota: GeminiQuota{SharedRPD: 1000, SharedRPM: 60}, Cooldown: 30 * time.Minute},
-			GeminiTierGoogleAIPro:   {Quota: GeminiQuota{SharedRPD: 1500, SharedRPM: 120}, Cooldown: 5 * time.Minute},
-			GeminiTierGoogleAIUltra: {Quota: GeminiQuota{SharedRPD: 2000, SharedRPM: 120}, Cooldown: 5 * time.Minute},
 
 			// Code Assist shares quota across model classes.
 			GeminiTierGCPStandard:   {Quota: GeminiQuota{SharedRPD: 1500, SharedRPM: 120}, Cooldown: 5 * time.Minute},
@@ -497,12 +492,6 @@ func NormalizeGeminiTierID(tierID string) string {
 		return GeminiTierAIStudioFree
 	case "AISTUDIO_PAID":
 		return GeminiTierAIStudioPaid
-	case "GOOGLE_ONE_FREE":
-		return GeminiTierGoogleOneFree
-	case "GOOGLE_AI_PRO":
-		return GeminiTierGoogleAIPro
-	case "GOOGLE_AI_ULTRA":
-		return GeminiTierGoogleAIUltra
 	case "GCP_STANDARD":
 		return GeminiTierGCPStandard
 	case "GCP_ENTERPRISE":
@@ -556,12 +545,10 @@ func GeminiCooldownForTier(tierID string) time.Duration {
 // record. Nil, other platforms, and third-party API Key records return empty
 // so official local quota simulation does not apply.
 //
-// A recognized compatible tier wins unless it is Unknown. Otherwise the OAuth
-// variant selects Google One Free, Code Assist Standard, or AI Studio Free.
-// Record.GeminiOAuthType returns empty for non-OAuth types, allowing
-// recognized tiers through unknown-variant filtering but selecting AI Studio
-// when tier is unresolved. Custom policy keys remain available to direct
-// lookup; unknown credential tier text instead uses this default.
+// A recognized compatible tier wins; otherwise the OAuth variant selects Code
+// Assist Standard or AI Studio Free. Record.GeminiOAuthType returns empty for
+// non-OAuth types, allowing recognized tiers through unknown-variant filtering
+// but selecting AI Studio when tier is unresolved.
 func GeminiQuotaTierKeyForProvider(provider *Record) string {
 	if provider == nil || provider.Platform != PlatformGemini {
 		return ""
@@ -577,9 +564,8 @@ func GeminiQuotaTierKeyForProvider(provider *Record) string {
 	rawTier := strings.TrimSpace(provider.GeminiTierID())
 
 	// Recognized compatible credentials keep their tier-specific policy before
-	// variant defaults apply. Unresolved or Unknown observations continue to the
-	// modeled default family below.
-	if tierID := CanonicalGeminiTierIDForOAuthType(oauthType, rawTier); tierID != "" && tierID != GeminiTierGoogleOneUnknown {
+	// variant defaults apply.
+	if tierID := CanonicalGeminiTierIDForOAuthType(oauthType, rawTier); tierID != "" {
 		return tierID
 	}
 
@@ -587,8 +573,6 @@ func GeminiQuotaTierKeyForProvider(provider *Record) string {
 	// still run with its modeled family. Empty or unknown variants select AI
 	// Studio.
 	switch oauthType {
-	case "google_one":
-		return GeminiTierGoogleOneFree
 	case "code_assist":
 		return GeminiTierGCPStandard
 	case "ai_studio":

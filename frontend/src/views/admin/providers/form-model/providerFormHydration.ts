@@ -610,7 +610,6 @@ export function hydrateProviderFormDraft(
   if (newProvider.platform === 'antigravity') {
     const configuredProjectID = credentials?.[ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY]
     antigravityProjectId.value = typeof configuredProjectID === 'string' ? configuredProjectID : ''
-    antigravityModelRestrictionMode.value = 'mapping'
     antigravityWhitelistModels.value = Array.isArray(credentials?.model_whitelist)
       ? [...(credentials.model_whitelist as string[])]
       : []
@@ -619,16 +618,10 @@ export function hydrateProviderFormDraft(
       const entries = Object.entries(rawAgMapping)
       antigravityModelMappings.value = entries.map(([from, to]) => ({ from, to }))
     } else {
-      const rawWhitelist = credentials?.model_whitelist
-      if (Array.isArray(rawWhitelist) && rawWhitelist.length > 0) {
-        antigravityModelMappings.value = rawWhitelist
-          .map((v) => String(v).trim())
-          .filter((v) => v.length > 0)
-          .map((m) => ({ from: m, to: m }))
-      } else {
-        antigravityModelMappings.value = []
-      }
+      antigravityModelMappings.value = []
     }
+    antigravityModelRestrictionMode.value =
+      antigravityModelMappings.value.length > 0 ? 'mapping' : 'whitelist'
   } else {
     antigravityProjectId.value = ''
     antigravityModelRestrictionMode.value = 'mapping'

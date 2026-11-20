@@ -1,23 +1,33 @@
 package provider
 
-import "time"
+import (
+	"time"
 
-// antigravity_authorization_sessions.go retains Antigravity state and PKCE
-// proof
-// with the proxy selected for authorization code exchange. The typed store uses
-// authorizationSessionStore to check creation-time expiry and remove expired
-// entries while AntigravityAuthorization owns the exchange workflow.
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
+)
+
+// antigravity_authorization_sessions.go retains Antigravity state, PKCE proof,
+// proxy routing, and recoverable exchanged tokens during code exchange.
+// The typed store uses authorizationSessionStore to check creation-time expiry
+// and remove expired entries while AntigravityAuthorization owns the exchange workflow.
 
 // AntigravitySessionTTL bounds authorization proof reuse while Get checks age
 // and periodic cleanup removes expired entries.
 const AntigravitySessionTTL = 30 * time.Minute
 
-// AntigravityAuthorizationSession retains temporary OAuth proof and the
-// selected authorization request context.
+// AntigravityAuthorizationSession retains temporary OAuth proof, optional
+// project selection, and any cached exchanged token awaiting Project ID completion.
 type AntigravityAuthorizationSession struct {
-	State        string `json:"state"`               // generated OAuth state proof
-	CodeVerifier string `json:"code_verifier"`       // stored PKCE verifier text
-	ProxyURL     string `json:"proxy_url,omitempty"` // selected authorization proxy URL
+	State        string `json:"state"`                // generated OAuth state proof
+	CodeVerifier string `json:"code_verifier"`        // stored PKCE verifier text
+	ProxyURL     string `json:"proxy_url,omitempty"`  // selected authorization proxy URL
+	ProjectID    string `json:"project_id,omitempty"` // optional operator-supplied GCP project ID
+	// ExchangedToken, ExchangedCodeHash, and ExchangedAt cache a successfully
+	// exchanged Google token when project discovery requires operator input or
+	// verification, allowing retry with the same code without a second login.
+	ExchangedToken    *google.AntigravityTokenResponse `json:"-"` // cached exchanged token response
+	ExchangedCodeHash string                           `json:"-"` // hex SHA-256 of trimmed exchanged code
+	ExchangedAt       time.Time                        `json:"-"` // timestamp when ExchangedToken was obtained
 	// CreatedAt anchors lookup expiry and periodic removal. Keep it unchanged
 	// while the retained session is stored and read by the cleanup worker.
 	CreatedAt time.Time `json:"created_at"`
@@ -61,8 +71,7 @@ func (s *AntigravityAuthorizationSessions) Get(sessionID string) (*AntigravityAu
 
 // Delete removes sessionID from subsequent lookups and accepts an absent ID.
 // Borrowers retain previously returned pointers, so callers coordinate
-// exclusive
-// exchange separately from the store's Get and Delete operations.
+// exclusive exchange separately from the store's Get and Delete operations.
 func (s *AntigravityAuthorizationSessions) Delete(sessionID string) {
 	s.delete(sessionID)
 }

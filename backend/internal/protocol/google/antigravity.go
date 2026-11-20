@@ -10,9 +10,10 @@ import (
 // antigravity.go decodes Antigravity account, tier, and model metadata and
 // selects subscription and privacy observations.
 // Antigravity discovery combines project identity, registered tiers, credit
-// balances, and model quota observations. Tier responses accept both ID strings
-// and objects; string decoding updates the identifier alone, while object
-// decoding replaces the complete tier value after successful parsing.
+// balances, and model quota observations. Tier and companion-project responses
+// accept both ID strings and objects; TierInfo string decoding updates the
+// identifier alone, while object decoding replaces the complete tier value after
+// successful parsing.
 //
 // Paid-tier selection, credit access, and privacy checks expose different
 // caller-visible rules. Returned credit slices remain shared with the paid
@@ -40,12 +41,17 @@ type AntigravityUserInfo struct {
 	Picture    string `json:"picture,omitempty"`     // returned picture URL
 }
 
-// AntigravityLoadCodeAssistRequest supplies client IDE metadata for project and tier discovery.
+// AntigravityLoadCodeAssistRequest supplies optional project hints and client
+// IDE metadata for project and tier discovery.
 type AntigravityLoadCodeAssistRequest struct {
-	Metadata struct {
-		IDEType    string `json:"ideType"`    // client IDE identifier
-		IDEVersion string `json:"ideVersion"` // client IDE version
-		IDEName    string `json:"ideName"`    // client IDE name
+	CloudAICompanionProject string `json:"cloudaicompanionProject,omitempty"` // optional caller-supplied GCP project ID
+	Metadata                struct {
+		IDEType     string `json:"ideType"`               // client IDE identifier
+		IDEVersion  string `json:"ideVersion,omitempty"`  // client IDE version
+		IDEName     string `json:"ideName,omitempty"`     // client IDE name
+		Platform    string `json:"platform,omitempty"`    // optional client platform identifier
+		PluginType  string `json:"pluginType,omitempty"`  // optional client plugin identifier
+		DuetProject string `json:"duetProject,omitempty"` // optional companion project ID hint
 	} `json:"metadata"` // requesting client metadata
 }
 
@@ -56,23 +62,42 @@ type AntigravityTierInfo struct {
 	Description string `json:"description"` // returned tier description
 }
 
-// AntigravityIneligibleTier holds an unavailable tier and its reported ineligibility reason.
+// AntigravityIneligibleTier holds an unavailable tier and its reported
+// ineligibility reason and remediation URLs.
 type AntigravityIneligibleTier struct {
-	Tier *AntigravityTierInfo `json:"tier,omitempty"` // optional unavailable tier
-	// ReasonCode can carry a supplier label such as INELIGIBLE_ACCOUNT.
-	ReasonCode    string `json:"reasonCode,omitempty"`    // reported ineligibility code
-	ReasonMessage string `json:"reasonMessage,omitempty"` // reported ineligibility message
+	// Tier, TierID, and TierName carry alternative upstream tier identifiers:
+	// newer responses populate top-level tierId and tierName, while older
+	// responses nest a tier object.
+	Tier     *AntigravityTierInfo `json:"tier,omitempty"`     // optional unavailable tier object
+	TierID   string               `json:"tierId,omitempty"`   // top-level unavailable tier ID
+	TierName string               `json:"tierName,omitempty"` // top-level unavailable tier name
+	// ReasonCode can carry a supplier label such as INELIGIBLE_ACCOUNT or VALIDATION_REQUIRED.
+	ReasonCode             string `json:"reasonCode,omitempty"`             // reported ineligibility code
+	ReasonMessage          string `json:"reasonMessage,omitempty"`          // reported ineligibility message
+	ValidationErrorMessage string `json:"validationErrorMessage,omitempty"` // validation prompt message
+	ValidationURL          string `json:"validationUrl,omitempty"`          // interactive account-validation URL
+	ValidationLearnMoreURL string `json:"validationLearnMoreUrl,omitempty"` // validation documentation URL
 }
 
 // AntigravityLoadCodeAssistResponse holds project identity, registered tiers, and unavailable tier observations.
 type AntigravityLoadCodeAssistResponse struct {
-	CloudAICompanionProject string `json:"cloudaicompanionProject"` // discovered project identifier
+	// CloudAICompanionProject holds the discovered GCP project identifier
+	// decoded from either a JSON string or an object containing an id field.
+	CloudAICompanionProject string `json:"cloudaicompanionProject"`
 	// CurrentTier and PaidTier are alternative registered observations.
 	// GetTier prefers a nonempty paid ID, otherwise the current ID; absent
 	// objects leave discovery and subscription interpretation to provider callers.
 	CurrentTier     *AntigravityTierInfo         `json:"currentTier,omitempty"`     // current registered tier
 	PaidTier        *AntigravityPaidTierInfo     `json:"paidTier,omitempty"`        // paid registered tier
+	AllowedTiers    []AntigravityAllowedTier     `json:"allowedTiers,omitempty"`    // optional advertised onboarding tiers
 	IneligibleTiers []*AntigravityIneligibleTier `json:"ineligibleTiers,omitempty"` // reported unavailable tiers
+}
+
+// AntigravityAllowedTier holds an onboarding tier advertised during Antigravity discovery.
+type AntigravityAllowedTier struct {
+	ID        string `json:"id"`                  // upstream onboarding tier identifier
+	Name      string `json:"name,omitempty"`      // optional tier display name
+	IsDefault bool   `json:"isDefault,omitempty"` // whether upstream marks this tier as default
 }
 
 // AntigravityPaidTierInfo holds a registered paid tier and its credit observations.
@@ -93,13 +118,18 @@ type AntigravityAvailableCredit struct {
 	MinimumCreditAmountForUsage string `json:"minimumCreditAmountForUsage,omitempty"` // reported usage-threshold text
 }
 
-// AntigravityOnboardUserRequest supplies a selected tier and client metadata for onboarding.
+// AntigravityOnboardUserRequest supplies a selected tier, optional project ID,
+// and client metadata for onboarding.
 type AntigravityOnboardUserRequest struct {
-	TierID   string `json:"tierId"` // selected onboarding tier
-	Metadata struct {
-		IDEType    string `json:"ideType"`              // client IDE identifier
-		Platform   string `json:"platform,omitempty"`   // client platform identifier
-		PluginType string `json:"pluginType,omitempty"` // client plugin identifier
+	TierID string `json:"tierId"` // selected onboarding tier
+	// CloudAICompanionProject supplies an explicit GCP project ID for non-free
+	// tiers; callers omit it on free-tier to satisfy upstream preconditions.
+	CloudAICompanionProject string `json:"cloudaicompanionProject,omitempty"`
+	Metadata                struct {
+		IDEType     string `json:"ideType"`               // client IDE identifier
+		Platform    string `json:"platform,omitempty"`    // client platform identifier
+		PluginType  string `json:"pluginType,omitempty"`  // client plugin identifier
+		DuetProject string `json:"duetProject,omitempty"` // optional companion project ID hint
 	} `json:"metadata"` // requesting client metadata
 }
 
@@ -146,6 +176,45 @@ type AntigravityFetchAvailableModelsRequest struct {
 type AntigravityFetchAvailableModelsResponse struct {
 	Models             map[string]AntigravityModelInfo           `json:"models"`                       // ID-keyed model metadata
 	DeprecatedModelIDs map[string]AntigravityDeprecatedModelInfo `json:"deprecatedModelIds,omitempty"` // deprecated-ID successor mappings
+}
+
+// AntigravityRetrieveUserQuotaSummaryRequest selects optional project context
+// for the upstream family-grouped quota summary call.
+type AntigravityRetrieveUserQuotaSummaryRequest struct {
+	Project string `json:"project,omitempty"` // optional companion or GCP project identifier
+}
+
+// AntigravityQuotaSummaryBucket holds one rolling usage window reported by
+// retrieveUserQuotaSummary. RemainingFraction uses a pointer because proto3
+// JSON omits zero values when an active resetTime marks a depleted bucket.
+type AntigravityQuotaSummaryBucket struct {
+	BucketID          string   `json:"bucketId,omitempty"`          // bucket identifier (e.g. gemini-weekly, gemini-5h, 3p-weekly, 3p-5h)
+	ID                string   `json:"id,omitempty"`                // alternate bucket identifier
+	DisplayName       string   `json:"displayName,omitempty"`       // supplier window display label
+	Window            string   `json:"window,omitempty"`            // window label (e.g. weekly, 5h)
+	QuotaBucketType   string   `json:"quotaBucketType,omitempty"`   // LONG_TERM or SHORT_TERM bucket type
+	RemainingFraction *float64 `json:"remainingFraction,omitempty"` // remaining quota fraction in [0, 1]
+	ResetTime         string   `json:"resetTime,omitempty"`         // RFC3339 reset timestamp
+	Disabled          bool     `json:"disabled,omitempty"`          // whether the bucket is disabled
+}
+
+// AntigravityQuotaSummaryGroup holds a model-family group and its rolling usage
+// buckets from retrieveUserQuotaSummary.
+type AntigravityQuotaSummaryGroup struct {
+	ID          string                          `json:"id,omitempty"`          // group identifier
+	GroupID     string                          `json:"groupId,omitempty"`     // alternate group identifier
+	DisplayName string                          `json:"displayName,omitempty"` // group title (e.g. Gemini Models, Claude and GPT models)
+	Name        string                          `json:"name,omitempty"`        // alternate group name
+	Description string                          `json:"description,omitempty"` // optional group description
+	Buckets     []AntigravityQuotaSummaryBucket `json:"buckets,omitempty"`     // window buckets within this group
+}
+
+// AntigravityRetrieveUserQuotaSummaryResponse holds family-grouped 5-hour and
+// weekly quota observations returned by v1internal:retrieveUserQuotaSummary.
+type AntigravityRetrieveUserQuotaSummaryResponse struct {
+	Groups      []AntigravityQuotaSummaryGroup  `json:"groups,omitempty"`      // model-family quota groups
+	Buckets     []AntigravityQuotaSummaryBucket `json:"buckets,omitempty"`     // optional top-level quota buckets
+	Description string                          `json:"description,omitempty"` // optional summary description
 }
 
 // AntigravitySetUserSettingsRequest supplies settings fields for the upstream settings update.
@@ -262,11 +331,54 @@ func (c *AntigravityAvailableCredit) GetMinimumAmount() float64 {
 	return value
 }
 
+// UnmarshalJSON decodes an Antigravity discovery response while normalizing
+// cloudaicompanionProject from either a JSON string or an {"id":"..."} object.
+// Empty or null input leaves the receiver unchanged, and invalid JSON returns
+// an error without mutating the receiver.
+//
+// Upstream Code Assist endpoints return cloudaicompanionProject as an object on
+// some account tiers and as a plain string on others. Decoding both shapes into
+// CloudAICompanionProject keeps callers independent of that wire difference.
+func (r *AntigravityLoadCodeAssistResponse) UnmarshalJSON(data []byte) error {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	// wireResponse mirrors AntigravityLoadCodeAssistResponse while deferring
+	// polymorphic project decoding until top-level JSON parsing succeeds.
+	type wireResponse struct {
+		CloudAICompanionProject json.RawMessage              `json:"cloudaicompanionProject"`
+		CurrentTier             *AntigravityTierInfo         `json:"currentTier,omitempty"`
+		PaidTier                *AntigravityPaidTierInfo     `json:"paidTier,omitempty"`
+		AllowedTiers            []AntigravityAllowedTier     `json:"allowedTiers,omitempty"`
+		IneligibleTiers         []*AntigravityIneligibleTier `json:"ineligibleTiers,omitempty"`
+	}
+	var raw wireResponse
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	projectID, err := decodeAntigravityCompanionProject(raw.CloudAICompanionProject)
+	if err != nil {
+		return err
+	}
+	*r = AntigravityLoadCodeAssistResponse{
+		CloudAICompanionProject: projectID,
+		CurrentTier:             raw.CurrentTier,
+		PaidTier:                raw.PaidTier,
+		AllowedTiers:            raw.AllowedTiers,
+		IneligibleTiers:         raw.IneligibleTiers,
+	}
+	return nil
+}
+
 // GetTier selects the registered identifier from a nonnil discovery response.
 // A nonempty paid ID wins, including whitespace; otherwise a current-tier
 // object supplies its ID. Missing tiers return empty without consulting
 // ineligible-tier observations or normalizing the selected identifier.
 func (r *AntigravityLoadCodeAssistResponse) GetTier() string {
+	if r == nil {
+		return ""
+	}
 	if r.PaidTier != nil && r.PaidTier.ID != "" {
 		return r.PaidTier.ID
 	}
@@ -282,7 +394,7 @@ func (r *AntigravityLoadCodeAssistResponse) GetTier() string {
 // nonnil discovery response, or nil when no paid tier exists. Callers copy
 // entries before independent mutable use; the getter performs no balance filtering.
 func (r *AntigravityLoadCodeAssistResponse) GetAvailableCredits() []AntigravityAvailableCredit {
-	if r.PaidTier == nil {
+	if r == nil || r.PaidTier == nil {
 		return nil
 	}
 	return r.PaidTier.AvailableCredits
@@ -336,4 +448,30 @@ func (r *AntigravitySetUserSettingsResponse) IsSuccess() bool {
 	}
 	_, hasTelemetry := r.UserSettings["telemetryEnabled"]
 	return !hasTelemetry
+}
+
+// decodeAntigravityCompanionProject decodes a string or {"id":"..."} JSON
+// field into a companion project identifier.
+func decodeAntigravityCompanionProject(raw json.RawMessage) (string, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+	if raw[0] == '"' {
+		// Standard responses return cloudaicompanionProject directly as a JSON string.
+		var id string
+		if err := json.Unmarshal(raw, &id); err != nil {
+			return "", err
+		}
+		return id, nil
+	}
+	// Enterprise and newer responses can wrap the companion project ID inside an object.
+	type projectObj struct {
+		ID string `json:"id"`
+	}
+	var obj projectObj
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return "", err
+	}
+	return obj.ID, nil
 }

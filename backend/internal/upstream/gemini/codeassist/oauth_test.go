@@ -6,6 +6,9 @@ import (
 	"testing"
 )
 
+// oauth_test.go verifies PKCE helpers, scope normalization, built-in client
+// filtering, and authorization URL construction for Code Assist and AI Studio.
+
 // TestGenerateRandomBytes requests zero and several positive byte lengths from
 // the shared generator. It checks every successful sample has the requested
 // length and reports a returned error for the corresponding input.
@@ -273,10 +276,9 @@ func TestBuildAuthorizationURL_WithProjectID(t *testing.T) {
 	}
 }
 
-// TestBuildAuthorizationURL_UsesBuiltinSecretFallback clears the secret
-// environment value and leaves client configuration empty. It checks consent
-// URL construction still selects the built-in client ID using its configured
-// constant.
+// TestBuildAuthorizationURL_UsesBuiltinSecretFallback leaves client
+// configuration empty. It checks consent URL construction selects the built-in
+// client ID using its configured constant.
 func TestBuildAuthorizationURL_UsesBuiltinSecretFallback(t *testing.T) {
 	authURL, err := BuildAuthorizationURL(
 		OAuthConfig{},
@@ -294,11 +296,10 @@ func TestBuildAuthorizationURL_UsesBuiltinSecretFallback(t *testing.T) {
 	}
 }
 
-// TestEffectiveOAuthConfig_GoogleOne compares built-in and custom credential
-// inputs across Google One and Code Assist variants. It checks selected client
-// IDs and scopes, including default scopes after an entirely filtered built-in
-// list.
-func TestEffectiveOAuthConfig_GoogleOne(t *testing.T) {
+// TestEffectiveOAuthConfig_CodeAssistBuiltinScopePolicy compares built-in and
+// custom credential inputs for Code Assist. Restricted scopes on the built-in
+// client must be filtered or fall back to DefaultCodeAssistScopes.
+func TestEffectiveOAuthConfig_CodeAssistBuiltinScopePolicy(t *testing.T) {
 	tests := []struct {
 		name         string      // case identity label
 		input        OAuthConfig // configured credential and scope input
@@ -308,47 +309,28 @@ func TestEffectiveOAuthConfig_GoogleOne(t *testing.T) {
 		wantErr      bool        // expected configuration error presence
 	}{
 		{
-			name:         "Google One 使用内置客户端（空配置）",
+			name:         "Code Assist built-in client default scopes",
 			input:        OAuthConfig{},
-			oauthType:    "google_one",
+			oauthType:    "code_assist",
 			wantClientID: GeminiCLIOAuthClientID,
 			wantScopes:   DefaultCodeAssistScopes,
 			wantErr:      false,
 		},
 		{
-			name: "Google One 使用自定义客户端（传入自定义凭据时使用自定义）",
-			input: OAuthConfig{
-				ClientID:     "custom-client-id",
-				ClientSecret: "custom-client-secret",
-			},
-			oauthType:    "google_one",
-			wantClientID: "custom-client-id",
-			wantScopes:   DefaultCodeAssistScopes,
-			wantErr:      false,
-		},
-		{
-			name: "Google One 内置客户端 + 自定义 scopes（应过滤受限 scopes）",
+			name: "Code Assist built-in client filters restricted scopes",
 			input: OAuthConfig{
 				Scopes: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/drive.readonly",
 			},
-			oauthType:    "google_one",
+			oauthType:    "code_assist",
 			wantClientID: GeminiCLIOAuthClientID,
 			wantScopes:   "https://www.googleapis.com/auth/cloud-platform",
 			wantErr:      false,
 		},
 		{
-			name: "Google One 内置客户端 + 仅受限 scopes（应回退到默认）",
+			name: "Code Assist built-in client falls back when all scopes are restricted",
 			input: OAuthConfig{
 				Scopes: "https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/drive.readonly",
 			},
-			oauthType:    "google_one",
-			wantClientID: GeminiCLIOAuthClientID,
-			wantScopes:   DefaultCodeAssistScopes,
-			wantErr:      false,
-		},
-		{
-			name:         "Code Assist 使用内置客户端",
-			input:        OAuthConfig{},
 			oauthType:    "code_assist",
 			wantClientID: GeminiCLIOAuthClientID,
 			wantScopes:   DefaultCodeAssistScopes,
@@ -373,37 +355,6 @@ func TestEffectiveOAuthConfig_GoogleOne(t *testing.T) {
 				t.Errorf("EffectiveOAuthConfig() Scopes = %v, want %v", got.Scopes, tt.wantScopes)
 			}
 		})
-	}
-}
-
-// TestEffectiveOAuthConfig_ScopeFiltering combines cloud, profile, Generative
-// Language, and Drive scopes for the built-in Google One client. It checks
-// retained cloud/profile tokens and removal of both restricted prefix
-// families.
-func TestEffectiveOAuthConfig_ScopeFiltering(t *testing.T) {
-	cfg, err := EffectiveOAuthConfig(OAuthConfig{
-		Scopes: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.profile",
-	}, "google_one")
-	if err != nil {
-		t.Fatalf("EffectiveOAuthConfig() error = %v", err)
-	}
-
-	// The built-in client retains cloud-platform and userinfo scopes.
-	// Generative Language and Drive scopes are filtered.
-	if strings.Contains(cfg.Scopes, "generative-language") {
-		t.Errorf("使用内置客户端时 Scopes 不应包含 generative-language，实际: %v", cfg.Scopes)
-	}
-	if strings.Contains(cfg.Scopes, "drive") {
-		t.Errorf("使用内置客户端时 Scopes 不应包含 drive，实际: %v", cfg.Scopes)
-	}
-	if !strings.Contains(cfg.Scopes, "cloud-platform") {
-		t.Errorf("Scopes 应包含 cloud-platform，实际: %v", cfg.Scopes)
-	}
-	if !strings.Contains(cfg.Scopes, "userinfo.email") {
-		t.Errorf("Scopes 应包含 userinfo.email，实际: %v", cfg.Scopes)
-	}
-	if !strings.Contains(cfg.Scopes, "userinfo.profile") {
-		t.Errorf("Scopes 应包含 userinfo.profile，实际: %v", cfg.Scopes)
 	}
 }
 
@@ -442,9 +393,6 @@ func TestEffectiveOAuthConfig_OnlyClientSecret_NoID(t *testing.T) {
 // client uses Code Assist defaults according to the local restricted-scope
 // policy.
 func TestEffectiveOAuthConfig_AIStudio_DefaultScopes_BuiltinClient(t *testing.T) {
-	// The local AI Studio policy selects Code Assist defaults for the built-in
-	// client; the configured scope filter classifies Generative Language and Drive
-	// prefixes as restricted.
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{}, "ai_studio")
 	if err != nil {
 		t.Fatalf("EffectiveOAuthConfig() error = %v", err)
@@ -560,9 +508,8 @@ func TestEffectiveOAuthConfig_WhitespaceTriming(t *testing.T) {
 	}
 }
 
-// TestEffectiveOAuthConfig_NoEnvSecret clears the secret environment variable
-// and omits configured credentials. It checks the built-in client ID and
-// nonblank secret remain available from their constants.
+// TestEffectiveOAuthConfig_NoEnvSecret omits configured credentials. It checks
+// the built-in client ID and nonblank secret remain available from constants.
 func TestEffectiveOAuthConfig_NoEnvSecret(t *testing.T) {
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{}, "code_assist")
 	if err != nil {
@@ -622,16 +569,14 @@ func TestEffectiveOAuthConfig_EmptyOAuthType_DefaultScopes(t *testing.T) {
 }
 
 // TestEffectiveOAuthConfig_CustomClient_NoScopeFiltering supplies a complete
-// custom Google One identity with both restricted prefix families. It checks
-// those configured scopes remain available because built-in filtering is keyed
-// by client ID.
+// custom AI Studio identity with restricted prefix families. It checks those
+// configured scopes remain available because built-in filtering is keyed by client ID.
 func TestEffectiveOAuthConfig_CustomClient_NoScopeFiltering(t *testing.T) {
-	// Custom clients retain scopes that are restricted for the built-in client.
 	cfg, err := EffectiveOAuthConfig(OAuthConfig{
 		ClientID:     "custom-id",
 		ClientSecret: "custom-secret",
 		Scopes:       "https://www.googleapis.com/auth/generative-language.retriever https://www.googleapis.com/auth/drive.readonly",
-	}, "google_one")
+	}, "ai_studio")
 	if err != nil {
 		t.Fatalf("EffectiveOAuthConfig() error = %v", err)
 	}

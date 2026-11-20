@@ -40,8 +40,8 @@ import (
 // privacy operations, and runtime presentation. Provider management combines
 // current runtime status, stored configuration, model catalogs, privacy, and
 // coordinated refresh. New provider snapshots enter the import probe queue,
-// while model, tier, and privacy query services register their own waits before
-// shared transport and storage are closed.
+// while model and privacy query services register their own waits before shared
+// transport and storage are closed.
 
 // providerGroupReferences adapts routing group data for provider administration
 // rules.
@@ -107,7 +107,7 @@ func (g providerGroupReferences) ValidateGroups(ctx context.Context, ids []int64
 // presentation, and batch operations for HTTP. Report dates use the supplied
 // calendar, query errors retain their cause, and both single and batch creation
 // schedule captured provider snapshots through the shared import probe queue.
-func provideProviderManagement(admin *provider.Admin, presenter *providerhttp.RuntimePresenter, ollama *provider.OllamaCloudUsageService, privacy *provider.PrivacyService, probes *provider.GrokImportProbeScheduler, quota *provider.GrokQuotaService, managed *provider.ManagedRefreshService, tasks *lifecycle.Tasks, recovery *provider.RecoveryService, listing *provider.ManagementList, catalog *routing.AdminCatalog, tier *provider.TierManagement, models *provider.ModelSyncService, usage *usagepostgres.Store, calendar timezone.Calendar) *providerhttp.ManagementHandler {
+func provideProviderManagement(admin *provider.Admin, presenter *providerhttp.RuntimePresenter, ollama *provider.OllamaCloudUsageService, privacy *provider.PrivacyService, probes *provider.GrokImportProbeScheduler, quota *provider.GrokQuotaService, managed *provider.ManagedRefreshService, tasks *lifecycle.Tasks, recovery *provider.RecoveryService, listing *provider.ManagementList, catalog *routing.AdminCatalog, models *provider.ModelSyncService, usage *usagepostgres.Store, calendar timezone.Calendar) *providerhttp.ManagementHandler {
 	query := func(ctx context.Context, id int64, start, end time.Time) (*usagetypes.ProviderUsageStatsResponse, error) {
 		value, err := usage.GetProviderUsageStats(ctx, id, start, end)
 		if err != nil {
@@ -115,7 +115,7 @@ func provideProviderManagement(admin *provider.Admin, presenter *providerhttp.Ru
 		}
 		return value, nil
 	}
-	return providerhttp.NewManagementHandler(admin, providerhttp.ManagementOptions{Models: models, Reports: providerhttp.ProviderReportOptions{Now: calendar.Now, StartOfDay: calendar.StartOfDay, Query: query}, Tier: tier, Catalog: catalog, ModelDefaults: provideradapter.ModelDefaults(), ModelRules: func(v *provider.Record) routing.CatalogueRules {
+	return providerhttp.NewManagementHandler(admin, providerhttp.ManagementOptions{Models: models, Reports: providerhttp.ProviderReportOptions{Now: calendar.Now, StartOfDay: calendar.StartOfDay, Query: query}, Catalog: catalog, ModelDefaults: provideradapter.ModelDefaults(), ModelRules: func(v *provider.Record) routing.CatalogueRules {
 		return (gatewayprovider.ModelPolicy{Record: v}).CatalogueRules()
 	}, List: listing, RuntimePresenter: presenter, Recovery: recovery, Batch: provider.NewManagementBatch(admin, managed, provider.ManagementCreationOptions{Privacy: privacy, Background: tasks.Go, AfterCreate: func(v *provider.Record) {
 		if v == nil {
@@ -182,13 +182,4 @@ func provideProviderRuntimePresenter(admin *provider.Admin, ollama *provider.Oll
 // adapter.
 func provideProviderManagementList(admin *provider.Admin, ollama *provider.OllamaCloudUsageService, concurrency *scheduler.ConcurrencyService, usage *usagepostgres.Store, sessions scheduler.SessionLimitCache, rpm scheduler.RPMCache, settings *provider.QuotaSettingsCache, shared *schedulerSharedState, store *settingscore.Store, cfg *config.Config) *provider.ManagementList {
 	return provider.NewManagementList(admin, provider.NewRuntimeStatusReader(provideradapter.RuntimeStatusOptions(concurrency, usage, sessions, rpm, settings)), provider.NewSchedulerScoreView(admin, providerScoreOptions(concurrency, shared, store, cfg)), ollama)
-}
-
-// provideProviderTier constructs tier queries with shared Gemini authorization
-// and provider administration. It registers query stop at level twenty-six, so
-// the service can wait before the application closes its shared dependencies.
-func provideProviderTier(admin *provider.Admin, source *provider.GeminiAuthorization, manager *lifecycle.Manager) *provider.TierManagement {
-	core := provider.NewTierManagement(admin, provider.ProviderTierManagementOptions(source))
-	manager.Register(lifecycle.Hook{Name: "ProviderTier", StopOrder: 26, Stop: core.StopContext})
-	return core
 }

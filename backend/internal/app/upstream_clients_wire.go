@@ -33,7 +33,6 @@ var upstreamClientProviders = wire.NewSet(
 	wire.Bind(new(provider.GrokAuthorizationClient), new(*grok.OAuthClient)),
 	codeassist.NewClient,
 	wire.Bind(new(provider.GeminiCodeAssistClient), new(*codeassist.Client)),
-	codeassist.NewDriveClient,
 	provideHTTPUpstream,
 	wire.Bind(new(provideradapter.QoderTransport), new(*gatewaytransport.Client)),
 )

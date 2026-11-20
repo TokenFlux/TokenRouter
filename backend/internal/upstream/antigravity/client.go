@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,18 +24,15 @@ import (
 // models, and user settings.
 // Antigravity account operations exchange OAuth credentials and discover
 // project, tier, model, and user-setting observations through Google
-// endpoints. Account/model queries try configured endpoints in order, while
-// user-setting operations use the fixed daily destination independently from
-// forwarding selection.
+// endpoints. Account queries try configured endpoints in order, paid quota
+// model queries can prioritize the daily endpoint before falling back to prod,
+// and user-setting operations target the fixed daily destination.
 //
 // Completed HTTP bodies are consumed and closed before endpoint retries;
-// onboarding repeats pending operations with cancellable waits and requires a
-// project identity when done. Model queries impose a caller-selected body
-// bound and replace redirect policy on a shallow HTTP-client copy, accepting
-// only configured hostnames. Shared protocol aliases retain supplier decoding
-// rules, so typed results and raw JSON observations can expose different
-// representations without this client deciding provider qualification or
-// privacy state.
+// onboarding polls named operations via GET /v1internal/{name} with cancellable
+// waits and falls back to repeating POST :onboardUser when upstream omits an
+// operation name. Model queries impose a caller-selected body bound and replace
+// redirect policy on a shallow HTTP-client copy, accepting only configured hostnames.
 
 const (
 	// proxyDialTimeout bounds proxy connection establishment within the
@@ -48,6 +46,9 @@ const (
 	// dispatch and response-body reading unless a caller-supplied client replaces
 	// it.
 	clientTimeout = 10 * time.Second
+	// defaultOnboardPollInterval sets the wait between pending onboarding checks
+	// when ClientOptions.OnboardPollInterval is zero or negative.
+	defaultOnboardPollInterval = 2 * time.Second
 
 	// privacyBaseURL selects the fixed daily destination for user-settings
 	// operations independently from configured account-query endpoint ordering.
@@ -66,7 +67,8 @@ type ForbiddenError struct {
 type Client struct {
 	// httpClient is shared by account operations; configure it before use and
 	// keep transport/client settings stable while requests are running.
-	httpClient *http.Client
+	httpClient          *http.Client
+	onboardPollInterval time.Duration // wait between pending onboarding checks
 }
 
 // AvailableCredit represents shared supplier credit balance metadata carried
@@ -84,6 +86,14 @@ type FetchAvailableModelsRequest = googlewire.AntigravityFetchAvailableModelsReq
 // FetchAvailableModelsResponse represents shared Antigravity models, quota
 // observations, and account-level response metadata.
 type FetchAvailableModelsResponse = googlewire.AntigravityFetchAvailableModelsResponse
+
+// RetrieveUserQuotaSummaryRequest represents the project-scoped Antigravity
+// quota-summary request envelope.
+type RetrieveUserQuotaSummaryRequest = googlewire.AntigravityRetrieveUserQuotaSummaryRequest
+
+// RetrieveUserQuotaSummaryResponse represents family-grouped Antigravity weekly
+// and 5-hour quota buckets returned by v1internal:retrieveUserQuotaSummary.
+type RetrieveUserQuotaSummaryResponse = googlewire.AntigravityRetrieveUserQuotaSummaryResponse
 
 // FetchUserInfoRequest represents the shared project-scoped request used to
 // fetch Antigravity user settings.
@@ -141,13 +151,26 @@ type TokenResponse = googlewire.AntigravityTokenResponse
 // the OAuth user endpoint.
 type UserInfo = googlewire.AntigravityUserInfo
 
-// ClientOptions holds an optional HTTPClient shared with the caller. Configure
-// that client before use and keep its settings stable during account
+// ClientOptions holds an optional HTTPClient and onboarding poll delay.
+// Configure HTTPClient before use and keep its settings stable during account
 // operations; nil keeps the constructed default client.
 type ClientOptions struct {
 	// HTTPClient replaces the constructed client when nonnil. It stays shared
 	// with the caller, which configures it before concurrent account operations.
 	HTTPClient *http.Client
+	// OnboardPollInterval overrides the two-second wait between pending
+	// onboarding polls when positive.
+	OnboardPollInterval time.Duration
+}
+
+// FetchAvailableModelsOptions configures response size bounds and endpoint
+// ordering for FetchAvailableModelsWithOptions.
+type FetchAvailableModelsOptions struct {
+	BodyLimit int64 // maximum response body bytes accepted
+	// PreferDaily queries ForwardBaseURLs ([daily, prod]) first and permits HTTP
+	// 401 on daily to fall back to prod so paid-tier quota reads match the
+	// daily forwarding pool while remaining resilient to prod-only tokens.
+	PreferDaily bool
 }
 
 // Error formats the model-query rejection status together with its captured
@@ -217,7 +240,8 @@ func NewClient(proxyURL string) (*Client, error) {
 		client.Transport = transport
 	}
 	return &Client{
-		httpClient: client,
+		httpClient:          client,
+		onboardPollInterval: defaultOnboardPollInterval,
 	}, nil
 }
 
@@ -267,6 +291,9 @@ func NewClientWithOptions(proxyURL string, options ClientOptions) (*Client, erro
 	}
 	if options.HTTPClient != nil {
 		client.httpClient = options.HTTPClient
+	}
+	if options.OnboardPollInterval > 0 {
+		client.onboardPollInterval = options.OnboardPollInterval
 	}
 	return client, nil
 }
@@ -394,22 +421,31 @@ func (c *Client) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo
 	return &userInfo, nil
 }
 
-// LoadCodeAssist returns decoded account details and a separately decoded raw
-// JSON object. It sends IDE metadata and a request-time User-Agent through
-// BaseURLs in configured order; callers serialize endpoint replacement with
-// requests.
+// LoadCodeAssist queries account tiers and project identity without an explicit
+// project hint, delegating to LoadCodeAssistWithProject.
+func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadCodeAssistResponse, map[string]any, error) {
+	return c.LoadCodeAssistWithProject(ctx, accessToken, "")
+}
+
+// LoadCodeAssistWithProject returns decoded account details and a separately
+// decoded raw JSON object. Optional projectID populates cloudaicompanionProject
+// and metadata.duetProject when nonblank, while BaseURLs are tried in
+// configured order.
 //
 // Request-construction failures move to the next endpoint, and classified
 // transport/status failures can move when another entry exists. Full-body read
 // or decoding errors stop the operation. Each received body closes before
 // another attempt, while status 200 and typed decoding precede success
-// recording. Raw decoding is best-effort after typed success, and availability
-// recording does not reorder this operation own endpoint list.
-func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadCodeAssistResponse, map[string]any, error) {
-	reqBody := LoadCodeAssistRequest{}
+// recording.
+func (c *Client) LoadCodeAssistWithProject(ctx context.Context, accessToken, projectID string) (*LoadCodeAssistResponse, map[string]any, error) {
+	trimmedProject := strings.TrimSpace(projectID)
+	reqBody := LoadCodeAssistRequest{
+		CloudAICompanionProject: trimmedProject,
+	}
 	reqBody.Metadata.IDEType = "ANTIGRAVITY"
-	reqBody.Metadata.IDEVersion = GetUserAgentVersionForContext(ctx)
+	reqBody.Metadata.IDEVersion = EffectiveUserAgentVersion(GetUserAgentVersionForContext(ctx))
 	reqBody.Metadata.IDEName = "antigravity"
+	reqBody.Metadata.DuetProject = trimmedProject
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -486,51 +522,76 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadC
 	return nil, nil, lastErr
 }
 
-// OnboardUser submits tier onboarding and returns a trimmed project ID from a
-// completed operation. tierID is trimmed and required; callers provide a live
-// context and serialize endpoint-list replacement with account requests.
-//
-// Each configured endpoint allows five POST observations. Pending operations
-// wait two seconds even after the last local observation before the loop
-// considers another endpoint. Eligible transport/status failures also advance
-// endpoints, while body/decode failures stop. Completion requires a string or
-// object project identity; a done response without it fails immediately. Every
-// received network body closes before waiting or retrying, and cancellation
-// selected during the pending wait returns its context error.
+// OnboardUser submits tier onboarding without an explicit project hint,
+// delegating to OnboardUserWithProject.
 func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (string, error) {
+	return c.OnboardUserWithProject(ctx, accessToken, tierID, "")
+}
+
+// OnboardUserWithProject submits tier onboarding with optional project hints
+// and returns a trimmed project ID from a completed operation. Non-free tiers
+// receive cloudaicompanionProject alongside metadata.duetProject, while
+// free-tier omits cloudaicompanionProject to satisfy upstream preconditions.
+//
+// Each configured endpoint allows five operation observations: the first sends
+// POST /v1internal:onboardUser with Hub control-plane headers, and pending
+// responses with a valid operation name poll GET /v1internal/{name} on later
+// attempts (or repeat POST :onboardUser when Name is blank).
+func (c *Client) OnboardUserWithProject(ctx context.Context, accessToken, tierID, projectID string) (string, error) {
 	tierID = strings.TrimSpace(tierID)
 	if tierID == "" {
 		return "", fmt.Errorf("tier_id is required")
 	}
+	trimmedProject := strings.TrimSpace(projectID)
 
 	reqBody := OnboardUserRequest{TierID: tierID}
+	if trimmedProject != "" && !strings.EqualFold(tierID, "free-tier") {
+		reqBody.CloudAICompanionProject = trimmedProject
+	}
 	reqBody.Metadata.IDEType = "ANTIGRAVITY"
 	reqBody.Metadata.Platform = "PLATFORM_UNSPECIFIED"
 	reqBody.Metadata.PluginType = "GEMINI"
+	reqBody.Metadata.DuetProject = trimmedProject
 
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("encode request: %w", err)
 	}
 
+	pollInterval := c.onboardPollInterval
+	if pollInterval <= 0 {
+		pollInterval = defaultOnboardPollInterval
+	}
+
 	availableURLs := BaseURLs
 	var lastErr error
 
 	for urlIdx, baseURL := range availableURLs {
-		apiURL := baseURL + "/v1internal:onboardUser"
+		postURL := strings.TrimRight(baseURL, "/") + "/v1internal:onboardUser"
+		var pendingOpName string
 
 		// Bound each endpoint to five operation observations before considering the
-		// next configured endpoint, keeping pending-operation polling separate from
-		// transport fallback classification.
+		// next configured endpoint, polling GET /v1internal/{name} once upstream
+		// assigns a long-running operation identifier.
 		for attempt := 1; attempt <= 5; attempt++ {
-			req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
+			var req *http.Request
+			if pendingOpName != "" {
+				getURL := strings.TrimRight(baseURL, "/") + "/v1internal/" + pendingOpName
+				req, err = http.NewRequestWithContext(ctx, http.MethodGet, getURL, nil)
+			} else {
+				req, err = http.NewRequestWithContext(ctx, http.MethodPost, postURL, bytes.NewReader(bodyBytes))
+			}
 			if err != nil {
 				lastErr = fmt.Errorf("create request: %w", err)
 				break
 			}
 			req.Header.Set("Authorization", "Bearer "+accessToken)
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
+			if pendingOpName == "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("User-Agent", GetOnboardUserAgentForContext(ctx))
+			req.Header.Set("X-Goog-Api-Client", GoogAPIClientHeader)
 
 			resp, err := servertiming.Do(c.httpClient, req)
 			if err != nil {
@@ -569,20 +630,31 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 			}
 
 			if onboardResp.Done {
-				if projectID := extractProjectIDFromOnboardResponse(onboardResp.Response); projectID != "" {
+				if resolved := extractProjectIDFromOnboardResponse(onboardResp.Response); resolved != "" {
 					DefaultURLAvailability.MarkSuccess(baseURL)
-					return projectID, nil
+					return resolved, nil
+				}
+				if trimmedProject != "" {
+					// Enterprise and BYOP accounts keep the caller-supplied project when
+					// onboarding completes without allocating a new companion project.
+					DefaultURLAvailability.MarkSuccess(baseURL)
+					return trimmedProject, nil
 				}
 				lastErr = fmt.Errorf("onboardUser completed without project_id")
 				return "", lastErr
 			}
 
+			if normalizedOp := normalizeAntigravityOperationName(onboardResp.Name); normalizedOp != "" {
+				pendingOpName = normalizedOp
+			}
+
 			// Wait after each pending operation, including the fifth observation, so
-			// endpoint advancement also follows the cancellable two-second polling
-			// interval.
+			// endpoint advancement also follows the cancellable polling interval.
+			timer := time.NewTimer(pollInterval)
 			select {
-			case <-time.After(2 * time.Second):
+			case <-timer.C:
 			case <-ctx.Done():
+				timer.Stop()
 				return "", ctx.Err()
 			}
 		}
@@ -592,6 +664,23 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 		return "", lastErr
 	}
 	return "", fmt.Errorf("onboardUser did not return project_id")
+}
+
+// normalizeAntigravityOperationName strips optional leading slashes and
+// v1internal/ prefixes and validates that name begins with operations/ without
+// path-traversal or query characters.
+func normalizeAntigravityOperationName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	trimmed = strings.TrimPrefix(trimmed, "v1internal/")
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	if !strings.HasPrefix(trimmed, "operations/") || len(trimmed) <= len("operations/") {
+		return ""
+	}
+	if strings.Contains(trimmed, "..") || strings.ContainsAny(trimmed, "?#\\ \t\r\n") {
+		return ""
+	}
+	return trimmed
 }
 
 // extractProjectIDFromOnboardResponse returns trimmed cloudaicompanionProject
@@ -616,23 +705,29 @@ func extractProjectIDFromOnboardResponse(resp map[string]any) string {
 	return ""
 }
 
-// FetchAvailableModels returns decoded models/quotas and best-effort raw JSON
-// from configured endpoints. The client must be configured, and callers supply
-// a positive bodyLimit whose increment fits int64; received bodies close after
-// bounded capture.
-//
-// Reading one byte beyond the limit distinguishes oversize before status
-// recovery or decoding. Classified endpoint failures can advance in source
-// order, but read/oversize/JSON failures stop. A 403 becomes ForbiddenError
-// with captured text, while status 200 and typed decoding precede success
-// recording. A shallow client copy replaces redirect policy with
-// configured-hostname checks; transport and jar remain shared with the source
-// client.
+// FetchAvailableModels queries configured endpoints in BaseURLs order using
+// bodyLimit, delegating to FetchAvailableModelsWithOptions.
 func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectID string, bodyLimit int64) (*FetchAvailableModelsResponse, map[string]any, error) {
+	return c.FetchAvailableModelsWithOptions(ctx, accessToken, projectID, FetchAvailableModelsOptions{
+		BodyLimit: bodyLimit,
+	})
+}
+
+// FetchAvailableModelsWithOptions returns decoded models/quotas and best-effort
+// raw JSON from configured endpoints. PreferDaily queries ForwardBaseURLs
+// ([daily, prod]) first so paid Google One accounts read quota from the daily
+// pool where their traffic executes, falling back to prod on HTTP 401 in
+// addition to 404/408/429/5xx and connection errors.
+//
+// Reading one byte beyond BodyLimit distinguishes oversize before status
+// recovery or decoding. A 403 becomes ForbiddenError with captured text, while
+// status 200 and typed decoding precede success recording. A shallow client
+// copy replaces redirect policy with configured-hostname checks.
+func (c *Client) FetchAvailableModelsWithOptions(ctx context.Context, accessToken, projectID string, options FetchAvailableModelsOptions) (*FetchAvailableModelsResponse, map[string]any, error) {
 	if c == nil || c.httpClient == nil {
 		return nil, nil, errors.New("antigravity client is not configured")
 	}
-	if bodyLimit <= 0 {
+	if options.BodyLimit <= 0 {
 		return nil, nil, errors.New("fetchAvailableModels body limit must be positive")
 	}
 
@@ -642,9 +737,12 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		return nil, nil, fmt.Errorf("encode request: %w", err)
 	}
 
-	// Keep configured account-query order instead of availability preference;
-	// previous successes are recorded for other consumers after typed decoding.
 	availableURLs := BaseURLs
+	if options.PreferDaily {
+		// Paid accounts consume quota on daily-cloudcode-pa; query daily first and
+		// keep prod second so stale tier labels still recover on HTTP 401/404.
+		availableURLs = ForwardBaseURLs()
+	}
 
 	fetchClient := c.fetchAvailableModelsHTTPClient()
 	var lastErr error
@@ -676,18 +774,19 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		// Read one extra byte before closing to detect oversize, so truncated
 		// supplier JSON cannot enter typed decoding as a successful bounded
 		// response.
-		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
+		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, options.BodyLimit+1))
 		_ = resp.Body.Close() // release the consumed network response
 		if err != nil {
 			return nil, nil, fmt.Errorf("read response: %w", err)
 		}
-		if int64(len(respBodyBytes)) > bodyLimit {
-			return nil, nil, fmt.Errorf("response exceeds %d bytes", bodyLimit)
+		if int64(len(respBodyBytes)) > options.BodyLimit {
+			return nil, nil, fmt.Errorf("response exceeds %d bytes", options.BodyLimit)
 		}
 
-		// Eligible status recovery follows complete body capture and closing, so
-		// advancing endpoints cannot leave this received stream owned by the loop.
-		if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {
+		// Eligible status recovery follows complete body capture and closing, plus
+		// HTTP 401 fallback when PreferDaily tries daily before prod.
+		canFallbackUnauthorized := options.PreferDaily && resp.StatusCode == http.StatusUnauthorized
+		if (shouldFallbackToNextURL(nil, resp.StatusCode) || canFallbackUnauthorized) && urlIdx < len(availableURLs)-1 {
 			logging.LegacyPrintf("upstream.antigravity", "[antigravity] fetchAvailableModels URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
 			continue
 		}
@@ -718,6 +817,114 @@ func (c *Client) FetchAvailableModels(ctx context.Context, accessToken, projectI
 		// configured ordering.
 		DefaultURLAvailability.MarkSuccess(baseURL)
 		return &modelsResp, rawResp, nil
+	}
+
+	return nil, nil, lastErr
+}
+
+// RetrieveUserQuotaSummary queries family-grouped weekly and 5-hour quota
+// buckets across ForwardBaseURLs ([daily, prod]) using bodyLimit.
+// Daily is preferred by default because v1internal:retrieveUserQuotaSummary
+// tracks sliding windows on daily-cloudcode-pa, falling back to prod on
+// connection errors or HTTP 401/404/408/429/5xx.
+func (c *Client) RetrieveUserQuotaSummary(ctx context.Context, accessToken, projectID string, bodyLimit int64) (*RetrieveUserQuotaSummaryResponse, map[string]any, error) {
+	return c.RetrieveUserQuotaSummaryWithOptions(ctx, accessToken, projectID, FetchAvailableModelsOptions{
+		BodyLimit:   bodyLimit,
+		PreferDaily: true,
+	})
+}
+
+// RetrieveUserQuotaSummaryWithOptions posts v1internal:retrieveUserQuotaSummary
+// across configured endpoints with bounded response reading and redirect checks.
+// Placeholder "aicode-consumers" or blank project IDs omit the project field;
+// HTTP 403 returns ForbiddenError, and typed JSON decoding precedes success
+// publication.
+func (c *Client) RetrieveUserQuotaSummaryWithOptions(ctx context.Context, accessToken, projectID string, options FetchAvailableModelsOptions) (*RetrieveUserQuotaSummaryResponse, map[string]any, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, nil, errors.New("antigravity client is not configured")
+	}
+	if options.BodyLimit <= 0 {
+		return nil, nil, errors.New("retrieveUserQuotaSummary body limit must be positive")
+	}
+
+	trimmedProject := strings.TrimSpace(projectID)
+	if strings.EqualFold(trimmedProject, "aicode-consumers") {
+		trimmedProject = ""
+	}
+	reqBody := RetrieveUserQuotaSummaryRequest{Project: trimmedProject}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode request: %w", err)
+	}
+
+	availableURLs := BaseURLs
+	if options.PreferDaily {
+		availableURLs = ForwardBaseURLs()
+	}
+
+	fetchClient := c.fetchAvailableModelsHTTPClient()
+	var lastErr error
+	for urlIdx, baseURL := range availableURLs {
+		apiURL := baseURL + "/v1internal:retrieveUserQuotaSummary"
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(string(bodyBytes)))
+		if err != nil {
+			// Skip an unusable endpoint URL while later entries remain available.
+			lastErr = fmt.Errorf("create request: %w", err)
+			continue
+		}
+		req.Header.Set("Authorization", "Bearer "+accessToken)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
+
+		resp, err := servertiming.Do(fetchClient, req)
+		if err != nil {
+			lastErr = fmt.Errorf("retrieveUserQuotaSummary request failed: %w", err)
+			// Advance to the next configured endpoint on connection failure when available.
+			if shouldFallbackToNextURL(err, 0) && urlIdx < len(availableURLs)-1 {
+				logging.LegacyPrintf("upstream.antigravity", "[antigravity] retrieveUserQuotaSummary URL fallback: %s -> %s", baseURL, availableURLs[urlIdx+1])
+				continue
+			}
+			return nil, nil, lastErr
+		}
+
+		// Read one byte past BodyLimit to detect oversized payloads before JSON decoding.
+		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, options.BodyLimit+1))
+		_ = resp.Body.Close()
+		if err != nil {
+			return nil, nil, fmt.Errorf("read response: %w", err)
+		}
+		if int64(len(respBodyBytes)) > options.BodyLimit {
+			return nil, nil, fmt.Errorf("response exceeds %d bytes", options.BodyLimit)
+		}
+
+		// Fall back from daily to prod on retryable status codes or HTTP 401 when PreferDaily is active.
+		canFallbackUnauthorized := options.PreferDaily && resp.StatusCode == http.StatusUnauthorized
+		if (shouldFallbackToNextURL(nil, resp.StatusCode) || canFallbackUnauthorized) && urlIdx < len(availableURLs)-1 {
+			logging.LegacyPrintf("upstream.antigravity", "[antigravity] retrieveUserQuotaSummary URL fallback (HTTP %d): %s -> %s", resp.StatusCode, baseURL, availableURLs[urlIdx+1])
+			continue
+		}
+
+		if resp.StatusCode == http.StatusForbidden {
+			return nil, nil, &ForbiddenError{
+				StatusCode: resp.StatusCode,
+				Body:       string(respBodyBytes),
+			}
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, nil, fmt.Errorf("retrieveUserQuotaSummary failed (HTTP %d): %s", resp.StatusCode, string(respBodyBytes))
+		}
+
+		var summaryResp RetrieveUserQuotaSummaryResponse
+		if err := json.Unmarshal(respBodyBytes, &summaryResp); err != nil {
+			return nil, nil, fmt.Errorf("parse response: %w", err)
+		}
+
+		var rawResp map[string]any
+		_ = json.Unmarshal(respBodyBytes, &rawResp)
+
+		DefaultURLAvailability.MarkSuccess(baseURL)
+		return &summaryResp, rawResp, nil
 	}
 
 	return nil, nil, lastErr
@@ -759,7 +966,7 @@ func isAllowedFetchAvailableModelsRedirectHost(host string) bool {
 	if host == "" {
 		return false
 	}
-	for _, baseURL := range BaseURLs {
+	for _, baseURL := range append(slices.Clone(BaseURLs), ForwardBaseURLs()...) {
 		parsed, err := url.Parse(baseURL)
 		// A malformed configured URL contributes no hostname to this redirect
 		// allowlist; continue checking other configured entries before rejecting.
@@ -796,7 +1003,7 @@ func (c *Client) SetUserSettings(ctx context.Context, accessToken string) (*SetU
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
-	req.Header.Set("X-Goog-Api-Client", "gl-node/22.21.1")
+	req.Header.Set("X-Goog-Api-Client", GoogAPIClientHeader)
 	req.Host = "daily-cloudcode-pa.googleapis.com"
 
 	resp, err := servertiming.Do(c.httpClient, req)
@@ -842,7 +1049,7 @@ func (c *Client) FetchUserInfo(ctx context.Context, accessToken, projectID strin
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("User-Agent", GetUserAgentForContext(ctx))
-	req.Header.Set("X-Goog-Api-Client", "gl-node/22.21.1")
+	req.Header.Set("X-Goog-Api-Client", GoogAPIClientHeader)
 	req.Host = "daily-cloudcode-pa.googleapis.com"
 
 	resp, err := servertiming.Do(c.httpClient, req)

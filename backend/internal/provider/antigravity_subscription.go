@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
@@ -67,5 +68,62 @@ func NormalizeAntigravitySubscription(resp *google.AntigravityLoadCodeAssistResp
 	}
 	return AntigravitySubscriptionResult{
 		PlanType: planType,
+	}
+}
+
+// ObservedAntigravityPlanType maps a nonblank upstream SubscriptionTierRaw from
+// UsageInfo to its display plan label. Empty or nil observations return empty
+// so failed LoadCodeAssist queries do not overwrite stored paid plans with Free.
+func ObservedAntigravityPlanType(info *UsageInfo) string {
+	if info == nil {
+		return ""
+	}
+	raw := strings.TrimSpace(info.SubscriptionTierRaw)
+	if raw == "" {
+		return ""
+	}
+	return google.AntigravityTierIDToPlanType(raw)
+}
+
+// PersistAntigravityObservedPlan updates stored and in-memory plan_type
+// credentials for an independent Antigravity provider when planType is nonblank
+// and differs case-insensitively from the current value. Nil stores, shadow
+// providers, blank plans, and storage errors leave the caller record unchanged.
+func PersistAntigravityObservedPlan(ctx context.Context, repo OpenAIPlanWriter, provider *Record, planType string, info, warn func(string, ...any)) {
+	if repo == nil || provider == nil || provider.Platform != PlatformAntigravity {
+		return
+	}
+	// Credential shadows inherit plan metadata from their parent provider.
+	if provider.IsCredentialShadow() {
+		return
+	}
+
+	planType = strings.TrimSpace(planType)
+	if planType == "" {
+		return
+	}
+
+	current := strings.TrimSpace(provider.GetCredential("plan_type"))
+	if strings.EqualFold(current, planType) {
+		return
+	}
+
+	// Persist before mutating the caller record so failed storage leaves the
+	// in-memory credentials unchanged.
+	if _, err := repo.BulkUpdate(ctx, []int64{provider.ID}, ProviderBulkUpdate{
+		Credentials: map[string]any{"plan_type": planType},
+	}); err != nil {
+		if warn != nil {
+			warn("antigravity_plan_type_sync_failed", "provider_id", provider.ID, "plan_type", planType, "error", err)
+		}
+		return
+	}
+
+	if provider.Credentials == nil {
+		provider.Credentials = make(map[string]any, 1)
+	}
+	provider.Credentials["plan_type"] = planType
+	if info != nil {
+		info("antigravity_plan_type_synced", "provider_id", provider.ID, "previous_plan_type", current, "plan_type", planType)
 	}
 }

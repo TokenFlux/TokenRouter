@@ -160,4 +160,30 @@ describe('PlatformTypeBadge', () => {
     expect(wrapper.classes()).toEqual(expect.arrayContaining(['h-3', 'w-3']))
     expect(wrapper.findAll('path')).toHaveLength(2)
   })
+
+  /**
+   * An Antigravity OAuth provider supplies Ultra or Pro subscription labels with
+   * privacy_set metadata. The badge normalizes Ultra and renders the amber paid
+   * palette beside the Private indicator.
+   */
+  it('renders Antigravity Ultra and Pro subscription tiers alongside privacy badges', async () => {
+    const wrapper = mount(PlatformTypeBadge, {
+      props: {
+        platform: 'antigravity',
+        type: 'oauth',
+        planType: 'ultra',
+        privacyMode: 'privacy_set',
+      },
+    })
+
+    expect(wrapper.text()).toContain('AntigravityOAuth')
+    expect(wrapper.text()).toContain('Ultra')
+    expect(wrapper.text()).toContain('Private')
+    expect(wrapper.find('span.bg-amber-100').exists()).toBe(true)
+
+    await wrapper.setProps({ planType: 'Pro' })
+    expect(wrapper.text()).toContain('Pro')
+    expect(wrapper.find('span.bg-violet-100').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })

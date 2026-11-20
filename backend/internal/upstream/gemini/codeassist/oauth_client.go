@@ -14,20 +14,19 @@ import (
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/google"
 )
 
-// oauth_client.go exchanges authorization codes and refresh tokens for the
-// selected Gemini OAuth account type.
-// Code Assist and Google One token exchanges use the built-in Gemini CLI
-// credentials even when configured credentials exist. AI Studio reads its
-// configured client on each exchange or refresh, and the shared HTTP client
-// pool supplies proxy routing and a sixty-second timeout.
+// oauth_client.go exchanges authorization codes and refresh tokens for Gemini
+// Code Assist and AI Studio OAuth accounts.
+// Code Assist token exchanges always use the built-in Gemini CLI credentials
+// even when custom AI Studio credentials exist in runtime configuration. AI
+// Studio reads its configured client on each exchange or refresh, and the
+// shared HTTP client pool supplies proxy routing and a sixty-second timeout.
 
 // OAuthClient exchanges Google authorization codes and refresh tokens using
 // dynamic configuration.
 type OAuthClient struct {
 	TokenURL string // Google token exchange endpoint
 	// Config is required and called once per exchange or refresh. Its current
-	// credentials are replaced for Code Assist and Google One before effective
-	// configuration is resolved.
+	// credentials are cleared for Code Assist before effective configuration is resolved.
 	Config func() OAuthConfig // current OAuth configuration callback
 }
 
@@ -43,15 +42,14 @@ func NewOAuthClient(config func() OAuthConfig) *OAuthClient {
 }
 
 // ExchangeCode exchanges the supplied code, verifier, and redirect URI for
-// token fields. Code Assist and Google One replace configured credentials with
-// the built-in client; HTTP, proxy, configuration, and decode errors return to
-// the caller.
+// token fields. Code Assist replaces configured credentials with the built-in
+// client; HTTP, proxy, configuration, and decode errors return to the caller.
 func (c *OAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*TokenResponse, error) {
 	// Resolve each request from current configuration, then clear configured
-	// credentials for the CLI variants so EffectiveOAuthConfig selects their
-	// built-in OAuth identity.
+	// credentials for Code Assist so EffectiveOAuthConfig selects the built-in
+	// Gemini CLI OAuth identity.
 	oauthCfgInput := c.Config()
-	if oauthType == "code_assist" || oauthType == "google_one" {
+	if oauthType == "code_assist" {
 		oauthCfgInput.ClientID = ""
 		oauthCfgInput.ClientSecret = ""
 	}
@@ -73,15 +71,14 @@ func (c *OAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVer
 }
 
 // RefreshToken exchanges refreshToken using current effective OAuth
-// configuration. Code Assist and Google One select built-in credentials before
-// resolving scopes; the returned fields are server observations and do not
-// validate access-token presence here.
+// configuration. Code Assist selects built-in credentials before resolving
+// scopes; the returned fields are server observations and do not validate
+// access-token presence here.
 func (c *OAuthClient) RefreshToken(ctx context.Context, oauthType, refreshToken, proxyURL string) (*TokenResponse, error) {
 	oauthCfgInput := c.Config()
-	if oauthType == "code_assist" || oauthType == "google_one" {
-		// Refresh with the same built-in client identity used by these CLI
-		// authorization variants, even when the current application configuration
-		// contains custom client credentials.
+	if oauthType == "code_assist" {
+		// Refresh with the same built-in client identity used during Code Assist
+		// authorization, even when runtime configuration holds custom AI Studio credentials.
 		oauthCfgInput.ClientID = ""
 		oauthCfgInput.ClientSecret = ""
 	}

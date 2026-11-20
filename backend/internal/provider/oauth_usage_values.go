@@ -45,12 +45,29 @@ type UsageProgress struct {
 	LimitRequests int64 `json:"limit_requests,omitempty"`
 }
 
-// AntigravityModelQuota carries displayed utilization and upstream reset text
-// for one model.
+// AntigravityModelQuota carries displayed utilization, upstream reset text, and
+// optional local usage statistics for one model or family quota window.
 type AntigravityModelQuota struct {
 	// percent used, truncated from remaining fraction
-	Utilization int    `json:"utilization"`
-	ResetTime   string `json:"reset_time"` // upstream model reset text
+	Utilization int          `json:"utilization"`
+	ResetTime   string       `json:"reset_time"`             // upstream model reset text
+	WindowStats *WindowStats `json:"window_stats,omitempty"` // optional local window totals
+}
+
+// AntigravityQuotaGroup summarizes weekly and 5-hour usage windows for one
+// Antigravity model family.
+type AntigravityQuotaGroup struct {
+	// Weekly and FiveHour hold optional rolling usage windows reported by
+	// retrieveUserQuotaSummary or derived from per-model quota observations.
+	Weekly   *AntigravityModelQuota `json:"weekly,omitempty"`    // 7-day rolling quota window
+	FiveHour *AntigravityModelQuota `json:"five_hour,omitempty"` // 5-hour rolling quota window
+}
+
+// AntigravityQuotaSummary groups Antigravity usage windows into Gemini and
+// Claude/GPT model families matching the Antigravity desktop Usage view.
+type AntigravityQuotaSummary struct {
+	Gemini    *AntigravityQuotaGroup `json:"gemini,omitempty"`     // Gemini models quota windows
+	ClaudeGPT *AntigravityQuotaGroup `json:"claude_gpt,omitempty"` // Claude and GPT models quota windows
 }
 
 // AntigravityModelDetail carries optional capabilities reported by an upstream
@@ -214,6 +231,8 @@ type UsageInfo struct {
 
 	// quota observations by model
 	AntigravityQuota map[string]*AntigravityModelQuota `json:"antigravity_quota,omitempty"`
+	// grouped Antigravity weekly and 5-hour windows
+	AntigravityQuotaSummary *AntigravityQuotaSummary `json:"antigravity_quota_summary,omitempty"`
 
 	// GrokRequestQuota and GrokTokenQuota retain optional passive quota windows;
 	// GrokRetryAfterSeconds accompanies those observations, while probe metadata

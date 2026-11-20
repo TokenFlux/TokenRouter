@@ -18,7 +18,7 @@ Gemini 正式支持三类提供商（其余通用导入类型无正式转发实�
 
 | 类型 | 认证与变体 | 关键约束 |
 | --- | --- | --- |
-| `oauth` | `code_assist`、`google_one`、`ai_studio` | 前两者使用内置 Gemini CLI 客户端且须有有效 project；AI Studio 需配置 OAuth client，project 可选并按所选 tier 运行 |
+| `oauth` | `code_assist`、`ai_studio` | `code_assist` 使用内置 Gemini CLI 客户端（`IDE_UNSPECIFIED`、`GeminiCLI` User-Agent）且须绑定有效 GCP project（拒绝纯数字 Project Number）；`ai_studio` 需管理员配置自定义 OAuth client，project 可选并按所选 tier 运行。个人与 Google One（AI Pro / AI Ultra）账号通过 [Antigravity](antigravity_upstream.md) 接入 |
 | `apikey` | Base URL + API Key | `credentials.provider_type=third_party` 为兼容第三方（须用非 Google 官方域名）；缺失或 `official` 为 Google AI Studio 官方接入 |
 | `service_account` | Google Service Account 换取 Vertex token | 按需解析 project 与按模型覆盖的 location |
 
@@ -26,6 +26,7 @@ Gemini 正式支持三类提供商（其余通用导入类型无正式转发实�
 
 - 原生协议集合：三类提供商均支持 GenerateContent；API Key 另支持 Gemini Batch，Vertex Service Account 另支持 Vertex Batch。分组开放 `image_batches` 后通过提供商绑定走对应批量协议（见[统一协议能力](protocol_capabilities.md)）。
 - 凭据与 project 解析：手动 project 优先级、历史凭据字段与按模型选择 location 在调用时从提供商记录解析；服务账号 JSON 校验与 project 提取只在 `upstream/vertex` 执行。提供商测试、批量任务与在线转发共用该按需解析逻辑。
+- Code Assist 项目发现与免重登补填：换码阶段依次尝试 `loadCodeAssist`（携带可选 `cloudaicompanionProject` 与 `metadata.duetProject`）、`onboardUser`（默认兜底 `legacy-tier`，长任务经 `GET /v1internal/{name}` 轮询）及 Cloud Resource Manager ACTIVE 项目回退。遇到缺少 `project_id`、`SERVICE_DISABLED` 或 `VALIDATION_REQUIRED` 时，会话在原 TTL 内按 `session_id + state + sha256(code)` 缓存已换取令牌，管理员补填 GCP Project ID 或完成验证后可直接重试换码；`UNSUPPORTED_CLIENT` 与 `TOS_VIOLATION` 立即销毁会话并返回诊断说明。
 - 第三方 API Key 差异：无 Google 等级，不写 `tier_id`，不参与按洛杉矶日界计算的本地 RPD/RPM 预检与用量窗口；收到 `429` 时走通用冷却，不按 Google 日配额重置解析。
 - 非 Google 账户差异：OpenCode 等非 Google 提供商仅复用 Gemini 报文处理，不走 Google 项目换号、`countTokens` 估算兜底与本地重试；健康状态用共享错误策略与 Retry-After，同提供商重试最多等 8 秒（普通重试受外层预算限制，签名修复单独有界执行）。
 - OAuth 刷新：刷新支持重试并兼容历史 client 元数据；token provider 在过期前提前刷新，并通过并发锁避免同一提供商重复刷新。
@@ -103,7 +104,7 @@ Gemini REST、OAuth、Vertex 与 Antigravity 的原生 Gemini 输出，以及 Me
 
 - 执行边界：单次平台交换、协议输出与关闭响应体归 `upstream/gemini`，Messages、原生、Chat、Responses 各自保留流式、非流式与 Code Assist 缓冲分支，原生输入与兼容 REST 净化分开处理；原生错误、重试与配额时间解析不修改提供商持久化数据。流式输出不加整流缓冲，各入口保持各自的断开处理。
 - 结果上报：单次执行分别返回已观测 usage（含明确零值）、语义输出、旧版 TTFT、内联图片张数与失败分类；`countTokens` 本地估算单独携带，不计入实际 usage 与资金记录；图片回退判断与结算条件由调用方处理。
-- 授权与清理：三类 OAuth 编排、project/tier 发现、token 回填与刷新资格归 `provider`，协议交换、Drive 与 Resource Manager 归 `upstream/gemini/codeassist`。动态 OAuth 配置在调用时读取，缓存键与刷新 CAS 兼容；关停超时且有限重试未结束时不报告已排空。
+- 授权与清理：`code_assist` 与 `ai_studio` 两类 OAuth 编排、project/tier 发现、同会话免重登令牌缓存、token 回填与刷新资格归 `provider`，协议交换、`GetOperation` 轮询与 Resource Manager 查询归 `upstream/gemini/codeassist`。动态 OAuth 配置在调用时读取，缓存键与刷新 CAS 兼容；关停超时且有限重试未结束时不报告已排空。
 - 批量与创作复用：Batch JSONL 编码与创作台图片调用使用原生实现（`protocol/gemini` 保留显式报文变体），任务状态机、清理与资金由任务用例负责。Gemini 不依赖 Vertex 包，原生执行通过传入 URL 与认证参数复用同一协议输出。
 
 <a id="vertex_service_account_execution"></a>

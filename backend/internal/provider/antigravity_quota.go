@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -61,12 +62,24 @@ type AntigravityQuotaClient interface {
 	LoadCodeAssist(context.Context, string) (*google.AntigravityLoadCodeAssistResponse, map[string]any, error)
 }
 
+// antigravityQuotaSummaryClient is optionally implemented by quota clients that
+// support v1internal:retrieveUserQuotaSummary for family-grouped weekly and 5h
+// windows.
+type antigravityQuotaSummaryClient interface {
+	// RetrieveUserQuotaSummary queries family-grouped weekly and 5-hour buckets
+	// bounded by bodyLimit.
+	RetrieveUserQuotaSummary(context.Context, string, string, int64) (*google.AntigravityRetrieveUserQuotaSummaryResponse, map[string]any, error)
+}
+
 // AntigravityQuotaOptions supplies transport, body limits, forbidden
 // classification, and diagnostic callbacks.
 type AntigravityQuotaOptions struct {
 	// NewClient is required for quota querying and returns a usable client
 	// for the supplied proxy URL. Factory error aborts before model requests.
 	NewClient func(string) (AntigravityQuotaClient, error)
+	// FetchPaidModels optionally queries daily-first model quotas for Pro and
+	// Ultra accounts before falling back to prod; nil uses FetchAvailableModels.
+	FetchPaidModels func(context.Context, AntigravityQuotaClient, string, string, int64) (*google.AntigravityFetchAvailableModelsResponse, map[string]any, error)
 	// ReadLimit is required for model fetching and supplies its protocol body
 	// cap. The platform client owns enforcement and reports bounded-read failures.
 	ReadLimit func() int64
@@ -132,9 +145,15 @@ func (f *AntigravityQuota) FetchQuota(ctx context.Context, provider *Record, pro
 	}
 
 	// Apply the configured model-response cap before constructing display data.
-	// The client rejects oversized or failed bounded reads rather than treating
-	// truncated JSON as a successful quota observation.
-	modelsResp, modelsRaw, err := client.FetchAvailableModels(ctx, accessToken, projectID, f.Options.ReadLimit())
+	// Paid Pro and Ultra accounts prefer the daily endpoint pool when FetchPaidModels
+	// is wired so utilization reflects daily forwarding consumption.
+	var modelsResp *google.AntigravityFetchAvailableModelsResponse
+	var modelsRaw map[string]any
+	if f.Options.FetchPaidModels != nil && isPaidAntigravityPlan(provider.GetCredential("plan_type")) {
+		modelsResp, modelsRaw, err = f.Options.FetchPaidModels(ctx, client, accessToken, projectID, f.Options.ReadLimit())
+	} else {
+		modelsResp, modelsRaw, err = client.FetchAvailableModels(ctx, accessToken, projectID, f.Options.ReadLimit())
+	}
 	if err != nil {
 		// Preserve a recognized forbidden body as account-state display data so
 		// administration can show its recovery category and URL beside nil method
@@ -163,8 +182,22 @@ func (f *AntigravityQuota) FetchQuota(ctx context.Context, provider *Record, pro
 	// is unavailable for this query.
 	tierRaw, tierNormalized, loadResp := f.fetchSubscriptionTier(ctx, client, accessToken)
 
-	// Convert quota and subscription responses for display.
-	usageInfo := f.BuildUsageInfo(modelsResp, tierRaw, tierNormalized, loadResp)
+	// Query grouped weekly and 5-hour buckets when supported by the client;
+	// failures fall back to per-model 5-hour aggregation without failing FetchQuota.
+	var summaryResp *google.AntigravityRetrieveUserQuotaSummaryResponse
+	if summaryClient, ok := client.(antigravityQuotaSummaryClient); ok {
+		var summaryErr error
+		summaryResp, _, summaryErr = summaryClient.RetrieveUserQuotaSummary(ctx, accessToken, projectID, f.Options.ReadLimit())
+		if summaryErr != nil {
+			if f.Options.Warn != nil {
+				f.Options.Warn("failed to fetch antigravity quota summary", "error", summaryErr)
+			}
+			summaryResp = nil
+		}
+	}
+
+	// Convert quota, summary, and subscription responses for display.
+	usageInfo := f.BuildUsageInfoWithSummary(modelsResp, summaryResp, tierRaw, tierNormalized, loadResp)
 
 	return &QuotaResult{
 		UsageInfo: usageInfo,
@@ -230,6 +263,19 @@ func NormalizeAntigravityTier(raw string) string {
 // getters can accept partial text, so display conversion does not establish
 // whole-field validity.
 func (f *AntigravityQuota) BuildUsageInfo(modelsResp *google.AntigravityFetchAvailableModelsResponse, tierRaw, tierNormalized string, loadResp *google.AntigravityLoadCodeAssistResponse) *UsageInfo {
+	return f.BuildUsageInfoWithSummary(modelsResp, nil, tierRaw, tierNormalized, loadResp)
+}
+
+// BuildUsageInfoWithSummary creates per-model quota maps, family-grouped weekly
+// and 5-hour summary windows, and optional subscription/credit metadata. When
+// summaryResp omits a family's 5-hour window, per-model observations from
+// modelsResp populate that 5-hour fallback.
+func (f *AntigravityQuota) BuildUsageInfoWithSummary(
+	modelsResp *google.AntigravityFetchAvailableModelsResponse,
+	summaryResp *google.AntigravityRetrieveUserQuotaSummaryResponse,
+	tierRaw, tierNormalized string,
+	loadResp *google.AntigravityLoadCodeAssistResponse,
+) *UsageInfo {
 	now := time.Now()
 	info := &UsageInfo{
 		UpdatedAt:               &now,
@@ -272,6 +318,8 @@ func (f *AntigravityQuota) BuildUsageInfo(modelsResp *google.AntigravityFetchAva
 		}
 		info.AntigravityQuotaDetails[modelName] = detail
 	}
+
+	info.AntigravityQuotaSummary = buildAntigravityQuotaSummary(info.AntigravityQuota, summaryResp, now)
 
 	// Copy deprecated-model replacements into a separate map so later display
 	// edits can change redirects independently of the fetched response values.
@@ -334,4 +382,248 @@ func (f *AntigravityQuota) GetProxyURL(ctx context.Context, provider *Record) st
 		return ""
 	}
 	return value
+}
+
+// isPaidAntigravityPlan reports whether planType names a paid Pro or Ultra
+// Antigravity subscription after trimming and case folding.
+func isPaidAntigravityPlan(planType string) bool {
+	switch strings.ToLower(strings.TrimSpace(planType)) {
+	case "pro", "ultra":
+		return true
+	default:
+		return false
+	}
+}
+
+// buildAntigravityQuotaSummary merges retrieveUserQuotaSummary groups/buckets
+// into Gemini and Claude/GPT weekly and 5-hour windows, filling missing 5-hour
+// windows from per-model quota observations when available.
+func buildAntigravityQuotaSummary(
+	modelQuotas map[string]*AntigravityModelQuota,
+	summaryResp *google.AntigravityRetrieveUserQuotaSummaryResponse,
+	now time.Time,
+) *AntigravityQuotaSummary {
+	geminiGroup := &AntigravityQuotaGroup{}
+	claudeGPTGroup := &AntigravityQuotaGroup{}
+
+	applyBucket := func(groupText string, bucket google.AntigravityQuotaSummaryBucket) {
+		if bucket.Disabled {
+			return
+		}
+		bucketID := strings.ToLower(strings.TrimSpace(firstNonEmptyText(bucket.BucketID, bucket.ID)))
+		if strings.Contains(bucketID, "argon") {
+			return
+		}
+		resetTime := strings.TrimSpace(bucket.ResetTime)
+		if bucket.RemainingFraction == nil && resetTime == "" {
+			return
+		}
+
+		// Proto3 JSON omits remainingFraction when it equals 0.0 alongside an
+		// active resetTime, so treat a nil fraction with a reset deadline as 0.0.
+		rem := 0.0
+		if bucket.RemainingFraction != nil {
+			rem = *bucket.RemainingFraction
+			if rem < 0 {
+				rem = 0
+			} else if rem > 1 {
+				rem = 1
+			}
+		}
+		utilization := int(math.Round((1.0 - rem) * 100))
+
+		family := classifyAntigravitySummaryFamily(groupText, bucketID, bucket.DisplayName)
+		window := classifyAntigravitySummaryWindow(bucket, bucketID, resetTime, now)
+		if family == "" || window == "" {
+			return
+		}
+
+		targetGroup := geminiGroup
+		if family == "claude_gpt" {
+			targetGroup = claudeGPTGroup
+		}
+		candidate := &AntigravityModelQuota{
+			Utilization: utilization,
+			ResetTime:   resetTime,
+		}
+		if window == "weekly" {
+			targetGroup.Weekly = mergeAntigravityQuotaSlot(targetGroup.Weekly, candidate)
+		} else {
+			targetGroup.FiveHour = mergeAntigravityQuotaSlot(targetGroup.FiveHour, candidate)
+		}
+	}
+
+	if summaryResp != nil {
+		for _, group := range summaryResp.Groups {
+			groupText := strings.ToLower(strings.Join([]string{
+				group.ID,
+				group.GroupID,
+				group.DisplayName,
+				group.Name,
+				group.Description,
+			}, " "))
+			for _, bucket := range group.Buckets {
+				applyBucket(groupText, bucket)
+			}
+		}
+		for _, bucket := range summaryResp.Buckets {
+			applyBucket("", bucket)
+		}
+	}
+
+	// Fill missing 5-hour windows from per-model fetchAvailableModels quotas so
+	// accounts or endpoints without retrieveUserQuotaSummary still display grouped
+	// Gemini and Claude/GPT 5-hour bars.
+	for modelName, quota := range modelQuotas {
+		if quota == nil {
+			continue
+		}
+		lowerName := strings.ToLower(strings.TrimSpace(modelName))
+		switch {
+		case strings.Contains(lowerName, "gemini") && summaryResp == nil:
+			geminiGroup.FiveHour = mergeAntigravityQuotaSlot(geminiGroup.FiveHour, &AntigravityModelQuota{
+				Utilization: clampPercentage(quota.Utilization),
+				ResetTime:   quota.ResetTime,
+			})
+		case (strings.Contains(lowerName, "claude") || strings.Contains(lowerName, "gpt")) && summaryResp == nil:
+			claudeGPTGroup.FiveHour = mergeAntigravityQuotaSlot(claudeGPTGroup.FiveHour, &AntigravityModelQuota{
+				Utilization: clampPercentage(quota.Utilization),
+				ResetTime:   quota.ResetTime,
+			})
+		}
+	}
+	if summaryResp != nil {
+		if geminiGroup.FiveHour == nil && geminiGroup.Weekly == nil {
+			for modelName, quota := range modelQuotas {
+				if quota != nil && strings.Contains(strings.ToLower(modelName), "gemini") {
+					geminiGroup.FiveHour = mergeAntigravityQuotaSlot(geminiGroup.FiveHour, &AntigravityModelQuota{
+						Utilization: clampPercentage(quota.Utilization),
+						ResetTime:   quota.ResetTime,
+					})
+				}
+			}
+		}
+		if claudeGPTGroup.FiveHour == nil && claudeGPTGroup.Weekly == nil {
+			for modelName, quota := range modelQuotas {
+				lowerName := strings.ToLower(modelName)
+				if quota != nil && (strings.Contains(lowerName, "claude") || strings.Contains(lowerName, "gpt")) {
+					claudeGPTGroup.FiveHour = mergeAntigravityQuotaSlot(claudeGPTGroup.FiveHour, &AntigravityModelQuota{
+						Utilization: clampPercentage(quota.Utilization),
+						ResetTime:   quota.ResetTime,
+					})
+				}
+			}
+		}
+	}
+
+	out := &AntigravityQuotaSummary{}
+	if geminiGroup.Weekly != nil || geminiGroup.FiveHour != nil {
+		out.Gemini = geminiGroup
+	}
+	if claudeGPTGroup.Weekly != nil || claudeGPTGroup.FiveHour != nil {
+		out.ClaudeGPT = claudeGPTGroup
+	}
+	if out.Gemini == nil && out.ClaudeGPT == nil {
+		return nil
+	}
+	return out
+}
+
+// classifyAntigravitySummaryFamily maps bucket and group labels to "gemini" or
+// "claude_gpt", returning empty for unrelated buckets.
+func classifyAntigravitySummaryFamily(groupText, bucketID, displayName string) string {
+	bucketText := strings.ToLower(bucketID + " " + displayName)
+	switch {
+	case strings.Contains(bucketText, "3p") ||
+		strings.Contains(bucketText, "claude") ||
+		strings.Contains(bucketText, "gpt") ||
+		strings.Contains(bucketText, "anthropic") ||
+		strings.Contains(bucketText, "openai"):
+		return "claude_gpt"
+	case strings.Contains(bucketText, "gemini"):
+		return "gemini"
+	case strings.Contains(groupText, "claude") ||
+		strings.Contains(groupText, "gpt") ||
+		strings.Contains(groupText, "anthropic") ||
+		strings.Contains(groupText, "openai") ||
+		strings.Contains(groupText, "3p"):
+		return "claude_gpt"
+	case strings.Contains(groupText, "gemini") || strings.Contains(groupText, "google"):
+		return "gemini"
+	default:
+		return ""
+	}
+}
+
+// classifyAntigravitySummaryWindow maps bucket metadata or reset-time horizon
+// to "weekly" or "five_hour".
+func classifyAntigravitySummaryWindow(
+	bucket google.AntigravityQuotaSummaryBucket,
+	bucketID, resetTime string,
+	now time.Time,
+) string {
+	winText := strings.ToLower(strings.Join([]string{
+		bucket.QuotaBucketType,
+		bucket.Window,
+		bucketID,
+		bucket.DisplayName,
+	}, " "))
+	switch {
+	case strings.Contains(winText, "long_term") ||
+		strings.Contains(winText, "weekly") ||
+		strings.Contains(winText, "7d") ||
+		strings.Contains(winText, "7-day") ||
+		strings.Contains(winText, "seven"):
+		return "weekly"
+	case strings.Contains(winText, "short_term") ||
+		strings.Contains(winText, "5h") ||
+		strings.Contains(winText, "5-hour") ||
+		strings.Contains(winText, "five_hour") ||
+		strings.Contains(winText, "five hour") ||
+		strings.EqualFold(strings.TrimSpace(bucket.Window), "session"):
+		return "five_hour"
+	}
+
+	if resetTime != "" {
+		if parsed, err := time.Parse(time.RFC3339, resetTime); err == nil {
+			delta := parsed.Sub(now)
+			if delta >= 24*time.Hour {
+				return "weekly"
+			}
+			if delta > 0 && delta <= 6*time.Hour {
+				return "five_hour"
+			}
+		}
+	}
+	return ""
+}
+
+// mergeAntigravityQuotaSlot retains the higher utilization and the lexically
+// earliest nonblank reset timestamp across two observations for one window.
+func mergeAntigravityQuotaSlot(existing, next *AntigravityModelQuota) *AntigravityModelQuota {
+	if existing == nil {
+		return next
+	}
+	if next == nil {
+		return existing
+	}
+	merged := *existing
+	if next.Utilization > merged.Utilization {
+		merged.Utilization = next.Utilization
+	}
+	if next.ResetTime != "" && (merged.ResetTime == "" || next.ResetTime < merged.ResetTime) {
+		merged.ResetTime = next.ResetTime
+	}
+	return &merged
+}
+
+// clampPercentage bounds an integer utilization observation to [0, 100].
+func clampPercentage(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > 100 {
+		return 100
+	}
+	return v
 }

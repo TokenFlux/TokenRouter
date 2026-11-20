@@ -78,7 +78,7 @@ func TestGeminiTokenRefreshUsesOriginalCAS(t *testing.T) {
 			defer resumeOnce.Do(func() { close(resume) })
 			native := codeassist.NewOAuthClient(func() codeassist.OAuthConfig { return codeassist.OAuthConfig{} })
 			native.TokenURL = server.URL
-			oauth := provider.NewGeminiAuthorization(native, nil, nil, provideradapter.GeminiAuthorizationOptions(func() codeassist.OAuthConfig { return codeassist.OAuthConfig{} }, nil))
+			oauth := provider.NewGeminiAuthorization(native, nil, provideradapter.GeminiAuthorizationOptions(func() codeassist.OAuthConfig { return codeassist.OAuthConfig{} }, nil))
 			defer func() { require.NoError(t, oauth.StopContext(context.Background())) }()
 			cache := rediscache.NewOAuthTokenCache(rediscontainer.New(t))
 			store := repo

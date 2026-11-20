@@ -286,7 +286,8 @@ describe('CreateProviderModal OpenAI provider options', () => {
 
   // The draft switches from API Key configuration to Antigravity. Credential
   // visibility must follow the new platform instead of retaining the previous
-  // authentication category controls.
+  // authentication category controls, while AI Credits overage forwarding stays
+  // under the request tab.
   it('shows only OAuth credentials for Antigravity after switching from API Key', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
@@ -294,6 +295,12 @@ describe('CreateProviderModal OpenAI provider options', () => {
     await selectButtonByText(wrapper, 'Antigravity')
     await flushPromises()
     expect(wrapper.find('#create-antigravity-project-id').exists()).toBe(true)
+    expect(
+      wrapper
+        .get('#create-provider-allow-overages')
+        .element.closest('[data-settings-tab]')
+        ?.getAttribute('data-settings-tab'),
+    ).toBe('request')
     expect(wrapper.find('#create-upstream-base-url').exists()).toBe(false)
     expect(wrapper.find('#create-upstream-api-key').exists()).toBe(false)
     expect(wrapper.findAll('button').some((button) => button.text().trim() === 'API Key')).toBe(

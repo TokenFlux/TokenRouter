@@ -1,12 +1,30 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 )
+
+// antigravity_subscription_test.go checks Antigravity tier normalization,
+// ineligible-tier abnormal labeling, and observed plan_type persistence.
+
+// antigravityPlanWriterStub captures BulkUpdate calls from PersistAntigravityObservedPlan.
+type antigravityPlanWriterStub struct {
+	ids    []int64            // recorded target provider IDs
+	update ProviderBulkUpdate // recorded credential patch
+}
+
+// BulkUpdate records ids and update and reports one updated row.
+func (s *antigravityPlanWriterStub) BulkUpdate(_ context.Context, ids []int64, update ProviderBulkUpdate) (int64, error) {
+	s.ids = ids
+	s.update = update
+	return int64(len(ids)), nil
+}
 
 // TestNormalizeAntigravitySubscription_PaidTierWithIneligible supplies a Pro
 // tier with an eligibility warning. Normalization must retain Pro, report
@@ -80,4 +98,30 @@ func TestNormalizeAntigravitySubscription_NoTierWithIneligible(t *testing.T) {
 
 	assert.Equal(t, "Abnormal", result.PlanType, "no tier + ineligible should be Abnormal")
 	assert.Equal(t, "abnormal", result.SubscriptionStatus)
+}
+
+// TestPersistAntigravityObservedPlan_BackfillsMissingAndSkipsEmptyRaw verifies
+// that nonblank observed tiers backfill credentials.plan_type while empty raw
+// tiers from failed LoadCodeAssist calls leave existing paid plans untouched.
+func TestPersistAntigravityObservedPlan_BackfillsMissingAndSkipsEmptyRaw(t *testing.T) {
+	t.Parallel()
+
+	require.Empty(t, ObservedAntigravityPlanType(&UsageInfo{}))
+	require.Equal(t, "Pro", ObservedAntigravityPlanType(&UsageInfo{SubscriptionTierRaw: "g1-pro-tier"}))
+
+	writer := &antigravityPlanWriterStub{}
+	rec := &Record{
+		ID:          17,
+		Platform:    PlatformAntigravity,
+		Type:        ProviderTypeOAuth,
+		Credentials: map[string]any{"access_token": "tok"},
+	}
+
+	PersistAntigravityObservedPlan(context.Background(), writer, rec, ObservedAntigravityPlanType(&UsageInfo{}), nil, nil)
+	require.Empty(t, writer.ids)
+
+	PersistAntigravityObservedPlan(context.Background(), writer, rec, "Pro", nil, nil)
+	require.Equal(t, []int64{17}, writer.ids)
+	require.Equal(t, "Pro", writer.update.Credentials["plan_type"])
+	require.Equal(t, "Pro", rec.Credentials["plan_type"])
 }

@@ -1232,6 +1232,109 @@ func TestAntigravityRetryLoop_NoURLFallback_UsesConfiguredBaseURL(t *testing.T) 
 	require.Equal(t, base1, available[0])
 }
 
+// TestAntigravityRetryLoop_PaidTierFallsBackFromDailyToProdOn404AndURLRateLimit
+// configures a paid Pro Antigravity provider with [daily, prod] candidate
+// endpoints. It verifies 404 Not Found and URL-level 429 on daily advance the
+// request to prod within the same retry loop.
+func TestAntigravityRetryLoop_PaidTierFallsBackFromDailyToProdOn404AndURLRateLimit(t *testing.T) {
+	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
+	oldAvailability := antigravity.DefaultURLAvailability
+	defer func() {
+		antigravity.BaseURLs = oldBaseURLs
+		antigravity.DefaultURLAvailability = oldAvailability
+	}()
+
+	prodURL := "https://ag-prod.test"
+	dailyURL := "https://ag-daily.test"
+	antigravity.BaseURLs = []string{prodURL, dailyURL}
+
+	provider := &acct.Record{
+		ID:          2,
+		Name:        "paid-pro",
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.ProviderTypeOAuth,
+		Schedulable: true,
+		Status:      billing.StatusActive,
+		Concurrency: 1,
+		Credentials: map[string]any{"plan_type": "Pro"},
+	}
+
+	// Case 1: 404 on daily falls back to prod.
+	antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+	var calls404 []string
+	svc := newAntigravityRetryFixture()
+	adapter, input := svc.Bind(AntigravityRetryRequest{
+		Prefix:      "[test-404]",
+		Context:     context.Background(),
+		Provider:    provider,
+		AccessToken: "token",
+		Action:      "generateContent",
+		Body:        []byte(`{"input":"test"}`),
+		Do: func(req *http.Request) (*http.Response, error) {
+			calls404 = append(calls404, req.URL.String())
+			if strings.HasPrefix(req.URL.String(), dailyURL) {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"code":404,"message":"model not on daily"}}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+			}, nil
+		},
+		RequestedModel: "gemini-2.5-pro",
+		HandleError:    func(int, http.Header, []byte) {},
+	})
+	res404, err := adapter.AntigravityRetryLoop(input)
+	require.NoError(t, err)
+	require.NotNil(t, res404)
+	defer func() { _ = res404.Resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, res404.Resp.StatusCode)
+	require.Len(t, calls404, 2)
+	require.True(t, strings.HasPrefix(calls404[0], dailyURL))
+	require.True(t, strings.HasPrefix(calls404[1], prodURL))
+
+	// Case 2: URL-level 429 on daily marks daily unavailable and falls back to prod.
+	antigravity.DefaultURLAvailability = antigravity.NewURLAvailability(time.Minute)
+	var calls429 []string
+	adapter429, input429 := svc.Bind(AntigravityRetryRequest{
+		Prefix:      "[test-429]",
+		Context:     context.Background(),
+		Provider:    provider,
+		AccessToken: "token",
+		Action:      "generateContent",
+		Body:        []byte(`{"input":"test"}`),
+		Do: func(req *http.Request) (*http.Response, error) {
+			calls429 = append(calls429, req.URL.String())
+			if strings.HasPrefix(req.URL.String(), dailyURL) {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`{"ok":true}`)),
+			}, nil
+		},
+		RequestedModel: "gemini-2.5-pro",
+		HandleError:    func(int, http.Header, []byte) {},
+	})
+	res429, err := adapter429.AntigravityRetryLoop(input429)
+	require.NoError(t, err)
+	require.NotNil(t, res429)
+	defer func() { _ = res429.Resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, res429.Resp.StatusCode)
+	require.Len(t, calls429, 2)
+	require.True(t, strings.HasPrefix(calls429[0], dailyURL))
+	require.True(t, strings.HasPrefix(calls429[1], prodURL))
+}
+
 // TestAntigravityRetryLoop_PreCheck_SwitchesWhenRateLimited starts with a
 // short active Claude model window and a sticky session. Prechecking switches
 // providers with the expected identity and model before any upstream request.
@@ -3822,6 +3925,9 @@ func newAntigravityRetryFixture() *AntigravityRetry {
 		SafeURL: logredact.SafeUpstreamURL, TruncateString: logredact.TruncateUTF8, Health: &acct.AntigravityHealth{ModelKeys: AntigravityModelLimitKeys, Logf: noop, Info: noop, Warn: noop, Error: noop},
 		BaseURL: func(v *acct.Record) string {
 			return antigravity.ResolveAntigravityForwardBaseURL("", AntigravityPaidTier(v))
+		},
+		BaseURLs: func(v *acct.Record) []string {
+			return antigravity.ResolveAntigravityForwardBaseURLs("", AntigravityPaidTier(v))
 		}, BodyLimit: func() int64 { return 512 << 10 },
 	}
 }

@@ -60,7 +60,6 @@ var providerAssemblyProviders = wire.NewSet(
 	provideAntigravityQuota,
 	provideradapter.NewGrokQuotaView,
 	provideProviderModelSync,
-	provideProviderTier,
 	provideProviderManagementList,
 	provideProviderRuntimePresenter,
 	provideProviderRuntimeState,

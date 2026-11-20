@@ -12,10 +12,10 @@ import (
 	"time"
 )
 
-// OAuth fixtures exercise the cached secret, endpoint preference, and PKCE
-// encoding independently of live account requests. Tests that replace package
-// globals restore them after completion and run serially; generated-value
-// checks describe the observed samples.
+// oauth_test.go exercises OAuth secrets, Hub User-Agent formatting, endpoint
+// ordering, and PKCE helpers independently of live upstream requests.
+// Tests that replace package globals restore them after completion and run
+// serially; generated-value checks describe the observed samples.
 
 // TestGetClientSecret_环境变量设置 copies a test environment value into the already
 // initialized secret cache. Retrieval must return that cached value, and
@@ -617,8 +617,9 @@ func TestConstants_值正确(t *testing.T) {
 	if RedirectURI != "http://localhost:8085/callback" {
 		t.Errorf("RedirectURI 不匹配: got %s", RedirectURI)
 	}
-	if GetUserAgentForContext(context.Background()) != "antigravity/1.23.2 windows/amd64" {
-		t.Errorf("UserAgent 不匹配: got %s", GetUserAgentForContext(context.Background()))
+	expectedDefaultUA := "antigravity/hub/2.33.0 (aidev_client; os_type=darwin; arch=arm64; cl=1023160026)"
+	if GetUserAgentForContext(context.Background()) != expectedDefaultUA {
+		t.Errorf("UserAgent 不匹配: got %s, want %s", GetUserAgentForContext(context.Background()), expectedDefaultUA)
 	}
 	if SessionTTL != 30*time.Minute {
 		t.Errorf("SessionTTL 不匹配: got %v", SessionTTL)
@@ -628,9 +629,9 @@ func TestConstants_值正确(t *testing.T) {
 	}
 }
 
-// TestScopes_包含必要范围 checks the configured scope string for five required
-// permissions. Each expected cloud, user-information, logging, and experiment
-// scope must occur in the consent configuration.
+// TestScopes_包含必要范围 checks the configured scope string for six required
+// permissions. Each expected cloud, user-information, logging, experiment, and
+// aicode scope must occur in the consent configuration.
 func TestScopes_包含必要范围(t *testing.T) {
 	expectedScopes := []string{
 		"https://www.googleapis.com/auth/cloud-platform",
@@ -638,11 +639,56 @@ func TestScopes_包含必要范围(t *testing.T) {
 		"https://www.googleapis.com/auth/userinfo.profile",
 		"https://www.googleapis.com/auth/cclog",
 		"https://www.googleapis.com/auth/experimentsandconfigs",
+		"https://www.googleapis.com/auth/aicode",
 	}
 
 	for _, scope := range expectedScopes {
 		if !strings.Contains(Scopes, scope) {
 			t.Errorf("Scopes 缺少 %s", scope)
 		}
+	}
+}
+
+// TestBuildUserAgent_VersionFloorAndChangelist verifies Hub User-Agent strings
+// across legacy 1.x versions, minimum 2.23.0, current 2.33.0, and future 2.99.0.
+// Versions older than 2.23.0 must clamp up to 2.33.0, while onboard User-Agents
+// append the Node.js API client suffix.
+func TestBuildUserAgent_VersionFloorAndChangelist(t *testing.T) {
+	if got := BuildUserAgent("1.23.2"); got != "antigravity/hub/2.33.0 (aidev_client; os_type=darwin; arch=arm64; cl=1023160026)" {
+		t.Fatalf("legacy 1.23.2 should upgrade to 2.33.0 Hub UA, got %q", got)
+	}
+	if got := BuildUserAgent("2.23.0"); got != "antigravity/hub/2.23.0 (aidev_client; os_type=darwin; arch=arm64; cl=990814210)" {
+		t.Fatalf("2.23.0 should keep its version and changelist, got %q", got)
+	}
+	if got := BuildUserAgent("2.99.0"); got != "antigravity/hub/2.99.0 (aidev_client; os_type=darwin; arch=arm64; cl=1023160026)" {
+		t.Fatalf("future 2.99.0 should use fallback changelist, got %q", got)
+	}
+	if got := BuildOnboardUserAgent("2.33.0"); !strings.HasSuffix(got, " google-api-nodejs-client/10.3.0") {
+		t.Fatalf("onboard User-Agent missing google-api-nodejs-client suffix: %q", got)
+	}
+}
+
+// TestResolveAntigravityForwardBaseURLs_PaidAndFree checks candidate lists for
+// paid auto, free auto, and explicit daily/prod overrides. Paid auto must return
+// [daily, prod], free auto must return [prod], and explicit modes pin one URL.
+func TestResolveAntigravityForwardBaseURLs_PaidAndFree(t *testing.T) {
+	oldBaseURLs := append([]string(nil), BaseURLs...)
+	defer func() { BaseURLs = oldBaseURLs }()
+
+	BaseURLs = []string{"https://prod.example", "https://daily.example"}
+
+	paidAuto := ResolveAntigravityForwardBaseURLs("auto", true)
+	if !slices.Equal(paidAuto, []string{"https://daily.example", "https://prod.example"}) {
+		t.Fatalf("paid auto URLs mismatch: got %v", paidAuto)
+	}
+
+	freeAuto := ResolveAntigravityForwardBaseURLs("", false)
+	if !slices.Equal(freeAuto, []string{"https://prod.example"}) {
+		t.Fatalf("free auto URLs mismatch: got %v", freeAuto)
+	}
+
+	pinnedDaily := ResolveAntigravityForwardBaseURLs("daily", false)
+	if !slices.Equal(pinnedDaily, []string{"https://daily.example"}) {
+		t.Fatalf("pinned daily URLs mismatch: got %v", pinnedDaily)
 	}
 }

@@ -73,6 +73,10 @@ func provideAntigravityRetry(store *providerpostgres.ProviderStore, counter prov
 			return antigravity.ResolveAntigravityForwardBaseURL(cfg.Provider.Antigravity.ForwardEndpoint, provideradapter.AntigravityPaidTier(value))
 		},
 
+		BaseURLs: func(value *provider.Record) []string {
+			return antigravity.ResolveAntigravityForwardBaseURLs(cfg.Provider.Antigravity.ForwardEndpoint, provideradapter.AntigravityPaidTier(value))
+		},
+
 		BodyLimit: func() int64 {
 			// Retry classification reads response bodies independently of whether detailed logging is enabled.
 			limit := int64(512 << 10)

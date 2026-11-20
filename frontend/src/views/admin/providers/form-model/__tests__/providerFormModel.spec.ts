@@ -202,6 +202,47 @@ describe('provider form model representations', () => {
     expect(draft.qoderModelRestrictionTouched.value).toBe(false)
   })
 
+  // Hydrating an Antigravity provider with only model_whitelist keeps mapping rows
+  // empty and selects whitelist mode so saving does not overwrite platform default
+  // mappings with synthetic self-mappings.
+  it('hydrates Antigravity whitelist and mapping modes without synthesizing self-mappings', () => {
+    const notifications = { loadFromExtra: vi.fn(), reset: vi.fn() }
+    const draft = createProviderEditDraft()
+    hydrateProviderEditDraft(
+      draft,
+      provider({
+        platform: 'antigravity',
+        type: 'oauth',
+        credentials: { model_whitelist: ['gemini-2.5-pro'] },
+      }),
+      notifications,
+    )
+    expect(draft.antigravityModelRestrictionMode.value).toBe('whitelist')
+    expect(draft.antigravityWhitelistModels.value).toEqual(['gemini-2.5-pro'])
+    expect(draft.antigravityModelMappings.value).toEqual([])
+    const savedWithoutMappings: Record<string, unknown> = {}
+    applyAntigravityPolicyCredentials(draft, savedWithoutMappings, 'edit')
+    expect(savedWithoutMappings.model_mapping).toBeUndefined()
+    expect(savedWithoutMappings.model_whitelist).toEqual(['gemini-2.5-pro'])
+
+    hydrateProviderEditDraft(
+      draft,
+      provider({
+        platform: 'antigravity',
+        type: 'oauth',
+        credentials: {
+          model_mapping: { 'claude-*': 'claude-sonnet-4-5' },
+          model_whitelist: ['claude-sonnet-4-5'],
+        },
+      }),
+      notifications,
+    )
+    expect(draft.antigravityModelRestrictionMode.value).toBe('mapping')
+    expect(draft.antigravityModelMappings.value).toEqual([
+      { from: 'claude-*', to: 'claude-sonnet-4-5' },
+    ])
+  })
+
   // A provider carries unrelated runtime extras while quota and policy controls are edited.
   // The patch retains those extras, removes disabled quota fields, and leaves the source response unchanged.
   it('retains unrelated extras while clearing disabled quota settings', () => {

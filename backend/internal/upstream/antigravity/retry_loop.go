@@ -21,12 +21,12 @@ import (
 )
 
 // retry_loop.go executes Antigravity retries and selects model waits, credit
-// recovery, or provider switching.
-// Antigravity forwarding retries one provider against its configured base URL,
-// combining ordinary transport/status retries with structured model delays and
-// enabled-credit recovery. The selected URL list currently contains one entry,
-// so endpoint-fallback branches do not introduce account-management
-// alternatives during forwarding.
+// recovery, endpoint fallback, or provider switching.
+// Antigravity forwarding retries one provider across its resolved base URL
+// candidates, combining ordinary transport/status retries with structured model
+// delays and enabled-credit recovery. Paid accounts in auto mode supply
+// [daily, prod] so connection failures, URL-level 429s, and HTTP 404 model
+// misses on daily fall back to prod, while free accounts supply [prod] alone.
 //
 // Model limits can request provider switching unless enabled credits or
 // single-provider mode allow dispatch. Shared capacity uses a fixed retry
@@ -108,9 +108,13 @@ type RetryObservation struct {
 // RetryOptions supplies forwarding dispatch, diagnostic formatting, and
 // provider-state callbacks for the retry adapter.
 type RetryOptions struct {
-	// BaseURL supplies the single forwarding destination at loop entry; an empty
-	// value rejects execution before any HTTP request is built.
+	// BaseURL supplies the single forwarding destination when BaseURLs is nil or
+	// returns no nonblank entries; an empty final list rejects execution before
+	// any HTTP request is built.
 	BaseURL func() string
+	// BaseURLs optionally supplies ordered forwarding endpoint candidates (such
+	// as [daily, prod] for paid accounts in auto mode); nil falls back to BaseURL.
+	BaseURLs func() []string
 	// Do executes each prepared request; nil successful responses are rejected by
 	// the main loop, and callbacks own cleanup of responses returned with errors.
 	Do func(*http.Request) (*http.Response, error)
@@ -716,14 +720,22 @@ func (s *RetryAdapter) AntigravityRetryLoop(p RetryInput) (*AntigravityRetryLoop
 		}
 	}
 
-	baseURL := s.Options.BaseURL()
-	if baseURL == "" {
+	var availableURLs []string
+	if s.Options.BaseURLs != nil {
+		for _, candidate := range s.Options.BaseURLs() {
+			if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+				availableURLs = append(availableURLs, trimmed)
+			}
+		}
+	}
+	if len(availableURLs) == 0 && s.Options.BaseURL != nil {
+		if single := strings.TrimSpace(s.Options.BaseURL()); single != "" {
+			availableURLs = []string{single}
+		}
+	}
+	if len(availableURLs) == 0 {
 		return nil, errors.New("no antigravity forward base url configured")
 	}
-	// Use only the configured forwarding URL, so generic endpoint-advancement
-	// branches remain inactive in this loop unless its candidate construction
-	// changes.
-	availableURLs := []string{baseURL}
 
 	var resp *http.Response
 	var usedBaseURL string
@@ -824,6 +836,14 @@ urlFallbackLoop:
 						Body:       io.NopCloser(bytes.NewReader(respBody)),
 					}
 					break urlFallbackLoop
+				}
+
+				// Advance to the next forwarding endpoint when daily returns HTTP 404
+				// for a model hosted only on prod, provided caller error policy did not
+				// already claim the status.
+				if resp.StatusCode == http.StatusNotFound && urlIdx < len(availableURLs)-1 {
+					logger.LegacyPrintf("service.antigravity_gateway", "%s URL fallback (404): %s -> %s", p.Prefix, baseURL, availableURLs[urlIdx+1])
+					continue urlFallbackLoop
 				}
 
 				// Route 429/503 through platform classification after caller policy,

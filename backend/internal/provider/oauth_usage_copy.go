@@ -48,9 +48,10 @@ func CloneUsageInfo(value *UsageInfo) *UsageInfo {
 	if value.AntigravityQuota != nil {
 		out.AntigravityQuota = make(map[string]*AntigravityModelQuota, len(value.AntigravityQuota))
 		for k, v := range value.AntigravityQuota {
-			out.AntigravityQuota[k] = clonePointer(v)
+			out.AntigravityQuota[k] = cloneAntigravityModelQuota(v)
 		}
 	}
+	out.AntigravityQuotaSummary = cloneAntigravityQuotaSummary(value.AntigravityQuotaSummary)
 	if value.AntigravityQuotaDetails != nil {
 		out.AntigravityQuotaDetails = make(map[string]*AntigravityModelDetail, len(value.AntigravityQuotaDetails))
 		for k, v := range value.AntigravityQuotaDetails {
@@ -72,6 +73,40 @@ func cloneUsageProgress(value *UsageProgress) *UsageProgress {
 	out.ResetsAt = clonePointer(value.ResetsAt)
 	out.WindowStats = clonePointer(value.WindowStats)
 	return &out
+}
+
+// cloneAntigravityQuotaSummary copies grouped Antigravity weekly and 5-hour
+// quota windows so cached observations stay isolated from caller edits.
+func cloneAntigravityQuotaSummary(value *AntigravityQuotaSummary) *AntigravityQuotaSummary {
+	if value == nil {
+		return nil
+	}
+	return &AntigravityQuotaSummary{
+		Gemini:    cloneAntigravityQuotaGroup(value.Gemini),
+		ClaudeGPT: cloneAntigravityQuotaGroup(value.ClaudeGPT),
+	}
+}
+
+// cloneAntigravityModelQuota copies one model or family quota window and its
+// optional local WindowStats pointer.
+func cloneAntigravityModelQuota(value *AntigravityModelQuota) *AntigravityModelQuota {
+	if value == nil {
+		return nil
+	}
+	out := *value
+	out.WindowStats = clonePointer(value.WindowStats)
+	return &out
+}
+
+// cloneAntigravityQuotaGroup copies one family's weekly and 5-hour windows.
+func cloneAntigravityQuotaGroup(value *AntigravityQuotaGroup) *AntigravityQuotaGroup {
+	if value == nil {
+		return nil
+	}
+	return &AntigravityQuotaGroup{
+		Weekly:   cloneAntigravityModelQuota(value.Weekly),
+		FiveHour: cloneAntigravityModelQuota(value.FiveHour),
+	}
 }
 
 // cloneAntigravityModelDetail copies optional capability pointers and MIME

@@ -28,6 +28,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	openaiws "github.com/TokenFlux/TokenRouter/internal/upstream/openai/ws"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 )
 
@@ -135,9 +136,33 @@ func provideOAuthUsageCore(store *providerpostgres.ProviderStore, usageStore *us
 				if result == nil {
 					return nil, err
 				}
+				if err == nil && result.UsageInfo != nil {
+					provider.PersistAntigravityObservedPlan(ctx, store, value, provider.ObservedAntigravityPlanType(result.UsageInfo), slog.Info, slog.Warn)
+				}
 				return result.UsageInfo, err
 			},
 			Degrade: provideradapter.AntigravityDegradedUsage, Enrich: provideradapter.EnrichUsageWithProviderError,
+			ModelTotals: func(ctx context.Context, id int64, start, end time.Time) ([]provider.AntigravityModelUsage, error) {
+				if usageStore == nil {
+					return nil, nil
+				}
+				rows, err := usageStore.GetModelStatsWithFiltersBySource(ctx, start, end, 0, 0, id, 0, nil, nil, nil, usage.ModelSourceUpstream)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]provider.AntigravityModelUsage, len(rows))
+				for i, row := range rows {
+					out[i] = provider.AntigravityModelUsage{
+						Model:        row.Model,
+						Requests:     row.Requests,
+						TotalTokens:  row.TotalTokens,
+						ProviderCost: row.ProviderCost,
+						StandardCost: row.Cost,
+						UserCost:     row.ActualCost,
+					}
+				}
+				return out, nil
+			},
 		},
 		Gemini: provider.GeminiUsageOptions{
 			Location: geminiQuotaLocation, Quota: gemini.QuotaForProvider,

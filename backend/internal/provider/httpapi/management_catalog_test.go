@@ -91,7 +91,7 @@ func TestAvailableModelsUsesUnifiedCatalog(t *testing.T) {
 		{name: "empty whitelist", platform: "openai", kind: "apikey", credentials: map[string]any{"model_whitelist": []string{}, "model_mapping": map[string]any{"alias": "alias"}}, includes: []string{"alias"}, excludes: []string{"catalog-model"}},
 		{name: "wildcard", platform: "openai", kind: "apikey", credentials: map[string]any{"model_whitelist": []string{"gpt-*"}}, excludes: []string{"gpt-5.4", "catalog-model"}},
 		{name: "spark", platform: "openai", kind: "oauth", parent: &parent, includes: []string{"gpt-5.3-codex-spark"}, excludes: []string{"gpt-5.4", "catalog-model"}},
-		{name: "google one", platform: "gemini", kind: "oauth", credentials: map[string]any{"oauth_type": "google_one"}, excludes: []string{"gemini-new-model", "catalog-model"}},
+		{name: "code assist", platform: "gemini", kind: "oauth", credentials: map[string]any{"oauth_type": "code_assist"}, excludes: []string{"gemini-new-model", "catalog-model"}},
 		{name: "qoder cn", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "cn"}, includes: []string{"qwen3.8-max"}, excludes: []string{"claude-opus-4-6", "catalog-model"}},
 		{name: "qoder global", platform: "qoder", kind: "cosy", credentials: map[string]any{"site": "global"}, includes: []string{"ultimate"}, excludes: []string{"qwen3.6-flash", "catalog-model"}},
 		{name: "kimi", platform: "kimi", kind: "apikey", excludes: []string{"catalog-model"}},
