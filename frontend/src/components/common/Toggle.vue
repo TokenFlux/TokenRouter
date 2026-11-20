@@ -2,7 +2,7 @@
   <button
     type="button"
     @click="toggle"
-    class="toggle-control relative inline-flex flex-shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors duration-normal ease-standard focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-dark-800"
+    class="toggle-control relative inline-flex flex-shrink-0 cursor-pointer rounded-full border-0 p-0 transition-colors duration-normal ease-standard outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 dark:focus-visible:outline-primary-500"
     :class="[
       props.modelValue ? props.onClass : offTrackClass,
       props.disabled && 'cursor-not-allowed opacity-50',

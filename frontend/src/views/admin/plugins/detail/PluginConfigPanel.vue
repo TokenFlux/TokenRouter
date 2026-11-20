@@ -229,14 +229,11 @@ onBeforeUnmount(() => {
       <button
         type="button"
         :disabled="saving"
-        class="btn bg-transparent text-white/70 hover:bg-white/10 hover:text-white focus:ring-offset-gray-900 dark:text-dark-200 dark:hover:bg-dark-800 dark:focus:ring-offset-dark-900"
+        class="btn bg-transparent text-white/70 hover:bg-white/10 hover:text-white dark:text-dark-200 dark:hover:bg-dark-800"
         @click="discard"
         >{{ t('admin.settings.discardChanges') }}</button
       >
-      <button
-        type="submit"
-        :disabled="saving"
-        class="btn btn-primary focus:ring-offset-gray-900 dark:focus:ring-offset-dark-900"
+      <button type="submit" :disabled="saving" class="btn btn-primary"
         ><Icon
           v-if="saving"
           name="loader"

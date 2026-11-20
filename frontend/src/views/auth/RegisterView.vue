@@ -108,10 +108,9 @@
               :disabled="registrationActionDisabled"
               class="input input-has-icon input-has-icon-right"
               :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500':
+                'border-green-500 dark:border-green-500 focus-visible:border-green-500 dark:focus-visible:border-green-500':
                   invitationValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500':
-                  invitationValidation.invalid || errors.invitation_code,
+                'input-error': invitationValidation.invalid || errors.invitation_code,
               }"
               :placeholder="t('auth.invitationCodePlaceholder')"
               @input="handleInvitationCodeInput"
@@ -200,9 +199,9 @@
               :disabled="registrationActionDisabled"
               class="input input-has-icon input-has-icon-right"
               :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500':
+                'border-green-500 dark:border-green-500 focus-visible:border-green-500 dark:focus-visible:border-green-500':
                   promoValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': promoValidation.invalid,
+                'input-error': promoValidation.invalid,
               }"
               :placeholder="t('auth.promoCodePlaceholder')"
               @input="handlePromoCodeInput"

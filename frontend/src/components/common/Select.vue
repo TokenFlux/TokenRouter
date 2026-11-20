@@ -628,12 +628,12 @@ onUnmounted(() => {
   border, and focus styling. These rules add open, error, and disabled states.
 */
 .select-trigger-open {
-  /* The open state uses a neutral outline and outer ring matching focused input controls. */
-  @apply border-primary-900/10 ring-2 ring-black/10 dark:border-dark-400 dark:ring-white/6;
+  /* The open state keeps the hover border instead of drawing an outer halo. */
+  @apply border-black/20 dark:border-dark-500;
 }
 
 .select-trigger-error {
-  @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+  @apply border-red-500;
 }
 
 .select-trigger-disabled {

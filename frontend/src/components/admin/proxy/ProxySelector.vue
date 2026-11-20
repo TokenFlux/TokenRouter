@@ -358,9 +358,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* The input recipe owns trigger geometry; these rules style open and disabled states. */
+/*
+  The input recipe owns trigger geometry; these rules style open and disabled states.
+  The open state keeps the hover border like Select instead of drawing a halo.
+*/
 .select-trigger-open {
-  @apply border-primary-900/10 ring-2 ring-black/10 dark:border-primary-500 dark:ring-primary-500/30;
+  @apply border-black/20 dark:border-dark-500;
 }
 
 .select-trigger-disabled {

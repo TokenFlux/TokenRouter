@@ -8,7 +8,7 @@
       @click="focusInput"
       tag="div"
       data-testid="model-tag-container"
-      class="relative flex min-h-9 cursor-text flex-wrap items-center gap-1.5 rounded-control border border-primary-900/10 bg-white px-2.5 py-1 transition duration-fast hover:border-black/20 focus-within:border-primary-900/10 focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-950 dark:hover:border-dark-500 dark:focus-within:border-dark-400 dark:focus-within:ring-white/6"
+      class="relative flex min-h-9 cursor-text flex-wrap items-center gap-1.5 rounded-control border border-primary-900/10 bg-white px-2.5 py-1 transition duration-fast hover:border-black/20 focus-within:border-black/30 dark:border-dark-600 dark:bg-dark-950 dark:hover:border-dark-500 dark:focus-within:border-dark-400"
     >
       <span
         v-for="(model, idx) in models"

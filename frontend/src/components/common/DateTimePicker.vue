@@ -705,11 +705,11 @@ onUnmounted(() => {
 
 <style scoped>
 /*
-  The input and input-trigger classes supply the control baseline; open-state
-  outlines match DateRangePicker and Select.
+  The input and input-trigger classes supply the control baseline; the open state
+  keeps the hover border like DateRangePicker and Select.
 */
 .date-time-picker-trigger-open {
-  @apply border-primary-900/10 ring-2 ring-black/10 dark:border-dark-400 dark:ring-white/6;
+  @apply border-black/20 dark:border-dark-500;
 }
 
 .date-time-picker-icon {

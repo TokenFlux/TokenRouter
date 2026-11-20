@@ -580,10 +580,17 @@
      */
     @apply min-h-9;
     @apply shadow-none;
-    @apply transition duration-fast ease-standard;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 dark:focus:ring-offset-dark-900;
-    @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
-    @apply active:scale-[0.98];
+    @apply transition-colors duration-fast ease-standard;
+    /*
+     * Pointer clicks draw no focus ring, and buttons do not scale while pressed;
+     * pointer feedback comes from each variant's hover fill. Keyboard focus
+     * draws a solid outline that follows the corner radius, appears without a
+     * transition, and remains visible in forced-color modes that drop box shadows.
+     */
+    @apply outline-none;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply focus-visible:outline-primary-600 dark:focus-visible:outline-primary-500;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
@@ -599,7 +606,6 @@
     @apply border border-primary-900/10 dark:border-dark-600;
     @apply shadow-none hover:bg-gray-50 dark:hover:bg-dark-700;
     @apply hover:border-black/20 dark:hover:border-dark-500;
-    @apply focus:border-primary-900/10 focus:ring-black/10 dark:focus:border-dark-400 dark:focus:ring-white/6;
   }
 
   .btn-ghost {
@@ -704,12 +710,24 @@
     @apply text-gray-900 dark:text-dark-50;
     @apply placeholder:text-primary-900/45 dark:placeholder:text-dark-400;
     @apply transition duration-fast;
-    @apply focus:border-primary-900/10 focus:outline-none focus:ring-2 focus:ring-black/10 dark:focus:border-dark-400 dark:focus:ring-white/6;
+    /*
+     * Focus only strengthens the border, without an outer halo. focus-visible
+     * matches every focus of a text field, so typing targets stay marked, but
+     * matches button triggers built on this class only during keyboard
+     * navigation, so clicking a dropdown trigger leaves its border unchanged.
+     */
+    @apply outline-none;
+    @apply focus-visible:border-black/30 dark:focus-visible:border-dark-400;
     @apply disabled:cursor-not-allowed disabled:bg-primary-100 dark:disabled:bg-dark-950;
   }
 
+  /*
+   * Error borders repeat each dark variant because dark selectors outrank this rule
+   * and would otherwise replace the red border, whether or not the field is focused.
+   */
   .input-error {
-    @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+    @apply border-red-500 dark:border-red-500;
+    @apply focus-visible:border-red-500 dark:focus-visible:border-red-500;
   }
 
   .input-label {
@@ -727,12 +745,15 @@
   /*
    * Select and date triggers combine input with input-trigger for dimensions and
    * borders. Their content uses a flexible value region to separate leading content
-   * from trailing controls.
+   * from trailing controls. Keyboard focus adds the same solid outline as buttons;
+   * owning components mark the open state with the hover border, not a halo.
    */
   .input-trigger {
     @apply flex items-center gap-2;
     @apply cursor-pointer;
     @apply hover:border-black/20 dark:hover:border-dark-500;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply focus-visible:outline-primary-600 dark:focus-visible:outline-primary-500;
   }
 
   /*
@@ -1374,10 +1395,6 @@
   .pop-fade-leave-to > section,
   .pop-float-enter-from,
   .pop-float-leave-to {
-    transform: none;
-  }
-
-  .btn:active {
     transform: none;
   }
 }

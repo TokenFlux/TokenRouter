@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex min-h-9 flex-wrap items-center gap-2 rounded-control border border-primary-900/10 bg-white p-2 transition duration-fast focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-950 dark:focus-within:border-dark-400 dark:focus-within:ring-white/6"
+    class="flex min-h-9 flex-wrap items-center gap-2 rounded-control border border-primary-900/10 bg-white p-2 transition duration-fast focus-within:border-black/30 dark:border-dark-600 dark:bg-dark-950 dark:focus-within:border-dark-400"
   >
     <span
       v-for="tag in tags"

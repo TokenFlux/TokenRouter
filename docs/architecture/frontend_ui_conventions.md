@@ -93,6 +93,11 @@
 - 36px 基线：按钮、输入框和下拉触发器统一 36px（`.btn` 和 `.input` 均为 `min-h-9`）；分页器为 28px 例外，见[表格密度](#表格密度)。在基线类上重复写 `h-9` 会被门禁拦截；紧凑档需提到 36px 时写 `btn-sm/md/lg + h-9`。
 - 图标按钮与行内按钮：`.btn-icon`（`h-9 w-9`）和 `.btn-icon-sm`（`h-8 w-8`）自带 `rounded-control` 与居中布局，调用处只补 hover 和颜色类。表格行内等紧凑场景用 `.btn-sm`。
 - 操作配色与原生表单控件：主操作用 `.btn-primary`，普通编辑、查询和筛选用 `primary-*`；状态提示、业务分类和第三方品牌用各自配色。radio 与 range 全局 `accent-color` 用 `primary-600`。
+- 焦点指示：全站控件不画外圈光晕（`ring`），规则由 `focusIndication.spec.ts` 锁定。
+  1. `.btn`、`Toggle` 与下拉触发器（`.input-trigger`）只在 `:focus-visible` 时显示 2px 实线 outline（offset 2px，浅色 `primary-600`、深色 `primary-500`，不参与过渡）。鼠标点击不出外环，按钮按下不缩放，鼠标反馈只靠悬停底色或边框。
+  2. 文本输入框（`.input`）聚焦时只加深边框（浅色 `black/30`、深色 `dark-400`）。该样式挂在 `:focus-visible` 上，文本框任何聚焦都会命中，按钮形态的触发器只在键盘聚焦时命中。标签输入外壳用 `focus-within` 套同一组边框色。
+  3. 下拉展开态（`Select`、`DateRangePicker`、`DateTimePicker`、`ProxySelector`）保持悬停边框（浅色 `black/20`、深色 `dark-500`），靠箭头翻转和面板表明展开。
+  4. 校验态用 `.input-error`（自带深色和聚焦变体），调用处不加 `focus:ring*` 或 offset 底色类。
 - 复选框：保持原生 `<input type="checkbox">`，由 `style.css` 统一样式（浅色填充 `primary-700`，深色填充 `primary-600`，白色勾选路径描边 1.75，`--motion-fast` 缩放透明过渡，半选显横线）；系统强制配色时回退浏览器原生外观。
 - 文本链接：跳转文字用 `.text-link`（始终下划线；浅色默认黑、悬停/聚焦 `primary-600`，深色默认白、悬停/聚焦 `primary-500`）。整块可点击链接外层加 `.text-link-area`，Markdown 容器用 `.text-link-content`，首页底栏链接默认灰、悬停正文色。
 - 文字选中与拖拽：原生按钮、`role="button"` 与 `.btn` 禁止文字选中，按钮内图片禁止拖拽；正文、表格数据和输入内容允许选中复制。
@@ -270,7 +275,7 @@
 
 - 透明度叠加与中性边框：修饰符与档位透明度相乘（如 `dark:border-dark-600/70` 为 5.46%）；裸 CSS 用 `theme('borderColor.dark.600')` 引用。深色中性边框统一用 `dark-*`，禁用 `gray`/`slate` 实色描边。
 - 页面与导航底色：`--page-bg` 浅色 `#FCFCFE`、深色 `#0A0A0B`，`html`/`body`/主题壳/滚动条轨道均用该纯色（无渐变）。`.site-header` 浅色 65% 白、深色 80% `--page-bg` 加模糊；`.sidebar` 不透明（白 / `--page-bg`）；顶栏与侧栏边线用 `dark-800`，控件与卡片用 `dark-600`。
-- 选中、悬停与焦点：选中行用 `primary-500/8` 底 + `primary-500` 字（带框 `primary-500/15`）；未选中项 hover 用 `dark-800` + 品牌青字，已选中项 hover 保持底色。控件焦点用 `dark-400` 边线 + `white/6` 外圈，按钮焦点环 offset 用 `dark-900`。
+- 选中、悬停与焦点：选中行用 `primary-500/8` 底 + `primary-500` 字（带框 `primary-500/15`）；未选中项 hover 用 `dark-800` + 品牌青字，已选中项 hover 保持底色。控件焦点规则见[焦点指示](#控件尺寸)。
 - 新手引导与遮罩：深色 `--overlay-bg` 为 `0.7`、`--overlay-bg-strong` 为 `0.85`。新手引导通过 `styles/onboarding.css` 的 `--tour-*` 变量取色（深色提示框 12% 状态色底、操作提示品牌青、辅助文字 `dark-300`）。
 - Vue Scoped 规则：`<style scoped>` 中深色后代规则必须写 `.dark .component-class`（含滚动条伪元素）。禁止写 `:global(.dark) .component-class`，避免编译为全局 `.dark` 污染根元素。
 

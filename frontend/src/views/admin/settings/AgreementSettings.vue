@@ -96,7 +96,7 @@
                   route prefix when generating the document preview path.
                 -->
                 <div
-                  class="flex min-h-9 overflow-hidden rounded-control border border-primary-900/10 bg-white transition duration-fast focus-within:ring-2 focus-within:ring-black/10 dark:border-dark-600 dark:bg-dark-950 dark:focus-within:border-dark-400 dark:focus-within:ring-white/6"
+                  class="flex min-h-9 overflow-hidden rounded-control border border-primary-900/10 bg-white transition duration-fast focus-within:border-black/30 dark:border-dark-600 dark:bg-dark-950 dark:focus-within:border-dark-400"
                 >
                   <span
                     class="inline-flex flex-shrink-0 items-center border-r border-primary-900/10 bg-gray-50 px-3 text-sm text-gray-500 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400"

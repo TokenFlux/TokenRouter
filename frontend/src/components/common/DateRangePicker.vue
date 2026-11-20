@@ -949,11 +949,11 @@ onUnmounted(() => {
 <style scoped>
 /*
   The template combines input and input-trigger for baseline control styling.
-  Open-state outlines match Select, while selected dates and presets use the brand
-  color.
+  The open state keeps the hover border like Select, while selected dates and
+  presets use the brand color.
 */
 .date-picker-trigger-open {
-  @apply border-primary-900/10 ring-2 ring-black/10 dark:border-dark-400 dark:ring-white/6;
+  @apply border-black/20 dark:border-dark-500;
 }
 
 .date-picker-icon {
