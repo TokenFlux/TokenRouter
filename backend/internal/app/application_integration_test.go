@@ -368,7 +368,7 @@ func TestProcessModes(t *testing.T) {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
-			for _, name := range []string{"ProviderRefreshCoordinator", "ProviderOAuthUsage", "ProviderUpstreamUsage", "ProviderImportProbes", "ProviderPrivacy", "ProviderTier", "ProviderModelList", "GrokQuotaProbes", "TLSFingerprintCollectorService"} {
+			for _, name := range []string{"ProviderRefreshCoordinator", "ProviderOAuthUsage", "ProviderUpstreamUsage", "ProviderImportProbes", "ProviderPrivacy", "ProviderModelList", "GrokQuotaProbes", "TLSFingerprintCollectorService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
